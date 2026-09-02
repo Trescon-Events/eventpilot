@@ -61,7 +61,7 @@ export async function GET() {
       return { id: ev.id, name: ev.name, status: ev.status, event_date: ev.event_date, city: ev.city, toolKeys: allToolKeys }
     }
     const specific = await Promise.all(specificTools.map(async mod => ({
-      key: mod.key, ok: await checkAccess(mod.access, session, { eventId: ev.id }),
+      key: mod.key, ok: await checkAccess(mod.access, session, { eventId: ev.id, moduleKey: mod.key }),
     })))
     return {
       id: ev.id, name: ev.name, status: ev.status, event_date: ev.event_date, city: ev.city,

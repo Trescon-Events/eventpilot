@@ -483,6 +483,14 @@ export function getModuleRegistry(): ModuleDef[] {
       sidebar: { section: 'admin', parent: 'admin', order: 6 },
     },
     {
+      key: 'vendor-accounts', label: 'Vendor Accounts',
+      description: 'Manage external agency logins (e.g. Cactus, Pixelate) — create/disable accounts and choose which modules each one can see. Restricted to a deny-by-default allow-list, not the normal staff access model.',
+      icon: I.gear, color: '#7C5CFC',
+      href: '/admin/vendor-accounts',
+      access: { kind: 'admin_only' },
+      sidebar: { section: 'admin', parent: 'admin', order: 6 },
+    },
+    {
       key: 'finance-admin', label: 'Finance Portal',
       description: 'Salary, expenses, vendor payments, payroll and Commercial P&L',
       icon: I.bank, color: '#3D8EEA',

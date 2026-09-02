@@ -22,17 +22,18 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { canAccessTaskManager } from '../_lib/access'
 
 function getSession(req: NextRequest) {
   const raw = req.cookies.get('tcs_session')?.value
   if (!raw) return null
-  try { return JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) as { sid: string; adm?: boolean } }
+  try { return JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) as { sid: string; adm?: boolean; vt?: boolean } }
   catch { return null }
 }
 
 export async function GET(req: NextRequest) {
   const session = getSession(req)
-  if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+  if (!(await canAccessTaskManager(session))) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
   const { data, error } = await supabaseAdmin
     .from('task_manager_time_logs')
@@ -50,7 +51,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = getSession(req)
-  if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+  if (!(await canAccessTaskManager(session))) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
   const body = await req.json().catch(() => null)
   if (!body?.task_id) return NextResponse.json({ error: 'task_id is required' }, { status: 400 })
@@ -70,7 +71,7 @@ export async function POST(req: NextRequest) {
     .from('task_manager_time_logs')
     .insert({
       task_id: body.task_id,
-      staff_id: session.sid,
+      staff_id: session!.sid,
       category: body.category || null,
       description: body.description?.trim() || null,
       log_date: body.log_date,

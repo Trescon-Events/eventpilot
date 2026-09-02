@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
   // ── Regular staff path ─────────────────────────────────────────────────
   const { data: staff, error } = await supabaseAdmin
     .from('staff_members')
-    .select('id, name, department, role, office_id, job_level, manager_id, password_hash, access_enabled, must_change_password, access_roles')
+    .select('id, name, department, role, office_id, job_level, manager_id, password_hash, access_enabled, must_change_password, access_roles, account_type')
     .eq('email', cleanEmail)
     .single()
 
@@ -183,6 +183,7 @@ export async function POST(req: NextRequest) {
     adm:   isAdmin,
     dept:  staff.department ?? '',
     roles: accessRoles,
+    vt:    staff.account_type === 'vendor',
   })).toString('base64')
 
   const res = NextResponse.json(responseBody)

@@ -5,25 +5,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { sendTaskManagerStatusChanged } from '@/app/lib/email'
+import { canAccessTaskManager } from '../_lib/access'
 
 function getSession(req: NextRequest) {
   const raw = req.cookies.get('tcs_session')?.value
   if (!raw) return null
-  try { return JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) as { sid: string; adm?: boolean } }
+  try { return JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) as { sid: string; adm?: boolean; vt?: boolean } }
   catch { return null }
 }
 
-// Open to every authenticated staff member — Task Manager is no longer
-// gated by an individual tool_grant (2026-08-19).
-function canAccess(session: { sid: string; adm?: boolean } | null) {
-  return !!session
-}
-
-const EDITABLE_FIELDS = ['event_id', 'description', 'assigned_by', 'assigned_to', 'assigned_date', 'deadline', 'status', 'priority', 'remarks'] as const
+const EDITABLE_FIELDS = ['event_id', 'description', 'assigned_by', 'assigned_to', 'assigned_contact_id', 'assigned_date', 'deadline', 'status', 'priority', 'remarks'] as const
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = getSession(req)
-  if (!canAccess(session)) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+  if (!(await canAccessTaskManager(session))) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
   const { id } = await params
   const body = await req.json().catch(() => null)
@@ -51,7 +46,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       *,
       event:event_id ( id, name ),
       assigned_by_staff:assigned_by ( id, name, email ),
-      assigned_to_staff:assigned_to ( id, name, email )
+      assigned_to_staff:assigned_to ( id, name, email ),
+      assigned_contact:assigned_contact_id ( id, name )
     `)
     .single()
 
@@ -67,7 +63,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         *,
         event:event_id ( id, name ),
         assigned_by_staff:assigned_by ( id, name, email ),
-        assigned_to_staff:assigned_to ( id, name, email )
+        assigned_to_staff:assigned_to ( id, name, email ),
+        assigned_contact:assigned_contact_id ( id, name )
       `)
       .single()
     data = retry.data
@@ -112,7 +109,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = getSession(req)
-  if (!canAccess(session)) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+  if (!(await canAccessTaskManager(session))) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
   const { id } = await params
   const { error } = await supabaseAdmin.from('task_manager_tasks').delete().eq('id', id)

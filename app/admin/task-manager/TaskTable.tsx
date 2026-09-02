@@ -332,6 +332,11 @@ function TaskRow({
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Avatar name={t.assigned_to_staff.name} size={20} />
             <span style={{ color: 'var(--ink)', fontWeight: 600, fontSize: '12px' }}>{t.assigned_to_staff.name}</span>
+            {t.assigned_contact && (
+              <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--purple)', background: 'var(--purple-light)', padding: '2px 7px', borderRadius: '10px' }}>
+                {t.assigned_contact.name}
+              </span>
+            )}
           </div>
         )}
       </td>

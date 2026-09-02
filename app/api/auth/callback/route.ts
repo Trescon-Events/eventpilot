@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
   // ── Look up staff record ───────────────────────────────────────────────────
   const { data: staff, error } = await supabaseAdmin
     .from('staff_members')
-    .select('id, name, department, role, office_id, job_level, manager_id, access_enabled, access_roles, profile_complete')
+    .select('id, name, department, role, office_id, job_level, manager_id, access_enabled, access_roles, profile_complete, account_type')
     .eq('email', email)
     .single()
 
@@ -132,6 +132,7 @@ export async function GET(req: NextRequest) {
     adm:   isAdmin,
     dept:  staff.department ?? '',
     roles: accessRoles,
+    vt:    staff.account_type === 'vendor',
   })).toString('base64')
 
   // ── Decide destination ────────────────────────────────────────────────────

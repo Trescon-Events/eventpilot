@@ -6,24 +6,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { sendTaskManagerAssigned } from '@/app/lib/email'
+import { canAccessTaskManager } from './_lib/access'
 
 function getSession(req: NextRequest) {
   const raw = req.cookies.get('tcs_session')?.value
   if (!raw) return null
-  try { return JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) as { sid: string; adm?: boolean } }
+  try { return JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) as { sid: string; adm?: boolean; vt?: boolean } }
   catch { return null }
-}
-
-// Open to every authenticated staff member — Task Manager is no longer
-// gated by an individual tool_grant (2026-08-19).
-function canAccess(session: { sid: string; adm?: boolean } | null) {
-  return !!session
 }
 
 // ── GET ─────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   const session = getSession(req)
-  if (!canAccess(session)) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+  if (!(await canAccessTaskManager(session))) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
   const { data, error } = await supabaseAdmin
     .from('task_manager_tasks')
@@ -31,7 +26,8 @@ export async function GET(req: NextRequest) {
       *,
       event:event_id ( id, name ),
       assigned_by_staff:assigned_by ( id, name, email ),
-      assigned_to_staff:assigned_to ( id, name, email )
+      assigned_to_staff:assigned_to ( id, name, email ),
+      assigned_contact:assigned_contact_id ( id, name )
     `)
     .order('created_at', { ascending: false })
 
@@ -54,7 +50,7 @@ export async function GET(req: NextRequest) {
 // ── POST ────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const session = getSession(req)
-  if (!canAccess(session)) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+  if (!(await canAccessTaskManager(session))) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
   const body = await req.json().catch(() => null)
   if (!body?.description?.trim()) return NextResponse.json({ error: 'description is required' }, { status: 400 })
@@ -63,15 +59,16 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabaseAdmin
     .from('task_manager_tasks')
     .insert({
-      event_id:      body.event_id || null,
-      description:   body.description.trim(),
-      assigned_by:   body.assigned_by || session!.sid,
-      assigned_to:   body.assigned_to,
-      assigned_date: body.assigned_date || new Date().toISOString().slice(0, 10),
-      deadline:      body.deadline || null,
-      status:        body.status || 'Not-Started',
-      priority:      body.priority || 'Medium',
-      remarks:       body.remarks || null,
+      event_id:            body.event_id || null,
+      description:         body.description.trim(),
+      assigned_by:         body.assigned_by || session!.sid,
+      assigned_to:         body.assigned_to,
+      assigned_contact_id: body.assigned_contact_id || null,
+      assigned_date:       body.assigned_date || new Date().toISOString().slice(0, 10),
+      deadline:            body.deadline || null,
+      status:              body.status || 'Not-Started',
+      priority:            body.priority || 'Medium',
+      remarks:             body.remarks || null,
     })
     .select(`
       *,

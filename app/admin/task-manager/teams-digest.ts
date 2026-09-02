@@ -126,6 +126,7 @@ export function generateOverdueDigestCard(
     assigneeTasks.forEach(({ task, daysOverdue }, idx) => {
       const eventLabel = task.event?.name ? `[${task.event.name}] ` : ''
       const assignerName = task.assigned_by_staff?.name ?? 'Manager'
+      const contactLabel = task.assigned_contact ? ` — for: ${task.assigned_contact.name}` : ''
 
       cardBody.push({
         type: 'Container',
@@ -134,7 +135,7 @@ export function generateOverdueDigestCard(
         items: [
           {
             type: 'TextBlock',
-            text: `**${idx + 1}. ${eventLabel}${task.description}**`,
+            text: `**${idx + 1}. ${eventLabel}${task.description}${contactLabel}**`,
             weight: 'Bolder',
             wrap: true,
           },
@@ -182,6 +183,7 @@ export function generateOverdueDigestCard(
             type: 'FactSet',
             facts: [
               { title: 'Assignee:', value: assigneeName },
+              ...(task.assigned_contact ? [{ title: 'For:', value: task.assigned_contact.name }] : []),
               { title: 'Deadline:', value: `⚠️ ${task.deadline ?? 'None'} (${daysOverdue}d overdue)` },
               { title: 'Status:', value: task.status.replace('-', ' ') },
             ],

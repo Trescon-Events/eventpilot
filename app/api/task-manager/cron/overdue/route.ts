@@ -40,7 +40,8 @@ async function handleSweep(req: NextRequest) {
         *,
         event:event_id ( id, name ),
         assigned_by_staff:assigned_by ( id, name, email ),
-        assigned_to_staff:assigned_to ( id, name, email )
+        assigned_to_staff:assigned_to ( id, name, email ),
+        assigned_contact:assigned_contact_id ( id, name )
       `)
       .neq('status', 'Completed')
       .not('deadline', 'is', null)

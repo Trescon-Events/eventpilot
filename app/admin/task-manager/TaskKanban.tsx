@@ -253,6 +253,11 @@ function TaskCard({
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           {task.assigned_to_staff && <Avatar name={task.assigned_to_staff.name} size={20} />}
           <span style={{ fontSize: '11px', color: 'var(--ink3)' }}>{task.assigned_to_staff?.name ?? '—'}</span>
+          {task.assigned_contact && (
+            <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--purple)', background: 'var(--purple-light)', padding: '2px 6px', borderRadius: '10px' }}>
+              {task.assigned_contact.name}
+            </span>
+          )}
         </div>
         {isMine && !isCompleted && (
           <button

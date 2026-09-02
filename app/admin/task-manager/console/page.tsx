@@ -130,6 +130,7 @@ export default function TaskManagerConsolePage() {
         actions={
           <>
             <Button variant="ghost" href="/admin/task-manager/console/access">Manage Access</Button>
+            <Button variant="ghost" href="/admin/task-manager/console/vendor-contacts">Vendor Contacts</Button>
             <Button variant="ghost" href="/api/task-manager/export" target="_blank">Export CSV</Button>
           </>
         }

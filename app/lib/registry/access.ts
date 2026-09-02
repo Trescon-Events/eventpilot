@@ -25,9 +25,20 @@ async function hasReports(staffId: string): Promise<boolean> {
   return (count ?? 0) > 0
 }
 
-export async function checkAccess(access: ModuleAccess, session: TcsSession, ctx?: { eventId?: string }): Promise<boolean> {
+export async function checkAccess(access: ModuleAccess, session: TcsSession, ctx?: { eventId?: string; moduleKey?: string }): Promise<boolean> {
   const isAdmin = !!session.adm
   const roles = session.roles ?? []
+
+  // Vendor accounts (external agencies on a restricted login, see
+  // supabase/vendor_accounts.sql) are deny-by-default: ignore whatever this
+  // module's own access.kind says (including 'always') and require an
+  // explicit module_access grant instead, via the same table/admin UI as
+  // everywhere else (app/admin/vendor-accounts). No moduleKey in ctx (e.g.
+  // the synthetic has_reports_or_admin check in /api/nav/quick-access) means
+  // there's no registry module to gate — falls through to normal evaluation.
+  if (session.vt && ctx?.moduleKey) {
+    return hasModuleAccess(session.sid, ctx.moduleKey, 'user')
+  }
 
   switch (access.kind) {
     case 'event_permission':
@@ -118,7 +129,7 @@ export async function getAccessibleModuleKeys(session: TcsSession | null, surfac
     return !!m.sidebar
   })
   const results = await Promise.all(
-    modules.map(async m => ({ key: m.key, ok: await checkAccess(effectiveAccess(m, surface), session, ctx) }))
+    modules.map(async m => ({ key: m.key, ok: await checkAccess(effectiveAccess(m, surface), session, { ...ctx, moduleKey: m.key }) }))
   )
   return results.filter(r => r.ok).map(r => r.key)
 }
@@ -148,7 +159,7 @@ export async function requireModuleAccess(moduleKey: string, redirectTo?: string
   const mod = getModuleRegistry().find(m => m.key === moduleKey)
   if (!mod) redirect(redirectTo ?? '/no-access')
 
-  const ok = await checkAccess(mod.access, session)
+  const ok = await checkAccess(mod.access, session, { moduleKey })
   if (!ok) {
     // /no-access's TOOL_LABEL map (and the "Request Access" flow that
     // notifies Durga) key off the underscored tool_grants-style name, not

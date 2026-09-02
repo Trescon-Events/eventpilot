@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Button from '@/app/components/ui/Button'
 import { Select, Textarea } from '@/app/components/ui/Field'
-import { EventLite, PRIORITIES, StaffLite, Task, TaskPriority, TaskSaveValues, isBrandingStaff } from './types'
+import { EventLite, PRIORITIES, StaffLite, Task, TaskPriority, TaskSaveValues, VendorContact, isBrandingStaff } from './types'
 import { CUSTOM_SCROLLBAR_STYLE, SearchableSelect } from './ui'
 
 interface Props {
@@ -22,6 +22,8 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
   // Defaults to self on create — most tasks people create are for themselves;
   // reassigning is one dropdown change away, not a blocker to a fast save.
   const [assignedTo, setAssignedTo] = useState(task?.assigned_to ?? currentStaffId ?? '')
+  const [assignedContactId, setAssignedContactId] = useState(task?.assigned_contact_id ?? '')
+  const [vendorContacts, setVendorContacts] = useState<VendorContact[]>([])
   const [deadline, setDeadline] = useState(task?.deadline ?? '')
   const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? 'Medium')
   const [remarks, setRemarks] = useState(task?.remarks ?? '')
@@ -46,6 +48,29 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
     return brandingStaff
   }, [showAllStaff, staff, brandingStaff, assignedTo])
 
+  const assigneeStaff = useMemo(() => staff.find(s => s.id === assignedTo) ?? null, [staff, assignedTo])
+  const isVendorAssignee = assigneeStaff?.account_type === 'vendor'
+
+  // Reassigning to someone else (vendor or not) always drops a previously-
+  // picked contact — a stale tag from the old assignee shouldn't ride along.
+  function chooseAssignee(id: string) {
+    setAssignedTo(id)
+    setAssignedContactId('')
+  }
+
+  // Loads the new vendor assignee's contact roster. Nothing to fetch (and
+  // nothing to clear — the picker below only renders for a vendor assignee
+  // in the first place) when the assignee isn't a vendor.
+  useEffect(() => {
+    if (!isVendorAssignee) return
+    let cancelled = false
+    fetch(`/api/task-manager/vendor-contacts?vendor_staff_id=${assignedTo}`)
+      .then(r => r.json())
+      .then((data: VendorContact[]) => { if (!cancelled) setVendorContacts(Array.isArray(data) ? data.filter(c => c.active) : []) })
+      .catch(() => { if (!cancelled) setVendorContacts([]) })
+    return () => { cancelled = true }
+  }, [assignedTo, isVendorAssignee])
+
   const canSave = description.trim().length > 0 && assignedTo.length > 0
 
   async function save() {
@@ -59,6 +84,7 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
         description: description.trim(),
         assigned_by: assignedBy,
         assigned_to: assignedTo,
+        assigned_contact_id: isVendorAssignee ? (assignedContactId || null) : null,
         deadline: deadline || null,
         priority,
         remarks: remarks.trim() || null,
@@ -157,7 +183,7 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
               onClick={() => {
                 const prevBy = assignedBy
                 setAssignedBy(assignedTo)
-                setAssignedTo(prevBy)
+                chooseAssignee(prevBy)
               }}
               style={{
                 height: '40px',
@@ -211,11 +237,23 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
                   return { id: s.id, label, active }
                 }).sort((a: { active: number; label: string }, b: { active: number; label: string }) => a.active - b.active || a.label.localeCompare(b.label))}
                 value={assignedTo}
-                onChange={setAssignedTo}
+                onChange={chooseAssignee}
                 placeholder="Search branding staff…"
               />
             </div>
           </div>
+
+          {isVendorAssignee && (
+            <Field label={`Assign to specific person at ${assigneeStaff?.vendor_label ?? assigneeStaff?.name ?? 'this agency'} (optional)`}>
+              <SearchableSelect
+                options={vendorContacts.map(c => ({ id: c.id, label: c.name }))}
+                value={assignedContactId}
+                onChange={setAssignedContactId}
+                placeholder="Search contacts…"
+                emptyOptionLabel="No specific person"
+              />
+            </Field>
+          )}
 
           <div style={{ display: 'flex', gap: '14px' }}>
             <Field label="Deadline">

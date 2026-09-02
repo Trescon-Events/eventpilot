@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-export interface TcsSession { sid: string; jl?: string; adm?: boolean; dept?: string; roles?: string[] }
+export interface TcsSession { sid: string; jl?: string; adm?: boolean; dept?: string; roles?: string[]; vt?: boolean }
 
 /** Reads and decodes the tcs_session cookie server-side. Returns null if absent/invalid. */
 export function getSession(req: NextRequest): TcsSession | null {
