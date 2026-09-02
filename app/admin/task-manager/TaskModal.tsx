@@ -311,16 +311,12 @@ export default function TaskModal({ task, staff, events, taskTypes, counts, curr
               </Select>
             </Field>
             <Field label="Task type *">
-              <Select
+              <SearchableSelect
+                options={taskTypeOptions.map(t => ({ id: t.id, label: t.label }))}
                 value={taskTypeId}
-                onChange={e => setTaskTypeId(e.target.value)}
-                style={{ height: '42px', fontSize: '13.5px' }}
-              >
-                <option value="" disabled>Select a task type…</option>
-                {taskTypeOptions.map(t => (
-                  <option key={t.id} value={t.id}>{t.label}</option>
-                ))}
-              </Select>
+                onChange={setTaskTypeId}
+                placeholder="Search task types…"
+              />
             </Field>
           </div>
 

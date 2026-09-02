@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Button from '@/app/components/ui/Button'
 import Card from '@/app/components/ui/Card'
 import PageHeader from '@/app/components/PageHeader'
@@ -110,6 +110,24 @@ export default function TaskManagerPage() {
       .catch(() => setError('Failed to load Task Manager.'))
       .finally(() => setLoading(false))
   }, [])
+
+  // ?openTask=<id> — set on the notification click (NotificationManager.tsx)
+  // and the Teams digest's "Open in Task Manager" link. Runs once tasks are
+  // loaded, opens that task in edit mode, then strips the param so it
+  // doesn't reopen on a later navigation (back button, re-render, etc).
+  const openTaskHandledRef = useRef(false)
+  useEffect(() => {
+    if (loading || openTaskHandledRef.current) return
+    const params = new URLSearchParams(window.location.search)
+    const openTaskId = params.get('openTask')
+    if (!openTaskId) return
+    openTaskHandledRef.current = true
+    const target = tasks.find(t => t.id === openTaskId)
+    if (target) queueMicrotask(() => setEditingTask(target))
+    params.delete('openTask')
+    const query = params.toString()
+    window.history.replaceState({}, '', query ? `${window.location.pathname}?${query}` : window.location.pathname)
+  }, [loading, tasks])
 
   // Fetch timesheets the first time that tab is opened. Fetch is inlined
   // here (not calling the outer loadTimeLogs) so the setState calls are

@@ -11,8 +11,14 @@
 */
 
 import { requireModuleAccess } from '@/app/lib/registry/access'
+import NotificationManager from './NotificationManager'
 
 export default async function TaskManagerLayout({ children }: { children: React.ReactNode }) {
   await requireModuleAccess('task-manager')
-  return <>{children}</>
+  return (
+    <>
+      {children}
+      <NotificationManager />
+    </>
+  )
 }
