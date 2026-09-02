@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
 
 // GET    ?event_id=X              — list approvals for an event
 // GET    ?approver_id=X&status=pending — list items awaiting my approval
@@ -7,6 +8,9 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 // PATCH                           — approve/reject a step
 
 export async function GET(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'commercial')
+  if (gate.response) return gate.response
+
   const params = new URL(req.url).searchParams
   const event_id = params.get('event_id')
   const approver_id = params.get('approver_id')
@@ -35,6 +39,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'commercial')
+  if (gate.response) return gate.response
+
   const body = await req.json()
   const {
     event_id, approval_type, requested_by, request_payload, threshold_amount,
@@ -68,6 +75,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'commercial')
+  if (gate.response) return gate.response
+
   const body = await req.json()
   const { id, step, action, approver_id, note } = body
 

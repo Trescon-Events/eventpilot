@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
 
 // GET ?event_id=X
 // Returns a full P&L summary including the dynamic budget planner.
 // All monetary values are in the event's base currency (USD or INR).
 
 export async function GET(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'commercial')
+  if (gate.response) return gate.response
+
   const event_id = new URL(req.url).searchParams.get('event_id')
   if (!event_id) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
 

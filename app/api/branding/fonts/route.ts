@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { fetchGoogleFontFiles, storeFontFiles } from '@/app/lib/branding/fonts'
 import { resolveCanonicalFamilyName } from '@/app/lib/branding/google-fonts-catalog'
+import { requireFontLibraryWriteAccess } from '@/app/lib/branding/fonts-access'
 
 /* GET /api/branding/fonts — list the platform font library.
    POST /api/branding/fonts — fetch a Google Font by family name:
@@ -24,6 +25,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = await requireFontLibraryWriteAccess(req)
+  if (denied) return denied
+
   const fontId = crypto.randomUUID()
 
   try {

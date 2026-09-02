@@ -3,6 +3,7 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { getKBContext } from '@/app/lib/kb-context'
+import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
 
 export const maxDuration = 90
 
@@ -18,6 +19,9 @@ export const maxDuration = 90
   proposal following the guide's exact 16-section structure.
 */
 export async function POST(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'kb')
+  if (gate.response) return gate.response
+
   try {
     const body = await req.json().catch(() => null)
     const {

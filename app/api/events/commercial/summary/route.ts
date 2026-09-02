@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
 
 // GET ?event_id=X  — Full Commercial Summary per BRD Sections 6B, 7, 8, 9, 10, 11, 13
 //
@@ -16,6 +17,9 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 // And 6 key metrics: Gross Margin %, Net Margin %, Revenue Achievement %, Budget Variance %, Cost Variance %, ROI %
 
 export async function GET(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'commercial')
+  if (gate.response) return gate.response
+
   const event_id = new URL(req.url).searchParams.get('event_id')
   if (!event_id) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
 

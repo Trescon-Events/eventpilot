@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireBrandStudioAccess } from '@/app/lib/access/brand-studio-access'
 
 /* GET /api/events/brand/upload-url
    ?event_id=X&filename=Y
@@ -16,6 +17,9 @@ export async function GET(req: NextRequest) {
   if (!eventId) {
     return NextResponse.json({ error: 'event_id is required' }, { status: 400 })
   }
+
+  const denied = await requireBrandStudioAccess(eventId)
+  if (denied) return denied
 
   const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_')
   const path = `${eventId}/${Date.now()}-${safeName}`

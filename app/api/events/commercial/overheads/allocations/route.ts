@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
 
 // GET  ?event_id=X  — get allocation rules for an event
 // POST              — set/update allocation model for a component on an event
 
 export async function GET(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'commercial')
+  if (gate.response) return gate.response
+
   const event_id = new URL(req.url).searchParams.get('event_id')
   if (!event_id) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
 
@@ -19,6 +23,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'commercial')
+  if (gate.response) return gate.response
+
   const body = await req.json()
   const { event_id, component, allocation_model, allocation_value, manual_amount, notes, set_by } = body
 

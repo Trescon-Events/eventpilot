@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
 
 /*
   GET /api/kb/gaps?document_id=X
@@ -12,6 +13,9 @@ import { supabaseAdmin } from '@/app/lib/supabase'
   title/type — feeds the "Pending Gaps" sub-tab.
 */
 export async function GET(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'kb')
+  if (gate.response) return gate.response
+
   const documentId = req.nextUrl.searchParams.get('document_id')
   const pending    = req.nextUrl.searchParams.get('pending')
 

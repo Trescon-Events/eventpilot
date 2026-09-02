@@ -4,6 +4,7 @@ import { join } from 'path'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getKBContext } from '@/app/lib/kb-context'
+import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
 
 export const maxDuration = 90
 
@@ -19,6 +20,9 @@ export const maxDuration = 90
   data where it exists, not generic boilerplate.
 */
 export async function POST(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'kb')
+  if (gate.response) return gate.response
+
   try {
     const { event_id } = await req.json().catch(() => ({}))
     if (!event_id) return NextResponse.json({ error: 'event_id required' }, { status: 400 })

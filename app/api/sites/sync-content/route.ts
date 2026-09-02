@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getServerSession } from '@/app/lib/registry/access'
+import { hasEventPermission } from '@/app/lib/access/event-access'
 
 /* ─────────────────────────────────────────────────────────────────────────────
    POST /api/sites/sync-content
@@ -33,6 +35,15 @@ export async function POST(req: NextRequest) {
     const { event_id } = await req.json()
     if (!event_id) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
     if (!GH_TOKEN)  return NextResponse.json({ error: 'GITHUB_TOKEN not configured' }, { status: 500 })
+
+    // Mirrors app/admin/events/[id]/website/layout.tsx's own gate — this
+    // route is called both from the per-event Website Builder tool (event
+    // staff with website-builder.view) and the platform-admin Site Builder
+    // page (app/admin/sites/page.tsx, admin-only regardless of event).
+    const session = await getServerSession()
+    if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+    const okAccess = !!session.adm || (await hasEventPermission(session.sid, event_id, 'website-builder.view'))
+    if (!okAccess) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     // 1. Look up existing deployment
     const { data: site } = await supabaseAdmin

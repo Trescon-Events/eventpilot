@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { updateProcessorFile, NewField } from '@/app/lib/kb/update-processor'
 import { Gap } from '@/app/lib/kb/gaps'
+import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
 
 type GapStatus = 'unresolved' | 'added' | 'skipped' | 'pending'
 type StoredGap = Gap & { status: GapStatus; field_name?: string; field_category?: string; is_required?: boolean }
@@ -36,6 +37,9 @@ interface Resolution {
   only marked resolved once no gap remains 'unresolved' or 'pending'.
 */
 export async function POST(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'kb')
+  if (gate.response) return gate.response
+
   try {
     const body = await req.json().catch(() => ({}))
     const { session_id, admin_staff_id, resolutions } = body as {

@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { parseFontMetadata } from '@/app/lib/branding/font-metadata'
 import { closestAvailableWeight } from '@/app/lib/branding/fonts'
+import { requireFontLibraryWriteAccess } from '@/app/lib/branding/fonts-access'
 
 /* POST /api/branding/fonts/bulk-upload — multipart/form-data, one or more
    `files` entries (drag-and-drop or multi-select, any mix of families and
@@ -26,6 +27,9 @@ const FONT_EXTENSIONS = ['ttf', 'otf', 'woff', 'woff2']
 type FileResult = { family: string | null; status: 'added' | 'updated' | 'skipped' | 'error'; message: string }
 
 export async function POST(req: NextRequest) {
+  const denied = await requireFontLibraryWriteAccess(req)
+  if (denied) return denied
+
   const form = await req.formData()
   const files = form.getAll('files').filter((f): f is File => f instanceof File)
   if (files.length === 0) return NextResponse.json({ error: 'No files provided' }, { status: 400 })

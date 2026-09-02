@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { requireFinanceAccess, logFinanceAccess } from '@/app/lib/finance/auth'
+import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
 
 // GET ?event_id=X&month=YYYY-MM  — calculate staff cost allocation for an event
 // If no month, calculates across all months with timesheet entries
@@ -10,6 +11,9 @@ import { requireFinanceAccess, logFinanceAccess } from '@/app/lib/finance/auth'
 // for anyone with visibility, so treat as salary-tier data.
 
 export async function GET(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'commercial')
+  if (gate.response) return gate.response
+
   const auth = await requireFinanceAccess(req)
   if (!auth.ok) return auth.res
 

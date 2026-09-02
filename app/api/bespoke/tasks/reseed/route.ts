@@ -23,8 +23,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { buildTasksForProject } from '@/app/lib/bespoke/task-templates'
+import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
 
 export async function POST(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'bespoke-tracker')
+  if (gate.response) return gate.response
+
   const session = getSession(req)
   if (!session) return NextResponse.json({ error: 'Not signed in' }, { status: 401 })
 

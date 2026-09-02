@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireBrandStudioAccess } from '@/app/lib/access/brand-studio-access'
 
 export const maxDuration = 60
 
@@ -10,6 +11,8 @@ export async function POST(req: NextRequest) {
   }
 
   const { event_id, asset_type, prompt, aspect_ratio = '16:9' } = body
+  const denied = await requireBrandStudioAccess(event_id)
+  if (denied) return denied
 
   try {
     // Call Imagen 3 REST API

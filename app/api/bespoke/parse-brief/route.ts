@@ -15,6 +15,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
 
 export const runtime = 'nodejs'
 export const maxDuration = 90 // pdf-parse + Gemini extraction can add up on large briefs
@@ -83,6 +84,9 @@ async function extractPdfText(buffer: Buffer): Promise<string> {
 }
 
 export async function POST(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'bespoke-tracker')
+  if (gate.response) return gate.response
+
   const body = await req.json().catch(() => ({}))
   const projectId   = String(body?.project_id   ?? '').trim()
   const storagePath = String(body?.storage_path ?? '').trim()

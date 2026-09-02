@@ -1,7 +1,11 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'insights')
+  if (gate.response) return gate.response
+
   const { data, error } = await supabaseAdmin
     .from('intelligence_reports')
     .select('id, generated_at, total_submissions, trigger_type, report')

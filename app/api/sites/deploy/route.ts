@@ -2,6 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import _sodium from 'libsodium-wrappers'
 import { unzipSync, strFromU8 } from 'fflate'
+import { getServerSession } from '@/app/lib/registry/access'
+import { hasEventPermission } from '@/app/lib/access/event-access'
+
+// Mirrors app/admin/events/[id]/website/layout.tsx's own gate — this route
+// is called both from the per-event Website Builder tool (event staff with
+// website-builder.view) and the platform-admin Site Builder page
+// (app/admin/sites/page.tsx, admin-only regardless of event).
+async function requireSiteAccess(eventId: string): Promise<NextResponse | null> {
+  const session = await getServerSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+  const ok = !!session.adm || (await hasEventPermission(session.sid, eventId, 'website-builder.view'))
+  if (!ok) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  return null
+}
 
 /* ─────────────────────────────────────────────────────────────────────────────
    POST /api/sites/deploy
@@ -62,6 +76,9 @@ export async function GET(req: NextRequest) {
 
   if (!event_id) return NextResponse.json({ site: null })
 
+  const denied = await requireSiteAccess(event_id)
+  if (denied) return denied
+
   const { data: site } = await supabaseAdmin
     .from('event_sites')
     .select('*')
@@ -82,6 +99,8 @@ export async function POST(req: NextRequest) {
     }
 
     const { event_id, template_id } = await req.json()
+    const denied = await requireSiteAccess(event_id)
+    if (denied) return denied
     if (!event_id || !template_id) {
       return NextResponse.json({ error: 'event_id and template_id are required' }, { status: 400 })
     }

@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { getCachedCourses, invalidateCourseCache } from '@/app/lib/courseCache'
+import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
 
 const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
 
@@ -130,6 +131,9 @@ export async function GET(req: NextRequest) {
 
   // Draft review queue (admin only)
   if (status === 'draft') {
+    const gate = await requireApiModuleAccess(req, 'course-manager')
+    if (gate.response) return gate.response
+
     const { data, error } = await supabaseAdmin
       .from('courses')
       .select('id, title, subtitle, tool_name, tier_level, dept_tags, is_mandatory, estimated_minutes, overview, source, created_at, suggested_by_name, suggested_by_role, status')

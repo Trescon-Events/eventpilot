@@ -11,6 +11,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { detectGaps, Gap } from '@/app/lib/kb/gaps'
 import { buildEffectiveProcessorGuide } from '@/app/lib/kb/update-processor'
 import { analyseGeneralDocument } from '@/app/lib/kb/analyse-general'
+import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
 
 export const maxDuration = 120
 
@@ -52,6 +53,9 @@ export const maxDuration = 120
   route used to return inline.
 */
 export async function POST(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'kb')
+  if (gate.response) return gate.response
+
   const form = await req.formData().catch(() => null)
   if (!form) return NextResponse.json({ error: 'file is required' }, { status: 400 })
   const file          = form.get('file') as File | null

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireBrandStudioAccess } from '@/app/lib/access/brand-studio-access'
 
 /* GET /api/events/brand/export-pdf?event_id=X
    Returns a self-contained HTML brand book.
@@ -32,6 +33,9 @@ function contrastColor(hex: string): string {
 export async function GET(req: NextRequest) {
   const event_id = req.nextUrl.searchParams.get('event_id')
   if (!event_id) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
+
+  const denied = await requireBrandStudioAccess(event_id)
+  if (denied) return denied
 
   const [guidelinesRes, assetsRes, eventRes] = await Promise.all([
     supabaseAdmin.from('event_brand_guidelines').select('*').eq('event_id', event_id).single(),

@@ -11,6 +11,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -23,6 +24,9 @@ const ALLOWED_TYPES = new Set<string>([
 ])
 
 export async function POST(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'bespoke-tracker')
+  if (gate.response) return gate.response
+
   let form: FormData
   try { form = await req.formData() }
   catch { return NextResponse.json({ error: 'Invalid form data' }, { status: 400 }) }

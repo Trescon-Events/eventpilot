@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
 
 // GET   — list all overhead components (optionally filtered by ?component=X)
 // POST  — upsert monthly cost for a component
 
 export async function GET(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'commercial')
+  if (gate.response) return gate.response
+
   const component = new URL(req.url).searchParams.get('component')
 
   let query = supabaseAdmin
@@ -21,6 +25,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'commercial')
+  if (gate.response) return gate.response
+
   const body = await req.json()
   const { component, period_month, monthly_cost, currency, notes, set_by } = body
 

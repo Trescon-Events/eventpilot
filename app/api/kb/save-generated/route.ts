@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { saveDraftDocument } from '@/app/lib/kb/save-draft'
+import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
 
 /*
   POST /api/kb/save-generated
@@ -10,6 +11,9 @@ import { saveDraftDocument } from '@/app/lib/kb/save-draft'
   same way as ingested documents, via PATCH /api/documents/review.
 */
 export async function POST(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'kb')
+  if (gate.response) return gate.response
+
   try {
     const body = await req.json().catch(() => null)
     const { title, type, content, layer, department, min_level, pilot_use, ai_reasoning, workspace_id, submitted_by } = body ?? {}

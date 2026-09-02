@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { buildTasksForProject, calculateDueDate } from '@/app/lib/bespoke/task-templates'
+import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
 
 // Task templates + interpolateTitle + calculateDueDate + buildTasksForProject
 // live in app/lib/bespoke/task-templates.ts (extracted 2026-08-12 so the
@@ -13,7 +14,10 @@ import { buildTasksForProject, calculateDueDate } from '@/app/lib/bespoke/task-t
 // 43-task blueprint as this create-project POST).
 
 // ── GET ─────────────────────────────────────────────────────────
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'bespoke-tracker')
+  if (gate.response) return gate.response
+
   const { data, error } = await supabaseAdmin
     .from('bespoke_projects')
     .select(`
@@ -58,6 +62,9 @@ export async function GET() {
 
 // ── POST ────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'bespoke-tracker')
+  if (gate.response) return gate.response
+
   const body = await req.json()
 
   // 1. Auto-create event record. Column names must match the events table —
@@ -173,6 +180,9 @@ export async function POST(req: NextRequest) {
 
 // ── PATCH ───────────────────────────────────────────────────────
 export async function PATCH(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'bespoke-tracker')
+  if (gate.response) return gate.response
+
   const body = await req.json()
   const { id, ...updates } = body
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })

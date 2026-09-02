@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { requireFinanceAccess, logFinanceAccess } from '@/app/lib/finance/auth'
+import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
 
 // GET ?region=X&bu=X&status=X  — portfolio executive dashboard
 // Returns: KPIs + per-event cards.
@@ -10,6 +11,9 @@ import { requireFinanceAccess, logFinanceAccess } from '@/app/lib/finance/auth'
 // sensitivity as /api/hr/payroll-summary.
 
 export async function GET(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'commercial')
+  if (gate.response) return gate.response
+
   const auth = await requireFinanceAccess(req)
   if (!auth.ok) return auth.res
 

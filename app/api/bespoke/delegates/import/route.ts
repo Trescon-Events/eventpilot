@@ -16,6 +16,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
 
 type IncomingRow = {
   name?:         string | null
@@ -50,6 +51,9 @@ function clean(v: unknown): string | null {
 }
 
 export async function POST(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'bespoke-tracker')
+  if (gate.response) return gate.response
+
   const body = await req.json().catch(() => null) as { project_id?: string; rows?: IncomingRow[] } | null
   if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
 

@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getSessionStaffId } from '@/app/lib/access/session'
+import { isKbAdmin } from '@/app/lib/kb/intel-access'
 
 /*
   GET /api/kb/intel/items
   Params: ?status=pending&source_id=x&run_id=y&limit=20&offset=0&search=text
 */
 export async function GET(req: NextRequest) {
+  if (!(await isKbAdmin(getSessionStaffId(req)))) {
+    return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
+  }
+
   const status    = req.nextUrl.searchParams.get('status')
   const sourceId  = req.nextUrl.searchParams.get('source_id')
   const runId     = req.nextUrl.searchParams.get('run_id')

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { putObject, KB_R2_PREFIX } from '@/app/lib/kb/storage'
+import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
 
 export const maxDuration = 60
 
@@ -15,6 +16,9 @@ export const maxDuration = 60
   directly — the bucket itself is never public.
 */
 export async function POST(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'kb')
+  if (gate.response) return gate.response
+
   try {
     const form = await req.formData()
     const file = form.get('file') as File | null

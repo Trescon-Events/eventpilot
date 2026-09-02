@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { presignGet, KB_R2_PREFIX } from '@/app/lib/kb/storage'
 import { canAccessDocument, LEVEL_RANK } from '@/app/lib/kb/access'
+import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
 
 /*
   GET /api/kb/download?document_id=uuid&staff_id=uuid
@@ -12,6 +13,9 @@ import { canAccessDocument, LEVEL_RANK } from '@/app/lib/kb/access'
   Admins (staff_id omitted, e.g. from the admin panel) skip the check.
 */
 export async function GET(req: NextRequest) {
+  const gate = await requireApiModuleAccess(req, 'kb')
+  if (gate.response) return gate.response
+
   const documentId = req.nextUrl.searchParams.get('document_id')
   const staffId     = req.nextUrl.searchParams.get('staff_id')
   if (!documentId) return NextResponse.json({ error: 'document_id required' }, { status: 400 })

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
 
 /* GET /api/kb/ingest/job/[jobId]
    Status poll for the background ingest job POST /api/kb/ingest creates —
@@ -10,7 +11,10 @@ import { supabaseAdmin } from '@/app/lib/supabase'
    { status: 'done', result: {...} } (the exact same shape
    /api/kb/ingest used to return inline) or { status: 'error', error: string }.
    The upload UI polls this every few seconds while ingesting is in flight. */
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ jobId: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ jobId: string }> }) {
+  const gate = await requireApiModuleAccess(req, 'kb')
+  if (gate.response) return gate.response
+
   const { jobId } = await params
 
   const { data: job } = await supabaseAdmin

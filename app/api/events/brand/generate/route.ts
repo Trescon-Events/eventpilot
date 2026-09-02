@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireBrandStudioAccess } from '@/app/lib/access/brand-studio-access'
 
 let _gemini: GoogleGenerativeAI | null = null
 function getGemini() {
@@ -13,6 +14,8 @@ export async function POST(req: NextRequest) {
   if (!body?.event_id) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
 
   const { event_id } = body
+  const denied = await requireBrandStudioAccess(event_id)
+  if (denied) return denied
 
   // Fetch event details
   const { data: event, error: evErr } = await supabaseAdmin
