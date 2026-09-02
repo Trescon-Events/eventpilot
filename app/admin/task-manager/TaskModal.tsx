@@ -31,22 +31,24 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
   const [error, setError] = useState<string | null>(null)
   const [showAllStaff, setShowAllStaff] = useState(false)
 
-  // Filter staff to Branding Department members only
-  const brandingStaff = useMemo(() => {
-    const b = staff.filter(isBrandingStaff)
+  // Default assignee list: Branding Department members plus vendor accounts
+  // (agency staff have no department/role set, so isBrandingStaff() alone
+  // would hide them and force "Show all staff" every time).
+  const defaultAssignees = useMemo(() => {
+    const b = staff.filter(s => isBrandingStaff(s) || s.account_type === 'vendor')
     return b.length > 0 ? b : staff
   }, [staff])
 
-  // If current assignedTo is not in brandingStaff, keep it in the list so historical edits don't break
+  // If current assignedTo is not in defaultAssignees, keep it in the list so historical edits don't break
   const assigneeCandidates = useMemo(() => {
     if (showAllStaff) return staff
-    const set = new Set(brandingStaff.map((s: StaffLite) => s.id))
+    const set = new Set(defaultAssignees.map((s: StaffLite) => s.id))
     if (assignedTo && !set.has(assignedTo)) {
       const extra = staff.find((s: StaffLite) => s.id === assignedTo)
-      if (extra) return [extra, ...brandingStaff]
+      if (extra) return [extra, ...defaultAssignees]
     }
-    return brandingStaff
-  }, [showAllStaff, staff, brandingStaff, assignedTo])
+    return defaultAssignees
+  }, [showAllStaff, staff, defaultAssignees, assignedTo])
 
   const assigneeStaff = useMemo(() => staff.find(s => s.id === assignedTo) ?? null, [staff, assignedTo])
   const isVendorAssignee = assigneeStaff?.account_type === 'vendor'
@@ -210,14 +212,14 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
                 <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
-                  Assigned to (Branding Team) *
+                  Assigned to (Branding Team + Agencies) *
                 </span>
                 <button
                   type="button"
                   onClick={() => setShowAllStaff(!showAllStaff)}
                   style={{ background: 'none', border: 'none', color: 'var(--teal)', fontSize: '10px', fontWeight: 600, cursor: 'pointer', padding: 0 }}
                 >
-                  {showAllStaff ? 'Show Branding only' : 'Show all staff'}
+                  {showAllStaff ? 'Show default only' : 'Show all staff'}
                 </button>
               </div>
               <SearchableSelect
