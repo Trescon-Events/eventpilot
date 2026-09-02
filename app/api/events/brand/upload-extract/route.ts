@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from '@/app/lib/registry/access'
 
 export const maxDuration = 300
 
@@ -8,7 +9,17 @@ export const maxDuration = 300
    2. Uploads directly to Gemini Files API
    3. Asks Gemini to extract colours + fonts
    4. Returns { colors: string[], heading_font: string, body_font: string, brand_name: string }
-*/
+
+   Auth: platform admin only. Unlike its siblings in this directory, this
+   route has no event_id (it works directly off the raw uploaded PDF) and
+   no live caller anywhere in the app today — grep confirms zero references
+   outside this file; app/api/events/brand/extract-pdf/route.ts (pdf_url +
+   optional event_id, backed by the shared app/lib/branding/extract-guidelines.ts
+   used by both Brand Studio and the corporate branding page) is the actual
+   current implementation. With no event to scope a brand-studio.view check
+   against, and no real caller to confirm a broader audience is needed,
+   admin-only is the least-permissive correct gate rather than leaving it
+   open. Revisit if this route is ever wired up to a real feature. */
 
 const GEMINI_KEY   = process.env.GEMINI_API_KEY!
 const UPLOAD_URL   = `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${GEMINI_KEY}`
@@ -35,6 +46,10 @@ If you cannot find a value, use null for that field.`
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await getServerSession()
+    if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+    if (!session.adm) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
     const formData = await req.formData()
     const pdfFile  = formData.get('pdf') as File | null
 

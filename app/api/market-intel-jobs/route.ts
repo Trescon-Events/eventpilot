@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireMarketIntelAccess } from '@/app/lib/access/market-intel-access'
 
 // ── GET — list all jobs for an event ─────────────────────────────────────────
 export async function GET(req: NextRequest) {
   const eventId = req.nextUrl.searchParams.get('event_id')
   const jobId   = req.nextUrl.searchParams.get('job_id')
+
+  if (!eventId && !jobId) return NextResponse.json({ error: 'event_id or job_id required' }, { status: 400 })
+
+  const denied = await requireMarketIntelAccess({ eventId, jobId })
+  if (denied) return denied
 
   if (jobId) {
     // Single job detail: job + its scans + companies + speakers
@@ -65,6 +71,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'event_id and urls required' }, { status: 400 })
   }
 
+  const denied = await requireMarketIntelAccess({ eventId: body.event_id })
+  if (denied) return denied
+
   const label = body.label ?? `Batch — ${body.urls.length} URL${body.urls.length !== 1 ? 's' : ''}`
 
   const { data, error } = await supabaseAdmin
@@ -86,6 +95,9 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const jobId = req.nextUrl.searchParams.get('job_id')
   if (!jobId) return NextResponse.json({ error: 'job_id required' }, { status: 400 })
+
+  const denied = await requireMarketIntelAccess({ jobId })
+  if (denied) return denied
 
   const body = await req.json().catch(() => null)
   if (!body?.status) return NextResponse.json({ error: 'status required' }, { status: 400 })

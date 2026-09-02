@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireMarketIntelAccess } from '@/app/lib/access/market-intel-access'
 
 export const maxDuration = 300
 
@@ -272,6 +273,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'event_id, scan_id, or job_id required' }, { status: 400 })
   }
 
+  const denied = await requireMarketIntelAccess({ eventId, scanId, jobId })
+  if (denied) return denied
+
   // Companies
   let cq = supabaseAdmin.from('market_intel_companies').select('*').eq('is_duplicate', false)
   if (jobId)   cq = supabaseAdmin.from('market_intel_companies').select('*').eq('is_duplicate', false)
@@ -345,6 +349,9 @@ export async function POST(req: NextRequest) {
   const eventId       = body.event_id ?? null
   const jobId         = body.job_id ?? null
   const isFreshRescan = body.is_fresh_rescan === true
+
+  const denied = await requireMarketIntelAccess({ eventId, jobId })
+  if (denied) return denied
 
   const { data: scanRow, error: scanErr } = await supabaseAdmin
     .from('market_intel_scans')
