@@ -118,6 +118,35 @@ export async function getAccessibleEventIds(
   return { allEvents: false, eventIds: [...eventIds] }
 }
 
+// Staff holding a given role (by its stable, reusable slug — e.g.
+// 'producer') on this event, unioned with anyone holding it globally
+// (2026-09-03, built for the speaker Details page's Producer picker — see
+// supabase/speaker_producer_reference_confirmation_migration.sql). Roles
+// are global/reusable catalog rows (access_roles_catalog, no per-event
+// duplicates — confirmed via RolesTab.tsx's own "Roles are global" copy),
+// so matching by slug rather than a hardcoded UUID survives the catalog
+// ever being re-seeded in a different environment.
+export async function getStaffWithRole(
+  eventId: string,
+  roleSlug: string
+): Promise<{ id: string; name: string; email: string }[]> {
+  const { data: role } = await supabaseAdmin.from('access_roles_catalog').select('id').eq('slug', roleSlug).is('event_id', null).maybeSingle()
+  if (!role) return []
+  const { data: rows } = await supabaseAdmin
+    .from('event_access_assignments')
+    .select('staff_members!staff_id(id, name, email)')
+    .eq('role_id', role.id)
+    .or(`event_id.eq.${eventId},event_id.is.null`)
+    .or(notExpiredFilter())
+  const seen = new Set<string>()
+  const staff: { id: string; name: string; email: string }[] = []
+  for (const r of rows ?? []) {
+    const sm = Array.isArray(r.staff_members) ? r.staff_members[0] : r.staff_members
+    if (sm && !seen.has(sm.id)) { seen.add(sm.id); staff.push(sm) }
+  }
+  return staff.sort((a, b) => a.name.localeCompare(b.name))
+}
+
 export async function hasEventPermission(
   staffId: string | null | undefined,
   eventId: string,

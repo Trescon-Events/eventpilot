@@ -84,6 +84,12 @@ type StakeholderRecord = {
   // route.ts's own doc comment.
   konfhub_secondary_speaker_id?: string | null
   konfhub_secondary_synced_at?: string | null
+  // Producer / Reference / Confirmation Status (2026-09-03) — see
+  // supabase/speaker_producer_reference_confirmation_migration.sql's own
+  // doc comment for why each exists.
+  producer_staff_id?: string | null
+  reference?: string | null
+  confirmation_status?: string | null
 }
 
 // One preview tile — raw or cleaned photo/logo — with a download icon and a
@@ -209,6 +215,18 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   const [konfhubTagSpeaker, setKonfhubTagSpeaker] = useState(true)
   const [konfhubTagModerator, setKonfhubTagModerator] = useState(false)
   const [keyTalkingPoints, setKeyTalkingPoints] = useState('')
+  // Producer / Reference / Confirmation Status (2026-09-03, built for DFS —
+  // multiple producers each own a distinct subset of the roster, unlike
+  // Malaysia's single-producer setup). producerOptions is populated from
+  // whoever holds the "Producer" access-role on this event (see
+  // app/lib/access/event-access.ts's getStaffWithRole) — deliberately NOT
+  // the broader event_staff/EventStaffOption roster used elsewhere on this
+  // page (Send-for-Approval's picker), which includes everyone allocated to
+  // the event regardless of role.
+  const [producerStaffId, setProducerStaffId] = useState('')
+  const [reference, setReference] = useState('')
+  const [confirmationStatus, setConfirmationStatus] = useState('')
+  const [producerOptions, setProducerOptions] = useState<{ id: string; name: string; email: string }[]>([])
   const [status, setStatus] = useState<AnnouncementStatus>('pending_review')
   const [loading, setLoading] = useState(true)
   const [permissions, setPermissions] = useState<Set<string>>(new Set())
@@ -299,6 +317,9 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   const konfhubTagSpeakerRef = useRef(konfhubTagSpeaker)
   const konfhubTagModeratorRef = useRef(konfhubTagModerator)
   const keyTalkingPointsRef = useRef(keyTalkingPoints)
+  const producerStaffIdRef = useRef(producerStaffId)
+  const referenceRef = useRef(reference)
+  const confirmationStatusRef = useRef(confirmationStatus)
   useEffect(() => { valuesRef.current = values }, [values])
   useEffect(() => { partnerTypeRef.current = partnerType }, [partnerType])
   useEffect(() => { publicNameRef.current = publicName }, [publicName])
@@ -306,6 +327,9 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   useEffect(() => { konfhubTagSpeakerRef.current = konfhubTagSpeaker }, [konfhubTagSpeaker])
   useEffect(() => { konfhubTagModeratorRef.current = konfhubTagModerator }, [konfhubTagModerator])
   useEffect(() => { keyTalkingPointsRef.current = keyTalkingPoints }, [keyTalkingPoints])
+  useEffect(() => { producerStaffIdRef.current = producerStaffId }, [producerStaffId])
+  useEffect(() => { referenceRef.current = reference }, [reference])
+  useEffect(() => { confirmationStatusRef.current = confirmationStatus }, [confirmationStatus])
 
   const load = useCallback(async () => {
     const [recRes, schemaRes, permRes, eventRes] = await Promise.all([
@@ -326,6 +350,9 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
         setKeyTalkingPoints(data.key_talking_points ?? '')
         setKonfhubTagSpeaker(data.konfhub_tag_speaker ?? true)
         setKonfhubTagModerator(data.konfhub_tag_moderator ?? false)
+        setProducerStaffId(data.producer_staff_id ?? '')
+        setReference(data.reference ?? '')
+        setConfirmationStatus(data.confirmation_status ?? '')
       }
     } else {
       setMsg('Could not load this record.')
@@ -336,6 +363,11 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     setPermissions(new Set(permData.permissions ?? []))
     const eventData = await eventRes.json().catch(() => null)
     setEventName(eventData?.name ?? null)
+    if (kind === 'speaker') {
+      const roleRes = await fetch(`/api/events/access/role-holders?event_id=${eventId}&role=producer`).catch(() => null)
+      const roleData = await roleRes?.json().catch(() => ({ staff: [] }))
+      setProducerOptions(roleData?.staff ?? [])
+    }
     setLoading(false)
   }, [base, stakeholderId, kind, formType, eventId])
 
@@ -379,6 +411,9 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       body.key_talking_points = keyTalkingPointsRef.current.trim() || null
       body.konfhub_tag_speaker = konfhubTagSpeakerRef.current
       body.konfhub_tag_moderator = konfhubTagModeratorRef.current
+      body.producer_staff_id = producerStaffIdRef.current || null
+      body.reference = referenceRef.current.trim() || null
+      body.confirmation_status = confirmationStatusRef.current.trim() || null
     }
     try {
       const res = await fetch(`${base}/${stakeholderId}`, {
@@ -1201,6 +1236,59 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                       placeholder="What this speaker will specifically cover — used to ground the AI-generated post copy"
                       rows={3}
                       onChange={e => { setKeyTalkingPoints(e.target.value); scheduleSave() }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* Producer / Reference / Confirmation Status (2026-09-03) —
+                internal-only tracking fields, deliberately separate from
+                the teal "public-facing" box above: nothing here is ever
+                shown to a speaker or published anywhere. Producer is a
+                plain select (options = whoever holds the "Producer"
+                access-role on this event, see role-holders/route.ts) since
+                exactly one owner is expected; Reference and Confirmation
+                Status are free text — Reference because the source is
+                often an external party (a client-side contact) with no
+                staff_members row at all, Confirmation Status because DFS's
+                own tracker uses producer shorthand ("Reconfirmed", "New
+                Confirmed") rather than a fixed set worth validating against. */}
+            {kind === 'speaker' && (
+              <div style={{
+                marginTop: '18px',
+                padding: '16px 18px',
+                borderRadius: '12px',
+                background: 'color-mix(in srgb, var(--purple) 7%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--purple) 22%, transparent)',
+              }}>
+                <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--purple)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '14px' }}>
+                  Internal Tracking — Never Public
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px' }}>
+                  <div>
+                    <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Producer</label>
+                    <Select
+                      className="tfield-lg" value={producerStaffId} disabled={!canEdit} onBlur={flushSave}
+                      onChange={e => { setProducerStaffId(e.target.value); scheduleSave() }}
+                    >
+                      <option value="">Not assigned</option>
+                      {producerOptions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </Select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Reference</label>
+                    <Input
+                      className="tfield-lg" value={reference} disabled={!canEdit} onBlur={flushSave}
+                      placeholder="Who sourced/introduced this speaker — informational only"
+                      onChange={e => { setReference(e.target.value); scheduleSave() }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Confirmation Status</label>
+                    <Input
+                      className="tfield-lg" value={confirmationStatus} disabled={!canEdit} onBlur={flushSave}
+                      placeholder="e.g. Reconfirmed, New Confirmed"
+                      onChange={e => { setConfirmationStatus(e.target.value); scheduleSave() }}
                     />
                   </div>
                 </div>

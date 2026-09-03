@@ -57,6 +57,13 @@ type SpeakerPatchBody = {
   // there's no meaningful "neither" state for a published speaker record).
   konfhub_tag_speaker?: boolean
   konfhub_tag_moderator?: boolean
+  // Producer / Reference / Confirmation Status (2026-09-03) — see
+  // supabase/speaker_producer_reference_confirmation_migration.sql's own
+  // doc comment for why each exists. Same producer-editable, not-part-of-
+  // the-onboarding-form convention as public_name/pronoun_style above.
+  producer_staff_id?: string | null
+  reference?: string | null
+  confirmation_status?: string | null
   // Deleted tab's standalone "Mark as done" action (2026-08-26) — clears
   // konfhub_registration_cancel_requested_at once a producer has actually
   // gone and cancelled the booking by hand in KonfHub's own dashboard (no
@@ -131,6 +138,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.key_talking_points !== undefined) row.key_talking_points = body.key_talking_points || null
   if (body.konfhub_tag_speaker !== undefined) row.konfhub_tag_speaker = body.konfhub_tag_speaker
   if (body.konfhub_tag_moderator !== undefined) row.konfhub_tag_moderator = body.konfhub_tag_moderator
+  if (body.producer_staff_id !== undefined) row.producer_staff_id = body.producer_staff_id || null
+  if (body.reference !== undefined) row.reference = body.reference || null
+  if (body.confirmation_status !== undefined) row.confirmation_status = body.confirmation_status || null
 
   if (Object.keys(row).length === 0) return NextResponse.json({ error: 'no valid fields' }, { status: 400 })
 
