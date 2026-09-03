@@ -6,7 +6,7 @@ machine. This is scoped to this module only; the platform-wide `HANDOFF.md`
 covers EventPilot in general and is not duplicated here.
 
 **Project Name:** `eventpilot-task-manager`  
-**Last updated:** 2026-09-02, by Madhu (with Claude)
+**Last updated:** 2026-09-03, by Madhu (with Claude)
 
 ---
 
@@ -50,6 +50,19 @@ tracker with a per-task timer, table/Kanban views, timesheets, admin oversight c
   `supabase/vendor_accounts.sql` for the schema and `app/lib/registry/access.ts`
   `checkAccess()` for the deny-by-default gate vendor sessions get (internal
   staff access is completely unchanged).
+- **`/dashboard` used to be a leak for vendor accounts** — found and fixed
+  2026-09-03. The sidebar's own filtering (via the registry/`module_access`)
+  was correct, but nothing gated the dashboard page or its API route
+  themselves, and the "My Events" sidebar link is a hardcoded standalone
+  link (not a registry module) so it wasn't covered either. Pixelate could
+  log in and still see the full My Dashboard (AI Readiness score, My
+  Learning, My HR, Messages). Fixed with a new `app/dashboard/layout.tsx`
+  redirect for `session.vt`, a matching check in `GET /api/dashboard`, the
+  "My Events" link hidden for vendor sessions, and both login paths sending
+  vendor accounts straight to `/admin/task-manager` instead of `/dashboard`.
+  If you ever add a new top-level page that isn't a registry module (like
+  the old My Events link), remember it needs its own vendor check — it
+  won't inherit one for free.
 
 ## Where the code lives (and why it's isolated this way)
 
@@ -216,6 +229,26 @@ historical record.)_
   broken app-wide (unrelated to task-manager) — someone should either fix
   the RLS or decide it's not worth it. Not blocking anything, just sitting
   there doing nothing.
+
+### 2026-09-03 session summary (Madhu, with Claude)
+
+Purpose: Madhu tested logging in as Pixelate and found the vendor
+restriction didn't actually hold — the dashboard was still fully
+reachable. Fixed the gap (see "Access model" above for the detail):
+
+- `app/dashboard/layout.tsx` (new) — redirects `session.vt` to
+  `/admin/task-manager` before any dashboard HTML renders.
+- `app/api/dashboard/route.ts` — same check server-side, so hitting the
+  API directly with a vendor session also 403s.
+- `app/components/nav/AppSidebar.tsx` + `app/lib/nav/NavDataContext.tsx` —
+  "My Events" hidden and the sidebar logo link repointed at Task Manager
+  for vendor sessions (the module-registry-driven entries were already
+  correct; this link wasn't one of them).
+- `app/api/auth/callback/route.ts`, `app/api/login/route.ts`,
+  `app/login/page.tsx` — both SSO and password login now send vendor
+  accounts straight to `/admin/task-manager` instead of `/dashboard`.
+
+Confirmed working against production with Pixelate's own login.
 
 ### 2026-09-02 session summary (Madhu, with Claude)
 
