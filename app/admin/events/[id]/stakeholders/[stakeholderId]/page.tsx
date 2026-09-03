@@ -17,6 +17,7 @@ import KonfhubPushConfirmModal from '../KonfhubPushConfirmModal'
 import KonfhubRegistrationPushConfirmModal from '../KonfhubRegistrationPushConfirmModal'
 import { SPEAKER_KEY_MAP } from '@/app/lib/forms/map-to-stakeholder-record'
 import AnnouncementsTab from './AnnouncementsTab'
+import SensitiveDocumentsTab from './SensitiveDocumentsTab'
 import type { Speaker as SaeSpeaker, Partner as SaePartner } from '../../creative-templates/page'
 
 /* The generic, canonical full-page review/edit screen for a single
@@ -184,10 +185,11 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   // Announcements tab (2026-08-18, SAE-into-Hub merge) — ?tab=announcements
   // (+ optional ?announcement=X) is how Queue's "Open" links land directly
   // on one creative's review panel, same deep-link idea SAE's own page used.
-  const activeTab: 'overview' | 'registration' | 'secondary' | 'announcements' =
+  const activeTab: 'overview' | 'registration' | 'secondary' | 'documents' | 'announcements' =
     searchParams.get('tab') === 'announcements' ? 'announcements'
     : searchParams.get('tab') === 'registration' ? 'registration'
     : searchParams.get('tab') === 'secondary' ? 'secondary'
+    : searchParams.get('tab') === 'documents' ? 'documents'
     : 'overview'
   const initialAnnouncementId = searchParams.get('announcement')
 
@@ -714,7 +716,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     }
   }
 
-  function setTab(tab: 'overview' | 'registration' | 'secondary' | 'announcements') {
+  function setTab(tab: 'overview' | 'registration' | 'secondary' | 'documents' | 'announcements') {
     const params = new URLSearchParams(searchParams.toString())
     params.set('tab', tab)
     if (tab === 'overview') params.delete('announcement')
@@ -873,15 +875,23 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
           {/* Registration and Second Role are both speaker-only — Attendee
               Registration on KonfHub is a speaker-ticket concept, and the
               second-role record is a second KonfHub Speakers-API record,
-              neither of which partners have an equivalent for. */}
-          {(kind === 'speaker' ? (['overview', 'registration', 'secondary', 'announcements'] as const) : (['overview', 'announcements'] as const)).map(t => (
+              neither of which partners have an equivalent for. Documents
+              (Sensitive Documents — Passport/National ID) is also speaker-
+              only and additionally hidden entirely (not just its actions)
+              from anyone without sae.sensitive_documents.view — same
+              "don't even reveal it exists" treatment as every other
+              permission-gated surface in this app. */}
+          {(kind === 'speaker'
+            ? (['overview', 'registration', 'secondary', ...(can('sae.sensitive_documents.view') ? ['documents' as const] : []), 'announcements'] as const)
+            : (['overview', 'announcements'] as const)
+          ).map(t => (
             <button key={t} onClick={() => setTab(t)}
               style={{
                 padding: '10px 18px', border: 'none', borderBottom: activeTab === t ? '2px solid var(--teal-mid)' : '2px solid transparent',
                 background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: 700,
                 color: activeTab === t ? 'var(--ink)' : 'var(--ink3)', marginBottom: '-1px',
               }}>
-              {t === 'overview' ? 'Overview' : t === 'registration' ? 'Registration' : t === 'secondary' ? 'Second Role' : 'Announcements'}
+              {t === 'overview' ? 'Overview' : t === 'registration' ? 'Registration' : t === 'secondary' ? 'Second Role' : t === 'documents' ? 'Documents' : 'Announcements'}
             </button>
           ))}
         </div>
@@ -1026,6 +1036,10 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
             </div>
           </div>
         </div>
+      )}
+
+      {activeTab === 'documents' && kind === 'speaker' && can('sae.sensitive_documents.view') && (
+        <SensitiveDocumentsTab speakerId={stakeholderId} canManage={can('sae.sensitive_documents.manage')} />
       )}
 
       {activeTab === 'overview' && (

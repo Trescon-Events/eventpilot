@@ -747,11 +747,55 @@ export async function sendBuildRequestUpdate({
   })
 }
 
+// ── Email: Sensitive Document Purged (retention sweep) ────────────────────────
+// Fired by app/api/cron/purge-sensitive-documents once a passport/national ID
+// file is hard-deleted past its retention window. One email per speaker even
+// if multiple document types were purged in the same sweep.
+
+export async function sendSensitiveDocumentPurged({
+  to,
+  name,
+  eventName,
+  documentLabels,
+}: {
+  to:             string
+  name:           string
+  eventName:      string
+  documentLabels: string[]   // e.g. ['Passport', 'National ID']
+}) {
+  const firstName = name.split(' ')[0]
+
+  const html = emailWrap(`
+    ${emailHeader('Document Retention')}
+    <div style="padding:32px 40px;">
+      <h2 style="font-size:21px;font-weight:800;color:${DARK};margin:0 0 10px;">Your document${documentLabels.length > 1 ? 's have' : ' has'} been deleted</h2>
+      <p style="color:${MUTED};font-size:15px;line-height:1.7;margin:0 0 24px;">
+        Hi ${firstName}, as part of our data retention policy, the following document${documentLabels.length > 1 ? 's' : ''} you provided for
+        <strong style="color:${DARK};">${eventName}</strong> ${documentLabels.length > 1 ? 'have' : 'has'} now been permanently deleted from our systems.
+      </p>
+
+      <div style="background:#F8FFFE;border:1px solid #C6ECE8;border-radius:12px;padding:18px 20px;margin-bottom:24px;">
+        <div style="font-size:10px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;color:${BRAND};margin-bottom:12px;">Deleted</div>
+        ${documentLabels.map(l => `<div style="font-size:14px;font-weight:700;color:${DARK};padding:3px 0;">${l}</div>`).join('')}
+      </div>
+
+      <p style="color:#94A3B8;font-size:13px;line-height:1.6;margin:0;">
+        No action is needed from you. If you're asked for this document again for a future event, you'll be able to submit it fresh at that time.
+      </p>
+
+      ${emailFooter()}
+    </div>
+  `)
+
+  return getResend().emails.send({
+    from:    FROM,
+    to,
+    subject: `Your document${documentLabels.length > 1 ? 's have' : ' has'} been deleted — ${eventName}`,
+    html,
+  })
+}
+
 // ── Email: GitHub PR Alert (Khalifa's Task Manager module pushes) ────────────
-// Fired by the pr-safety-summary GitHub Action on every PR Khalifa opens
-// against main. GitHub's own review-request email depends on the
-// tresconevents account's notification settings, which isn't reliable — this
-// is the guaranteed channel straight to Madhu's inbox.
 
 export async function sendGithubPrAlert({
   prNumber,
