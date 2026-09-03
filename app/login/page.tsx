@@ -44,7 +44,7 @@ export default function LoginPage() {
         setLoginError(data.error ?? 'Login failed. Please try again.')
         return
       }
-      router.push('/dashboard')
+      router.push(data.is_vendor ? '/admin/task-manager' : '/dashboard')
     } catch {
       setLoginError('Network error. Please try again.')
     } finally {

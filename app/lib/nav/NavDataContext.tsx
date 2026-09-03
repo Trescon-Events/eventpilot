@@ -13,7 +13,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 */
 
 export type MyEvent = { id: string; name: string; status: string; event_date: string | null; city: string | null; toolKeys: string[] }
-type NavSession = { sid: string; adm: boolean } | null
+type NavSession = { sid: string; adm: boolean; vt: boolean } | null
 
 type NavData = {
   session: NavSession
@@ -31,7 +31,7 @@ export function NavDataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     fetch('/api/auth/session')
       .then(r => r.json())
-      .then(s => setSession(s?.sid ? { sid: s.sid, adm: !!s.adm } : null))
+      .then(s => setSession(s?.sid ? { sid: s.sid, adm: !!s.adm, vt: !!s.vt } : null))
       .catch(() => setSession(null))
     fetch('/api/modules/accessible?surface=sidebar')
       .then(r => r.json())

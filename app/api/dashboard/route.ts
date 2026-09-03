@@ -83,11 +83,16 @@ export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
-  // Enforce ownership: staff can only load their own dashboard; admins can load any
+  // Enforce ownership: staff can only load their own dashboard; admins can load any.
+  // Vendor accounts (session.vt) never get a dashboard at all, regardless of
+  // ownership — restricted-access agency logins only see modules explicitly
+  // granted to them (see app/dashboard/layout.tsx for the page-level gate;
+  // this is defense-in-depth for direct API access).
   const sessionRaw = req.cookies.get('tcs_session')?.value
   if (sessionRaw && id !== 'super-admin') {
     try {
       const session = JSON.parse(Buffer.from(sessionRaw, 'base64').toString('utf-8'))
+      if (session.vt) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       if (!session.adm && session.sid !== id) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }

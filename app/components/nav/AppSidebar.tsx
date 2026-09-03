@@ -34,6 +34,13 @@ export default function AppSidebar() {
   const admin = resolveSectionEntries(registry, accessibleKeys, 'admin', ctx)
   const toolkit = resolveSectionEntries(registry, accessibleKeys, 'toolkit', ctx)
 
+  // Vendor accounts (session.vt) get no dashboard at all (app/dashboard/layout.tsx
+  // redirects them to /admin/task-manager) — "My Events" isn't a registry module
+  // (it's this standalone deep-link to the dashboard's #events anchor) so it isn't
+  // covered by resolveSectionEntries' accessibleKeys filtering and needs its own check.
+  const isVendor = !!session?.vt
+  const homeHref = isVendor ? '/admin/task-manager' : '/dashboard'
+
   const panelWidth = hovering ? FULL_WIDTH : RAIL_WIDTH
 
   return (
@@ -52,14 +59,14 @@ export default function AppSidebar() {
           transition: 'width .1s ease-out',
         }}
       >
-        <Link href="/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', padding: '16px 14px', flexShrink: 0 }}>
+        <Link href={homeHref} style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', padding: '16px 14px', flexShrink: 0 }}>
           <img src="/trescon-logo.png" alt="Trescon" style={{ height: '28px', width: 'auto', display: 'block', flexShrink: 0 }} />
           {!collapsedRail && <span style={{ fontSize: '14.5px', fontWeight: 800, color: 'var(--ink)', whiteSpace: 'nowrap' }}>EventPilot</span>}
         </Link>
 
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '4px 8px 16px' }}>
           <AppSidebarSection title="Home" entries={home} collapsedRail={collapsedRail} />
-          <EventsSidebarSection collapsedRail={collapsedRail} />
+          {!isVendor && <EventsSidebarSection collapsedRail={collapsedRail} />}
           <AppSidebarSection title="Pilot Projects" entries={pilots} collapsedRail={collapsedRail} />
           <AppSidebarSection title="Toolkit" entries={toolkit} collapsedRail={collapsedRail} />
           <AppSidebarSection title="Admin" entries={admin} collapsedRail={collapsedRail} />

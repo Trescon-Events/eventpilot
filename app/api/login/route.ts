@@ -175,6 +175,7 @@ export async function POST(req: NextRequest) {
     has_reports:          (reportCount ?? 0) > 0,
     has_profile:          hasProfile,
     must_change_password: staff.must_change_password ?? false,
+    is_vendor:            staff.account_type === 'vendor',
   }
 
   const sessionPayload = Buffer.from(JSON.stringify({

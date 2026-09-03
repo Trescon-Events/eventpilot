@@ -139,6 +139,10 @@ export async function GET(req: NextRequest) {
   let destination: string
   if (isAdmin) {
     destination = '/admin'
+  } else if (staff.account_type === 'vendor') {
+    // Restricted-access agency login — no dashboard/onboarding, straight to
+    // whatever module(s) were granted (see app/admin/vendor-accounts).
+    destination = '/admin/task-manager'
   } else if (!staff.profile_complete) {
     // Send to assessment on every login until they complete it
     const next = encodeURIComponent(`/dashboard?id=${staff.id}`)
