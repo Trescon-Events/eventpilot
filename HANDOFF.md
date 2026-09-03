@@ -15,13 +15,38 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code — 02 Sep 2026, Vendor Accounts + Task Manager enhancements session |
-| Date | 2026-09-02 |
-| Latest push | 2026-09-02 — commit `7a72cdb`. External agencies (Cactus, Pixelate) can now get restricted, deny-by-default EventPilot logins for Task Manager only, instead of the normal broad staff access — see "02 Sep 2026" dated section below for the full build (vendor accounts, an app-wide auth-gap hardening pass that rode along, mandatory Task Types, desktop assignment notifications). |
-| DB migrations applied | Yes, 3 new files, all applied live via `supabase db query --linked -f ...` (not the dashboard, for a change — CLI was already linked to project `yuyxfxoevztugtfgduks`): `supabase/vendor_accounts.sql`, `supabase/task_manager_task_types.sql`, `supabase/task_manager_notifications.sql`. All additive (new columns/tables only), all verified post-apply. |
-| Handed off to | Durga — and Khalifa via `TASK_MANAGER_HANDOFF.md`, updated this session with the vendor-accounts isolation boundary and everything else that landed inside his territory. |
-| Deployed | Live — pushed to `main` (`7a72cdb`), Railway auto-deploy confirmed, live site returns HTTP 200. |
-| Left alone / known follow-up | `app/components/RealtimeNotifications.tsx` (unrelated, pre-existing, app-wide) was found silently non-functional — RLS on `notifications`/`messages` has zero policies, confirmed by live probe to block all Realtime delivery. Not a data leak, just dead. Nobody's fixed it yet. Pixelate's contact roster (`/admin/task-manager/console/vendor-contacts`) has one entry (Nishant, under Cactus) — needs populating with Pixelate's actual people as they're identified. Khalifa's "Go Live" protocol (01 Sep, below) still hasn't been exercised end-to-end — unchanged this session. DFS/DFFW Client Approval pickup (29 Aug, below) also still untouched. |
+| Who | Madhu + Claude Code — 03 Sep 2026, vendor-account dashboard leak fix |
+| Date | 2026-09-03 |
+| Latest push | 2026-09-03 — commit `b4d04ee` (code fix in `40070d1`, docs in `b4d04ee`). Madhu tested Pixelate's login live and found the "restricted to Task Manager only" promise from the 02 Sep vendor-accounts work didn't fully hold — `/dashboard` had no server-side gate at all, so a vendor session could still load the full My Dashboard. Fixed and confirmed against production with Pixelate's own login — see "03 Sep 2026" dated section below. |
+| DB migrations applied | None this session — code-only fix. |
+| Handed off to | Durga — and Khalifa via `TASK_MANAGER_HANDOFF.md`, updated this session with the leak/fix detail under "Access model" and a dated session summary. |
+| Deployed | Live — pushed to `main` (`b4d04ee`), Railway auto-deploy, confirmed working live against Pixelate's account. |
+| Left alone / known follow-up | Carried forward unchanged from 02 Sep: `app/components/RealtimeNotifications.tsx` still silently non-functional (RLS gap, not a leak). Pixelate's contact roster (`/admin/task-manager/console/vendor-contacts`) still needs populating with real people. Khalifa's "Go Live" protocol (01 Sep, below) still hasn't been exercised end-to-end. DFS/DFFW Client Approval pickup (29 Aug, below) also still untouched. |
+
+## 03 Sep 2026 — Vendor accounts: `/dashboard` access leak fixed (Pixelate could still see the full dashboard)
+
+### The ask
+
+Madhu logged in as Pixelate (the shared-login vendor account set up 02 Sep) to verify the "restricted to Task Manager only" promise, and found it didn't hold — the dashboard, AI Readiness score, My Learning, My HR, and Messages tiles were all still fully reachable, and the sidebar showed both "Task Manager" and "My Events."
+
+### What was built
+
+Root cause: the sidebar's module-registry filtering (`checkAccess()`'s deny-by-default gate for `session.vt`, built 02 Sep) was working correctly — it already hid "My Learning" and everything else registry-driven. Two things weren't covered by it: (1) `/dashboard` itself had no server-side access gate at all, registry or otherwise — anything with a valid session could load it directly; (2) the sidebar's "My Events" link is a hardcoded standalone component, not a registry module, so the registry's filtering never touched it.
+
+Fixed:
+- `app/dashboard/layout.tsx` (new) — redirects any `session.vt` session to `/admin/task-manager` before the dashboard renders.
+- `app/api/dashboard/route.ts` — same check server-side, so hitting the API directly with a vendor session also 403s.
+- `app/components/nav/AppSidebar.tsx` + `app/lib/nav/NavDataContext.tsx` — "My Events" hidden and the sidebar logo link repointed at Task Manager for vendor sessions.
+- `app/api/auth/callback/route.ts`, `app/api/login/route.ts`, `app/login/page.tsx` — both SSO and password login now send vendor accounts straight to `/admin/task-manager` instead of `/dashboard`, avoiding the redirect flash.
+- `TASK_MANAGER_HANDOFF.md` — documented under "Access model" plus a dated session summary, including a note for Khalifa: any future top-level page that isn't a registry module needs its own vendor check, it won't inherit one for free.
+
+### Verified
+
+`tsc --noEmit` clean on all touched files. Confirmed live in production: Madhu logged in as Pixelate after deploy and confirmed the dashboard is gone entirely — only Task Manager is reachable.
+
+### What's next
+
+No new items — carries forward the same open items as 02 Sep below (Pixelate contact roster population, `RealtimeNotifications.tsx` RLS decision, Khalifa "Go Live" end-to-end verification, DFS/DFFW Client Approval pickup).
 
 ## 02 Sep 2026 — Vendor Accounts (external agency access) + Task Manager: Task Types, desktop notifications
 
