@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { hasModuleAccess } from '@/app/lib/access/module-access'
 import { hasToolGrant } from '@/app/lib/access/tool-grants'
 import { hasEventPermission, hasAnyModulePermission } from '@/app/lib/access/event-access'
-import type { TcsSession } from '@/app/lib/access/session'
+import { decodeSession, type TcsSession } from '@/app/lib/access/session'
 import { getModuleRegistry, type ModuleAccess, type ModuleDef } from './modules'
 
 /*
@@ -100,14 +100,7 @@ export async function checkAccess(access: ModuleAccess, session: TcsSession, ctx
 /** Resolves the current session from the request cookie, or null if not logged in. */
 export async function getServerSession(): Promise<TcsSession | null> {
   const jar = await cookies()
-  const raw = jar.get('tcs_session')?.value
-  if (!raw) return null
-  try {
-    const session = JSON.parse(Buffer.from(raw, 'base64').toString('utf-8'))
-    return session?.sid ? session : null
-  } catch {
-    return null
-  }
+  return decodeSession(jar.get('tcs_session')?.value)
 }
 
 /** For a given module key + effective access override (platformMenu/toolkitHub can override the base), resolve which ModuleAccess to check.

@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { sessionCookieOptions } from '@/app/lib/access/session-cookie'
+import { encodeSession } from '@/app/lib/access/session'
 import { isAdminRoleSet } from '@/app/lib/access/access-roles'
 
 /* POST /api/login — unified login for all Event Pilot users
@@ -79,12 +80,12 @@ export async function POST(req: NextRequest) {
     await logAttempt(cleanEmail, ip, true, 'super_admin_ok')
 
     if (!staff) {
-      const syntheticSession = Buffer.from(JSON.stringify({ sid: 'super-admin', jl: 'super_admin', adm: true, dept: '' })).toString('base64')
+      const syntheticSession = encodeSession({ sid: 'super-admin', jl: 'super_admin', adm: true, dept: '' })
       const r = NextResponse.json({ id: 'super-admin', name: 'Super Admin', department: null, role: 'Super Admin', office_id: null, job_level: 'super_admin', is_admin: true, has_reports: true, has_profile: true })
       r.cookies.set('tcs_session', syntheticSession, sessionCookieOptions(SESSION_MAX_AGE))
       return r
     }
-    const adminSession = Buffer.from(JSON.stringify({ sid: staff.id, jl: staff.job_level ?? 'super_admin', adm: true, dept: staff.department ?? '' })).toString('base64')
+    const adminSession = encodeSession({ sid: staff.id, jl: staff.job_level ?? 'super_admin', adm: true, dept: staff.department ?? '' })
     const r = NextResponse.json({ id: staff.id, name: staff.name, department: staff.department, role: staff.role, office_id: staff.office_id, job_level: staff.job_level ?? 'super_admin', is_admin: true, has_reports: true, has_profile: true })
     r.cookies.set('tcs_session', adminSession, sessionCookieOptions(SESSION_MAX_AGE))
     return r
@@ -178,14 +179,14 @@ export async function POST(req: NextRequest) {
     is_vendor:            staff.account_type === 'vendor',
   }
 
-  const sessionPayload = Buffer.from(JSON.stringify({
+  const sessionPayload = encodeSession({
     sid:   staff.id,
     jl:    jobLevel,
     adm:   isAdmin,
     dept:  staff.department ?? '',
     roles: accessRoles,
     vt:    staff.account_type === 'vendor',
-  })).toString('base64')
+  })
 
   const res = NextResponse.json(responseBody)
   res.cookies.set('tcs_session', sessionPayload, sessionCookieOptions(SESSION_MAX_AGE))
