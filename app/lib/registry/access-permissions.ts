@@ -48,6 +48,17 @@ export const ACCESS_REGISTRY: AccessModule[] = [
       { key: 'sae.invites.send',           label: 'Send speaker/stakeholder invite emails',          enforced: true },
       { key: 'sae.forms.manage',           label: 'Customize onboarding form fields',                enforced: true },
       { key: 'sae.secure_documents.manage', label: 'Configure the secure passport/ID destination folder', enforced: true },
+      // Sensitive Documents (2026-09-04) — Passport/National ID, stored
+      // natively (see app/lib/events/sensitive-storage.ts), the replacement
+      // for the "producer's own Drive" model sae.secure_documents.manage
+      // above configured. Deliberately kept to individual staff assignment
+      // only, per Madhu — this is not meant to be granted department/team-
+      // wide the way some other roles are; whoever assigns it picks named
+      // people one at a time via this same Assignments tab (it has no
+      // bulk/department-grant option to begin with, so this is enforced by
+      // the tool's own shape, not a special-cased rule here).
+      { key: 'sae.sensitive_documents.view',   label: 'View Passport / National ID documents',                       enforced: true },
+      { key: 'sae.sensitive_documents.manage', label: 'Upload, replace or delete Passport / National ID documents',  enforced: true },
       { key: 'sae.messaging.use',          label: 'Use the Messaging module for this event',         enforced: false },
       // Unifies the Creative Templates Admin Console (layer/variant editor,
       // deliberately narrow — branding team) into this same per-event
