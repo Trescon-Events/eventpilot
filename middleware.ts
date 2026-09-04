@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { decodeSession } from '@/app/lib/access/session'
 
 /*
   Route protection middleware.
-  Session is stored in httpOnly cookie 'tcs_session' as a base64-encoded JSON:
-    { sid, jl (job_level), adm (is_admin), dept }
+  Session is stored in the httpOnly 'tcs_session' cookie as
+  base64(JSON).HMAC-SHA256 — see app/lib/access/session.ts's decodeSession()
+  for the actual format/verification, imported below rather than
+  reimplemented here. This file used to carry its own inline atob()-only
+  decoder (pre-2026-09-04 signing fix) on the theory that Proxy/Middleware
+  runs on the Edge runtime and can't use Node's crypto — wrong for this
+  Next.js version: Proxy defaults to the Node.js runtime here (see
+  node_modules/next/dist/docs/.../file-conventions/proxy.md's Runtime
+  section), so decodeSession's crypto.createHmac works fine. That stale
+  decoder silently rejected every newly-signed cookie as "no session" and
+  bounced every real login straight back to /login — a real production
+  outage found live immediately after the signing fix shipped, same day.
 
   Route rules:
   - /login, /join, /api/login, /api/join, static assets → public
@@ -34,17 +45,6 @@ const PUBLIC_PREFIXES = [
 ]
 
 const PUBLIC_FILE_EXTENSIONS = /\.(png|jpg|jpeg|svg|webp|webm|mp4|ico|ttf|woff|woff2)$/
-
-function parseSession(req: NextRequest): { sid: string; jl: string; adm: boolean; dept: string; roles?: string[] } | null {
-  const raw = req.cookies.get('tcs_session')?.value
-  if (!raw) return null
-  try {
-    // atob is available in Edge runtime; session only contains ASCII-safe values
-    return JSON.parse(atob(raw))
-  } catch {
-    return null
-  }
-}
 
 // ── Custom domain → event slug rewriting ─────────────────────────────────
 const PLATFORM_HOSTS = [
@@ -177,7 +177,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
-  const session = parseSession(req)
+  const session = decodeSession(req.cookies.get('tcs_session')?.value)
 
   // No session → redirect to login
   if (!session) {
