@@ -1,20 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { decodeSession } from '@/app/lib/access/session'
+import type { TcsSession } from '@/app/lib/access/session'
 
 /*
   Route protection middleware.
   Session is stored in the httpOnly 'tcs_session' cookie as
-  base64(JSON).HMAC-SHA256 — see app/lib/access/session.ts's decodeSession()
-  for the actual format/verification, imported below rather than
-  reimplemented here. This file used to carry its own inline atob()-only
-  decoder (pre-2026-09-04 signing fix) on the theory that Proxy/Middleware
-  runs on the Edge runtime and can't use Node's crypto — wrong for this
-  Next.js version: Proxy defaults to the Node.js runtime here (see
-  node_modules/next/dist/docs/.../file-conventions/proxy.md's Runtime
-  section), so decodeSession's crypto.createHmac works fine. That stale
-  decoder silently rejected every newly-signed cookie as "no session" and
-  bounced every real login straight back to /login — a real production
-  outage found live immediately after the signing fix shipped, same day.
+  base64(JSON).HMAC-SHA256 — see app/lib/access/session.ts's encodeSession()
+  for how it's signed. This file used to carry its own inline atob()-only
+  decoder (pre-2026-09-04 signing fix), then briefly imported session.ts's
+  decodeSession() directly — both were wrong, for different reasons.
+
+  Importing decodeSession() (which uses Node's `crypto` via `require`)
+  looked right per Next's own docs ("Proxy defaults to using the Node.js
+  runtime" — node_modules/next/dist/docs/.../file-conventions/proxy.md's
+  Runtime section) but broke live: this repo's file is still named
+  middleware.ts, not proxy.ts, and empirically still bundles under Edge
+  constraints regardless of what that doc claims — `require('node:crypto')`
+  here throws "Cannot find module 'node:crypto': Unsupported external type
+  Url for commonjs reference" (confirmed via a temporary diagnostic header
+  on a live deploy, 2026-09-04). session.ts's sign()/verify() silently
+  caught that throw and returned null, so every real signed-in session
+  looked like "no session" and bounced straight back to /login — a total
+  production login outage, twice in one day from two different root causes
+  behind the same symptom.
+
+  Fix: verify the HMAC here using Web Crypto (`crypto.subtle`), which is
+  the one primitive guaranteed to exist on both Edge and Node runtimes, so
+  this doesn't depend on which one actually ends up bundling this file.
+  Only the TYPE import above comes from session.ts (erased at compile
+  time, no runtime module load) — the signing/verification LOGIC is
+  deliberately duplicated below rather than shared, so a future "helpful"
+  consolidation back into one shared crypto import doesn't silently
+  reintroduce this exact bug. If session.ts's signing scheme ever changes,
+  both copies need updating together.
 
   Route rules:
   - /login, /join, /api/login, /api/join, static assets → public
@@ -45,6 +62,47 @@ const PUBLIC_PREFIXES = [
 ]
 
 const PUBLIC_FILE_EXTENSIONS = /\.(png|jpg|jpeg|svg|webp|webm|mp4|ico|ttf|woff|woff2)$/
+
+function base64UrlToBytes(b64url: string): Uint8Array<ArrayBuffer> {
+  const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/')
+  const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4)
+  const binary = atob(padded)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes
+}
+
+let hmacKeyPromise: Promise<CryptoKey> | null = null
+function getHmacKey(secret: string): Promise<CryptoKey> {
+  // Cached across invocations within the same isolate — importKey isn't
+  // free, and the secret never changes at runtime.
+  if (!hmacKeyPromise) {
+    hmacKeyPromise = crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify'])
+  }
+  return hmacKeyPromise
+}
+
+// Web Crypto verification of the same base64(JSON).HMAC-SHA256 format
+// session.ts's encodeSession() produces — see this file's top comment for
+// why this is a deliberate duplicate, not a shared import.
+async function decodeSessionCookie(raw: string | undefined): Promise<TcsSession | null> {
+  if (!raw) return null
+  const dot = raw.lastIndexOf('.')
+  if (dot === -1) return null
+  const payloadB64 = raw.slice(0, dot)
+  const providedSig = raw.slice(dot + 1)
+  const secret = process.env.SESSION_SECRET
+  if (!secret) return null
+  try {
+    const key = await getHmacKey(secret)
+    const valid = await crypto.subtle.verify('HMAC', key, base64UrlToBytes(providedSig), new TextEncoder().encode(payloadB64))
+    if (!valid) return null
+    const session = JSON.parse(atob(payloadB64))
+    return session?.sid ? session : null
+  } catch {
+    return null
+  }
+}
 
 // ── Custom domain → event slug rewriting ─────────────────────────────────
 const PLATFORM_HOSTS = [
@@ -177,41 +235,14 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
-  const rawCookie = req.cookies.get('tcs_session')?.value
-  const session = decodeSession(rawCookie)
+  const session = await decodeSessionCookie(req.cookies.get('tcs_session')?.value)
 
   // No session → redirect to login
   if (!session) {
-    // TEMP DEBUG (2026-09-04) — remove once the middleware decode mismatch
-    // is root-caused. Never logs the raw cookie/secret value.
-    const res = NextResponse.redirect((() => {
-      const loginUrl = req.nextUrl.clone()
-      loginUrl.pathname = '/login'
-      loginUrl.search = `?next=${encodeURIComponent(pathname + req.nextUrl.search)}`
-      return loginUrl
-    })())
-    res.headers.set('x-mw-debug-had-cookie', String(!!rawCookie))
-    res.headers.set('x-mw-debug-cookie-len', String(rawCookie?.length ?? 0))
-    res.headers.set('x-mw-debug-has-secret', String(!!process.env.SESSION_SECRET))
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports -- temp diagnostic, static import already covers decodeSession's own copy
-      const nodeCrypto = require('node:crypto')
-      res.headers.set('x-mw-debug-has-createhmac', String(typeof nodeCrypto?.createHmac === 'function'))
-      if (rawCookie) {
-        const dot = rawCookie.lastIndexOf('.')
-        if (dot !== -1) {
-          const payloadB64 = rawCookie.slice(0, dot)
-          const providedSig = rawCookie.slice(dot + 1)
-          const computedSig = nodeCrypto.createHmac('sha256', process.env.SESSION_SECRET ?? '').update(payloadB64).digest('base64url')
-          res.headers.set('x-mw-debug-sig-match', String(computedSig === providedSig))
-          res.headers.set('x-mw-debug-computed-sig-prefix', computedSig.slice(0, 10))
-          res.headers.set('x-mw-debug-provided-sig-prefix', providedSig.slice(0, 10))
-        }
-      }
-    } catch (e) {
-      res.headers.set('x-mw-debug-crypto-error', String(e instanceof Error ? e.message : e).slice(0, 120))
-    }
-    return res
+    const loginUrl = req.nextUrl.clone()
+    loginUrl.pathname = '/login'
+    loginUrl.search = `?next=${encodeURIComponent(pathname + req.nextUrl.search)}`
+    return NextResponse.redirect(loginUrl)
   }
 
   // Tool routes: auth-only — page/layout handles the tool_grants check
