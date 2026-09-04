@@ -91,3 +91,65 @@ export async function convertEpsToPng(buffer: Buffer): Promise<Buffer | null> {
     return null
   }
 }
+
+// Word (.doc/.docx) -> PDF, for the Sensitive-Documents-adjacent "Full Bio"
+// upload (2026-09-04, speaker onboarding — see supabase/speaker_full_bio_
+// migration.sql's doc comment: only the converted PDF is ever stored, the
+// original Word bytes never touch storage). Same reasoning as
+// convertEpsToPng() above for why CloudConvert and not a system binary:
+// Railway/Nixpacks has no LibreOffice, and this app already pays for and
+// uses CloudConvert for exactly this class of problem (an exotic/office
+// format with no viable pure-JS converter). `inputFormat` must match the
+// real uploaded extension — CloudConvert's convert task needs it to pick
+// the right decoder ('doc' still routes through the same engine as 'docx').
+// Unlike convertEpsToPng, a failure here MUST propagate to the caller
+// (thrown, not null) — silently keeping the original Word doc would violate
+// the "never store the Word doc" requirement this function exists for, so
+// there's no safe null-fallback the way EPS has a "just keep the raw file"
+// fallback elsewhere.
+export async function convertDocxToPdf(buffer: Buffer, inputFormat: 'doc' | 'docx'): Promise<Buffer> {
+  const apiKey = process.env.CLOUDCONVERT_API_KEY
+  if (!apiKey) throw new Error('CLOUDCONVERT_API_KEY not configured')
+
+  const job = await cloudConvertRequest<CloudConvertJob>(apiKey, '/jobs', {
+    method: 'POST',
+    body: JSON.stringify({
+      tasks: {
+        'import-doc': { operation: 'import/upload' },
+        'convert-doc': { operation: 'convert', input: 'import-doc', input_format: inputFormat, output_format: 'pdf' },
+        'export-pdf': { operation: 'export/url', input: 'convert-doc' },
+      },
+    }),
+  })
+
+  const importTask = job.tasks.find(t => t.name === 'import-doc')
+  const uploadForm = importTask?.result?.form
+  if (!uploadForm) throw new Error('CloudConvert did not return an upload target')
+
+  const formData = new FormData()
+  for (const [key, value] of Object.entries(uploadForm.parameters)) formData.append(key, value)
+  const mimeType = inputFormat === 'docx'
+    ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    : 'application/msword'
+  formData.append('file', new Blob([new Uint8Array(buffer)], { type: mimeType }), `bio.${inputFormat}`)
+  const uploadRes = await fetch(uploadForm.url, { method: 'POST', body: formData })
+  if (!uploadRes.ok) throw new Error(`CloudConvert file upload failed: ${uploadRes.status}`)
+
+  for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS))
+    const polled = await cloudConvertRequest<CloudConvertJob>(apiKey, `/jobs/${job.id}`)
+    if (polled.status === 'error') {
+      const failedTask = polled.tasks.find(t => t.status === 'error')
+      throw new Error(`CloudConvert job failed: ${failedTask?.message ?? 'unknown error'}`)
+    }
+    if (polled.status === 'finished') {
+      const exportTask = polled.tasks.find(t => t.name === 'export-pdf')
+      const fileUrl = exportTask?.result?.files?.[0]?.url
+      if (!fileUrl) throw new Error('CloudConvert job finished but no output file was returned')
+      const fileRes = await fetch(fileUrl)
+      if (!fileRes.ok) throw new Error(`Failed to download CloudConvert output: ${fileRes.status}`)
+      return Buffer.from(await fileRes.arrayBuffer())
+    }
+  }
+  throw new Error(`CloudConvert job did not finish within ${(MAX_POLL_ATTEMPTS * POLL_INTERVAL_MS) / 1000}s`)
+}

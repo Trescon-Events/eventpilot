@@ -717,6 +717,11 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                   </button>
                 ))}
               </div>
+              {category.kind === 'speaker' && (
+                <Link href={`/admin/events/${eventId}/stakeholders/status-board`}>
+                  <Button variant="ghost">Status Board</Button>
+                </Link>
+              )}
             </div>
             {viewMode === 'registry' && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

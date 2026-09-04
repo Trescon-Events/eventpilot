@@ -157,6 +157,14 @@ export function mapFieldsToRecord(
   if (isSpeaker) {
     if (fileUrls.photo) columns.photo_url = fileUrls.photo
     if (fileUrls.company_logo) columns.company_logo_url = fileUrls.company_logo
+    // bio_full_source isn't a real uploaded file — the caller (the public
+    // form route's file-handling loop, or the Details page's manual
+    // upload route) stashes 'pdf'|'docx_converted' in this same fileUrls
+    // map alongside the real bio_full URL, since both are decided
+    // together at upload time by toStoredBioPdf() and this function stays
+    // a plain synchronous read of whatever the caller already resolved.
+    if (fileUrls.bio_full) columns.bio_full_url = fileUrls.bio_full
+    if (fileUrls.bio_full_source) columns.bio_full_source = fileUrls.bio_full_source
     if (publicNameDefault && !columns.public_name) columns.public_name = publicNameDefault
   } else {
     if (fileUrls.logo) { columns.logo_url = fileUrls.logo; columns.logo_raw_url = fileUrls.logo }

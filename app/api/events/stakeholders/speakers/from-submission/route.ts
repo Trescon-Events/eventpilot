@@ -49,7 +49,9 @@ export async function POST(req: NextRequest) {
   }
 
   const submitted = (submission.submitted_data ?? {}) as Record<string, SubmittedValue>
-  const fileUrls  = (submission.file_urls ?? {}) as { photo?: string; company_logo?: string }
+  // bio_full_source isn't a real file — see map-to-stakeholder-record.ts's
+  // own comment on why it rides along in this same map.
+  const fileUrls  = (submission.file_urls ?? {}) as { photo?: string; company_logo?: string; bio_full?: string; bio_full_source?: string }
 
   const schema = await resolveFormSchema(body.event_id, 'speaker')
   const { columns, customFields } = mapFieldsToRecord('speaker', schema, submitted, fileUrls, { defaultSpeakerPublicName: true })

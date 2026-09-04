@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
+import { toStoredBioPdf } from '@/app/lib/events/full-bio-upload'
 import { getStakeholderEmailHeaderHtml, getStakeholderHeaderUrl } from '@/app/lib/branding/email-header'
 import { FormType, FORM_TYPES, SubmittedValue } from '@/app/lib/forms/types'
 import { resolveFormSchema } from '@/app/lib/forms/resolve-schema'
@@ -131,6 +132,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ eve
       return NextResponse.json({ error: `${field.label} is too large (max ${field.max_size_mb ?? 10}MB)` }, { status: 413 })
     }
     const buffer = Buffer.from(await file.arrayBuffer())
+
+    // Full Bio is file-only (never pasted text) and Word docs must never
+    // be stored — convert to PDF first, same rule whether it arrives via
+    // this public form or the Details page's manual upload (see
+    // toStoredBioPdf's own doc comment). Every other file field (photo,
+    // company_logo, partner logo) keeps the existing raw-upload behavior.
+    if (field.key === 'bio_full') {
+      let pdfBuffer: Buffer, source: 'pdf' | 'docx_converted'
+      try {
+        ;({ pdfBuffer, source } = await toStoredBioPdf(buffer, file.name, file.type))
+      } catch (e) {
+        return NextResponse.json({ error: e instanceof Error ? e.message : 'Full Bio upload failed' }, { status: 400 })
+      }
+      fileUrls[field.key] = await uploadPublicAsset(`events/${event_id}/form-submissions/${Date.now()}-bio-full.pdf`, pdfBuffer, 'application/pdf')
+      fileUrls.bio_full_source = source
+      continue
+    }
+
     const ext = file.name.includes('.') ? file.name.split('.').pop() : 'bin'
     fileUrls[field.key] = await uploadPublicAsset(
       `events/${event_id}/form-submissions/${Date.now()}-${field.key}.${ext}`,

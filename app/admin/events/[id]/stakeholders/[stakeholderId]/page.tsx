@@ -88,6 +88,12 @@ type StakeholderRecord = {
   // Producer / Reference / Confirmation Status (2026-09-03) — see
   // supabase/speaker_producer_reference_confirmation_migration.sql's own
   // doc comment for why each exists.
+  // Full Bio (2026-09-04) — always a file (PDF, or a Word doc converted
+  // to PDF at upload time and never stored as-is — see app/lib/events/
+  // full-bio-upload.ts). `bio` (the schema field, relabeled "Short Bio"
+  // below) stays the only thing KonfHub/the public site ever read.
+  bio_full_url?: string | null
+  bio_full_source?: 'pdf' | 'docx_converted' | null
   producer_staff_id?: string | null
   reference?: string | null
   confirmation_status?: string | null
@@ -294,6 +300,12 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
 
   const [logoApproval, setLogoApproval] = useState<{ url: string } | null>(null)
   const [uploading, setUploading] = useState(false)
+
+  // Full Bio upload + Generate Short Bio (2026-09-04)
+  const fullBioInputRef = useRef<HTMLInputElement | null>(null)
+  const [fullBioUploading, setFullBioUploading] = useState(false)
+  const [generatingShortBio, setGeneratingShortBio] = useState(false)
+  const [shortBioUndoSnapshot, setShortBioUndoSnapshot] = useState<string | null>(null)
   // estimatedMs per action, from real observed timings (dev log) — a plain
   // PATCH (approve/remove-logo) resolves in well under a second; logo
   // upload+processing (rasterize/background-removal) ran 0.5-3.1s for a
@@ -713,6 +725,52 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     } finally {
       setUploading(false)
       setProcessing(null)
+    }
+  }
+
+  async function uploadFullBio(file: File) {
+    setFullBioUploading(true)
+    setMsg(null)
+    const form = new FormData()
+    form.append('file', file)
+    try {
+      const res = await fetch(`${base}/${stakeholderId}/upload-full-bio`, { method: 'POST', body: form })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setMsg(data?.error ?? `Could not upload Full Bio (${res.status}).`); return }
+      await load()
+    } catch (e) {
+      setMsg(`Could not upload Full Bio: ${(e as Error).message}`)
+    } finally {
+      setFullBioUploading(false)
+    }
+  }
+
+  // Overwrites the live Short Bio field directly and offers an Undo, same
+  // interaction shape as the existing AI Rewrite feature on email
+  // templates (EmailTemplateEditor.tsx) — no separate accept/preview step,
+  // since the normal autosave (updateValue -> scheduleSave) is itself the
+  // real "did you mean to keep this" gate: nothing persists until the
+  // producer stops editing, same as any other manual field change.
+  async function generateShortBio() {
+    setGeneratingShortBio(true)
+    setMsg(null)
+    try {
+      const res = await fetch(`${base}/${stakeholderId}/generate-short-bio`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setMsg(data?.error ?? 'Could not generate a short bio.'); return }
+      setShortBioUndoSnapshot((values.bio as string) ?? '')
+      updateValue('bio', data.short_bio)
+    } catch (e) {
+      setMsg(`Could not generate a short bio: ${(e as Error).message}`)
+    } finally {
+      setGeneratingShortBio(false)
+    }
+  }
+
+  function undoGenerateShortBio() {
+    if (shortBioUndoSnapshot !== null) {
+      updateValue('bio', shortBioUndoSnapshot)
+      setShortBioUndoSnapshot(null)
     }
   }
 
@@ -1178,6 +1236,38 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
             </div>
           </Card>
 
+          {kind === 'speaker' && (
+            <Card padded>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
+                <div>
+                  <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Full Bio</div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '4px', maxWidth: '480px' }}>
+                    A source document (PDF or Word), never shown publicly — only used to generate the Short Bio below. A Word upload is automatically converted to PDF; the original file isn&apos;t kept.
+                  </div>
+                  {record.bio_full_url && (
+                    <div style={{ fontSize: '12px', color: 'var(--ink4)', marginTop: '8px' }}>
+                      {record.bio_full_source === 'docx_converted' ? 'Converted from Word doc' : 'PDF on file'}
+                    </div>
+                  )}
+                </div>
+                <Badge color={record.bio_full_url ? 'teal' : 'grey'}>{record.bio_full_url ? 'On file' : 'Missing'}</Badge>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '14px' }}>
+                {record.bio_full_url && (
+                  <a href={record.bio_full_url} target="_blank" rel="noopener noreferrer">
+                    <Button variant="ghost">View PDF</Button>
+                  </a>
+                )}
+                <Button variant="ghost" onClick={() => fullBioInputRef.current?.click()} disabled={fullBioUploading || !canEdit}>
+                  {fullBioUploading ? 'Uploading…' : record.bio_full_url ? 'Replace' : 'Upload'}
+                </Button>
+                <input ref={fullBioInputRef} type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  style={{ display: 'none' }} disabled={fullBioUploading}
+                  onChange={e => { const f = e.target.files?.[0]; if (f) uploadFullBio(f); e.target.value = '' }} />
+              </div>
+            </Card>
+          )}
+
           {/* Fields */}
           <Card padded>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
@@ -1311,8 +1401,23 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px', marginTop: (priorityDetailFields.length > 0 || kind === 'speaker') ? '18px' : 0 }}>
               {overviewFields.map(field => (
                 <div key={field.id} style={(field.type === 'textarea' || field.type === 'checkbox') ? { gridColumn: '1 / -1' } : undefined}>
+                  {/* Bio is relabeled "Short Bio" here (display-only — key
+                      stays 'bio', unchanged everywhere else) now that Full
+                      Bio exists as its own upload above. The Generate
+                      button is speaker-only and only makes sense once a
+                      Full Bio source document is on file. */}
+                  {field.key === 'bio' && kind === 'speaker' && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginBottom: '6px' }}>
+                      <Button variant="ghost" onClick={generateShortBio} disabled={generatingShortBio || !record.bio_full_url || !canEdit}>
+                        {generatingShortBio ? 'Generating…' : '✨ Generate from Full Bio'}
+                      </Button>
+                      {shortBioUndoSnapshot !== null && (
+                        <Button variant="ghost" onClick={undoGenerateShortBio}>Undo</Button>
+                      )}
+                    </div>
+                  )}
                   <FormFieldInput
-                    field={field}
+                    field={field.key === 'bio' ? { ...field, label: 'Short Bio' } : field}
                     value={values[field.key] ?? (field.type === 'multiselect' ? [] : '')}
                     onChange={v => updateValue(field.key, v)}
                     onBlur={flushSave}
