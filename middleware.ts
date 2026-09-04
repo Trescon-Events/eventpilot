@@ -177,14 +177,23 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
-  const session = decodeSession(req.cookies.get('tcs_session')?.value)
+  const rawCookie = req.cookies.get('tcs_session')?.value
+  const session = decodeSession(rawCookie)
 
   // No session → redirect to login
   if (!session) {
-    const loginUrl = req.nextUrl.clone()
-    loginUrl.pathname = '/login'
-    loginUrl.search = `?next=${encodeURIComponent(pathname + req.nextUrl.search)}`
-    return NextResponse.redirect(loginUrl)
+    // TEMP DEBUG (2026-09-04) — remove once the middleware decode mismatch
+    // is root-caused. Never logs the raw cookie/secret value.
+    const res = NextResponse.redirect((() => {
+      const loginUrl = req.nextUrl.clone()
+      loginUrl.pathname = '/login'
+      loginUrl.search = `?next=${encodeURIComponent(pathname + req.nextUrl.search)}`
+      return loginUrl
+    })())
+    res.headers.set('x-mw-debug-had-cookie', String(!!rawCookie))
+    res.headers.set('x-mw-debug-cookie-len', String(rawCookie?.length ?? 0))
+    res.headers.set('x-mw-debug-has-secret', String(!!process.env.SESSION_SECRET))
+    return res
   }
 
   // Tool routes: auth-only — page/layout handles the tool_grants check
