@@ -193,6 +193,24 @@ export async function middleware(req: NextRequest) {
     res.headers.set('x-mw-debug-had-cookie', String(!!rawCookie))
     res.headers.set('x-mw-debug-cookie-len', String(rawCookie?.length ?? 0))
     res.headers.set('x-mw-debug-has-secret', String(!!process.env.SESSION_SECRET))
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- temp diagnostic, static import already covers decodeSession's own copy
+      const nodeCrypto = require('node:crypto')
+      res.headers.set('x-mw-debug-has-createhmac', String(typeof nodeCrypto?.createHmac === 'function'))
+      if (rawCookie) {
+        const dot = rawCookie.lastIndexOf('.')
+        if (dot !== -1) {
+          const payloadB64 = rawCookie.slice(0, dot)
+          const providedSig = rawCookie.slice(dot + 1)
+          const computedSig = nodeCrypto.createHmac('sha256', process.env.SESSION_SECRET ?? '').update(payloadB64).digest('base64url')
+          res.headers.set('x-mw-debug-sig-match', String(computedSig === providedSig))
+          res.headers.set('x-mw-debug-computed-sig-prefix', computedSig.slice(0, 10))
+          res.headers.set('x-mw-debug-provided-sig-prefix', providedSig.slice(0, 10))
+        }
+      }
+    } catch (e) {
+      res.headers.set('x-mw-debug-crypto-error', String(e instanceof Error ? e.message : e).slice(0, 120))
+    }
     return res
   }
 
