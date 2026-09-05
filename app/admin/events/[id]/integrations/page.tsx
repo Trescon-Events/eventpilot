@@ -1,9 +1,11 @@
 'use client'
 
 import { use, useEffect, useState } from 'react'
+import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 import { Card, Button, Input, Select, Badge } from '@/app/components/ui'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
+import { FORM_TYPES, FORM_TITLES, type FormType } from '@/app/lib/forms/types'
 
 /* Per-event Integrations page (2026-09-05) — consolidates KonfHub config,
    previously buried in Website Builder's Content/Details tab with 3 of
@@ -77,6 +79,16 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
   const [fieldMapSelections, setFieldMapSelections] = useState<Record<string, string>>({})
   const [savingFieldMap, setSavingFieldMap] = useState(false)
 
+  // HubSpot Forms — status/launcher only, the real connect + field-mapping
+  // UI stays at its existing dedicated page per form type (see this file's
+  // top comment for why: that page is a whole feature on its own, not
+  // worth re-building here). 'unknown' covers a 403 (gated on
+  // sae.forms.manage, a different permission than this page's own
+  // sae.integrations.manage) so one missing grant doesn't break the card.
+  const [hubspotStatus, setHubspotStatus] = useState<Record<FormType, { connected: boolean; formName?: string } | 'unknown' | null>>(
+    Object.fromEntries(FORM_TYPES.map(t => [t, null])) as Record<FormType, null>
+  )
+
   async function load() {
     setLoading(true)
     const [settingsRes, eventRes, permRes, fieldsRes] = await Promise.all([
@@ -109,6 +121,21 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
     setCanManage(perms.includes('*') || perms.some(p => p === 'sae.integrations.manage' || p === 'sae.*'))
     const fieldsData = await fieldsRes.json().catch(() => ({ fields: [] }))
     setRegistrationFields(fieldsData.fields ?? [])
+
+    const hubspotResults = await Promise.all(
+      FORM_TYPES.map(async formType => {
+        try {
+          const res = await fetch(`/api/events/stakeholders/hubspot/connection?event_id=${eventId}&form_type=${formType}`)
+          if (res.status === 403) return [formType, 'unknown'] as const
+          const data = await res.json().catch(() => ({ connected: false }))
+          return [formType, data?.id ? { connected: true, formName: data.hubspot_form_name } : { connected: false }] as const
+        } catch {
+          return [formType, 'unknown'] as const
+        }
+      })
+    )
+    setHubspotStatus(Object.fromEntries(hubspotResults) as Record<FormType, { connected: boolean; formName?: string } | 'unknown'>)
+
     setLoading(false)
   }
 
@@ -359,6 +386,35 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
               )}
             </div>
           )}
+        </Card></div>
+
+        <div style={{ marginTop: '16px' }}><Card padded>
+          <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>HubSpot Forms</div>
+          <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
+            Status only — connecting a form and mapping its fields happens on each form type&apos;s own dedicated page (field-mapping is involved enough to deserve its own screen, not squeezed in here).
+          </div>
+          <div style={{ display: 'grid', gap: '8px' }}>
+            {FORM_TYPES.map(formType => {
+              const status = hubspotStatus[formType]
+              return (
+                <div key={formType} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: '8px', background: 'var(--card-hi)' }}>
+                  <div>
+                    <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>{FORM_TITLES[formType]}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--ink4)', marginTop: '2px' }}>
+                      {status === null ? 'Checking…'
+                        : status === 'unknown' ? 'Status unavailable (needs Forms permission)'
+                        : status.connected ? `Connected — ${status.formName ?? 'HubSpot form'}`
+                        : 'Not connected'}
+                    </div>
+                  </div>
+                  <Link href={`/admin/events/${eventId}/stakeholders/hubspot-form/${formType}`}
+                    style={{ padding: '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink2)', fontSize: '12.5px', fontWeight: 700, textDecoration: 'none' }}>
+                    {status !== null && status !== 'unknown' && status.connected ? 'Manage →' : 'Connect →'}
+                  </Link>
+                </div>
+              )
+            })}
+          </div>
         </Card></div>
 
         <div style={{ marginTop: '16px' }}><Card padded>
