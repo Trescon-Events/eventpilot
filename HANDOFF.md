@@ -15,13 +15,34 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code — 03 Sep 2026, vendor-account dashboard leak fix |
-| Date | 2026-09-03 |
-| Latest push | 2026-09-03 — commit `b4d04ee` (code fix in `40070d1`, docs in `b4d04ee`). Madhu tested Pixelate's login live and found the "restricted to Task Manager only" promise from the 02 Sep vendor-accounts work didn't fully hold — `/dashboard` had no server-side gate at all, so a vendor session could still load the full My Dashboard. Fixed and confirmed against production with Pixelate's own login — see "03 Sep 2026" dated section below. |
+| Who | Madhu + Claude Code — 05 Sep 2026, KonfHub speaker registration LinkedIn bug fix |
+| Date | 2026-09-05 |
+| Latest push | 2026-09-05 — commit `4ad107e`. Madhu reported that registering a speaker as an attendee on KonfHub (Stakeholder Hub → speaker → Registration tab → "Register on KonfHub") failed with "Invalid LinkedIn URL," even though he hadn't touched that field and it isn't mandatory. Root cause: `linkedin_url` was always sent to KonfHub's create endpoint as `''` when empty, and KonfHub's own validation rejects a present-but-empty value. Fixed by only including the field in the payload when it has an actual (trimmed) value — same pattern already used for `phone_number`. See "05 Sep 2026" dated section below. |
 | DB migrations applied | None this session — code-only fix. |
-| Handed off to | Durga — and Khalifa via `TASK_MANAGER_HANDOFF.md`, updated this session with the leak/fix detail under "Access model" and a dated session summary. |
-| Deployed | Live — pushed to `main` (`b4d04ee`), Railway auto-deploy, confirmed working live against Pixelate's account. |
-| Left alone / known follow-up | Carried forward unchanged from 02 Sep: `app/components/RealtimeNotifications.tsx` still silently non-functional (RLS gap, not a leak). Pixelate's contact roster (`/admin/task-manager/console/vendor-contacts`) still needs populating with real people. Khalifa's "Go Live" protocol (01 Sep, below) still hasn't been exercised end-to-end. DFS/DFFW Client Approval pickup (29 Aug, below) also still untouched. |
+| Handed off to | Durga. |
+| Deployed | Live — pushed to `main` (`4ad107e`), Railway auto-deploy. |
+| Left alone / known follow-up | Bulk "Register on KonfHub" action (Speakers list → Actions) was reviewed at Madhu's request but not changed — it already reuses the same per-speaker job and duplicate-detection safety check, no separate bulk logic exists, so no fix was needed there. Carried forward unchanged from 03 Sep: `app/components/RealtimeNotifications.tsx` still silently non-functional (RLS gap, not a leak). Pixelate's contact roster (`/admin/task-manager/console/vendor-contacts`) still needs populating with real people. Khalifa's "Go Live" protocol (01 Sep, below) still hasn't been exercised end-to-end. DFS/DFFW Client Approval pickup (29 Aug, below) also still untouched. |
+
+## 05 Sep 2026 — KonfHub speaker registration: fixed false "Invalid LinkedIn URL" error
+
+### The ask
+
+Madhu tried to register a speaker (Shafida Halamy) as an attendee on KonfHub from the Stakeholder Hub Registration tab. The confirm dialog's "Register" button appeared to do nothing except re-show the same dialog — closing it revealed an "Invalid LinkedIn URL" error banner underneath, despite the LinkedIn field being blank and not required.
+
+### What was built
+
+Root cause, in `app/api/events/stakeholders/speakers/[id]/konfhub-registration-push/route.ts`'s `runRegistrationJob`: the create-only `attendee` payload sent to KonfHub's `admin/register` endpoint always included `linkedin_url: linkedinUrl || ''`, with no presence check — unlike `phone_number`, which is only added to the payload when it has a real value (that guard exists because KonfHub's *edit* endpoint has a `dial_code` dependency quirk). KonfHub's `admin/register` validation treats a present-but-empty `linkedin_url` as invalid, even though the field is optional. Fixed by only setting `attendee.linkedin_url` when the trimmed value is non-empty.
+
+Also reviewed, at Madhu's follow-up question, whether the bulk "Register on KonfHub" action (Speakers list → Actions dropdown, all 49 speakers selected) could double-register or error on speakers already registered on KonfHub. Confirmed no separate bulk code path exists — it fans out `Promise.all` over the same per-speaker route/job, so every speaker (bulk or single) goes through the existing 2026-08-25 safety check: a live lookup by email against KonfHub before creating, which links and updates instead of creating a duplicate if a booking is found (whether or not EventPilot's own `konfhub_booking_id` knew about it). No code change was needed here.
+
+### Verified
+
+`tsc --noEmit` clean. Fix is code-only and narrowly scoped to the one payload field; not yet re-tested live against KonfHub post-deploy (Madhu's original repro speaker, Shafida Halamy, is the natural next thing to retry).
+
+### What's next
+
+- Retry registering Shafida Halamy (and any other speaker that hit this) on KonfHub now that the fix is live, to confirm it actually resolves the error end-to-end.
+- Same open items as 03 Sep below (Pixelate contact roster, `RealtimeNotifications.tsx` RLS decision, Khalifa "Go Live" end-to-end verification, DFS/DFFW Client Approval pickup) — untouched this session.
 
 ## 03 Sep 2026 — Vendor accounts: `/dashboard` access leak fixed (Pixelate could still see the full dashboard)
 

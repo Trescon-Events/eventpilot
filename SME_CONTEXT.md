@@ -468,6 +468,7 @@ When describing AI features in your prompt, specify:
 | Lusha | LinkedIn enrichment | `LUSHA_API_KEY` in Railway |
 | Million Verifier | Email verification | `MILLION_VERIFIER_API_KEY` in Railway |
 | Firecrawl | Web scraping for leads | `FIRECRAWL_API_KEY` in Railway |
+| KonfHub | Event ticketing/registration platform — Speakers module can push speaker records and register them as attendees (Stakeholder Hub → speaker → Registration tab → "Register on KonfHub") | Per-event `konfhub_client_id`/`konfhub_client_secret` stored on the event's website record, not a global Railway env var |
 
 ---
 
