@@ -319,9 +319,13 @@ async function runRegistrationJob(
     country: country || 'UAE',
     country_code: toISO(country || 'UAE'),
     dial_code: dialCode || '+971',
-    linkedin_url: linkedinUrl || '',
     custom_forms: customForms,
   }
+  // Only include linkedin_url when there's an actual value — KonfHub's
+  // admin/register validation rejects a present-but-empty linkedin_url as
+  // "Invalid LinkedIn URL" even though the field isn't required.
+  const trimmedLinkedin = (linkedinUrl || '').trim()
+  if (trimmedLinkedin) attendee.linkedin_url = trimmedLinkedin
   const payload = {
     registration_tz: 'Asia/Kuala_Lumpur',
     utm: { utm_source: 'eventpilot', utm_medium: 'registration-push', utm_campaign: 'speaker-registration' },
