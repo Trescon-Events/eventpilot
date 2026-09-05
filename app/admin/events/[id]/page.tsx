@@ -684,6 +684,14 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                   style={{ padding: '3px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink3)', fontSize: '11px', fontWeight: 700, textDecoration: 'none', fontFamily: 'inherit' }}>
                   Access →
                 </Link>
+                {/* 2026-09-05 — KonfHub config used to live only inside
+                    Website Builder's Content tab (3 of its fields had no
+                    UI at all, SQL-only); this is its new home, same
+                    "workspace couldn't find it" gap Access → above notes. */}
+                <Link href={`/admin/events/${eventId}/integrations`}
+                  style={{ padding: '3px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink3)', fontSize: '11px', fontWeight: 700, textDecoration: 'none', fontFamily: 'inherit' }}>
+                  Integrations →
+                </Link>
               </div>
 
               {!editing ? (

@@ -60,6 +60,12 @@ export const ACCESS_REGISTRY: AccessModule[] = [
       { key: 'sae.sensitive_documents.view',   label: 'View Passport / National ID documents',                       enforced: true },
       { key: 'sae.sensitive_documents.manage', label: 'Upload, replace or delete Passport / National ID documents',  enforced: true },
       { key: 'sae.messaging.use',          label: 'Use the Messaging module for this event',         enforced: false },
+      // Integrations (2026-09-05) — the new consolidated per-event page for
+      // KonfHub/HubSpot/Postiz/Client Approval Contact config, replacing
+      // the scattered inline-edit panels and the Website Builder's own
+      // "KonfHub Integration" card. Delegatable the same way Producer and
+      // Sensitive Documents are — admins today, a named person tomorrow.
+      { key: 'sae.integrations.manage',    label: 'Manage KonfHub/HubSpot/Postiz integration settings for this event', enforced: true },
       // Unifies the Creative Templates Admin Console (layer/variant editor,
       // deliberately narrow — branding team) into this same per-event
       // permission-key system (2026-08-16) — previously gated separately

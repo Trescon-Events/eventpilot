@@ -164,6 +164,59 @@ export async function deleteKonfhubSpeaker(konfhubEventId: string, speakerId: st
   }
 }
 
+// GET /event/:id/tags (2026-09-05, Integrations page) — undocumented, same
+// endpoint discovered 2026-08-25 for the Speaker/Moderator tag workaround
+// (see konfhub-push/route.ts's doc comment). Returns EVERY tag on the
+// event, not just Speaker/Moderator — a live probe against WAIS Malaysia's
+// real event found session-type tags (Keynote, Panel Discussion, Break…)
+// mixed into the same list, AND a lowercase 'speaker' tag alongside a
+// separate capitalized 'Speaker' tag. Never auto-match by name — always
+// return the raw list and let a human pick, which is exactly why this
+// returns id+name pairs rather than trying to guess here.
+export type KonfhubTag = { id: string; name: string }
+
+export async function fetchKonfhubTags(konfhubEventId: string, token: string): Promise<KonfhubTag[]> {
+  const res = await fetch(`${API_BASE}/${konfhubEventId}/tags`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({})) as { error?: string }
+    throw new KonfhubApiError(data.error || 'Failed to fetch KonfHub tags', res.status)
+  }
+  return await res.json() as KonfhubTag[]
+}
+
+// GET /event/:id/tickets (2026-09-05, Integrations page) — every ticket
+// type configured on the event (Delegate Pass, Speaker Registration,
+// Sponsor Conference Pass, Media Pass, etc.), grouped into KonfHub's own
+// categories, each with its full custom-form field list already embedded
+// (`forms: [{form_id, form_name}]`) — confirmed live against WAIS
+// Malaysia's real event, 2026-09-04/05. No need to reverse-engineer field
+// ids from real attendee records the way the original Speaker Registration
+// mapping was built (see konfhub-registration-push/route.ts's HISTORY
+// comment) — this is a clean schema-listing source. `form_name` comes back
+// as raw (often messy, copy-pasted-from-a-doc) HTML — stripHtml() below
+// gives the mapping UI a readable label.
+export type KonfhubTicketForm = { form_id: number; form_name: string }
+export type KonfhubTicket = { ticket_id: number; ticket_name: string; forms: KonfhubTicketForm[] }
+export type KonfhubTicketCategory = { category_id: number; category_name: string; tickets: KonfhubTicket[] }
+
+export async function fetchKonfhubTickets(konfhubEventId: string, token: string): Promise<KonfhubTicketCategory[]> {
+  const res = await fetch(`${API_BASE}/${konfhubEventId}/tickets`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({})) as { error?: string }
+    throw new KonfhubApiError(data.error || 'Failed to fetch KonfHub tickets', res.status)
+  }
+  const data = await res.json() as { categorized?: KonfhubTicketCategory[] }
+  return data.categorized ?? []
+}
+
+export function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
 // Name-normalization for the one-time matching bridge (2026-08-23) — strips
 // salutation-style prefixes/punctuation/whitespace so e.g. "Dr. Ong Hong Hoe"
 // and "Ong Hong Hoe" line up. Deliberately conservative: this only decides

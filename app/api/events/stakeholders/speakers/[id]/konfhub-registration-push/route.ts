@@ -167,7 +167,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .eq('event_id', speaker.event_id)
     .single()
   if (!website?.konfhub_event_id || !website?.konfhub_client_id || !website?.konfhub_client_secret || !website?.konfhub_speaker_ticket) {
-    return NextResponse.json({ error: 'KonfHub Attendee Registration isn’t configured for this event yet — set the Client ID/Secret and Speaker Ticket ID in Website Settings first.' }, { status: 422 })
+    return NextResponse.json({ error: 'KonfHub Attendee Registration isn’t configured for this event yet — set the Client ID/Secret and Speaker Ticket ID on this event’s Integrations page first.' }, { status: 422 })
   }
 
   // Most field-map keys read from custom_fields, but 'bio' fields promoted

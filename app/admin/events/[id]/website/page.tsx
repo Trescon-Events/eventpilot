@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { type PageStructure, type Section, type SectionDesign, type FooterConfig, type FooterColumn, type FooterLink, defaultStructure, defaultFooter, SECTION_TYPES, SECTION_LAYOUTS } from '@/app/lib/event-page-types'
 import { useDraft } from '@/app/lib/useDraft'
 import DraftReEntryModal from '@/app/components/DraftReEntryModal'
@@ -1742,35 +1743,20 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
               </div>
             </div>
 
-            {/* KonfHub */}
+            {/* KonfHub — moved to the Integrations page (2026-09-05). This
+                card used to live here with 3 of its ~10 fields SQL-only (no
+                UI at all); the new page fetches those from KonfHub instead
+                of asking anyone to type in ids. Keeping just a pointer here
+                rather than the fields themselves avoids two editable
+                copies of the same data drifting out of sync. */}
             <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px', gridColumn: '1/-1' }}>
-              <div style={{ fontSize: '12px', fontWeight: 800, color: C.muted, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '18px' }}>KonfHub Integration</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '14px' }}>
-                <Field label="KonfHub Event ID" value={settings.konfhub_event_id ?? ''} onChange={SET('konfhub_event_id')} placeholder="12345" />
-                <Field label="KonfHub API Key" value={settings.konfhub_api_key ?? ''} onChange={SET('konfhub_api_key')} placeholder="kh_live_..." />
-                <Field label="Speaker Ticket ID" value={settings.konfhub_speaker_ticket ?? ''} onChange={SET('konfhub_speaker_ticket')} placeholder="100841" />
-                <Field label="Partner Ticket ID" value={settings.konfhub_partner_ticket ?? ''} onChange={SET('konfhub_partner_ticket')} placeholder="100842" />
-              </div>
-              {/* Speakers-management API creds (2026-08-24) — separate
-                  section since these are a different KonfHub API (Bearer
-                  token, not the api_key above). Used by "Push to KonfHub"
-                  (Speakers module) AND, since 2026-08-25, the Registration
-                  tab's "Register/Update on KonfHub" (Attendee Registration —
-                  KonfHub confirmed the same client_id/secret pair covers
-                  both). See WebsiteSettings type's own comment. */}
-              <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: `1px solid ${C.border}`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                <Field label="KonfHub Client ID" value={settings.konfhub_client_id ?? ''} onChange={SET('konfhub_client_id')} placeholder="for Push/Update to KonfHub" />
-                <Field label="KonfHub Client Secret" type="password" value={settings.konfhub_client_secret ?? ''} onChange={SET('konfhub_client_secret')} placeholder="for Push/Update to KonfHub" />
-              </div>
-              {/* Only needed when this event shares a KonfHub event_id with
-                  other EventPilot events (e.g. Dubai Future Finance Week's
-                  sub-events) — leave blank for a normal 1:1 event. Find the
-                  id via GET /event/:id/speakers on KonfHub's API (each
-                  category's speakers carry its speaker_category_id). */}
-              <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: `1px solid ${C.border}` }}>
-                <Field label="KonfHub Speaker Category ID" value={settings.konfhub_speaker_category_id ?? ''} onChange={SET('konfhub_speaker_category_id')} placeholder="e.g. 19271 — only for shared/umbrella KonfHub events" />
-              </div>
-              <div style={{ marginTop: '12px', padding: '10px 14px', borderRadius: '8px', background: 'rgba(167,139,250,0.06)', border: `1px solid rgba(167,139,250,0.18)`, fontSize: '12px', color: C.muted }}>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: C.muted, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>KonfHub Integration</div>
+              <div style={{ fontSize: '13px', color: C.muted, marginBottom: '14px' }}>KonfHub credentials, Speaker/Moderator tags, and Registration field mapping now live on this event&apos;s Integrations page.</div>
+              <Link href={`/admin/events/${eventId}/integrations`}
+                style={{ display: 'inline-block', padding: '9px 16px', borderRadius: '8px', border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
+                Open Integrations →
+              </Link>
+              <div style={{ marginTop: '16px', padding: '10px 14px', borderRadius: '8px', background: 'rgba(167,139,250,0.06)', border: `1px solid rgba(167,139,250,0.18)`, fontSize: '12px', color: C.muted }}>
                 Public API: <code style={{ fontSize: '11px', background: 'rgba(0,0,0,0.06)', padding: '2px 6px', borderRadius: '4px' }}>/api/public/event/{settings.slug || '{slug}'}</code>
                 {' '}· Speakers: <code style={{ fontSize: '11px', background: 'rgba(0,0,0,0.06)', padding: '2px 6px', borderRadius: '4px' }}>/api/public/event/{settings.slug || '{slug}'}?section=speakers</code>
               </div>
