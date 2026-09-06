@@ -15,9 +15,9 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — 06 Sep 2026, Gemini billing outage (announcement generation + Enrich Build Log) fixed, Client Approval Contacts shipped |
+| Who | Madhu + Claude Code (Sonnet 5) — 06 Sep 2026, Gemini billing outage fixed; Madhu also ran a concurrent session shipping Client Approval Contacts + producer-attributed sending |
 | Date | 2026-09-06 |
-| Latest push | 2026-09-06 — commits `e4f57d5` and `c7a0f77`. See "06 Sep 2026" dated section below. |
+| Latest push | 2026-09-06 — commits `e4f57d5` (Gemini fix, this session), `c7a0f77`, `0954728`, `12e1982` (Client Approval Contacts + producer-attributed sending, concurrent session). See "06 Sep 2026" dated section below. |
 | DB migrations applied | `supabase/client_approval_contacts_migration.sql` — already applied before this push (verified live: `event_client_approval_contacts` and `announcement_client_approval_cc` tables both exist in Supabase). |
 | Handed off to | Durga. |
 | Deployed | Live — pushed to `main` (`e4f57d5`, `c7a0f77`), Railway auto-deploy. |
@@ -36,7 +36,7 @@ Madhu hit "Announcement generation failed" trying to generate a creative for spe
 - `app/api/events/stakeholders/announcements/generate/route.ts` and `.../[id]/regenerate-copy/route.ts`: neither caught a thrown Gemini error — an uncaught rejection crashed the whole request into a non-JSON 500, which the frontend could only render as a generic "generation failed." Both routes now catch the failure and return a specific, actionable message via a new shared `describeGeminiError()` helper (`app/lib/events/announcements.ts`) that recognizes the 429/quota case by name.
 - Madhu topped up the Gemini credits. Re-ran the failed "Enrich Build Log" run after confirming credits had propagated (~1 min delay) — passed. No code change was needed for the Action itself, just confirming the underlying billing issue was resolved.
 
-**Also shipped this session (already committed locally, included in this push — see commit `c7a0f77` for full detail):** Client Approval Contacts — replaces the single flat `events.client_contact_name/job_title/email` with a real multi-person list per event (Integrations page), exactly one marked Primary. Only the Primary's decision gates publishing (unchanged `announcement_approvals` layer='client' round); every CC'd person now gets their own unique approval token/email and their decision is tracked per-person in a new `announcement_client_approval_cc` table, instead of the old shared-link pattern that couldn't tell who responded. DFS's one real `client_contact_email` (found to be leftover "DELETE ME" test data, not real config) was migrated in and the legacy columns removed.
+**Shipped in parallel by Madhu running a second, concurrent Claude Code session on this same repo today (not this session's work — noted here only because both landed on `main` the same evening):** Client Approval Contacts (commit `c7a0f77`) — replaces the single flat `events.client_contact_name/job_title/email` with a real multi-person list per event (Integrations page), exactly one marked Primary. Only the Primary's decision gates publishing (unchanged `announcement_approvals` layer='client' round); every CC'd person now gets their own unique approval token/email and their decision is tracked per-person in a new `announcement_client_approval_cc` table, instead of the old shared-link pattern that couldn't tell who responded. DFS's one real `client_contact_email` (found to be leftover "DELETE ME" test data, not real config) was migrated in and the legacy columns removed. Also from that session: producer-attributed sending (commits `0954728`, `12e1982`) — see "What's next" below.
 
 ### Verified
 
@@ -46,7 +46,7 @@ Madhu hit "Announcement generation failed" trying to generate a creative for spe
 
 - Watch for a recurrence of the Gemini billing error (it will now show a clear message instead of a generic one if it happens again) — worth checking AI Studio's billing/auto-reload settings so this doesn't recur unannounced.
 - Client Approval Contacts: not yet exercised end-to-end in production (add a contact, mark primary, send for client approval, confirm per-CC tracking works) — natural next thing to verify.
-- Producer-attributed sending (`resolveSenderIdentity`'s new `producerStaffId` param, `app/lib/email/sender-identity.ts`) was also found uncommitted this session and pushed alongside the above — it's wired into `notify-internal`, `send-to-speaker` (compose+send), and `send-for-external-approval` (compose+send), but NOT into `send-for-client-approval` (compose+send), `notify-external` (compose+send/remind), or `stakeholders/invites` (compose+send). Unclear whether that's a deliberate scope boundary (client/external-facing mail staying template-attributed on purpose) or an unfinished rollout — worth confirming with whoever built it before adding it to the remaining routes.
+- Producer-attributed sending (`resolveSenderIdentity`'s new `producerStaffId` param, `app/lib/email/sender-identity.ts`) shipped this session by a concurrent Madhu session — commits `0954728` and `12e1982` — now wired into every announcement/invite send path (notify-internal, send-to-speaker, send-for-external-approval, send-for-client-approval, notify-external, stakeholders/invites). Not yet exercised end-to-end against a real speaker with a Producer assigned.
 - Same open items as 05 Sep below, still untouched: Pixelate contact roster, Khalifa "Go Live" end-to-end verification, `RealtimeNotifications.tsx` RLS decision.
 
 ## 05 Sep 2026 — KonfHub speaker registration: fixed false "Invalid LinkedIn URL" error
