@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { sendGraphMail } from '@/app/lib/email/graph-mail'
-import { resolveSenderIdentity } from '@/app/lib/email/sender-identity'
+import { resolveSenderIdentity, getSpeakerProducerId } from '@/app/lib/email/sender-identity'
 import { renderEmailTemplate } from '@/app/lib/email/render-template'
 import { buildPlatformLinksHtml } from '@/app/lib/events/postiz-publish'
 
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { data: template } = await supabaseAdmin.from('email_templates').select('*').eq('slug', 'publish_notification_internal').eq('is_active', true).single()
   if (!template) return NextResponse.json({ error: '"Publish Notification — Internal" template not found' }, { status: 404 })
 
-  const sender = await resolveSenderIdentity(session, template)
+  const sender = await resolveSenderIdentity(session, template, await getSpeakerProducerId(announcement.speaker_id))
   const platformLinks = await buildPlatformLinksHtml(announcement.publish_results, event?.postiz_profile_key || undefined)
 
   const { subject, html } = renderEmailTemplate(template, {

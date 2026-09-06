@@ -15,13 +15,39 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code — 05 Sep 2026, KonfHub speaker registration LinkedIn bug fix |
-| Date | 2026-09-05 |
-| Latest push | 2026-09-05 — commit `4ad107e`. Madhu reported that registering a speaker as an attendee on KonfHub (Stakeholder Hub → speaker → Registration tab → "Register on KonfHub") failed with "Invalid LinkedIn URL," even though he hadn't touched that field and it isn't mandatory. Root cause: `linkedin_url` was always sent to KonfHub's create endpoint as `''` when empty, and KonfHub's own validation rejects a present-but-empty value. Fixed by only including the field in the payload when it has an actual (trimmed) value — same pattern already used for `phone_number`. See "05 Sep 2026" dated section below. |
-| DB migrations applied | None this session — code-only fix. |
+| Who | Madhu + Claude Code (Sonnet 5) — 06 Sep 2026, Gemini billing outage (announcement generation + Enrich Build Log) fixed, Client Approval Contacts shipped |
+| Date | 2026-09-06 |
+| Latest push | 2026-09-06 — commits `e4f57d5` and `c7a0f77`. See "06 Sep 2026" dated section below. |
+| DB migrations applied | `supabase/client_approval_contacts_migration.sql` — already applied before this push (verified live: `event_client_approval_contacts` and `announcement_client_approval_cc` tables both exist in Supabase). |
 | Handed off to | Durga. |
-| Deployed | Live — pushed to `main` (`4ad107e`), Railway auto-deploy. |
-| Left alone / known follow-up | Bulk "Register on KonfHub" action (Speakers list → Actions) was reviewed at Madhu's request but not changed — it already reuses the same per-speaker job and duplicate-detection safety check, no separate bulk logic exists, so no fix was needed there. Carried forward unchanged from 03 Sep: `app/components/RealtimeNotifications.tsx` still silently non-functional (RLS gap, not a leak). Pixelate's contact roster (`/admin/task-manager/console/vendor-contacts`) still needs populating with real people. Khalifa's "Go Live" protocol (01 Sep, below) still hasn't been exercised end-to-end. DFS/DFFW Client Approval pickup (29 Aug, below) also still untouched. |
+| Deployed | Live — pushed to `main` (`e4f57d5`, `c7a0f77`), Railway auto-deploy. |
+| Left alone / known follow-up | Same open items as 05 Sep below, still untouched: Pixelate's contact roster (`/admin/task-manager/console/vendor-contacts`) needs populating with real people. Khalifa's "Go Live" protocol (01 Sep, below) still hasn't been exercised end-to-end. `app/components/RealtimeNotifications.tsx` still silently non-functional (RLS gap, not a leak). |
+
+## 06 Sep 2026 — Gemini billing outage: announcement generation + Enrich Build Log both fixed; Client Approval Contacts shipped
+
+### The ask
+
+Madhu hit "Announcement generation failed" trying to generate a creative for speaker Rainer Althoff on the Stakeholder Hub (screenshot: generic red error banner, no detail). Separately flagged that he keeps getting "[Trescon-Events/eventpilot] Run failed: Enrich Build Log" emails on every push.
+
+### What was built
+
+**Root cause (both issues, same cause):** the Gemini API key's prepaid AI Studio credits were depleted — confirmed via `railway logs` showing repeated `429 Too Many Requests` / "Your prepayment credits are depleted" errors. The same `GEMINI_API_KEY` value is used by both the live app (Railway) and the `.github/workflows/enrich-commits.yml` build-log-enrichment Action, so both broke identically starting 2026-09-05.
+
+- `app/api/events/stakeholders/announcements/generate/route.ts` and `.../[id]/regenerate-copy/route.ts`: neither caught a thrown Gemini error — an uncaught rejection crashed the whole request into a non-JSON 500, which the frontend could only render as a generic "generation failed." Both routes now catch the failure and return a specific, actionable message via a new shared `describeGeminiError()` helper (`app/lib/events/announcements.ts`) that recognizes the 429/quota case by name.
+- Madhu topped up the Gemini credits. Re-ran the failed "Enrich Build Log" run after confirming credits had propagated (~1 min delay) — passed. No code change was needed for the Action itself, just confirming the underlying billing issue was resolved.
+
+**Also shipped this session (already committed locally, included in this push — see commit `c7a0f77` for full detail):** Client Approval Contacts — replaces the single flat `events.client_contact_name/job_title/email` with a real multi-person list per event (Integrations page), exactly one marked Primary. Only the Primary's decision gates publishing (unchanged `announcement_approvals` layer='client' round); every CC'd person now gets their own unique approval token/email and their decision is tracked per-person in a new `announcement_client_approval_cc` table, instead of the old shared-link pattern that couldn't tell who responded. DFS's one real `client_contact_email` (found to be leftover "DELETE ME" test data, not real config) was migrated in and the legacy columns removed.
+
+### Verified
+
+`tsc --noEmit` clean. `npm run build` succeeded. Confirmed via `railway logs` that the Gemini 429s are the actual production error (not a code bug). Confirmed via a direct Supabase query that both new tables from the Client Approval Contacts migration already exist (migration was already applied before this push).
+
+### What's next
+
+- Watch for a recurrence of the Gemini billing error (it will now show a clear message instead of a generic one if it happens again) — worth checking AI Studio's billing/auto-reload settings so this doesn't recur unannounced.
+- Client Approval Contacts: not yet exercised end-to-end in production (add a contact, mark primary, send for client approval, confirm per-CC tracking works) — natural next thing to verify.
+- Producer-attributed sending (`resolveSenderIdentity`'s new `producerStaffId` param, `app/lib/email/sender-identity.ts`) was also found uncommitted this session and pushed alongside the above — it's wired into `notify-internal`, `send-to-speaker` (compose+send), and `send-for-external-approval` (compose+send), but NOT into `send-for-client-approval` (compose+send), `notify-external` (compose+send/remind), or `stakeholders/invites` (compose+send). Unclear whether that's a deliberate scope boundary (client/external-facing mail staying template-attributed on purpose) or an unfinished rollout — worth confirming with whoever built it before adding it to the remaining routes.
+- Same open items as 05 Sep below, still untouched: Pixelate contact roster, Khalifa "Go Live" end-to-end verification, `RealtimeNotifications.tsx` RLS decision.
 
 ## 05 Sep 2026 — KonfHub speaker registration: fixed false "Invalid LinkedIn URL" error
 

@@ -36,14 +36,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const [{ data: event }, { data: speaker }, { data: template }] = await Promise.all([
     supabaseAdmin.from('events').select('name, public_name, postiz_profile_key').eq('id', announcement.event_id).single(),
-    supabaseAdmin.from('event_speakers').select('name, public_name, salutation').eq('id', announcement.speaker_id).single(),
+    supabaseAdmin.from('event_speakers').select('name, public_name, salutation, producer_staff_id').eq('id', announcement.speaker_id).single(),
     supabaseAdmin.from('email_templates').select('*').eq('slug', 'speaker_self_promo_request').eq('is_active', true).single(),
   ])
   if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
   if (!template) return NextResponse.json({ error: '"Speaker Self Promo Request Email" template not found' }, { status: 404 })
 
-  const sender = await resolveSenderIdentity(session, template)
+  const sender = await resolveSenderIdentity(session, template, speaker.producer_staff_id)
 
   // Event channel handles come from the event's connected Postiz channels,
   // never a per-speaker field (product decision) — a Postiz outage

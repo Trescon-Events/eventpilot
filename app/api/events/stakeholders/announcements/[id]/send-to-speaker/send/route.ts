@@ -37,9 +37,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   }
 
-  const { data: template } = await supabaseAdmin.from('email_templates').select('sender_name, sender_email').eq('id', body.template_id).single()
+  const [{ data: template }, { data: speaker }] = await Promise.all([
+    supabaseAdmin.from('email_templates').select('sender_name, sender_email').eq('id', body.template_id).single(),
+    announcement.speaker_id
+      ? supabaseAdmin.from('event_speakers').select('producer_staff_id').eq('id', announcement.speaker_id).single()
+      : Promise.resolve({ data: null }),
+  ])
   if (!template) return NextResponse.json({ error: 'Template not found' }, { status: 404 })
-  const sender = await resolveSenderIdentity(session, template)
+  const sender = await resolveSenderIdentity(session, template, speaker?.producer_staff_id)
 
   const ccEmails = (body.cc_emails ?? []).map(e => e.trim()).filter(Boolean)
 
