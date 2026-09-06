@@ -47,6 +47,21 @@ export type PostizIntegration = {
 // events.postiz_profile_key (see that column's own comment for the open
 // question about how this maps once Madhu's real multi-event Postiz
 // workspace exists).
+export type PostizGroup = { id: string; name: string }
+
+// GET /groups (2026-09-06, Integrations page) — every Postiz "customer" on
+// this account, e.g. the "World AI Show" group created live and confirmed
+// against the real API. Note the real path is bare `/groups`, NOT
+// `/integrations/groups` — the docs site's own URL slug
+// (public-api/integrations/groups.md) is misleading; confirmed live via a
+// 404 on the nested path and 200 on this one.
+export async function listPostizGroups(): Promise<PostizGroup[]> {
+  const { apiUrl, apiKey } = requireEnv()
+  const res = await fetch(`${apiUrl}/groups`, { headers: authHeaders(apiKey) })
+  if (!res.ok) throw new PostizError(`Postiz groups fetch failed: ${res.status} ${await res.text().catch(() => '')}`)
+  return await res.json() as PostizGroup[]
+}
+
 export async function listPostizIntegrations(groupId?: string): Promise<PostizIntegration[]> {
   const { apiUrl, apiKey } = requireEnv()
   const url = new URL(`${apiUrl}/integrations`)

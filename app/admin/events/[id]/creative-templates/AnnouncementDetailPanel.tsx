@@ -118,7 +118,16 @@ export default function AnnouncementDetailPanel({
   // YouTube selectable failed the whole batch (X/Instagram/LinkedIn
   // included) the moment it was checked (2026-08-27).
   const youtubeChannels = postizChannels.filter(c => c.identifier === 'youtube')
-  const selectablePostizChannels = postizChannels.filter(c => c.identifier !== 'youtube')
+  // Restricted to the event's own approved channel set (2026-09-06, per
+  // Madhu) once one's been configured on the Integrations page —
+  // previously defaultChannelIds only pre-checked boxes here, it never
+  // actually hid anything, so a producer could still post to a channel
+  // nobody approved for this event. Empty set (an event that hasn't
+  // configured this yet) falls back to the old unrestricted behavior
+  // rather than hiding every channel.
+  const selectablePostizChannels = postizChannels.filter(c =>
+    c.identifier !== 'youtube' && (defaultChannelIds.length === 0 || defaultChannelIds.includes(c.id))
+  )
   const [publishing, setPublishing] = useState<'approval' | null>(null)
   const [scheduleAt, setScheduleAt] = useState('')
   const [otherScheduled, setOtherScheduled] = useState<ScheduledPost[]>([])

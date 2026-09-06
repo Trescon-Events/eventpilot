@@ -56,8 +56,6 @@ type Event = {
   client_contact_email: string | null
 }
 
-type PostizChannel = { id: string; name: string; identifier: string; picture: string | null; disabled: boolean }
-
 type StaffMember = { id: string; name: string; department: string }
 
 type ExpenseCategory = { id: string; name: string; sort_order: number }
@@ -178,13 +176,11 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
     client_contact_name: '', client_contact_job_title: '', client_contact_email: '',
   })
   const [savingEdit,     setSavingEdit]     = useState(false)
-  // Postiz "Connected Channels" — kept separate from editForm (a plain
-  // Record<string,string>) since this one's an array. Fetched once on
-  // mount and re-fetched after a save that changes postiz_profile_key
-  // (a new key can have different channels connected than the old one).
+  // Postiz's own channel selection now lives on the Integrations page
+  // (2026-09-06) — defaultChannelIds stays here only because saveEventEdit
+  // still round-trips it as part of the same whole-event PATCH; nothing
+  // on this page reads or edits it anymore.
   const [defaultChannelIds, setDefaultChannelIds] = useState<string[]>([])
-  const [availableChannels, setAvailableChannels] = useState<PostizChannel[]>([])
-  const [channelsLoading,   setChannelsLoading]   = useState(false)
 
   // Topline Messaging Doc
   type MessagingDoc = {
@@ -278,18 +274,6 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
     setEventStaff(Array.isArray(data) ? data : [])
   }
 
-  async function fetchPostizChannels() {
-    setChannelsLoading(true)
-    const res  = await fetch(`/api/events/postiz-channels?event_id=${eventId}`)
-    const data = await res.json().catch(() => ({ channels: [] }))
-    setAvailableChannels(Array.isArray(data.channels) ? data.channels : [])
-    setChannelsLoading(false)
-  }
-
-  function toggleDefaultChannel(id: string) {
-    setDefaultChannelIds(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id])
-  }
-
   async function saveEventEdit() {
     setSavingEdit(true)
     const body: Record<string, string | number | null | string[]> = {
@@ -366,7 +350,6 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
         client_contact_email:     ev.client_contact_email ?? '',
       })
       setDefaultChannelIds(ev.postiz_default_channel_ids ?? [])
-      fetchPostizChannels()
     }
     setChecklist(Array.isArray(clData) ? clData : [])
     setStaffList(Array.isArray(stData) ? stData : [])
@@ -773,62 +756,25 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                     ))}
                   </div>
 
+                  {/* Social Publishing / Postiz — moved to the Integrations
+                      page (2026-09-06): Customer ID is now fetch-and-select
+                      only (Postiz "groups", confirmed live against a real
+                      account — no way to type one in, and picking a group
+                      pre-fetches its channels), and whatever's selected
+                      there is now enforced as the ONLY channel set the
+                      announcement composer can pick from (previously this
+                      was cosmetic, see AnnouncementDetailPanel.tsx's
+                      selectablePostizChannels). Kept as a pointer rather
+                      than duplicating the fields, same reasoning as
+                      KonfHub's own move. */}
                   <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.8px', color: 'var(--teal-mid)', margin: '20px 0 10px', textTransform: 'uppercase' }}>Social Publishing</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <div>
-                      <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>POSTIZ CUSTOMER ID (OPTIONAL)</label>
-                      <input type="text" value={editForm.postiz_profile_key} onChange={e => setEditForm(f => ({ ...f, postiz_profile_key: e.target.value }))}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)', boxSizing: 'border-box' }} />
-                      <div style={{ fontSize: '10.5px', color: 'var(--ink3)', marginTop: '4px', lineHeight: 1.4 }}>
-                        Not an API key — the whole workspace shares one key, configured once on the server. Leave this
-                        blank unless Trescon&apos;s Postiz plan sets up a separate &quot;customer&quot; for this event to scope
-                        channels to; until then every event sees the full connected-channel list below.
-                      </div>
-                    </div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '10px' }}>
+                    Postiz group and channel selection now live on this event&apos;s Integrations page.
                   </div>
-
-                  {/* Connected Channels (2026-08-16) — the remembered
-                      per-event default channel selection every announcement
-                      pre-fills from, so scheduling/posting never requires
-                      re-picking channels from scratch. A Postiz workspace
-                      may have many more channels connected than are
-                      relevant to any one event (Madhu: "postiz might show
-                      15 different channels, but inside WAIS Malaysia...
-                      user would select whichever is relevant for this
-                      event, and the system would remember it") — this is
-                      that selection. Still adjustable per post from the
-                      announcement's own action panel; this only sets the
-                      default. No longer gated on the Customer ID above
-                      (2026-08-16 live fix) — Trescon's real Postiz account
-                      is a single flat workspace with no per-customer
-                      scoping, so every event fetches the full channel list
-                      unscoped by default. */}
-                  <div style={{ marginTop: '14px' }}>
-                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>CONNECTED CHANNELS (DEFAULT SELECTION)</label>
-                    {channelsLoading ? (
-                      <div style={{ fontSize: '11.5px', color: 'var(--ink4)' }}>Loading channels…</div>
-                    ) : availableChannels.length === 0 ? (
-                      <div style={{ fontSize: '11.5px', color: 'var(--ink4)' }}>No channels connected to this Postiz workspace yet.</div>
-                    ) : (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                        {availableChannels.map(ch => {
-                          const checked = defaultChannelIds.includes(ch.id)
-                          return (
-                            <label key={ch.id} title={ch.disabled ? 'Disconnected in Postiz' : undefined}
-                              style={{
-                                display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', borderRadius: '8px',
-                                border: `1.5px solid ${checked ? 'var(--teal-mid)' : 'var(--border)'}`,
-                                background: checked ? 'var(--teal-light)' : 'transparent',
-                                color: ch.disabled ? 'var(--ink4)' : 'var(--ink2)', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
-                              }}>
-                              <input type="checkbox" checked={checked} onChange={() => toggleDefaultChannel(ch.id)} style={{ margin: 0 }} />
-                              {ch.name} <span style={{ color: 'var(--ink4)', fontWeight: 400 }}>({ch.identifier})</span>
-                            </label>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
+                  <Link href={`/admin/events/${eventId}/integrations`}
+                    style={{ display: 'inline-block', padding: '8px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink2)', fontSize: '12.5px', fontWeight: 700, textDecoration: 'none' }}>
+                    Open Integrations →
+                  </Link>
 
                   {/* Client Approval Contact (2026-08-29, per Madhu) — for
                       events Trescon manages on behalf of another client

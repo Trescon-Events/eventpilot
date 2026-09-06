@@ -7,12 +7,32 @@ import { Card, Button, Input, Select, Badge } from '@/app/components/ui'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import { FORM_TYPES, FORM_TITLES, type FormType } from '@/app/lib/forms/types'
 
-/* Per-event Integrations page (2026-09-05) — consolidates KonfHub config,
-   previously buried in Website Builder's Content/Details tab with 3 of
-   its ~10 fields SQL-only (no UI at all). HubSpot/Postiz/Client Approval
-   Contact are follow-ups (scoped separately) — this first pass is
-   KonfHub only. Gated by sae.integrations.manage (see access-permissions.ts's
-   own comment — delegatable the same way Producer/Sensitive Documents are).
+/* Per-event Integrations page (2026-09-05/06) — consolidates KonfHub,
+   HubSpot Forms, and Postiz config, previously scattered across Website
+   Builder's Content tab (KonfHub, 3 of its ~10 fields SQL-only, no UI at
+   all) and the event hub's inline Edit panel (Postiz Customer ID + channel
+   defaults). Client Approval Contact is a still-pending follow-up. Gated
+   by sae.integrations.manage (see access-permissions.ts's own comment —
+   delegatable the same way Producer/Sensitive Documents are).
+
+   Postiz design, per Madhu (2026-09-06 conversation):
+   - The Postiz "Customer" (called a "group" in their own API — kept as
+     "group" here too, matching their terminology) is fetch-and-select
+     ONLY, same principle as KonfHub's tags/tickets — never a free-typed
+     id. Confirmed live: the real endpoint is bare GET /groups, not
+     /integrations/groups as the docs site's own URL slug implies.
+   - Selecting a group immediately fetches that group's channels, all
+     pre-checked by default — the producer narrows down from there, never
+     starts from nothing.
+   - Whatever's checked here is meant to be the ONLY thing the SAE
+     announcement composer can select from — before this, postiz_default_
+     channel_ids was purely cosmetic (pre-checked boxes, never actually
+     restricting what's selectable in either the event-hub settings form
+     or the composer, and never enforced server-side at publish time) —
+     confirmed by reading AnnouncementDetailPanel.tsx's selectablePostizChannels
+     and postiz-publish.ts directly. This page's job is the settings side;
+     the composer-side filter is a separate, small follow-up edit to that
+     same derivation.
 
    KonfHub-specific design, per Madhu (2026-09-04/05 conversation):
    - Event ID / Client ID / Client Secret are the only manually-typed
@@ -53,6 +73,9 @@ type KonfhubTicket = { ticket_id: number; ticket_name: string; forms: KonfhubTic
 type KonfhubTicketCategory = { category_id: number; category_name: string; tickets: KonfhubTicket[] }
 type RegistrationField = { key: string; label: string }
 
+type PostizGroup = { id: string; name: string }
+type PostizChannel = { id: string; name: string; identifier: string; disabled: boolean }
+
 export default function IntegrationsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = use(params)
   const [eventName, setEventName] = useState('')
@@ -89,13 +112,25 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
     Object.fromEntries(FORM_TYPES.map(t => [t, null])) as Record<FormType, null>
   )
 
+  // Postiz
+  const [postizGroupId, setPostizGroupId] = useState<string | null>(null)
+  const [postizDefaultChannelIds, setPostizDefaultChannelIds] = useState<string[]>([])
+  const [fetchedGroups, setFetchedGroups] = useState<PostizGroup[] | null>(null)
+  const [fetchingGroups, setFetchingGroups] = useState(false)
+  const [selectedGroupId, setSelectedGroupId] = useState('')
+  const [fetchedChannels, setFetchedChannels] = useState<PostizChannel[] | null>(null)
+  const [fetchingChannels, setFetchingChannels] = useState(false)
+  const [selectedChannelIds, setSelectedChannelIds] = useState<Set<string>>(new Set())
+  const [savingPostiz, setSavingPostiz] = useState(false)
+
   async function load() {
     setLoading(true)
-    const [settingsRes, eventRes, permRes, fieldsRes] = await Promise.all([
+    const [settingsRes, eventRes, permRes, fieldsRes, postizRes] = await Promise.all([
       fetch(`/api/events/konfhub/settings?event_id=${eventId}`),
       fetch(`/api/events?id=${eventId}`),
       fetch(`/api/events/access/me?event_id=${eventId}`),
       fetch(`/api/events/konfhub/registration-fields?event_id=${eventId}`),
+      fetch(`/api/events/postiz/settings?event_id=${eventId}`),
     ])
     const settingsData = await settingsRes.json().catch(() => null)
     if (settingsRes.ok && settingsData) {
@@ -135,6 +170,14 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
       })
     )
     setHubspotStatus(Object.fromEntries(hubspotResults) as Record<FormType, { connected: boolean; formName?: string } | 'unknown'>)
+
+    const postizData = await postizRes.json().catch(() => null)
+    if (postizRes.ok && postizData) {
+      setPostizGroupId(postizData.postiz_profile_key ?? null)
+      setPostizDefaultChannelIds(postizData.postiz_default_channel_ids ?? [])
+      setSelectedGroupId(postizData.postiz_profile_key ?? '')
+      setSelectedChannelIds(new Set(postizData.postiz_default_channel_ids ?? []))
+    }
 
     setLoading(false)
   }
@@ -221,6 +264,57 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
     if (!res.ok) { setMsg({ text: data.error ?? 'Could not save the field mapping.', ok: false }); return }
     setSettings(prev => prev ? { ...prev, konfhub_registration_field_map: data.konfhub_registration_field_map } : prev)
     setMsg({ text: 'Field mapping saved.', ok: true })
+  }
+
+  async function fetchGroups() {
+    setFetchingGroups(true)
+    setMsg(null)
+    const res = await fetch(`/api/events/postiz/fetch-groups?event_id=${eventId}`)
+    const data = await res.json().catch(() => ({}))
+    setFetchingGroups(false)
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not fetch groups from Postiz.', ok: false }); return }
+    setFetchedGroups(data.groups ?? [])
+  }
+
+  // Selecting a group immediately fetches its channels, all pre-checked —
+  // per Madhu: never start the producer from an empty selection, they
+  // narrow down from "everything" rather than build up from nothing.
+  async function onSelectGroup(groupId: string) {
+    setSelectedGroupId(groupId)
+    setFetchedChannels(null)
+    if (!groupId) return
+    setFetchingChannels(true)
+    setMsg(null)
+    const res = await fetch(`/api/events/postiz/fetch-channels?event_id=${eventId}&group_id=${groupId}`)
+    const data = await res.json().catch(() => ({}))
+    setFetchingChannels(false)
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not fetch channels for this group.', ok: false }); return }
+    const channels: PostizChannel[] = data.channels ?? []
+    setFetchedChannels(channels)
+    setSelectedChannelIds(new Set(channels.map(c => c.id)))
+  }
+
+  function toggleChannel(id: string) {
+    setSelectedChannelIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  async function savePostiz() {
+    setSavingPostiz(true)
+    setMsg(null)
+    const res = await fetch(`/api/events/postiz/settings?event_id=${eventId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ postiz_profile_key: selectedGroupId || null, postiz_default_channel_ids: Array.from(selectedChannelIds) }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSavingPostiz(false)
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not save Postiz settings.', ok: false }); return }
+    setPostizGroupId(data.postiz_profile_key)
+    setPostizDefaultChannelIds(data.postiz_default_channel_ids ?? [])
+    setMsg({ text: 'Postiz settings saved.', ok: true })
   }
 
   const selectedTicket: KonfhubTicket | null = fetchedCategories && selectedTicketId
@@ -415,6 +509,73 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
               )
             })}
           </div>
+        </Card></div>
+
+        <div style={{ marginTop: '16px' }}><Card padded>
+          <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Postiz</div>
+          <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
+            Which Postiz group (Customer) this event belongs to, and which of its channels are available in SAE. The group is fetch-and-select only — Postiz has no way to type one in, groups are created in Postiz&apos;s own dashboard. Whatever&apos;s checked below is the ONLY thing that shows up when composing an announcement.
+          </div>
+          {!fetchedGroups ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              {postizGroupId ? (
+                <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>
+                  Currently saved group: <code>{postizGroupId}</code> · {postizDefaultChannelIds.length} channel{postizDefaultChannelIds.length === 1 ? '' : 's'} selected
+                </div>
+              ) : (
+                <Badge color="grey">Not set</Badge>
+              )}
+              {canManage && <Button variant="ghost" onClick={fetchGroups} disabled={fetchingGroups}>{fetchingGroups ? 'Fetching…' : 'Fetch Groups from Postiz'}</Button>}
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: '14px' }}>
+              <div>
+                <label style={labelStyle}>Postiz Group (Customer)</label>
+                <Select value={selectedGroupId} disabled={!canManage} onChange={e => onSelectGroup(e.target.value)} style={{ maxWidth: '360px' }}>
+                  <option value="">— Select —</option>
+                  {fetchedGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </Select>
+                <div style={{ marginTop: '8px' }}>
+                  {canManage && <Button variant="ghost" onClick={fetchGroups} disabled={fetchingGroups}>{fetchingGroups ? 'Fetching…' : 'Re-fetch Groups'}</Button>}
+                </div>
+              </div>
+
+              {fetchingChannels && <div style={{ fontSize: '12.5px', color: 'var(--ink4)' }}>Fetching channels…</div>}
+
+              {fetchedChannels && (
+                <div>
+                  <label style={labelStyle}>Channels available in SAE for this event</label>
+                  {fetchedChannels.length === 0 ? (
+                    <div style={{ fontSize: '13px', color: 'var(--ink4)' }}>No channels under this group.</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      {fetchedChannels.map(ch => {
+                        const checked = selectedChannelIds.has(ch.id)
+                        return (
+                          <label key={ch.id} title={ch.disabled ? 'Disconnected in Postiz' : undefined}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', borderRadius: '8px',
+                              border: `1.5px solid ${checked ? 'var(--teal-mid)' : 'var(--border)'}`,
+                              background: checked ? 'var(--teal-light)' : 'transparent',
+                              color: ch.disabled ? 'var(--ink4)' : 'var(--ink2)', fontSize: '12px', fontWeight: 700, cursor: canManage ? 'pointer' : 'default',
+                            }}>
+                            <input type="checkbox" checked={checked} disabled={!canManage} onChange={() => toggleChannel(ch.id)} style={{ margin: 0 }} />
+                            {ch.name} <span style={{ color: 'var(--ink4)', fontWeight: 400 }}>({ch.identifier})</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {canManage && (
+                <div>
+                  <Button variant="teal" onClick={savePostiz} disabled={savingPostiz || !selectedGroupId}>{savingPostiz ? 'Saving…' : 'Save Postiz Settings'}</Button>
+                </div>
+              )}
+            </div>
+          )}
         </Card></div>
 
         <div style={{ marginTop: '16px' }}><Card padded>
