@@ -58,9 +58,7 @@ export default function AnnouncementDetailPanel({
   eventStaff,
   eventId,
   eventName,
-  clientContactName,
-  clientContactJobTitle,
-  clientContactEmail,
+  clientContacts,
   onUpdate,
   onError,
 }: {
@@ -82,13 +80,14 @@ export default function AnnouncementDetailPanel({
   // isn't threaded through yet; the message just omits the event name if
   // this isn't passed, rather than the button disappearing outright.
   eventName?: string | null
-  // The event's single Client Approval contact (2026-08-29) — set on the
-  // event workspace's own edit page. Whether client_contact_email is set
-  // at all is what decides if the Client Approval card even shows for
-  // this event (most events don't have one) — see hasClientApproval below.
-  clientContactName?: string | null
-  clientContactJobTitle?: string | null
-  clientContactEmail?: string | null
+  // The event's Client Approval Contacts list (2026-09-06, replacing the
+  // single client_contact_name/job_title/email columns) — configured on
+  // the event's Integrations page. Whether this is non-empty is what
+  // decides if the Client Approval card even shows for this event (most
+  // events have none) — see hasClientApproval below. Exactly one entry
+  // has is_primary true; only their decision gates publishing, everyone
+  // else is CC'd with their own independently-tracked (non-gating) status.
+  clientContacts?: { id: string; name: string; email: string; is_primary: boolean }[]
   onUpdate: (patch: Partial<AnnouncementListItem>) => void
   onError: (msg: string) => void
 }) {
@@ -112,6 +111,11 @@ export default function AnnouncementDetailPanel({
   const [remindingExternal, setRemindingExternal] = useState(false)
   const [notifyError, setNotifyError] = useState<string | null>(null)
   const [selectedChannelIds, setSelectedChannelIds] = useState<string[]>([])
+  // Client Approval CC statuses (2026-09-06) — see client-approval-cc/
+  // route.ts's own doc comment. Purely informational, refetched on mount
+  // and folded into the same poll tick as the primary's status below.
+  type ClientApprovalCcStatus = { id: string; name: string; email: string; status: string; comments: string | null; actioned_at: string | null }
+  const [clientCcStatuses, setClientCcStatuses] = useState<ClientApprovalCcStatus[]>([])
   // These announcement creatives are always a static image — YouTube's API
   // rejects image-only content ("Item must be a video"), and since Postiz
   // batches every selected channel into one publish request, leaving
@@ -244,6 +248,23 @@ export default function AnnouncementDetailPanel({
     }, 20_000)
     return () => clearInterval(poll)
   }, [externalPendingNow, clientPendingNow, eventId, stakeholderKind, announcement.id, announcement.speaker_id, announcement.partner_id, onUpdate])
+
+  // Client Approval CC statuses — fetched once on mount (cheap even when
+  // there's no client round at all, the route just returns an empty list),
+  // then refetched on the same tick as the primary's poll above while a
+  // client round is pending.
+  useEffect(() => {
+    function fetchCc() {
+      fetch(`/api/events/stakeholders/announcements/${announcement.id}/client-approval-cc`)
+        .then(r => r.json())
+        .then(data => setClientCcStatuses(data.cc ?? []))
+        .catch(() => { /* silent — informational only */ })
+    }
+    fetchCc()
+    if (!clientPendingNow) return
+    const poll = setInterval(fetchCc, 20_000)
+    return () => clearInterval(poll)
+  }, [announcement.id, clientPendingNow])
 
   // Backstop for the live "Post Now"/Schedule progress modal's own polling
   // (PublishProgressModal, gives up after ~88s) and the 15-min sync-status
@@ -526,8 +547,10 @@ export default function AnnouncementDetailPanel({
   // checkCanPublish in app/lib/events/postiz-publish.ts.
   // Most events have no client contact configured at all — the Client
   // Approval card, and its contribution to readiness, only exist for the
-  // ones that do (set on the event workspace's own edit page).
-  const hasClientApproval = !!clientContactEmail
+  // ones that do (configured on the event's Integrations page).
+  const primaryClientContact = clientContacts?.find(c => c.is_primary) ?? null
+  const ccClientContacts = clientContacts?.filter(c => !c.is_primary) ?? []
+  const hasClientApproval = !!primaryClientContact
   const internalApproved = announcement.status === 'approved' || announcement.status === 'approved_with_comments'
   const clientApproved = announcement.client_approval_status === 'approved' || announcement.client_approval_status === 'approved_with_comments'
   const externalApproved = announcement.external_approval_status === 'approved' || announcement.external_approval_status === 'approved_with_comments'
@@ -862,6 +885,26 @@ export default function AnnouncementDetailPanel({
               notifiedAt: announcement.client_approval_notified_at,
               reviewerNoun: 'client',
             })}
+            {/* CC'd reviewers (2026-09-06) — each independently tracked,
+                never gating (only the primary above does). "Alice approved,
+                Bob pending" style list, per Madhu's ask. */}
+            {clientCcStatuses.length > 0 && (
+              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-light)', display: 'grid', gap: '6px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink4)' }}>CC&apos;d (informational)</div>
+                {clientCcStatuses.map(cc => {
+                  const tone = cc.status === 'approved' || cc.status === 'approved_with_comments' ? 'var(--success)'
+                    : cc.status === 'changes_requested' ? 'var(--red)' : 'var(--ink4)'
+                  const label = cc.status === 'approved' ? 'Approved' : cc.status === 'approved_with_comments' ? 'Approved (comments)'
+                    : cc.status === 'changes_requested' ? 'Changes requested' : 'Pending'
+                  return (
+                    <div key={cc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
+                      <span style={{ color: 'var(--ink2)' }}>{cc.name}</span>
+                      <span style={{ color: tone, fontWeight: 700, fontSize: '12px' }}>{label}{cc.actioned_at ? ` · ${new Date(cc.actioned_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
           )}
 
@@ -1249,9 +1292,8 @@ export default function AnnouncementDetailPanel({
         <SendForClientApprovalComposer
           announcementId={announcement.id}
           eventName={eventName}
-          clientContactName={clientContactName}
-          clientContactJobTitle={clientContactJobTitle}
-          clientContactEmail={clientContactEmail}
+          primaryContact={primaryClientContact}
+          ccContacts={ccClientContacts}
           onClose={() => setSendForClientApprovalOpen(false)}
           onSent={() => onUpdate({ client_approval_status: 'pending' })}
         />

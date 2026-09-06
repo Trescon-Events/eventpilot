@@ -75,6 +75,7 @@ type RegistrationField = { key: string; label: string }
 
 type PostizGroup = { id: string; name: string }
 type PostizChannel = { id: string; name: string; identifier: string; disabled: boolean }
+type ClientApprovalContact = { id: string; name: string; email: string; is_primary: boolean }
 
 export default function IntegrationsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = use(params)
@@ -123,14 +124,22 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
   const [selectedChannelIds, setSelectedChannelIds] = useState<Set<string>>(new Set())
   const [savingPostiz, setSavingPostiz] = useState(false)
 
+  // Client Approval Contacts
+  const [contacts, setContacts] = useState<ClientApprovalContact[]>([])
+  const [newContactName, setNewContactName] = useState('')
+  const [newContactEmail, setNewContactEmail] = useState('')
+  const [addingContact, setAddingContact] = useState(false)
+  const [contactBusyId, setContactBusyId] = useState<string | null>(null)
+
   async function load() {
     setLoading(true)
-    const [settingsRes, eventRes, permRes, fieldsRes, postizRes] = await Promise.all([
+    const [settingsRes, eventRes, permRes, fieldsRes, postizRes, contactsRes] = await Promise.all([
       fetch(`/api/events/konfhub/settings?event_id=${eventId}`),
       fetch(`/api/events?id=${eventId}`),
       fetch(`/api/events/access/me?event_id=${eventId}`),
       fetch(`/api/events/konfhub/registration-fields?event_id=${eventId}`),
       fetch(`/api/events/postiz/settings?event_id=${eventId}`),
+      fetch(`/api/events/client-approval-contacts?event_id=${eventId}`),
     ])
     const settingsData = await settingsRes.json().catch(() => null)
     if (settingsRes.ok && settingsData) {
@@ -178,6 +187,9 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
       setSelectedGroupId(postizData.postiz_profile_key ?? '')
       setSelectedChannelIds(new Set(postizData.postiz_default_channel_ids ?? []))
     }
+
+    const contactsData = await contactsRes.json().catch(() => ({ contacts: [] }))
+    setContacts(contactsData.contacts ?? [])
 
     setLoading(false)
   }
@@ -315,6 +327,41 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
     setPostizGroupId(data.postiz_profile_key)
     setPostizDefaultChannelIds(data.postiz_default_channel_ids ?? [])
     setMsg({ text: 'Postiz settings saved.', ok: true })
+  }
+
+  async function addContact() {
+    if (!newContactName.trim() || !newContactEmail.trim()) return
+    setAddingContact(true)
+    setMsg(null)
+    const res = await fetch(`/api/events/client-approval-contacts?event_id=${eventId}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newContactName.trim(), email: newContactEmail.trim(), is_primary: contacts.length === 0 }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setAddingContact(false)
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not add contact.', ok: false }); return }
+    setContacts(prev => [...prev, data])
+    setNewContactName(''); setNewContactEmail('')
+  }
+
+  async function makePrimary(contactId: string) {
+    setContactBusyId(contactId)
+    setMsg(null)
+    const res = await fetch(`/api/events/client-approval-contacts/${contactId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_primary: true }),
+    })
+    setContactBusyId(null)
+    if (!res.ok) { const d = await res.json().catch(() => ({})); setMsg({ text: d.error ?? 'Could not update contact.', ok: false }); return }
+    setContacts(prev => prev.map(c => ({ ...c, is_primary: c.id === contactId })))
+  }
+
+  async function removeContact(contactId: string) {
+    setContactBusyId(contactId)
+    setMsg(null)
+    const res = await fetch(`/api/events/client-approval-contacts/${contactId}`, { method: 'DELETE' })
+    setContactBusyId(null)
+    if (!res.ok) { const d = await res.json().catch(() => ({})); setMsg({ text: d.error ?? 'Could not remove contact.', ok: false }); return }
+    setContacts(prev => prev.filter(c => c.id !== contactId))
   }
 
   const selectedTicket: KonfhubTicket | null = fetchedCategories && selectedTicketId
@@ -574,6 +621,58 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
                   <Button variant="teal" onClick={savePostiz} disabled={savingPostiz || !selectedGroupId}>{savingPostiz ? 'Saving…' : 'Save Postiz Settings'}</Button>
                 </div>
               )}
+            </div>
+          )}
+        </Card></div>
+
+        <div style={{ marginTop: '16px' }}><Card padded>
+          <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Client Approval Contacts</div>
+          <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
+            For events managed on behalf of another client — adds a third approval round to announcements. Exactly one contact is <strong>Primary</strong>: only their decision actually clears an announcement for publishing. Everyone else is CC&apos;d — each gets their own link and their own tracked status, but it&apos;s informational only.
+          </div>
+          {contacts.length === 0 ? (
+            <div style={{ fontSize: '13px', color: 'var(--ink4)', marginBottom: '14px' }}>No contacts yet — announcements skip the Client Approval layer entirely until one is added.</div>
+          ) : (
+            <div style={{ display: 'grid', gap: '8px', marginBottom: '14px' }}>
+              {contacts.map(c => (
+                <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: '8px', background: 'var(--card-hi)' }}>
+                  <div>
+                    <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>
+                      {c.name} {c.is_primary && <Badge color="teal">Primary</Badge>}
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--ink4)', marginTop: '2px' }}>{c.email}</div>
+                  </div>
+                  {canManage && (
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      {!c.is_primary && (
+                        <button onClick={() => makePrimary(c.id)} disabled={contactBusyId === c.id}
+                          style={{ padding: '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          Make Primary
+                        </button>
+                      )}
+                      <button onClick={() => removeContact(c.id)} disabled={contactBusyId === c.id}
+                        style={{ padding: '6px 12px', borderRadius: '7px', border: '1px solid var(--red-border)', background: 'transparent', color: 'var(--red)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {canManage && (
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div>
+                <label style={labelStyle}>Name</label>
+                <Input value={newContactName} onChange={e => setNewContactName(e.target.value)} style={{ width: '200px' }} />
+              </div>
+              <div>
+                <label style={labelStyle}>Email</label>
+                <Input type="email" value={newContactEmail} onChange={e => setNewContactEmail(e.target.value)} style={{ width: '220px' }} />
+              </div>
+              <Button variant="teal" onClick={addContact} disabled={addingContact || !newContactName.trim() || !newContactEmail.trim()}>
+                {addingContact ? 'Adding…' : '+ Add Contact'}
+              </Button>
             </div>
           )}
         </Card></div>

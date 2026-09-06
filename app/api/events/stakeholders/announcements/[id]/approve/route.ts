@@ -43,6 +43,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   approvalQuery = body.token ? approvalQuery.eq('approval_token', body.token) : approvalQuery.eq('approver_id', body.approver_id!)
   const { data: approval, error: findErr } = await approvalQuery.single()
 
+  // Client Approval CC recipient (2026-09-06) — see review-data/route.ts's
+  // own comment. Their decision only ever updates their own row: it never
+  // touches stakeholder_announcements, never triggers notifyMM (the
+  // primary's decision already does that), and never affects the
+  // primary's own status — this is purely their individually-tracked
+  // record, per Madhu's ask for a per-person audit trail.
+  if ((findErr || !approval) && body.token) {
+    const { data: ccRow } = await supabaseAdmin
+      .from('announcement_client_approval_cc')
+      .select('id, token_expires_at, parent:parent_approval_id(announcement_id)')
+      .eq('approval_token', body.token)
+      .maybeSingle()
+    const parent = ccRow ? (Array.isArray(ccRow.parent) ? ccRow.parent[0] : ccRow.parent) : null
+    if (ccRow && parent?.announcement_id === id) {
+      if (!ccRow.token_expires_at || new Date(ccRow.token_expires_at) < new Date()) {
+        return NextResponse.json({ error: 'This approval link has expired.' }, { status: 410 })
+      }
+      const { error: ccUpdateErr } = await supabaseAdmin
+        .from('announcement_client_approval_cc')
+        .update({ status: body.status, comments: body.comments ?? null, actioned_at: new Date().toISOString() })
+        .eq('id', ccRow.id)
+      if (ccUpdateErr) return NextResponse.json({ error: ccUpdateErr.message }, { status: 500 })
+      return NextResponse.json({ ok: true, announcement_status: null, client_approval_status: body.status })
+    }
+  }
+
   if (findErr || !approval) return NextResponse.json({ error: 'Approval request not found' }, { status: 404 })
   if (body.token && (!approval.token_expires_at || new Date(approval.token_expires_at) < new Date())) {
     return NextResponse.json({ error: 'This approval link has expired.' }, { status: 410 })

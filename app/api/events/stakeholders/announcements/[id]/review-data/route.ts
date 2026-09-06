@@ -11,12 +11,37 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const token = req.nextUrl.searchParams.get('token')
   if (!token) return NextResponse.json({ error: 'token required' }, { status: 400 })
 
-  const { data: approval } = await supabaseAdmin
+  const { data: approvalRow } = await supabaseAdmin
     .from('announcement_approvals')
     .select('approver_role, token_expires_at, status, notified_at, actioned_at, comments, layer, external_name, external_email, sent_by_name, approver:approver_id(name, email)')
     .eq('announcement_id', id)
     .eq('approval_token', token)
     .single()
+
+  // Client Approval CC recipient (2026-09-06) — their own token lives in
+  // announcement_client_approval_cc, not announcement_approvals, since
+  // they're tracked independently of the primary (see that table's own
+  // migration doc comment). Reshaped into the same fields the rest of this
+  // route/the review page already expect, so nothing downstream needs to
+  // know which table it came from.
+  let approval = approvalRow
+  let isClientCc = false
+  if (!approval) {
+    const { data: ccRow } = await supabaseAdmin
+      .from('announcement_client_approval_cc')
+      .select('name, email, token_expires_at, status, notified_at, actioned_at, comments, parent_approval_id, parent:parent_approval_id(announcement_id, sent_by_name)')
+      .eq('approval_token', token)
+      .maybeSingle()
+    const parent = ccRow ? (Array.isArray(ccRow.parent) ? ccRow.parent[0] : ccRow.parent) : null
+    if (ccRow && parent?.announcement_id === id) {
+      isClientCc = true
+      approval = {
+        approver_role: 'Client Reviewer', token_expires_at: ccRow.token_expires_at, status: ccRow.status,
+        notified_at: ccRow.notified_at, actioned_at: ccRow.actioned_at, comments: ccRow.comments, layer: 'client',
+        external_name: ccRow.name, external_email: ccRow.email, sent_by_name: parent?.sent_by_name ?? null, approver: [],
+      }
+    }
+  }
 
   if (!approval) return NextResponse.json({ error: 'Approval request not found' }, { status: 404 })
   if (!approval.token_expires_at || new Date(approval.token_expires_at) < new Date()) {
@@ -53,6 +78,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // To/CC email actually clicked, only who the request was sent to.
     approver_email: approver?.email ?? approval.external_email ?? null,
     approver_role: approval.layer === 'external' ? 'External Reviewer' : approval.layer === 'client' ? 'Client Reviewer' : approval.approver_role,
+    // CC'd Client Approval reviewers (2026-09-06) — their own decision is
+    // tracked independently but never gates publishing, unlike the
+    // primary's. The review page uses this to say so explicitly, so a
+    // CC'd person doesn't think their "Approve" click is what unblocks
+    // the post.
+    is_client_cc: isClientCc,
     approval_status: approval.status,
     // Only meaningful once already actioned — the decision screen uses
     // these to say what happened, not just that "a" decision happened.

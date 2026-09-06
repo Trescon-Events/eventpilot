@@ -47,18 +47,24 @@ export default function AnnouncementsTab({
   const [defaultChannelIds, setDefaultChannelIds] = useState<string[]>([])
   const [eventStaff, setEventStaff] = useState<EventStaffOption[]>([])
   const [eventName, setEventName] = useState<string | null>(null)
-  const [clientContact, setClientContact] = useState<{ name: string | null; jobTitle: string | null; email: string | null }>({ name: null, jobTitle: null, email: null })
+  // Client Approval Contacts (2026-09-06) — a real list now, configured on
+  // the event's Integrations page, replacing the single flat client_contact_
+  // name/job_title/email columns this used to read. See
+  // SendForClientApprovalComposer's own doc comment for how primary vs CC
+  // is used from here.
+  const [clientContacts, setClientContacts] = useState<{ id: string; name: string; email: string; is_primary: boolean }[]>([])
 
   async function fetchAll() {
     setLoading(true)
     const idParam = stakeholderType === 'speaker' ? 'speaker_id' : 'partner_id'
-    const [annRes, tplRes, permRes, chRes, evRes, stRes] = await Promise.all([
+    const [annRes, tplRes, permRes, chRes, evRes, stRes, contactsRes] = await Promise.all([
       fetch(`/api/events/stakeholders/announcements?event_id=${eventId}&${idParam}=${stakeholderId}`),
       fetch(`/api/events/templates?event_id=${eventId}`),
       fetch(`/api/events/access/me?event_id=${eventId}`),
       fetch(`/api/events/postiz-channels?event_id=${eventId}`),
       fetch(`/api/events?id=${eventId}`),
       fetch(`/api/events/staff?event_id=${eventId}`),
+      fetch(`/api/events/client-approval-contacts?event_id=${eventId}`),
     ])
     setItems(await annRes.json().catch(() => []))
     const config: CreativeTemplateConfig | null = await tplRes.json().catch(() => null)
@@ -75,9 +81,10 @@ export default function AnnouncementsTab({
     const ev = Array.isArray(evData) ? evData[0] : evData
     setDefaultChannelIds(ev?.postiz_default_channel_ids ?? [])
     setEventName(ev?.name ?? null)
-    setClientContact({ name: ev?.client_contact_name ?? null, jobTitle: ev?.client_contact_job_title ?? null, email: ev?.client_contact_email ?? null })
     const stData = await stRes.json().catch(() => [])
     setEventStaff(Array.isArray(stData) ? stData : [])
+    const contactsData = await contactsRes.json().catch(() => ({ contacts: [] }))
+    setClientContacts(contactsData.contacts ?? [])
     setLoading(false)
   }
 
@@ -183,9 +190,7 @@ export default function AnnouncementsTab({
           eventStaff={eventStaff}
           eventId={eventId}
           eventName={eventName}
-          clientContactName={clientContact.name}
-          clientContactJobTitle={clientContact.jobTitle}
-          clientContactEmail={clientContact.email}
+          clientContacts={clientContacts}
           onUpdate={onUpdate}
           onError={setMsg}
         />

@@ -10,39 +10,52 @@ import Color from '@tiptap/extension-color'
 import { Button, Input, ProcessingOverlay } from '@/app/components/ui'
 import RichTextToolbar from '@/app/components/RichTextToolbar'
 
-/* Client Approval round's composer (2026-08-29) — the third layer's own
-   send flow, for events Trescon manages on behalf of another client (e.g.
-   DFS/DFFW events managed for DIFC). Same two-step stateless-compose/
-   write-on-send shape as SendForExternalApprovalComposer.tsx, built
-   directly against that precedent (per Madhu: "we will follow the same
-   flow as how we do with external approval"). Only real difference: the
-   quick-pick toggle defaults to the event's own single client contact
-   (name/job title/email, set on the event workspace's own edit page) —
-   not the stakeholder's own contact info — vs typing a different
-   recipient. Sends a real no-login review link the same way, reusing the
-   exact same public review portal external approval already uses (that
-   page is layer-agnostic — see send-for-client-approval/compose's own
-   doc comment). */
+/* Client Approval round's composer (2026-08-29, rebuilt 2026-09-06 for
+   multi-contact tracking) — the third layer's own send flow, for events
+   Trescon manages on behalf of another client (e.g. DFS/DFFW events
+   managed for DIFC). Same two-step stateless-compose/write-on-send shape
+   as SendForExternalApprovalComposer.tsx.
+
+   Primary vs CC, per Madhu (2026-09-06): the PRIMARY contact (configured
+   on the event's Integrations page) is the recipient whose decision
+   actually gates publishing — unchanged from the original single-contact
+   design, still the exact same announcement_approvals layer='client' row
+   and public review portal. Everyone else configured for this event is
+   offered as a CC, pre-checked (the producer narrows down, doesn't build
+   up from nothing — same pattern as this session's other fetch-and-select
+   features). Each checked CC gets their OWN unique review link and their
+   OWN independently-tracked (but non-gating) status — never a shared
+   email cc: header, which would give every CC'd person the SAME link and
+   make it impossible to know who actually responded. See the compose/send
+   routes' own doc comments for the full mechanics.
+
+   Note: CC emails are rendered once at compose time (personalized with
+   each person's own name) and sent as-is — if the producer edits the
+   subject/body in the rich-text step below, those edits only apply to the
+   primary's copy, not retroactively to already-composed CC copies. */
+
+type Contact = { id: string; name: string; email: string }
 
 type Props = {
   announcementId: string
   eventName?: string | null
   onClose: () => void
   onSent: () => void
-  clientContactName?: string | null
-  clientContactJobTitle?: string | null
-  clientContactEmail?: string | null
+  primaryContact?: Contact | null
+  ccContacts?: Contact[]
 }
 
+type ComposedCc = { name: string; email: string; review_token: string; subject: string; html: string }
+
 export default function SendForClientApprovalComposer({
-  announcementId, eventName, onClose, onSent,
-  clientContactName = '', clientContactJobTitle = '', clientContactEmail = '',
+  announcementId, eventName, onClose, onSent, primaryContact = null, ccContacts = [],
 }: Props) {
-  const [useOwnEmail, setUseOwnEmail] = useState(!!clientContactEmail)
   const [step, setStep] = useState<'pick' | 'edit' | 'sending' | 'error'>('pick')
-  const [recipientName, setRecipientName] = useState(clientContactName || '')
-  const [recipientEmail, setRecipientEmail] = useState(clientContactEmail || '')
-  const [ccInput, setCcInput] = useState('')
+  const [recipientName, setRecipientName] = useState(primaryContact?.name ?? '')
+  const [recipientEmail, setRecipientEmail] = useState(primaryContact?.email ?? '')
+  const [selectedCcIds, setSelectedCcIds] = useState<Set<string>>(new Set(ccContacts.map(c => c.id)))
+  const [extraCcName, setExtraCcName] = useState('')
+  const [extraCcEmail, setExtraCcEmail] = useState('')
   const [pickError, setPickError] = useState<string | null>(null)
   const [composing, setComposing] = useState(false)
 
@@ -51,7 +64,7 @@ export default function SendForClientApprovalComposer({
   const [subject, setSubject] = useState('')
   const [senderName, setSenderName] = useState('')
   const [senderEmail, setSenderEmail] = useState('')
-  const [ccEmails, setCcEmails] = useState<string[]>([])
+  const [ccComposed, setCcComposed] = useState<ComposedCc[]>([])
   const [sendError, setSendError] = useState<string | null>(null)
 
   const editor = useEditor({
@@ -60,19 +73,12 @@ export default function SendForClientApprovalComposer({
     immediatelyRender: false,
   })
 
-  function parseCc(): string[] {
-    return ccInput.split(',').map(s => s.trim()).filter(Boolean)
-  }
-
-  function chooseOwnEmail() {
-    setUseOwnEmail(true)
-    setRecipientName(clientContactName || '')
-    setRecipientEmail(clientContactEmail || '')
-  }
-  function chooseManual() {
-    setUseOwnEmail(false)
-    setRecipientName('')
-    setRecipientEmail('')
+  function toggleCc(id: string) {
+    setSelectedCcIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
   }
 
   async function startCompose() {
@@ -80,12 +86,16 @@ export default function SendForClientApprovalComposer({
       setPickError('Enter a recipient name and email.')
       return
     }
-    const cc = parseCc()
+    const ccRecipients: { name: string; email: string }[] = ccContacts
+      .filter(c => selectedCcIds.has(c.id))
+      .map(c => ({ name: c.name, email: c.email }))
+    if (extraCcName.trim() && extraCcEmail.trim()) ccRecipients.push({ name: extraCcName.trim(), email: extraCcEmail.trim() })
+
     setComposing(true); setPickError(null)
     try {
       const res = await fetch(`/api/events/stakeholders/announcements/${announcementId}/send-for-client-approval/compose`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recipient_name: recipientName.trim(), recipient_email: recipientEmail.trim(), cc_emails: cc }),
+        body: JSON.stringify({ recipient_name: recipientName.trim(), recipient_email: recipientEmail.trim(), cc_recipients: ccRecipients }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -94,7 +104,7 @@ export default function SendForClientApprovalComposer({
       setSubject(data.subject)
       setSenderName(data.sender_name)
       setSenderEmail(data.sender_email)
-      setCcEmails(cc)
+      setCcComposed(data.cc_recipients ?? [])
       editor?.commands.setContent(data.html)
       setStep('edit')
     } catch (e) {
@@ -125,7 +135,7 @@ export default function SendForClientApprovalComposer({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           template_id: templateId, review_token: reviewToken, recipient_name: recipientName.trim(), recipient_email: recipientEmail.trim(),
-          cc_emails: ccEmails, subject, html: editor.getHTML(),
+          cc_recipients: ccComposed, subject, html: editor.getHTML(),
         }),
       })
       const data = await res.json()
@@ -148,32 +158,51 @@ export default function SendForClientApprovalComposer({
 
         {step === 'pick' && (
           <div style={{ display: 'grid', gap: '14px' }}>
-            {clientContactEmail && (
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                <Button variant={useOwnEmail ? 'teal' : 'ghost'} onClick={chooseOwnEmail}>
-                  Use {clientContactName || 'the client contact'}&apos;s email{clientContactJobTitle ? ` (${clientContactJobTitle})` : ''} — {clientContactEmail}
-                </Button>
-                <Button variant={!useOwnEmail ? 'teal' : 'ghost'} onClick={chooseManual}>
-                  Send to someone else
-                </Button>
+            <div>
+              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>
+                Primary Recipient {primaryContact && <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(only their decision gates publishing)</span>}
+              </span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <Input value={recipientName} onChange={e => setRecipientName(e.target.value)} placeholder="Recipient name" style={{ flex: 1 }} />
+                <Input type="email" value={recipientEmail} onChange={e => setRecipientEmail(e.target.value)} placeholder="contact@client.com" style={{ flex: 1 }} />
+              </div>
+              {!primaryContact && (
+                <div style={{ fontSize: '11.5px', color: 'var(--ink4)', marginTop: '4px' }}>No primary contact configured on this event&apos;s Integrations page — enter one manually.</div>
+              )}
+            </div>
+
+            {ccContacts.length > 0 && (
+              <div>
+                <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>
+                  CC (each gets their own link, tracked individually — informational only)
+                </span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {ccContacts.map(c => {
+                    const checked = selectedCcIds.has(c.id)
+                    return (
+                      <label key={c.id} style={{
+                        display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', borderRadius: '8px',
+                        border: `1.5px solid ${checked ? 'var(--teal-mid)' : 'var(--border)'}`,
+                        background: checked ? 'var(--teal-light)' : 'transparent',
+                        color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                      }}>
+                        <input type="checkbox" checked={checked} onChange={() => toggleCc(c.id)} style={{ margin: 0 }} />
+                        {c.name} <span style={{ color: 'var(--ink4)', fontWeight: 400 }}>({c.email})</span>
+                      </label>
+                    )
+                  })}
+                </div>
               </div>
             )}
-            {!useOwnEmail && (
-              <>
-                <div>
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Recipient Name</span>
-                  <Input value={recipientName} onChange={e => setRecipientName(e.target.value)} placeholder="e.g. their contact at the client organisation" />
-                </div>
-                <div>
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Recipient Email</span>
-                  <Input type="email" value={recipientEmail} onChange={e => setRecipientEmail(e.target.value)} placeholder="contact@client.com" />
-                </div>
-              </>
-            )}
+
             <div>
-              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>CC (optional)</span>
-              <Input value={ccInput} onChange={e => setCcInput(e.target.value)} placeholder="comma-separated, e.g. colleague@trescon.com" />
+              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Add someone else to CC (optional)</span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <Input value={extraCcName} onChange={e => setExtraCcName(e.target.value)} placeholder="Name" style={{ flex: 1 }} />
+                <Input type="email" value={extraCcEmail} onChange={e => setExtraCcEmail(e.target.value)} placeholder="Email" style={{ flex: 1 }} />
+              </div>
             </div>
+
             {pickError && <div style={{ fontSize: '14.5px', color: 'var(--red)' }}>{pickError}</div>}
             <Button variant="teal" onClick={startCompose}>{composing ? 'Composing…' : 'Compose Email'}</Button>
           </div>
@@ -183,7 +212,7 @@ export default function SendForClientApprovalComposer({
           <div style={{ display: 'grid', gap: '12px' }}>
             <div style={{ fontSize: '14px', color: 'var(--ink3)' }}>
               Sending as <strong style={{ color: 'var(--ink2)' }}>{senderName}</strong> &lt;{senderEmail}&gt; to <strong style={{ color: 'var(--ink2)' }}>{recipientEmail}</strong>
-              {ccEmails.length > 0 && <> · cc <strong style={{ color: 'var(--ink2)' }}>{ccEmails.join(', ')}</strong></>}
+              {ccComposed.length > 0 && <> · cc (separate emails, own links) <strong style={{ color: 'var(--ink2)' }}>{ccComposed.map(c => c.email).join(', ')}</strong></>}
             </div>
             <div>
               <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Subject</span>

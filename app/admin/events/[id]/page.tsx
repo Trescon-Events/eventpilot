@@ -776,36 +776,12 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                     Open Integrations →
                   </Link>
 
-                  {/* Client Approval Contact (2026-08-29, per Madhu) — for
-                      events Trescon manages on behalf of another client
-                      (e.g. DFS/DFFW events managed for DIFC). Leaving email
-                      blank keeps this event on the standard two-layer
-                      (Internal + External) approval flow — the Client
-                      Approval card in the Announcement panel only appears
-                      once an email is set here. Same "one event-scoped
-                      value, no dedicated table" shape as Postiz Customer ID
-                      above. */}
-                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.8px', color: 'var(--teal-mid)', margin: '20px 0 10px', textTransform: 'uppercase' }}>Client Approval Contact (Optional)</div>
-                  <div style={{ fontSize: '10.5px', color: 'var(--ink3)', marginBottom: '10px', lineHeight: 1.4 }}>
-                    Set this only for events managed on behalf of another client — it adds a third &quot;Client Approval&quot; round between Internal and External approval, sent to this contact by default.
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                    <div>
-                      <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>NAME</label>
-                      <input type="text" value={editForm.client_contact_name} onChange={e => setEditForm(f => ({ ...f, client_contact_name: e.target.value }))}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)', boxSizing: 'border-box' }} />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>JOB TITLE</label>
-                      <input type="text" value={editForm.client_contact_job_title} onChange={e => setEditForm(f => ({ ...f, client_contact_job_title: e.target.value }))}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)', boxSizing: 'border-box' }} />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>EMAIL</label>
-                      <input type="email" value={editForm.client_contact_email} onChange={e => setEditForm(f => ({ ...f, client_contact_email: e.target.value }))}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)', boxSizing: 'border-box' }} />
-                    </div>
-                  </div>
+                  {/* Client Approval Contact(s) — moved to the Integrations
+                      page (2026-09-06), now a real multi-person list
+                      (primary gates publishing, others are CC'd with their
+                      own tracked status) rather than this single name/job
+                      title/email. The "Open Integrations →" link above
+                      covers this too, same as KonfHub/Postiz's own moves. */}
 
                   {/* ── Creative Templates (Sharp compositing, PRD v1.4 Phase C v3) ──
                       Owns its own save path (PUT /api/events/templates/variants) via
