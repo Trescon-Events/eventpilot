@@ -33,9 +33,17 @@ export async function POST(req: NextRequest) {
   // sender-identity.ts; previously always re-fetched the template's own
   // stored sender, which meant every send went out as whoever authored the
   // template regardless of who was actually sending it).
-  const { data: template } = await supabaseAdmin.from('email_templates').select('sender_name, sender_email').eq('id', body.template_id).single()
+  const [{ data: template }, { data: existingSpeaker }] = await Promise.all([
+    supabaseAdmin.from('email_templates').select('sender_name, sender_email').eq('id', body.template_id).single(),
+    // Same best-effort by-email match as compose/route.ts, for the same
+    // reason (producer attribution) — kept in sync so the actually-sent
+    // email matches what compose previewed.
+    body.form_type === 'speaker'
+      ? supabaseAdmin.from('event_speakers').select('producer_staff_id').eq('event_id', body.event_id).ilike('email', body.recipient_email).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ])
   if (!template) return NextResponse.json({ error: 'Template not found' }, { status: 404 })
-  const sender = await resolveSenderIdentity(session, template)
+  const sender = await resolveSenderIdentity(session, template, existingSpeaker?.producer_staff_id)
 
   // Write status:'draft' FIRST so a mid-send crash leaves a retryable row, not silence.
   const { data: invite, error: upsertErr } = await supabaseAdmin

@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { renderEmailTemplate } from '@/app/lib/email/render-template'
-import { resolveSenderIdentity } from '@/app/lib/email/sender-identity'
+import { resolveSenderIdentity, getSpeakerProducerId } from '@/app/lib/email/sender-identity'
 import { buildPlatformLinksHtml } from '@/app/lib/events/postiz-publish'
 
 /* POST /api/events/stakeholders/announcements/[id]/notify-external/compose
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     stakeholderName = partner?.name || ''
   }
 
-  const sender = await resolveSenderIdentity(session, template)
+  const sender = await resolveSenderIdentity(session, template, await getSpeakerProducerId(announcement.speaker_id))
   const platformLinks = await buildPlatformLinksHtml(announcement.publish_results, event?.postiz_profile_key || undefined)
 
   const { subject, html } = renderEmailTemplate(template, {

@@ -39,13 +39,19 @@ export async function POST(req: NextRequest) {
     // match by email; a miss degrades to no salutation, never a literal
     // "undefined".
     body.form_type === 'speaker'
-      ? supabaseAdmin.from('event_speakers').select('salutation').eq('event_id', body.event_id).ilike('email', body.recipient_email).maybeSingle()
+      ? supabaseAdmin.from('event_speakers').select('salutation, producer_staff_id').eq('event_id', body.event_id).ilike('email', body.recipient_email).maybeSingle()
       : Promise.resolve({ data: null }),
   ])
   if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
   if (!template) return NextResponse.json({ error: 'Template not found' }, { status: 404 })
 
-  const sender = await resolveSenderIdentity(session, template)
+  // Producer attribution (2026-09-06) — reuses the same best-effort
+  // by-email match already done above for salutation, rather than a
+  // second query. Usually null here (an invite typically goes out before
+  // any speaker record exists at all), which is exactly the correct "no
+  // override" input — resolveSenderIdentity falls through to the logged-in
+  // sender unchanged.
+  const sender = await resolveSenderIdentity(session, template, existingSpeaker?.producer_staff_id)
 
   const inviteToken = randomBytes(32).toString('hex')
   // The officially branded page (e.g. worldaishow.com/malaysia/speaker-

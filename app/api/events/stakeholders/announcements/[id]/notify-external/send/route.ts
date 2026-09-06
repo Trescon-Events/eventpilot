@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { sendGraphMail } from '@/app/lib/email/graph-mail'
-import { resolveSenderIdentity } from '@/app/lib/email/sender-identity'
+import { resolveSenderIdentity, getSpeakerProducerId } from '@/app/lib/email/sender-identity'
 
 /* POST /api/events/stakeholders/announcements/[id]/notify-external/send
    Body: { template_id, recipient_name, recipient_email, cc_emails?, subject, html }
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: template } = await supabaseAdmin.from('email_templates').select('sender_name, sender_email').eq('id', body.template_id).single()
   if (!template) return NextResponse.json({ error: 'Template not found' }, { status: 404 })
-  const sender = await resolveSenderIdentity(session, template)
+  const sender = await resolveSenderIdentity(session, template, await getSpeakerProducerId(announcement.speaker_id))
 
   const ccEmails = (body.cc_emails ?? []).map(e => e.trim()).filter(Boolean)
 

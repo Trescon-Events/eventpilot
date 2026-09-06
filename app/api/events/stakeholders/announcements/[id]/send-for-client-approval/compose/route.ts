@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { renderEmailTemplate } from '@/app/lib/email/render-template'
-import { resolveSenderIdentity } from '@/app/lib/email/sender-identity'
+import { resolveSenderIdentity, getSpeakerProducerId } from '@/app/lib/email/sender-identity'
 
 /* POST /api/events/stakeholders/announcements/[id]/send-for-client-approval/compose
    Body: { recipient_name, recipient_email, cc_recipients?: {name, email}[] }
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
   if (!template) return NextResponse.json({ error: '"Client Announcement Approval Request" template not found' }, { status: 404 })
 
-  const sender = await resolveSenderIdentity(session, template)
+  const sender = await resolveSenderIdentity(session, template, await getSpeakerProducerId(announcement.speaker_id))
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com'
   const eventName = event.public_name || event.name
 
