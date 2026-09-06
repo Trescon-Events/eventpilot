@@ -141,6 +141,21 @@ Return JSON only, no markdown fences: { "copy": "...", "hashtags": ["#...", "...
   return parseGeminiCopyResponse(result.response.text().trim())
 }
 
+// 2026-09-06: neither call site caught a thrown Gemini error (rate limit,
+// depleted billing, timeout) — it crashed the whole request unhandled,
+// producing a non-JSON 500 that the frontend can only show as a generic
+// "generation failed" (confirmed live: prepaid Gemini credits ran out,
+// every generate/regenerate-copy request 500'd this way). Callers should
+// wrap generatePostCopy/generateSelfPromoPostCopy in try/catch and use this
+// to turn the caught error into a message worth showing a user.
+export function describeGeminiError(e: unknown): string {
+  const err = e as { status?: number; message?: string } | null | undefined
+  if (err?.status === 429 || /prepayment credits are depleted|quota/i.test(err?.message ?? '')) {
+    return 'AI copy generation is temporarily unavailable — the Gemini API quota/billing needs attention. Try again once that is resolved.'
+  }
+  return 'AI copy generation failed — please try again.'
+}
+
 // 2026-08-18: responseMimeType 'application/json' cuts the failure rate but
 // does NOT guarantee it — confirmed live, Gemini still occasionally emits a
 // literal unescaped newline inside the "copy" string (invalid JSON; a raw

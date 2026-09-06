@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
-import { generatePostCopy, generateSelfPromoPostCopy } from '@/app/lib/events/announcements'
+import { generatePostCopy, generateSelfPromoPostCopy, describeGeminiError } from '@/app/lib/events/announcements'
 
 /* POST /api/events/stakeholders/announcements/[id]/regenerate-copy
    Regenerates only the post copy for an existing announcement — used when
@@ -42,9 +42,15 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   // silently overwrite its first-person speaker-voice copy with third-
   // person org-voice copy from generatePostCopy — a real gap caught during
   // Self Promo planning, not a hypothetical.
-  const { copy, xCopy } = announcement.announcement_kind === 'self_promo'
-    ? await generateSelfPromoPostCopy(event, speaker!, messagingDoc?.structured_json ?? null)
-    : await generatePostCopy(event, speaker, partner, messagingDoc?.structured_json ?? null)
+  let copy: string, xCopy: string
+  try {
+    ;({ copy, xCopy } = announcement.announcement_kind === 'self_promo'
+      ? await generateSelfPromoPostCopy(event, speaker!, messagingDoc?.structured_json ?? null)
+      : await generatePostCopy(event, speaker, partner, messagingDoc?.structured_json ?? null))
+  } catch (e) {
+    console.error('Post copy regeneration failed:', e)
+    return NextResponse.json({ error: describeGeminiError(e) }, { status: 502 })
+  }
 
   const { data, error } = await supabaseAdmin
     .from('stakeholder_announcements')

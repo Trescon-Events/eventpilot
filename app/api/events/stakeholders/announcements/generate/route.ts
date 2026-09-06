@@ -4,7 +4,7 @@ import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { compositeAnnouncement } from '@/app/lib/announcements/composite'
-import { generatePostCopy, generateSelfPromoPostCopy, buildCompositeInputs, type CreativeTemplateConfig, type NeededAsset } from '@/app/lib/events/announcements'
+import { generatePostCopy, generateSelfPromoPostCopy, describeGeminiError, buildCompositeInputs, type CreativeTemplateConfig, type NeededAsset } from '@/app/lib/events/announcements'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 
 /* POST /api/events/stakeholders/announcements/generate
@@ -109,10 +109,18 @@ export async function POST(req: NextRequest) {
   // Previously awaited strictly back-to-back (2026-08-04 perf pass: real
   // generates were taking ~20s); this collapses wall-clock time to
   // whichever of the two is slower instead of their sum.
-  const [{ copy: postCopy, xCopy: postCopyX }, creativeUrl] = await Promise.all([
-    kind === 'self_promo'
-      ? generateSelfPromoPostCopy(event, speaker!, messagingDoc?.structured_json ?? null)
-      : generatePostCopy(event, speaker, partner, messagingDoc?.structured_json ?? null),
+  const [postCopyResult, creativeUrl] = await Promise.all([
+    (async (): Promise<{ ok: true; copy: string; xCopy: string } | { ok: false; error: unknown }> => {
+      try {
+        const { copy, xCopy } = kind === 'self_promo'
+          ? await generateSelfPromoPostCopy(event, speaker!, messagingDoc?.structured_json ?? null)
+          : await generatePostCopy(event, speaker, partner, messagingDoc?.structured_json ?? null)
+        return { ok: true, copy, xCopy }
+      } catch (e) {
+        console.error('Post copy generation failed:', e)
+        return { ok: false, error: e }
+      }
+    })(),
     (async (): Promise<string | null> => {
       try {
         const assetEntries = await Promise.all(inputs.assetsNeeded.map(async (needed): Promise<[string, { buffer: Buffer; url?: string; is_svg?: boolean; head_box?: NeededAsset['headBox'] }]> => {
@@ -142,6 +150,11 @@ export async function POST(req: NextRequest) {
       }
     })(),
   ])
+
+  if (!postCopyResult.ok) {
+    return NextResponse.json({ error: describeGeminiError(postCopyResult.error) }, { status: 502 })
+  }
+  const { copy: postCopy, xCopy: postCopyX } = postCopyResult
 
   // ── 3. Create the draft announcement ─────────────────────────────────────
   const { data: announcement, error: insertErr } = await supabaseAdmin
