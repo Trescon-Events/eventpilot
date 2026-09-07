@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
 import { Button, Card, Input, Select } from '@/app/components/ui'
@@ -64,6 +65,11 @@ function targetType(m: HubSpotFieldMapping | undefined): string {
 export default function HubSpotFormConnectPage({ params }: { params: Promise<{ id: string; formType: string }> }) {
   const { id: eventId, formType } = use(params)
   const valid = FORM_TYPES.includes(formType as FormType)
+  // Reached from both the Stakeholder Hub's own form-status cards and the
+  // Integrations page's HubSpot Forms section (2026-09-07) — back-nav
+  // follows whichever one the producer actually came from, via a plain
+  // `?from=integrations` query param set only by that one link.
+  const cameFromIntegrations = useSearchParams().get('from') === 'integrations'
 
   const [permissions, setPermissions] = useState<Set<string>>(new Set())
   const [connection, setConnection] = useState<EventHubSpotForm | null>(null)
@@ -210,11 +216,11 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
   return (
     <div style={{ minHeight: '100vh', background: 'var(--surface)' }}>
       <PageHeader
-        eyebrow="Stakeholder Hub / Connect HubSpot Form"
+        eyebrow={cameFromIntegrations ? 'Integrations / Connect HubSpot Form' : 'Stakeholder Hub / Connect HubSpot Form'}
         title={FORM_TITLES[formType as FormType]}
         description="Connect the HubSpot form your team already built for this event, and map its fields so submissions flow into the Submissions Inbox."
-        backHref={`/admin/events/${eventId}/stakeholders`}
-        backLabel="Back to Stakeholder Hub"
+        backHref={cameFromIntegrations ? `/admin/events/${eventId}/integrations#hubspot` : `/admin/events/${eventId}/stakeholders`}
+        backLabel={cameFromIntegrations ? 'Back to Integrations' : 'Back to Stakeholder Hub'}
       />
 
       <div style={{ padding: '24px 32px', maxWidth: '900px' }}>

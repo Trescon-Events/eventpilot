@@ -954,17 +954,11 @@ function AdminPageInner() {
       <div style={{ padding: '14px 40px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: 'var(--card)', border: '1px dashed var(--border)', borderRadius: '10px', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink4)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Testing shortcuts</span>
-          <Link href="/admin/email-templates" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, padding: '6px 11px', borderRadius: '8px', textDecoration: 'none' }}>
-            Email Templates
-          </Link>
-          <Link href="/admin/form-templates" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, padding: '6px 11px', borderRadius: '8px', textDecoration: 'none' }}>
-            Form Templates (global defaults)
-          </Link>
-          <Link href="/admin/events/5e2f89f4-49aa-4358-9791-f7654685246d/stakeholders/form-builder/speaker" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, padding: '6px 11px', borderRadius: '8px', textDecoration: 'none' }}>
-            Form Builder — Speakers (World AI Show Malaysia)
-          </Link>
-          <Link href="/admin/events/5e2f89f4-49aa-4358-9791-f7654685246d/stakeholders" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, padding: '6px 11px', borderRadius: '8px', textDecoration: 'none' }}>
-            Stakeholder Hub (same event)
+          {/* 2026-09-07, per Madhu: pared down to just Stakeholder Hub on
+              DFS (Dubai FinTech Summit 2026) to start with — more will be
+              added back here as needed. */}
+          <Link href="/admin/events/293bde73-22c0-40f0-b621-6306c9266d6a/stakeholders" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, padding: '6px 11px', borderRadius: '8px', textDecoration: 'none' }}>
+            Stakeholder Hub (DFS)
           </Link>
         </div>
       </div>

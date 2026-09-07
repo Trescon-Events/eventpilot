@@ -1,8 +1,110 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect, useRef, use } from 'react'
 import Link from 'next/link'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
+
+// Left-panel workspace nav (2026-09-07, per Madhu) — this page used to be a
+// long scroll with no way to jump around. "Event Lifecycle" is the one
+// expandable group (per Madhu's own example: click it, see Event Brief/
+// Execution/etc underneath) since it's the only section whose real content
+// is a set of links to OTHER pages, not something to scroll to; the rest
+// are plain anchor jumps within this same page.
+const LIFECYCLE_PHASES = (eventId: string) => [
+  {
+    label: 'Concept & Strategy', color: 'var(--info)', links: [
+      { label: 'Event Brief', href: `/admin/events/${eventId}/brief` },
+      { label: 'Execution Flow & RACI', href: `/admin/events/${eventId}/execution` },
+    ],
+  },
+  {
+    label: 'Planning, Commercial & Brand', color: 'var(--purple)', links: [
+      { label: 'Planning Board', href: `/admin/events/${eventId}/plan` },
+      { label: 'Commercial P&L', href: `/admin/commercial/${eventId}` },
+      { label: 'Brand Studio', href: `/admin/events/${eventId}/brand` },
+    ],
+  },
+  {
+    label: 'Public-Facing Assets', color: 'var(--teal)', links: [
+      { label: 'Website Builder', href: `/admin/events/${eventId}/website` },
+      { label: 'Content Campaigns', href: `/content?event_id=${eventId}` },
+      { label: 'Stakeholder Hub', href: `/admin/events/${eventId}/stakeholders` },
+    ],
+  },
+]
+
+const WORKSPACE_ANCHORS = [
+  { id: 'event-lifecycle', label: 'Event Lifecycle' },
+  { id: 'website-production-flow', label: 'Website Production Flow' },
+  { id: 'checklist', label: 'Checklist & Reports' },
+] as const
+
+function navLinkStyle(active: boolean): React.CSSProperties {
+  return {
+    display: 'block', padding: '9px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 700,
+    textDecoration: 'none', color: active ? 'var(--teal-mid)' : 'var(--ink2)',
+    background: active ? 'var(--teal-light)' : 'transparent',
+    borderLeft: `2.5px solid ${active ? 'var(--teal-mid)' : 'transparent'}`, cursor: 'pointer',
+  }
+}
+
+function WorkspaceLeftNav({
+  eventId, active, lifecycleOpen, setLifecycleOpen, onAnchorClick,
+}: {
+  eventId: string
+  active: string
+  lifecycleOpen: boolean
+  setLifecycleOpen: (fn: (v: boolean) => boolean) => void
+  onAnchorClick: (id: string) => void
+}) {
+  return (
+    <nav style={{ width: '212px', flexShrink: 0, position: 'sticky', top: '20px' }}>
+      <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.6px', color: 'var(--ink4)', marginBottom: '10px', paddingLeft: '12px' }}>
+        Event Workspace
+      </div>
+      <div style={{ display: 'grid', gap: '2px', marginBottom: '14px' }}>
+        <Link href={`/admin/events/${eventId}/details`} style={navLinkStyle(false)}>Event Details</Link>
+
+        <div>
+          <a href="#event-lifecycle" onClick={e => { e.preventDefault(); setLifecycleOpen(v => !v); onAnchorClick('event-lifecycle') }}
+            style={{ ...navLinkStyle(active === 'event-lifecycle'), display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            Event Lifecycle
+            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ transform: lifecycleOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }}>
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </a>
+          {lifecycleOpen && (
+            <div style={{ paddingLeft: '14px', marginTop: '2px', display: 'grid', gap: '10px' }}>
+              {LIFECYCLE_PHASES(eventId).map(phase => (
+                <div key={phase.label}>
+                  <div style={{ fontSize: '10.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.4px', color: phase.color, padding: '6px 10px 3px' }}>
+                    {phase.label}
+                  </div>
+                  <div style={{ display: 'grid', gap: '1px' }}>
+                    {phase.links.map(l => (
+                      <Link key={l.label} href={l.href} style={{ display: 'block', padding: '6px 10px', borderRadius: '6px', fontSize: '12.5px', fontWeight: 600, color: 'var(--ink3)', textDecoration: 'none' }}>
+                        {l.label}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {WORKSPACE_ANCHORS.filter(a => a.id !== 'event-lifecycle').map(a => (
+          <a key={a.id} href={`#${a.id}`} onClick={e => { e.preventDefault(); onAnchorClick(a.id) }} style={navLinkStyle(active === a.id)}>
+            {a.label}
+          </a>
+        ))}
+
+        <Link href={`/admin/events/${eventId}/integrations`} style={navLinkStyle(false)}>Integrations</Link>
+        <Link href={`/admin/events/${eventId}/access`} style={navLinkStyle(false)}>Access</Link>
+      </div>
+    </nav>
+  )
+}
 
 type ChecklistItem = {
   id: string
@@ -167,6 +269,29 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
   const [commentText,   setCommentText]   = useState('')
   const [reportBusy,    setReportBusy]    = useState(false)
   const [commentSaving, setCommentSaving] = useState(false)
+
+  const [navActive, setNavActive] = useState<string>('event-lifecycle')
+  const [lifecycleOpen, setLifecycleOpen] = useState(true)
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        const visible = entries.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
+        if (visible[0]) setNavActive(visible[0].target.id)
+      },
+      { rootMargin: '-15% 0px -75% 0px' }
+    )
+    WORKSPACE_ANCHORS.forEach(a => {
+      const el = document.getElementById(a.id)
+      if (el) observer.observe(el)
+    })
+    return () => observer.disconnect()
+  }, [loading])
+
+  function scrollToAnchor(id: string) {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    history.replaceState(null, '', `#${id}`)
+  }
 
   // Event editing
   const [editing,        setEditing]        = useState(false)
@@ -643,7 +768,10 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
   return (
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: 'var(--surface)', minHeight: '100vh', color: 'var(--ink)' }}>
 
-      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '40px 32px' }}>
+      <div style={{ maxWidth: '1460px', margin: '0 auto', padding: '40px 32px', display: 'flex', gap: '32px', alignItems: 'flex-start' }}>
+        <WorkspaceLeftNav eventId={eventId} active={navActive} lifecycleOpen={lifecycleOpen} setLifecycleOpen={setLifecycleOpen} onAnchorClick={scrollToAnchor} />
+
+      <div style={{ flex: 1, minWidth: 0, maxWidth: '1200px' }}>
 
         {/* Event header */}
         <div style={{ marginBottom: '32px' }}>
@@ -853,7 +981,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
         </div>
 
         {/* ══════════ RACI PHASE FLOW ══════════ */}
-        <div style={{ marginBottom: '24px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '24px 28px' }}>
+        <div id="event-lifecycle" style={{ marginBottom: '24px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '24px 28px', scrollMarginTop: '20px' }}>
           <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '20px' }}>Event Lifecycle</div>
 
           {/* Phase 1 — Concept & Strategy */}
@@ -946,7 +1074,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
         </div>
 
         {/* Website Production Flow */}
-        <div style={{ marginBottom: '16px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '20px 24px' }}>
+        <div id="website-production-flow" style={{ marginBottom: '16px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '20px 24px', scrollMarginTop: '20px' }}>
           <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--teal-mid)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '16px' }}>Website Production Flow</div>
           <div style={{ display: 'flex', alignItems: 'stretch', gap: '0' }}>
 
@@ -994,8 +1122,10 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
           </div>
         </div>
 
-        {/* spacing before checklist */}
-        <div style={{ marginBottom: '24px' }} />
+        {/* spacing before checklist — also the scroll-nav anchor for the whole
+            Checklist/Event Report/Content Campaigns block below, which has
+            no single wrapping element of its own to attach an id to. */}
+        <div id="checklist" style={{ marginBottom: '24px', scrollMarginTop: '20px' }} />
 
 
         {/* Progress stats */}
@@ -1540,6 +1670,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
         input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.5); }
         * { box-sizing: border-box; }
       `}</style>
+      </div>
     </div>
   )
 }

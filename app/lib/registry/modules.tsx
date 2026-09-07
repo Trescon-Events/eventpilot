@@ -1028,6 +1028,20 @@ export function getModuleRegistry(): ModuleDef[] {
       sidebar: { section: 'events', parent: 'events', order: 6 },
     },
     {
+      key: 'admin-event-integrations', label: 'Integrations',
+      description: 'KonfHub, HubSpot Forms, Postiz, and Client Approval Contacts config for this event.',
+      icon: I.gear, color: '#009C89',
+      href: ctx => `/admin/events/${ctx.eventId}/integrations`,
+      needsEvent: true,
+      breadcrumbPattern: '/admin/events/:eventId/integrations', breadcrumbParent: 'admin-event-workspace',
+      // No nested layout.tsx for this route — its only real gate is
+      // EventWorkspaceLayout's broad hasAnyEventAccess, same as
+      // plan/execution/brief/details above (sae.integrations.manage only
+      // gates the manage UI/APIs within the page, not the page itself).
+      access: { kind: 'admin_only' },
+      sidebar: { section: 'events', parent: 'events', order: 7 },
+    },
+    {
       key: 'admin-event-access', label: 'Access',
       description: 'Define roles and assign staff access to this event\'s modules.',
       icon: I.gear, color: '#8C8C8C',

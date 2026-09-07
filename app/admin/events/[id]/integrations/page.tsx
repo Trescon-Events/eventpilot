@@ -1,11 +1,57 @@
 'use client'
 
-import { use, useEffect, useState } from 'react'
+import { use, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 import { Card, Button, Input, Select, Badge } from '@/app/components/ui'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import { FORM_TYPES, FORM_TITLES, type FormType } from '@/app/lib/forms/types'
+
+// Left-panel section nav (2026-09-07, per Madhu) — this page used to be one
+// long scroll of cards with no way to jump between them. Sections are
+// scroll-spied (IntersectionObserver) rather than routed, since KonfHub/
+// HubSpot/Postiz/Client Approval all genuinely live on this one page/one
+// fetch — only HubSpot's own "Manage" link leaves the page.
+const NAV_SECTIONS = [
+  { id: 'konfhub', label: 'KonfHub' },
+  { id: 'hubspot', label: 'HubSpot Forms' },
+  { id: 'postiz', label: 'Postiz' },
+  { id: 'client-approval', label: 'Client Approval Contacts' },
+] as const
+
+function IntegrationsSideNav({ active }: { active: string }) {
+  return (
+    <nav style={{ width: '188px', flexShrink: 0, position: 'sticky', top: '20px' }}>
+      <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.6px', color: 'var(--ink4)', marginBottom: '10px', paddingLeft: '12px' }}>
+        Sections
+      </div>
+      <div style={{ display: 'grid', gap: '2px' }}>
+        {NAV_SECTIONS.map(s => {
+          const isActive = active === s.id
+          return (
+            <a
+              key={s.id}
+              href={`#${s.id}`}
+              onClick={e => {
+                e.preventDefault()
+                document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                history.replaceState(null, '', `#${s.id}`)
+              }}
+              style={{
+                display: 'block', padding: '9px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 700,
+                textDecoration: 'none', color: isActive ? 'var(--teal-mid)' : 'var(--ink3)',
+                background: isActive ? 'var(--teal-light)' : 'transparent',
+                borderLeft: `2.5px solid ${isActive ? 'var(--teal-mid)' : 'transparent'}`,
+              }}
+            >
+              {s.label}
+            </a>
+          )
+        })}
+      </div>
+    </nav>
+  )
+}
 
 /* Per-event Integrations page (2026-09-05/06) — consolidates KonfHub,
    HubSpot Forms, and Postiz config, previously scattered across Website
@@ -130,6 +176,24 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
   const [newContactEmail, setNewContactEmail] = useState('')
   const [addingContact, setAddingContact] = useState(false)
   const [contactBusyId, setContactBusyId] = useState<string | null>(null)
+
+  const [activeSection, setActiveSection] = useState<string>(NAV_SECTIONS[0].id)
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        const visible = entries.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
+        if (visible[0]) setActiveSection(visible[0].target.id)
+      },
+      { rootMargin: '-20% 0px -70% 0px' }
+    )
+    NAV_SECTIONS.forEach(s => {
+      const el = sectionRefs.current[s.id]
+      if (el) observer.observe(el)
+    })
+    return () => observer.disconnect()
+  }, [loading])
 
   async function load() {
     setLoading(true)
@@ -374,7 +438,10 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
     <div style={{ minHeight: '100vh', background: 'var(--surface)' }}>
       <PageHeader eyebrow="Event Workspace" title="Integrations" backHref={`/admin/events/${eventId}`} backLabel="Back to Event Overview" />
 
-      <div style={{ maxWidth: '900px', margin: '0 auto', padding: '20px 28px 60px' }}>
+      <div style={{ maxWidth: '1140px', margin: '0 auto', padding: '20px 28px 60px', display: 'flex', gap: '32px', alignItems: 'flex-start' }}>
+        <IntegrationsSideNav active={activeSection} />
+
+        <div style={{ flex: 1, minWidth: 0, maxWidth: '900px' }}>
         {msg && (
           <div style={{
             padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '14px',
@@ -392,6 +459,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
           </div>
         )}
 
+        <section id="konfhub" ref={el => { sectionRefs.current.konfhub = el }} style={{ scrollMarginTop: '20px' }}>
         <Card padded>
           <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>KonfHub — Credentials</div>
           <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '16px' }}>The only manually-entered KonfHub fields — everything below this is fetched from KonfHub, never typed in.</div>
@@ -528,7 +596,9 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
             </div>
           )}
         </Card></div>
+        </section>
 
+        <section id="hubspot" ref={el => { sectionRefs.current.hubspot = el }} style={{ scrollMarginTop: '20px' }}>
         <div style={{ marginTop: '16px' }}><Card padded>
           <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>HubSpot Forms</div>
           <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
@@ -548,7 +618,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
                         : 'Not connected'}
                     </div>
                   </div>
-                  <Link href={`/admin/events/${eventId}/stakeholders/hubspot-form/${formType}`}
+                  <Link href={`/admin/events/${eventId}/stakeholders/hubspot-form/${formType}?from=integrations`}
                     style={{ padding: '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink2)', fontSize: '12.5px', fontWeight: 700, textDecoration: 'none' }}>
                     {status !== null && status !== 'unknown' && status.connected ? 'Manage →' : 'Connect →'}
                   </Link>
@@ -557,7 +627,9 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
             })}
           </div>
         </Card></div>
+        </section>
 
+        <section id="postiz" ref={el => { sectionRefs.current.postiz = el }} style={{ scrollMarginTop: '20px' }}>
         <div style={{ marginTop: '16px' }}><Card padded>
           <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Postiz</div>
           <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
@@ -624,7 +696,9 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
             </div>
           )}
         </Card></div>
+        </section>
 
+        <section id="client-approval" ref={el => { sectionRefs.current['client-approval'] = el }} style={{ scrollMarginTop: '20px' }}>
         <div style={{ marginTop: '16px' }}><Card padded>
           <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Client Approval Contacts</div>
           <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
@@ -676,6 +750,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
             </div>
           )}
         </Card></div>
+        </section>
 
         <div style={{ marginTop: '16px' }}><Card padded>
           <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Legacy / Other</div>
@@ -692,6 +767,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
           </div>
           {canManage && <Button variant="ghost" onClick={saveManualFields} disabled={savingManual}>{savingManual ? 'Saving…' : 'Save'}</Button>}
         </Card></div>
+        </div>
       </div>
     </div>
   )
