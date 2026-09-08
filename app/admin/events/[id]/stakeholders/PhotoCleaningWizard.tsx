@@ -1012,9 +1012,9 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
 
           {phase === 'chat-refine' && (
             <div>
-              <div style={{ fontSize: '13.5px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Refine with AI</div>
-              <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
-                Describe exactly what&apos;s wrong and AI will try to fix just that — {CHAT_REFINE_CAP} request{CHAT_REFINE_CAP === 1 ? '' : 's'} max for this photo ({refineRoundRef.current} used so far). Click Continue once you&apos;re happy — it&apos;ll go through the normal cleanup steps from there.
+              <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '6px' }}>Refine with AI</div>
+              <div style={{ fontSize: '14px', lineHeight: 1.5, color: 'var(--ink2)', marginBottom: '16px' }}>
+                Describe exactly what&apos;s wrong and AI will try to fix just that — {CHAT_REFINE_CAP} request{CHAT_REFINE_CAP === 1 ? '' : 's'} max for this photo ({refineRoundRef.current} used so far). Click <b>Continue</b> on the left panel once you&apos;re happy — it&apos;ll go through the normal cleanup steps from there.
               </div>
               <div style={{
                 position: 'relative', width: '100%', maxWidth: '420px', margin: '0 auto', borderRadius: '8px', overflow: 'hidden', border: '1.5px solid var(--border)',
@@ -1035,8 +1035,8 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
               {chatLog.length > 0 && (
                 <div style={{ marginTop: '14px', display: 'grid', gap: '6px' }}>
                   {chatLog.map((entry, i) => (
-                    <div key={i} style={{ fontSize: '11.5px', color: 'var(--ink3)', padding: '7px 10px', borderRadius: '7px', background: 'var(--surface)', border: '1px solid var(--border-light)' }}>
-                      <span style={{ fontWeight: 700, color: 'var(--ink2)' }}>Request {i + 1}:</span> {entry}
+                    <div key={i} style={{ fontSize: '13.5px', lineHeight: 1.5, color: 'var(--ink2)', padding: '9px 12px', borderRadius: '7px', background: 'var(--surface)', border: '1px solid var(--border-light)' }}>
+                      <span style={{ fontWeight: 700, color: 'var(--ink)' }}>Request {i + 1}:</span> {entry}
                     </div>
                   ))}
                 </div>
@@ -1050,15 +1050,15 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
                     placeholder='e.g. "Remove the extra hair above the headscarf — extend the white fabric there instead"'
                     rows={3}
                     maxLength={500}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink)', fontSize: '14.5px', lineHeight: 1.5, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }}
                   />
                   <Button variant="indigo" onClick={sendChatRefine} disabled={chatBusy || !chatInstruction.trim()}>
                     {chatBusy ? 'Working…' : 'Ask AI to Fix This'}
                   </Button>
                 </div>
               ) : (
-                <div style={{ marginTop: '14px', fontSize: '11.5px', color: 'var(--ink4)' }}>
-                  {CHAT_REFINE_CAP} request{CHAT_REFINE_CAP === 1 ? '' : 's'} used for this photo — click Continue to move on, or Back Without Changes to discard this attempt.
+                <div style={{ marginTop: '14px', fontSize: '13.5px', lineHeight: 1.5, color: 'var(--ink3)' }}>
+                  {CHAT_REFINE_CAP} request{CHAT_REFINE_CAP === 1 ? '' : 's'} used for this photo — click <b>Continue</b> on the left panel to move on, or Back Without Changes to discard this attempt.
                 </div>
               )}
             </div>
