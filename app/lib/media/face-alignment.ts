@@ -306,7 +306,19 @@ export async function alignAndCropPhoto(realPhotoBuffer: Buffer, target: Alignme
 
     const scaledWidth = Math.round(realWidth * scale)
     const scaledHeight = Math.round(realHeight * scale)
-    const scaled = await sharp(realPhotoBuffer).resize(scaledWidth, scaledHeight).toBuffer()
+    // .png() forced explicitly on every buffer below (2026-09-08, real
+    // incident — a solid BLACK band instead of transparency wherever
+    // padding was needed). Without it, sharp's .toBuffer() defaults to
+    // re-encoding in whatever format it read (JPEG, for any source photo
+    // that still has its real background — photo_url is deliberately kept
+    // background-intact, see upload-asset's own doc comment — not just
+    // AI-fill's already-transparent PNGs). extend()'s alpha:0 background
+    // IS honored on a JPEG-sourced buffer, but that alpha then gets
+    // silently dropped again the moment it's re-encoded back to JPEG for
+    // output, which has no alpha channel at all — sharp flattens it to
+    // opaque black rather than erroring. Forcing PNG at every step here
+    // keeps the alpha channel intact all the way through.
+    const scaled = await sharp(realPhotoBuffer).resize(scaledWidth, scaledHeight).png().toBuffer()
 
     const realHeadCenterXPx = head.centerXRatio * realWidth * scale
     const realHeadCenterYPx = head.centerYRatio * realHeight * scale
@@ -331,11 +343,12 @@ export async function alignAndCropPhoto(realPhotoBuffer: Buffer, target: Alignme
     const padBottom = Math.max(0, (desiredTop + target.box.height) - scaledHeight)
 
     const padded = padLeft || padTop || padRight || padBottom
-      ? await sharp(scaled).extend({ left: padLeft, top: padTop, right: padRight, bottom: padBottom, background: { r: 0, g: 0, b: 0, alpha: 0 } }).toBuffer()
+      ? await sharp(scaled).extend({ left: padLeft, top: padTop, right: padRight, bottom: padBottom, background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer()
       : scaled
 
     const cropped = await sharp(padded)
       .extract({ left: desiredLeft + padLeft, top: desiredTop + padTop, width: target.box.width, height: target.box.height })
+      .png()
       .toBuffer()
 
     // Sanity-check the actual pixel content before trusting it — a cached
@@ -364,6 +377,6 @@ async function fallbackContainCenter(buffer: Buffer, box: { width: number; heigh
   // IS a worse-than-normal result (no face-aware alignment at all), which
   // callers can still see via the padding being zero here but content
   // being effectively unverified; not tracked as a distinct signal yet.
-  const buf = await sharp(buffer).resize(box.width, box.height, { fit: 'cover' }).toBuffer()
+  const buf = await sharp(buffer).resize(box.width, box.height, { fit: 'cover' }).png().toBuffer()
   return { buffer: buf, padding: noPadding() }
 }

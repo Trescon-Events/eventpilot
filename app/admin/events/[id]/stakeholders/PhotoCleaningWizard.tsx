@@ -653,16 +653,40 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
       }
       return
     }
-    setPhase('website-photo')
+    // Land on the SAME "Cleaned Photo" review screen good/enhance already
+    // uses (setPhase below), not straight into website-photo (2026-09-08,
+    // real incident, per Madhu — "Use As-Is" used to jump directly from
+    // the gap popup into an auto-triggered Website Photo generation with
+    // zero pause in between, since website-photo's own useEffect fires the
+    // instant that phase is entered. A producer who'd just been mid-drag
+    // on the popup-preceding editor had no stopping point to see what
+    // actually got saved before the wizard was already three steps
+    // further along on its own. good/enhance never had this gap — this
+    // brings ai_fill's finalize path in line with it, one manual Continue
+    // click before Website Photo generation starts either way.
+    if (data.photo_processed_url) setCleanedPhotoUrl(data.photo_processed_url)
+    setPhase('cleaned-photo')
   }
 
   async function runProcessing() {
     if (!chosenMode || chosenMode === 'ai_fill') return
     setErrorMsg(null)
     try {
+      // source_url MUST be explicit here (2026-09-08, real incident — a
+      // Cancel-then-redo cycle within the same wizard session drifted the
+      // head position further down each time). Without it, the route falls
+      // back to speaker.photo_processed_url — which a FIRST successful
+      // finalize in this same session already overwrote with cycle 1's
+      // cropped output. composeBox/rawPhotoUrl (what Compose is actually
+      // showing and measuring against) never change across a Cancel, so a
+      // second finalize would apply composeBox's coordinates to the wrong
+      // source image — cropping an already-cropped photo. Pinning
+      // source_url to rawPhotoUrl keeps every finalize in this session
+      // working from the exact same photo Compose's head-box math is
+      // relative to, no matter what's already been written to the DB.
       const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/generate`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: chosenMode }),
+        body: JSON.stringify({ mode: chosenMode, source_url: rawPhotoUrl }),
       })
       const genData = await res.json().catch(() => ({}))
       if (!res.ok) { setErrorMsg(genData.error || 'Could not process this photo — please try again.'); return }
@@ -779,7 +803,12 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
   const visibleSteps = STEP_LABELS
     .filter(s => entry.kind === 'upload' || s.key !== 'uploading')
     .filter(s => !(['cleaning', 'headfix-clean'] as Phase[]).includes(s.key) || chosenMode === 'ai_fill')
-    .filter(s => !(['processing', 'cleaned-photo'] as Phase[]).includes(s.key) || chosenMode === 'enhance' || chosenMode === 'good')
+    // 'processing' is good/enhance's own synchronous crop step — ai_fill
+    // never goes through it (headfix-clean/finalize does the equivalent
+    // work). 'cleaned-photo' is now shared by BOTH branches (2026-09-08 —
+    // see finalizeClean's own comment), so it's no longer restricted to
+    // just good/enhance.
+    .filter(s => s.key !== 'processing' || chosenMode === 'enhance' || chosenMode === 'good')
     // Optional side-trip, not a numbered pipeline stage every run goes
     // through — only shows in the rail while actually on it.
     .filter(s => s.key !== 'chat-refine' || phase === 'chat-refine')
@@ -788,7 +817,17 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
     <div style={{ position: 'fixed', inset: 0, background: 'color-mix(in srgb, black 60%, transparent)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
       <div style={{
         width: '960px', maxWidth: '100%', maxHeight: '92vh', background: 'var(--card)', border: '1px solid var(--border-light)',
-        borderRadius: '16px', display: 'grid', gridTemplateColumns: '260px 1fr', overflow: 'hidden',
+        // gridTemplateRows: minmax(0, 1fr) is the other half of the
+        // 2026-09-08 scroll fix (minHeight:0 on the panes below is not
+        // enough by itself). An implicit grid row defaults to 'auto'
+        // track sizing, i.e. sized to its tallest item's max-content —
+        // that sizing is NOT automatically capped just because the
+        // container has maxHeight, so the row (and the panes inside it)
+        // still grew past 92vh and got clipped by this div's own
+        // overflow: hidden instead of scrolling. minmax(0, 1fr) lets the
+        // row itself shrink to the container's actual constrained height,
+        // which is what lets each pane's own overflow: auto take over.
+        borderRadius: '16px', display: 'grid', gridTemplateColumns: '260px 1fr', gridTemplateRows: 'minmax(0, 1fr)', overflow: 'hidden',
       }}>
         {/* Left rail — steps, status, and whatever action(s) the current step
             needs. overflowY: auto is a safety net so the action buttons
@@ -1013,8 +1052,24 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
                 <>
                   <PhotoFitEditor photoUrl={pendingClean.url} target={pendingClean.headBox} initialHeadBox={pendingClean.headBox} onChange={setCleanBox} onReachesBottomChange={setCleanReachesBottom} />
                   {!cleanReachesBottom && (
-                    <div style={{ marginTop: '10px', fontSize: '11.5px', color: 'var(--amber)' }}>
-                      Doesn&apos;t look like it reaches the bottom of the frame yet — keep adjusting, or click Continue and we&apos;ll double-check.
+                    // 2026-09-08, per Madhu: a producer who can SEE the gap
+                    // right here shouldn't have to click Continue first to
+                    // get offered a fix — that only happened via the
+                    // Checkpoint 2 popup before. This calls the exact same
+                    // regenerateFromPending used there, sourced from the
+                    // CURRENT pendingClean.url + cleanBox — since
+                    // generateAIFilledPhoto measures each of the 4 edges
+                    // independently and only fills the ones with a real
+                    // gap (see its own edge-padding log), this naturally
+                    // touches only the bottom here and leaves top/left/
+                    // right alone, and its bottom instruction already asks
+                    // the model to overshoot past the canvas edge rather
+                    // than stop exactly at it.
+                    <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                      <div style={{ fontSize: '11.5px', color: 'var(--amber)' }}>
+                        Doesn&apos;t look like it reaches the bottom of the frame yet.
+                      </div>
+                      <Button variant="indigo" onClick={regenerateFromPending} disabled={busy || regeneratingClean}>Fix Gap</Button>
                     </div>
                   )}
                 </>

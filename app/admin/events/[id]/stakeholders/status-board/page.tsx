@@ -58,23 +58,39 @@ const TRISTATE_COLUMNS: { key: 'website_status' | 'social_post_status' | 'self_p
   { key: 'self_promo_status', label: 'Self Promo' },
 ]
 
+// Text-based status, not a dot (2026-09-08, per Madhu — dots didn't say
+// enough at a glance; the actual word plus color reads faster once you
+// know what you're looking for, especially scanning down a column). Same
+// 3-way color meaning everywhere on this page: red = missing/pending,
+// amber = in progress, green = done/published. Boolean columns only ever
+// have the red/green ends of that range (there's no "in progress" concept
+// for a yes/no field), the 3-state announcement columns use all three.
+const STATUS_RED = 'var(--red)'
+const STATUS_AMBER = 'var(--amber)'
+const STATUS_GREEN = 'var(--success)'
+
 const TRISTATE_COLOR: Record<string, string> = {
-  pending: 'var(--ink4)', created: 'var(--amber)', published: 'var(--success)', sent: 'var(--success)',
+  pending: STATUS_RED, created: STATUS_AMBER, published: STATUS_GREEN, sent: STATUS_GREEN,
 }
 const TRISTATE_LABEL: Record<string, string> = {
-  pending: 'Pending', created: 'Created', published: 'Published', sent: 'Sent',
+  pending: 'Pending', created: 'In Progress', published: 'Published', sent: 'Sent',
 }
 
-function Dot({ color, title }: { color: string; title: string }) {
-  return <span title={title} style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: color }} />
-}
-
-function BoolCell({ value, presentLabel, missingLabel }: { value: boolean; presentLabel: string; missingLabel: string }) {
+// Word-wraps naturally inside a narrow column (e.g. "In Progress" breaks
+// into two lines on its own at the space) rather than forcing a fixed
+// line break — keeps single-word states ("Done", "Pending") on one line
+// while still letting longer ones go to two lines to save width, per
+// Madhu's ask.
+function StatusText({ label, color }: { label: string; color: string }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'center' }}>
-      <Dot color={value ? 'var(--success)' : 'var(--ink4)'} title={value ? presentLabel : missingLabel} />
+    <div style={{ fontSize: '11px', fontWeight: 800, color, textAlign: 'center', lineHeight: 1.25, maxWidth: '76px', margin: '0 auto' }}>
+      {label}
     </div>
   )
+}
+
+function BoolCell({ value }: { value: boolean }) {
+  return <StatusText label={value ? 'Done' : 'Pending'} color={value ? STATUS_GREEN : STATUS_RED} />
 }
 
 const MISSING_FILTER_OPTIONS: { value: string; label: string }[] = [
@@ -102,6 +118,18 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
   const [missingFilter, setMissingFilter] = useState('all')
   const [producerDropdownOpen, setProducerDropdownOpen] = useState(false)
   const producerDropdownRef = useRef<HTMLDivElement | null>(null)
+
+  // Sticky header (2026-09-08, per Madhu — freeze the header rows and the
+  // Speaker column while scrolling). The group-label row's real rendered
+  // height drives the second header row's own `top` offset — measured
+  // rather than hardcoded, since it depends on font metrics/padding that
+  // aren't worth pinning down by hand and re-checking every time either
+  // changes.
+  const headerRow1Ref = useRef<HTMLTableRowElement | null>(null)
+  const [headerRow1Height, setHeaderRow1Height] = useState(0)
+  useEffect(() => {
+    if (headerRow1Ref.current) setHeaderRow1Height(headerRow1Ref.current.getBoundingClientRect().height)
+  }, [loading])
 
   useBreadcrumbLabel(eventId, eventName)
 
@@ -247,29 +275,36 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
             {MISSING_FILTER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </Select>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginLeft: 'auto', fontSize: '11.5px', color: 'var(--ink3)' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><Dot color="var(--success)" title="" /> Done / Published</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><Dot color="var(--amber)" title="" /> In progress</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><Dot color="var(--ink4)" title="" /> Missing / Pending</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginLeft: 'auto', fontSize: '11.5px', fontWeight: 700 }}>
+            <span style={{ color: STATUS_GREEN }}>Done / Published</span>
+            <span style={{ color: STATUS_AMBER }}>In progress</span>
+            <span style={{ color: STATUS_RED }}>Missing / Pending</span>
           </div>
         </div>
 
         {loading ? (
           <div style={{ fontSize: '13px', color: 'var(--ink4)', padding: '40px', textAlign: 'center' }}>Loading…</div>
         ) : (
+          // overflow-x only (never overflow-y) is deliberate — it's what
+          // lets `position: sticky` on the header/Speaker-column cells
+          // below track the PAGE's own scroll instead of being confined to
+          // a scroll box inside this div. Confirmed the standard pattern
+          // for "horizontal scroll + sticky vertical header" (2026-09-08,
+          // per Madhu: freeze the header rows and the Speaker column while
+          // scrolling through a wide/tall roster).
           <div style={{ overflowX: 'auto', border: '1px solid var(--border-light)', borderRadius: '12px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
-                <tr style={{ background: 'var(--card-hi)' }}>
-                  <th rowSpan={2} style={thStyle('left')}>Speaker</th>
-                  <th rowSpan={2} style={thStyle('left')}>Producer</th>
-                  <th colSpan={4} style={{ ...thStyle('center'), borderBottom: '1px solid var(--border-light)' }}>Collection</th>
-                  <th colSpan={3} style={{ ...thStyle('center'), borderBottom: '1px solid var(--border-light)' }}>Production</th>
-                  <th colSpan={3} style={{ ...thStyle('center'), borderBottom: '1px solid var(--border-light)' }}>Publish</th>
+                <tr ref={headerRow1Ref} style={{ background: 'var(--card-hi)' }}>
+                  <th rowSpan={2} style={{ ...thStyle('left'), ...stickyStyle({ top: 0, left: 0, z: 4 }) }}>Speaker</th>
+                  <th rowSpan={2} style={{ ...thStyle('left'), ...stickyStyle({ top: 0, z: 3 }) }}>Producer</th>
+                  <th colSpan={4} style={{ ...thStyle('center'), borderBottom: '1px solid var(--border-light)', ...stickyStyle({ top: 0, z: 3 }) }}>Collection</th>
+                  <th colSpan={3} style={{ ...thStyle('center'), borderBottom: '1px solid var(--border-light)', ...stickyStyle({ top: 0, z: 3 }) }}>Production</th>
+                  <th colSpan={3} style={{ ...thStyle('center'), borderBottom: '1px solid var(--border-light)', ...stickyStyle({ top: 0, z: 3 }) }}>Publish</th>
                 </tr>
                 <tr style={{ background: 'var(--card-hi)' }}>
-                  {BOOL_COLUMNS.map(c => <th key={c.key as string} style={thStyle('center')}>{c.label}</th>)}
-                  {TRISTATE_COLUMNS.map(c => <th key={c.key} style={thStyle('center')}>{c.label}</th>)}
+                  {BOOL_COLUMNS.map(c => <th key={c.key as string} style={{ ...thStyle('center'), ...stickyStyle({ top: headerRow1Height, z: 3 }) }}>{c.label}</th>)}
+                  {TRISTATE_COLUMNS.map(c => <th key={c.key} style={{ ...thStyle('center'), ...stickyStyle({ top: headerRow1Height, z: 3 }) }}>{c.label}</th>)}
                 </tr>
               </thead>
               <tbody>
@@ -277,12 +312,11 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
                   <tr><td colSpan={2 + BOOL_COLUMNS.length + TRISTATE_COLUMNS.length} style={{ padding: '32px', textAlign: 'center', color: 'var(--ink4)' }}>No speakers match these filters.</td></tr>
                 ) : filteredRows.map(r => (
                   <tr key={r.id}
+                    className="sb-row"
                     onClick={() => window.open(`/admin/events/${eventId}/stakeholders/${r.id}?kind=speaker`, '_self')}
                     style={{ cursor: 'pointer', borderTop: '1px solid var(--border-light)' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--card-hi)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                   >
-                    <td style={tdStyle('left')}>
+                    <td className="sb-sticky-col" style={{ ...tdStyle('left'), ...stickyStyle({ left: 0, z: 1 }) }}>
                       <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{r.name}</div>
                       <div style={{ fontSize: '11.5px', color: 'var(--ink4)' }}>{[r.job_title, r.company_name].filter(Boolean).join(' · ')}</div>
                     </td>
@@ -291,16 +325,14 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
                     </td>
                     {BOOL_COLUMNS.map(c => (
                       <td key={c.key as string} style={tdStyle('center')}>
-                        <BoolCell value={r[c.key] as boolean} presentLabel={`${c.label}: on file`} missingLabel={`${c.label}: missing`} />
+                        <BoolCell value={r[c.key] as boolean} />
                       </td>
                     ))}
                     {TRISTATE_COLUMNS.map(c => {
                       const state = r[c.key]
                       return (
                         <td key={c.key} style={tdStyle('center')}>
-                          <div style={{ display: 'flex', justifyContent: 'center' }}>
-                            <Dot color={TRISTATE_COLOR[state]} title={`${c.label}: ${TRISTATE_LABEL[state]}`} />
-                          </div>
+                          <StatusText label={TRISTATE_LABEL[state]} color={TRISTATE_COLOR[state]} />
                         </td>
                       )
                     })}
@@ -310,6 +342,10 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
             </table>
           </div>
         )}
+        <style jsx>{`
+          .sb-row:hover { background: var(--card-hi); }
+          .sb-row:hover .sb-sticky-col { background: var(--card-hi); }
+        `}</style>
       </div>
     </div>
   )
@@ -323,4 +359,23 @@ function thStyle(align: 'left' | 'center'): React.CSSProperties {
 }
 function tdStyle(align: 'left' | 'center'): React.CSSProperties {
   return { padding: '10px 12px', textAlign: align, verticalAlign: 'middle' }
+}
+
+// A sticky cell needs its OWN explicit background — it doesn't reliably
+// pick up its row's background the way a normal cell does, since sticky
+// positioning paints it in a separate layer above whatever scrolls
+// underneath. Header cells match the header row's own var(--card-hi);
+// the Speaker column's body cells default to var(--surface) — the same
+// color a non-sticky cell would show against this page's background —
+// and the .sb-row:hover CSS rule (see the <style jsx> block below)
+// overrides it to var(--card-hi) on hover, same as every other cell in
+// that row.
+function stickyStyle(opts: { top?: number; left?: number; z: number }): React.CSSProperties {
+  return {
+    position: 'sticky',
+    ...(opts.top !== undefined ? { top: opts.top } : {}),
+    ...(opts.left !== undefined ? { left: opts.left } : {}),
+    zIndex: opts.z,
+    background: opts.top !== undefined ? 'var(--card-hi)' : 'var(--surface)',
+  }
 }
