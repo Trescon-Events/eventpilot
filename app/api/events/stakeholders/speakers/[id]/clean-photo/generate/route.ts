@@ -95,6 +95,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "mode must be 'ai_fill', 'enhance', or 'good'" }, { status: 400 })
   }
   const quality = body?.quality === 'high' ? 'high' : 'medium'
+  // Distinct, greppable marker for the wizard's auto-retry specifically
+  // (2026-09-08, per Madhu — wanted a live watch on when this actually
+  // fires while cleaning up a batch of photos) — every other call to this
+  // route omits source_url entirely, so this only ever logs the retry case.
+  if (mode === 'ai_fill' && body?.source_url) {
+    console.log(`[clean-photo][auto-retry] speaker ${speakerId} — retrying ai_fill from pending result, quality=${quality}`)
+  }
 
   const { data: speaker } = await supabaseAdmin
     .from('event_speakers')
