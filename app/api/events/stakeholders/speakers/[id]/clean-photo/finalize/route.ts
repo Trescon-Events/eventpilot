@@ -3,11 +3,11 @@ import sharp from 'sharp'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import type { AlignmentTarget, HeadBox } from '@/app/lib/media/face-alignment'
-import { finalizeCleaningCycle, CLEANING_CYCLE_CANVAS_SIZE } from '@/app/lib/media/photo-cleaning-pipeline'
+import { finalizeCleaningCycle, hasRealContentGap, CLEANING_CYCLE_CANVAS_SIZE } from '@/app/lib/media/photo-cleaning-pipeline'
 import { MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine'
 
 /* POST /api/events/stakeholders/speakers/[id]/clean-photo/finalize
-   Body: { pending_photo_url, head_box, mode? }
+   Body: { pending_photo_url, head_box, force? }
    Takes a producer-CONFIRMED head box on whatever .../clean-photo/generate
    produced (2026-08-21 — now EITHER branch's own clean-photo-pending-*.png,
    not just the AI-extended one; see that route's own doc comment on why
@@ -21,20 +21,35 @@ import { MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine
    since alignAndCropPhoto only ever cares about the head's position within
    whatever buffer it's handed, not how that buffer was produced.
 
-   No ground-truth pixel/gap check runs here (2026-08-22, removed — was
-   previously skipped for 'enhance'/'good' but still ran for 'ai_fill';
-   removed for that path too after a second real false-positive incident,
-   this time blocking a photo that visibly did reach the bottom of the
-   frame). Every mode reaches this route only after a producer has
-   actively confirmed the framing on screen (Compose for good/enhance,
-   Confirm Cleaned Photo for ai_fill) — an automated check on top of that
-   is re-analyzing a decision a human already made, not catching something
-   they missed, and it kept producing false positives instead of real
-   ones. See photo-cleaning-pipeline.ts's hasRealContentGap for the
-   function itself, still exported in case it's useful elsewhere, just no
-   longer called from this pipeline. */
+   Ground-truth pixel/gap check (2026-09-08, reintroduced — see history
+   below for why it was pulled once already; do not re-remove without
+   reading this) — runs ONLY when `force` is falsy, checking the ACTUAL
+   cropped result via hasRealContentGap before saving anything. On a real
+   gap, returns { needs_confirmation_gap: true } and does NOT write to
+   event_speakers — the wizard's Confirm Cleaned Photo step shows a
+   "doesn't look filled — regenerate?" popup instead (Checkpoint 2 of that
+   flow; Checkpoint 1 runs the same check right after generation, before
+   any manual adjustment — see clean-photo/generate's own runAiFillJob).
+   The caller (PhotoCleaningWizard.tsx) is what decides when `force` is
+   true: the good/enhance path (via runProcessing) always sends it, since a
+   producer already explicitly judged that framing complete at Compose —
+   re-litigating that decision here is exactly the false-positive class the
+   2026-08-22 removal below was about, and this reintroduction deliberately
+   does NOT reopen that path. The ai_fill/Confirm-Cleaned-Photo path sends
+   `force` only once its own per-attempt popup-offer cap is reached
+   (gapPromptCount), so a photo that structurally can't close the gap
+   doesn't block forever on this check.
 
-type Body = { pending_photo_url?: string; head_box?: HeadBox }
+   History — first removal (2026-08-22): this same check used to run
+   unconditionally, and was removed after a second real false-positive
+   incident blocked a photo that visibly did reach the bottom of the frame.
+   That incident was about running the check for good/enhance, or without
+   any producer-controlled way to override it — this reintroduction avoids
+   both: force-by-default on good/enhance, and an explicit human override
+   (the popup's "Use As-Is") on ai_fill once a producer has actually looked
+   at the result and disagrees with the check. */
+
+type Body = { pending_photo_url?: string; head_box?: HeadBox; force?: boolean }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: speakerId } = await params
@@ -66,6 +81,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const buffer = Buffer.from(await imgRes.arrayBuffer())
 
     const { buffer: cropped } = await finalizeCleaningCycle(buffer, body.head_box, target)
+
+    if (!body.force && await hasRealContentGap(cropped)) {
+      return NextResponse.json({ needs_confirmation_gap: true })
+    }
+
     const resized = await sharp(cropped).resize(MAX_STORED_PHOTO_DIMENSION, MAX_STORED_PHOTO_DIMENSION, { fit: 'inside', withoutEnlargement: true }).png().toBuffer()
     const photoProcessedUrl = await uploadPublicAsset(
       `events/${speaker.event_id}/speakers/${speakerId}/photo-processed-${Date.now()}.png`,

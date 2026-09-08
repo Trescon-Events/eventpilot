@@ -94,6 +94,12 @@ const DEFAULT_BOX: HeadBox = { centerXRatio: 0.5, centerYRatio: 0.22, heightRati
 const LARGE_GAP_FRACTION = 0.1
 const LARGE_GAP_EDGE_COUNT_FOR_HINT = 2
 
+// How many times the gap popup (see gapPromptCountRef) can be shown per
+// base attempt before Continue just saves silently and a fresh generation
+// stops asking — a photo that structurally can't close the gap shouldn't
+// block forever on a question the producer already answered twice.
+const GAP_PROMPT_CAP = 2
+
 // Cosmetic only — real progress isn't observable mid-request, mirrors
 // CleanPhotoWizard's own validated long-wait pattern (an elapsed counter
 // that keeps climbing reads as "still working," unlike a spinner that
@@ -170,23 +176,38 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
   // or one where zooming further would drop below a usable resolution),
   // so this never disables a button, just surfaces the suggestion.
   const [composeGaps, setComposeGaps] = useState<{ top: number; left: number; right: number; bottom: number } | null>(null)
-  // Auto-retry (2026-09-07, per Madhu) — the SAME bounding-box "does the
-  // photo reach the bottom" check Compose already gates buttons on
-  // (PhotoFitEditor's onReachesBottomChange) is now also wired up on
-  // Confirm Cleaned Photo, where it's reviewing the AI-FILLED result
-  // instead of the raw photo. If GPT's fill still falls short, one
-  // automatic re-run is fired — sourced from the pending AI-filled photo
-  // itself (source_url/head_box overrides on .../clean-photo/generate),
-  // not the original raw photo, so it only asks GPT to close whatever gap
-  // remains rather than redo the whole extension. Capped at exactly one
-  // auto-retry, and always lands back here for a human look before
-  // finalize — never skips the confirm step, per Madhu: GPT Image 2's mask
-  // isn't a hard fill guarantee (see generateAIFilledPhoto's own doc
-  // comment), so this reduces manual "Regenerate" clicks without removing
-  // the safety net that step exists for.
+  // Gap popup (2026-09-08, per Madhu — replaces an earlier silent
+  // auto-retry design after it fired mid-drag: PhotoFitEditor's
+  // onReachesBottomChange turned out to fire on every pointer-move frame
+  // of a live drag/zoom, not just when the user settles, so a normal
+  // overshoot while repositioning the face instantly kicked off an
+  // unwanted regeneration. This checks at two DISCRETE moments instead —
+  // never during live interaction — using the more reliable server-side
+  // hasRealContentGap pixel check (not this same onReachesBottomChange
+  // heuristic, which disagreed with it on a real case, speaker Nalin Negi):
+  //   1. Immediately after generation lands here, before any manual
+  //      adjustment — see pollCleanJob's success branch, driven by the
+  //      new `has_gap` field .../clean-photo/generate's ai_fill job now
+  //      returns.
+  //   2. When the producer clicks Continue — see finalizeClean/postFinalize,
+  //      driven by `needs_confirmation_gap` from .../clean-photo/finalize
+  //      (which now runs the same check server-side unless told not to).
+  // Either checkpoint shows the same popup; the producer decides
+  // Regenerate / Use As-Is / Keep Adjusting — never a silent automatic
+  // action. cleanReachesBottom (PhotoFitEditor's live geometric check)
+  // stays wired for its ORIGINAL, purely-visual hint text only — it no
+  // longer drives any action.
   const [cleanReachesBottom, setCleanReachesBottom] = useState(true)
-  const [autoRetriedClean, setAutoRetriedClean] = useState(false)
-  const [retryingClean, setRetryingClean] = useState(false)
+  const [showGapPopup, setShowGapPopup] = useState(false)
+  const [regeneratingClean, setRegeneratingClean] = useState(false)
+  // How many times the popup has been shown for the CURRENT base attempt —
+  // a plain ref, not state: purely internal bookkeeping the UI never needs
+  // to render, and reading it must never race a stale closure the way a
+  // state variable read inside an async callback could. Reset alongside
+  // the other per-attempt state in runClean()/resetToCompose(). Once it
+  // hits GAP_PROMPT_CAP, neither checkpoint asks again this attempt — see
+  // finalizeClean's `force` computation and pollCleanJob's landing check.
+  const gapPromptCountRef = useRef(0)
   // The just-finalized 1024x1024 cleaned photo — shown on 'cleaned-photo'
   // (enhance/good paths only) so the producer sees the actual updated
   // "clean raw material" before it feeds Website Photo generation, per
@@ -310,9 +331,10 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
   async function runClean() {
     setErrorMsg(null)
     // Fresh base attempt (first run, or Regenerate at Higher Quality) — the
-    // one-shot auto-retry allowance applies per attempt, not per wizard
-    // session, so a deliberate manual regenerate gets its own chance too.
-    setAutoRetriedClean(false)
+    // gap-popup allowance applies per attempt, not per wizard session, so
+    // a deliberate manual regenerate gets its own fresh chance too.
+    gapPromptCountRef.current = 0
+    setShowGapPopup(false)
     setCleanReachesBottom(true)
     try {
       const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/generate`, {
@@ -339,10 +361,11 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
   // update so a stale poll from a canceled or superseded run can't act.
   const CLEAN_POLL_INTERVAL_MS = 3000
   const CLEAN_POLL_MAX_ATTEMPTS = 200 // ~10 min ceiling — generous past the ~120s worst case seen so far, just a backstop against a truly stuck job
-  // `isRetry` only affects the auto-retry's own `retryingClean` spinner
-  // flag — the polling/job mechanics are identical for a first run and a
-  // retry (both are plain 'ai_fill' generate jobs).
-  async function pollCleanJob(jobId: string, attempt: number, isRetry = false) {
+  // `isRegenerate` only affects the popup-triggered regenerate's own
+  // `regeneratingClean` spinner flag — the polling/job mechanics are
+  // identical for a first run and a regenerate (both are plain 'ai_fill'
+  // generate jobs).
+  async function pollCleanJob(jobId: string, attempt: number, isRegenerate = false) {
     if (cleaningJobIdRef.current !== jobId) return
     try {
       const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/job/${jobId}`)
@@ -350,16 +373,16 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
       if (cleaningJobIdRef.current !== jobId) return
       if (!res.ok || data.status === 'error') {
         setErrorMsg(data.error || 'Could not clean this photo — please try again.')
-        if (isRetry) setRetryingClean(false)
+        if (isRegenerate) setRegeneratingClean(false)
         return
       }
       if (data.status === 'processing') {
         if (attempt >= CLEAN_POLL_MAX_ATTEMPTS) {
           setErrorMsg('This is taking much longer than usual — please try again.')
-          if (isRetry) setRetryingClean(false)
+          if (isRegenerate) setRegeneratingClean(false)
           return
         }
-        setTimeout(() => pollCleanJob(jobId, attempt + 1, isRetry), CLEAN_POLL_INTERVAL_MS)
+        setTimeout(() => pollCleanJob(jobId, attempt + 1, isRegenerate), CLEAN_POLL_INTERVAL_MS)
         return
       }
       const result = data.result ?? {}
@@ -367,60 +390,65 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
       setPendingClean({ url: result.pending_photo_url, headBox })
       setCleanBox(headBox)
       setPhase('headfix-clean')
-      if (isRetry) setRetryingClean(false)
+      if (isRegenerate) setRegeneratingClean(false)
+      // Checkpoint 1 — check the FRESH result before the producer has
+      // touched anything (see the state block's own doc comment above for
+      // why this uses the server's has_gap rather than the live
+      // onReachesBottomChange heuristic).
+      if (result.has_gap && gapPromptCountRef.current < GAP_PROMPT_CAP) {
+        gapPromptCountRef.current += 1
+        setShowGapPopup(true)
+      }
     } catch {
       if (cleaningJobIdRef.current !== jobId) return
       // A transient network blip on one poll tick shouldn't fail the whole
       // run — retry like any other tick, same attempt cap as above.
       if (attempt >= CLEAN_POLL_MAX_ATTEMPTS) {
         setErrorMsg('Could not clean this photo — check your connection and try again.')
-        if (isRetry) setRetryingClean(false)
+        if (isRegenerate) setRegeneratingClean(false)
         return
       }
-      setTimeout(() => pollCleanJob(jobId, attempt + 1, isRetry), CLEAN_POLL_INTERVAL_MS)
+      setTimeout(() => pollCleanJob(jobId, attempt + 1, isRegenerate), CLEAN_POLL_INTERVAL_MS)
     }
   }
 
-  // Fires at most once per base attempt (see runClean's reset of
-  // autoRetriedClean) when Confirm Cleaned Photo's own bounding-box check
-  // finds the AI-filled result still doesn't reach the bottom. Sources the
-  // retry from the PENDING result itself (source_url/head_box), not the
-  // original raw photo — GPT is only asked to close whatever gap remains,
-  // same as a human clicking Regenerate would see, just automatic.
-  async function autoRetryClean() {
+  // The popup's "Regenerate" choice — fires from either checkpoint (called
+  // with whatever pendingClean/cleanBox currently are, so it doesn't need
+  // to know which checkpoint triggered it). Sources from the PENDING
+  // result itself (source_url), at the producer's CURRENT head-box
+  // position (cleanBox — equals pendingClean.headBox if this is Checkpoint
+  // 1 before any adjustment, or their latest manual position if this is
+  // Checkpoint 2 after dragging) — GPT is only asked to close whatever gap
+  // remains from that vantage point, same as the original extension.
+  async function regenerateFromPending() {
     if (!pendingClean) return
-    setAutoRetriedClean(true)
-    setRetryingClean(true)
+    setShowGapPopup(false)
+    setRegeneratingClean(true)
     setErrorMsg(null)
     try {
       const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/generate`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'ai_fill', quality: aiQuality, source_url: pendingClean.url, head_box: pendingClean.headBox }),
+        body: JSON.stringify({ mode: 'ai_fill', quality: aiQuality, source_url: pendingClean.url, head_box: cleanBox }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok || !data.job_id) {
-        setErrorMsg(data.error || 'Automatic retry failed — you can Regenerate at Higher Quality or adjust manually.')
-        setRetryingClean(false)
+        setErrorMsg(data.error || 'Could not regenerate — please try again.')
+        setRegeneratingClean(false)
         return
       }
       cleaningJobIdRef.current = data.job_id
       pollCleanJob(data.job_id, 0, true)
     } catch {
-      setErrorMsg('Automatic retry failed — check your connection, or Regenerate at Higher Quality.')
-      setRetryingClean(false)
+      setErrorMsg('Could not regenerate — check your connection and try again.')
+      setRegeneratingClean(false)
     }
   }
 
-  // Trigger the one auto-retry as soon as Confirm Cleaned Photo's own
-  // measurement (PhotoFitEditor's onReachesBottomChange, passed below)
-  // reports a shortfall on the current pending result.
-  useEffect(() => {
-    if (phase === 'headfix-clean' && pendingClean && !cleanReachesBottom && !autoRetriedClean && !retryingClean) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- same phase-triggered-side-effect pattern as the doUpload/runClean/runProcessing/runWebsitePhoto dispatch effect above; autoRetryClean sets autoRetriedClean/retryingClean synchronously specifically so this effect can't re-fire itself on the resulting re-render
-      autoRetryClean()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- autoRetryClean itself isn't a dependency: it's redefined every render but its own guards (autoRetriedClean/retryingClean, set synchronously before its first await) already make this effect idempotent regardless
-  }, [phase, pendingClean, cleanReachesBottom, autoRetriedClean, retryingClean])
+  // The popup's other two choices. "Keep Adjusting" is a plain dismiss —
+  // nothing else changes, the producer just keeps dragging/zooming.
+  function dismissGapPopup() {
+    setShowGapPopup(false)
+  }
 
   // Opt-in re-run at the costlier 'high' quality tier (2026-08-22, per
   // Madhu — real case: a medium-quality AI Fill result looked visibly
@@ -441,24 +469,46 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
   // Shared by both the interactive confirm (AI-fill path) and the
   // automatic processing path (enhance/good) — same save, same error
   // handling, only the caller differs in whether a human looked first.
-  async function postFinalize(pendingUrl: string, headBox: HeadBox): Promise<{ photo_processed_url: string } | null> {
+  // `force` skips the server's own hasRealContentGap check entirely (see
+  // clean-photo/finalize's own doc comment) — the good/enhance path
+  // (runProcessing) always sends it, since a producer already explicitly
+  // judged that framing complete at Compose. When not forced and the
+  // server finds a real gap, nothing is saved — the response comes back
+  // with `needs_confirmation_gap` instead, for the caller to act on.
+  async function postFinalize(pendingUrl: string, headBox: HeadBox, force = false): Promise<{ photo_processed_url?: string; needs_confirmation_gap?: boolean } | null> {
     const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/finalize`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pending_photo_url: pendingUrl, head_box: headBox }),
+      body: JSON.stringify({ pending_photo_url: pendingUrl, head_box: headBox, force }),
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) { setErrorMsg(data.error || 'Could not save the cleaned photo — please try again.'); return null }
+    if (data.needs_confirmation_gap) return data // nothing was saved — don't refetch
     await onSaved()
     return data
   }
 
-  async function finalizeClean() {
+  // Checkpoint 2 — Continue. `forceOverride` is the popup's "Use As-Is"
+  // choice (save exactly what's shown, no further checks, regardless of
+  // the offer cap). Otherwise forces automatically once the cap is already
+  // reached, so a photo that structurally can't close the gap doesn't ask
+  // a third time.
+  async function finalizeClean(forceOverride = false) {
     if (!pendingClean) return
+    setShowGapPopup(false)
     setBusy(true)
     setErrorMsg(null)
-    const data = await postFinalize(pendingClean.url, cleanBox)
+    const force = forceOverride || gapPromptCountRef.current >= GAP_PROMPT_CAP
+    const data = await postFinalize(pendingClean.url, cleanBox, force)
     setBusy(false)
-    if (data) setPhase('website-photo')
+    if (!data) return // error already surfaced by postFinalize
+    if (data.needs_confirmation_gap) {
+      if (gapPromptCountRef.current < GAP_PROMPT_CAP) {
+        gapPromptCountRef.current += 1
+        setShowGapPopup(true)
+      }
+      return
+    }
+    setPhase('website-photo')
   }
 
   async function runProcessing() {
@@ -471,8 +521,13 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
       })
       const genData = await res.json().catch(() => ({}))
       if (!res.ok) { setErrorMsg(genData.error || 'Could not process this photo — please try again.'); return }
-      const finalized = await postFinalize(genData.pending_photo_url, genData.suggested_head_box)
-      if (finalized) { setCleanedPhotoUrl(finalized.photo_processed_url); setPhase('cleaned-photo') }
+      // Always forced — the producer already explicitly judged this framing
+      // complete at Compose (good/enhance never goes through Confirm
+      // Cleaned Photo's own gap popup), so re-litigating that decision here
+      // is exactly the false-positive class the finalize route's own doc
+      // comment warns against reopening.
+      const finalized = await postFinalize(genData.pending_photo_url, genData.suggested_head_box, true)
+      if (finalized?.photo_processed_url) { setCleanedPhotoUrl(finalized.photo_processed_url); setPhase('cleaned-photo') }
     } catch {
       setErrorMsg('Could not process this photo — check your connection and try again.')
     }
@@ -552,6 +607,11 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
     setWebsiteCropWarning(null)
     setWebsiteSkippedReason(null)
     setAiQuality('medium')
+    // Abandoning this attempt — the gap popup shouldn't carry over into
+    // whatever's tried next.
+    gapPromptCountRef.current = 0
+    setShowGapPopup(false)
+    setRegeneratingClean(false)
     setPhase('compose')
   }
 
@@ -636,11 +696,11 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
             {phase === 'processing' && errorMsg && (
               <Button variant="teal" onClick={runProcessing}>Retry</Button>
             )}
-            {phase === 'headfix-clean' && (
+            {phase === 'headfix-clean' && !showGapPopup && (
               <>
-                <Button variant="lime" onClick={finalizeClean} disabled={busy || retryingClean}>{busy ? 'Saving…' : 'Continue'}</Button>
+                <Button variant="lime" onClick={() => finalizeClean()} disabled={busy || regeneratingClean}>{busy ? 'Saving…' : 'Continue'}</Button>
                 {aiQuality === 'medium' && (
-                  <Button variant="ghost" onClick={regenerateHigherQuality} disabled={busy || retryingClean}>Regenerate at Higher Quality</Button>
+                  <Button variant="ghost" onClick={regenerateHigherQuality} disabled={busy || regeneratingClean}>Regenerate at Higher Quality</Button>
                 )}
               </>
             )}
@@ -735,21 +795,41 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
               <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
                 This photo didn&apos;t have enough room around the head to fill the frame, so it was extended. The target head position is the fixed ring below — drag the photo to reposition it, scroll/pinch to zoom, until the head sits inside the ring, then confirm.
               </div>
-              {retryingClean ? (
+              {regeneratingClean ? (
                 <div style={{ padding: '40px 0', textAlign: 'center' }}>
-                  <div style={{ fontSize: '11.5px', color: 'var(--amber)' }}>Still doesn&apos;t reach the bottom — automatically filling in the rest…</div>
+                  <div style={{ fontSize: '11.5px', color: 'var(--amber)' }}>Regenerating…</div>
+                </div>
+              ) : showGapPopup ? (
+                // Discrete, human-confirmed check (2026-09-08) — shown only
+                // right after a fresh generation lands (before any manual
+                // adjustment) or when Continue is clicked, NEVER during a
+                // live drag/zoom — see the state block's own doc comment
+                // for why the earlier silent-auto-retry design was replaced
+                // with this popup.
+                <div style={{ padding: '32px 16px', textAlign: 'center', border: '1px solid var(--amber)', borderRadius: '10px', background: 'var(--surface)' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: '8px' }}>
+                    This photo doesn&apos;t look fully filled to the bottom edge.
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginBottom: '18px' }}>
+                    Regenerate to have AI fill in the rest, use it as-is, or go back and adjust it yourself.
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <Button variant="indigo" onClick={regenerateFromPending}>Regenerate</Button>
+                    <Button variant="ghost" onClick={() => finalizeClean(true)} disabled={busy}>{busy ? 'Saving…' : 'Use As-Is'}</Button>
+                    <Button variant="ghost" onClick={dismissGapPopup}>Keep Adjusting</Button>
+                  </div>
                 </div>
               ) : (
                 <>
                   <PhotoFitEditor photoUrl={pendingClean.url} target={pendingClean.headBox} initialHeadBox={pendingClean.headBox} onChange={setCleanBox} onReachesBottomChange={setCleanReachesBottom} />
-                  {!cleanReachesBottom && autoRetriedClean && (
+                  {!cleanReachesBottom && (
                     <div style={{ marginTop: '10px', fontSize: '11.5px', color: 'var(--amber)' }}>
-                      Still doesn&apos;t reach the bottom after one automatic retry — try &quot;Regenerate at Higher Quality&quot;, or drag/zoom to adjust manually.
+                      Doesn&apos;t look like it reaches the bottom of the frame yet — keep adjusting, or click Continue and we&apos;ll double-check.
                     </div>
                   )}
                 </>
               )}
-              {aiQuality === 'medium' && (
+              {aiQuality === 'medium' && !showGapPopup && (
                 <div style={{ marginTop: '10px', fontSize: '11px', color: 'var(--ink4)' }}>
                   Not sharp enough? &quot;Regenerate at Higher Quality&quot; re-runs the AI fill at a costlier, higher-detail tier — worth it for a photo that needs it, not something to reach for by default.
                 </div>

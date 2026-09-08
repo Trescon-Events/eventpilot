@@ -3,7 +3,7 @@ import sharp from 'sharp'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { type AlignmentTarget, type HeadBox } from '@/app/lib/media/face-alignment'
-import { generateAIFilledPhoto, removeGreenScreenBackground, finalizeCleaningCycle, CLEANING_CYCLE_CANVAS_SIZE } from '@/app/lib/media/photo-cleaning-pipeline'
+import { generateAIFilledPhoto, removeGreenScreenBackground, finalizeCleaningCycle, hasRealContentGap, CLEANING_CYCLE_CANVAS_SIZE } from '@/app/lib/media/photo-cleaning-pipeline'
 import { MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine'
 
 /* POST /api/events/stakeholders/speakers/[id]/clean-photo/generate
@@ -11,16 +11,6 @@ import { MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine
            source_url?: string, head_box?: HeadBox }
    `quality` only applies to 'ai_fill' (default 'medium' if omitted) — the
    wizard's "Regenerate at Higher Quality" button on Confirm Cleaned Photo
-
-   `source_url`/`head_box` (2026-09-07) — override what would otherwise be
-   read from the speaker's own saved photo_processed_url/photo_head_box.
-   The wizard's one-shot auto-retry (Confirm Cleaned Photo's own
-   onReachesBottomChange still finding a shortfall on the AI-filled result)
-   is the only caller: it passes the PENDING clean-photo-pending-*.png and
-   its already-target-aligned head box back in here, so the retry only asks
-   GPT to close whatever gap remains in that result — never re-derives from
-   the original raw photo, and never touches event_speakers (same
-   "nothing commits until finalize" contract every mode already follows).
    is the only caller that ever sends 'high' (2026-08-22, per Madhu: don't
    pay the costlier tier's price on every generation by default, only when
    a producer has actually looked at a medium result and asked for a
@@ -28,6 +18,16 @@ import { MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine
    speaker's own CURRENT photo_processed_url + photo_head_box (must already
    be human-confirmed via the wizard's Compose step first; 422 if not set,
    same contract as the other photo routes in this module).
+
+   `source_url`/`head_box` (2026-09-07) — override what would otherwise be
+   read from the speaker's own saved photo_processed_url/photo_head_box.
+   The wizard's Confirm Cleaned Photo "gap found — Regenerate?" popup (see
+   PhotoCleaningWizard.tsx) is the only caller: it passes the PENDING
+   clean-photo-pending-*.png and the producer's own current head-box
+   position back in here, so the regenerate only asks GPT to close whatever
+   gap remains in that result — never re-derives from the original raw
+   photo, and never touches event_speakers (same "nothing commits until
+   finalize" contract every mode already follows).
 
    'ai_fill' is BACKGROUND-JOB-BACKED (2026-08-24, real production incident:
    this used to await the whole OpenAI + PhotoRoom round trip inline, which
@@ -95,12 +95,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "mode must be 'ai_fill', 'enhance', or 'good'" }, { status: 400 })
   }
   const quality = body?.quality === 'high' ? 'high' : 'medium'
-  // Distinct, greppable marker for the wizard's auto-retry specifically
-  // (2026-09-08, per Madhu — wanted a live watch on when this actually
+  // Distinct, greppable marker for the popup-triggered regenerate
+  // specifically (2026-09-08, per Madhu — wanted a live watch on when this
   // fires while cleaning up a batch of photos) — every other call to this
-  // route omits source_url entirely, so this only ever logs the retry case.
+  // route omits source_url entirely, so this only ever logs the regenerate
+  // case (never the original, first-pass generation).
   if (mode === 'ai_fill' && body?.source_url) {
-    console.log(`[clean-photo][auto-retry] speaker ${speakerId} — retrying ai_fill from pending result, quality=${quality}`)
+    console.log(`[clean-photo][regenerate] speaker ${speakerId} — regenerating ai_fill from pending result, quality=${quality}`)
   }
 
   const { data: speaker } = await supabaseAdmin
@@ -251,6 +252,20 @@ async function runAiFillJob(
     'image/png'
   )
 
+  // Real pixel-alpha check (2026-09-08, per Madhu) — GPT Image 2's mask
+  // isn't a hard fill guarantee (see generateAIFilledPhoto's own doc
+  // comment), so this result can still fall short at the bottom despite the
+  // prompt telling it not to. Checked here, on the untouched transparent
+  // result, so the wizard can offer an immediate "doesn't look filled —
+  // regenerate?" popup the moment this lands, before the producer has
+  // touched anything — see PhotoCleaningWizard.tsx's Checkpoint 1. Uses the
+  // SAME hasRealContentGap the finalize route now also checks at Checkpoint
+  // 2, rather than the wizard's own client-side bounding-box heuristic
+  // (onReachesBottomChange), which disagreed with this pixel check on a
+  // real case (speaker Nalin Negi, 2026-09-08) — this is the more reliable
+  // of the two, so it's the one now driving whether the popup shows.
+  const hasGap = await hasRealContentGap(transparent)
+
   // UI seed only, per policy never trusted as final — a producer must
   // confirm/adjust it via the head-fix modal before .../finalize is called.
   // Seeded from the template's OWN target ratios (2026-08-21, was a fresh
@@ -261,6 +276,6 @@ async function runAiFillJob(
   await supabaseAdmin.from('speaker_photo_clean_jobs').update({
     status: 'done',
     completed_at: new Date().toISOString(),
-    result: { needs_confirmation: true, pending_photo_url: pendingPhotoUrl, ai_edited_photo_url: aiEditedPhotoUrl, suggested_head_box: suggestedHeadBox, ai_extended: true },
+    result: { needs_confirmation: true, pending_photo_url: pendingPhotoUrl, ai_edited_photo_url: aiEditedPhotoUrl, suggested_head_box: suggestedHeadBox, ai_extended: true, has_gap: hasGap },
   }).eq('id', jobId)
 }
