@@ -979,17 +979,34 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
                 // live drag/zoom — see the state block's own doc comment
                 // for why the earlier silent-auto-retry design was replaced
                 // with this popup.
-                <div style={{ padding: '32px 16px', textAlign: 'center', border: '1px solid var(--amber)', borderRadius: '10px', background: 'var(--surface)' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: '8px' }}>
-                    This photo doesn&apos;t look fully filled to the bottom edge.
+                <div>
+                  {/* The actual photo — 2026-09-08, real gap found live:
+                      the popup previously showed only the text/buttons with
+                      no way to actually SEE what's being judged, so there
+                      was nothing to base a Regenerate/Use As-Is/Keep
+                      Adjusting decision on. Plain, non-interactive display
+                      (no drag/zoom here — that's what Keep Adjusting is
+                      for) at the same size/style as every other photo
+                      preview in this wizard. */}
+                  <div style={{
+                    position: 'relative', width: '100%', maxWidth: '420px', margin: '0 auto 16px', borderRadius: '8px', overflow: 'hidden', border: '1.5px solid var(--border)',
+                    background: 'repeating-conic-gradient(var(--border-light) 0% 25%, var(--surface) 0% 50%) 50% / 14px 14px',
+                  }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- reviewing the exact pending asset the popup's decision is about, not worth next/image's optimization pass */}
+                    <img src={pendingClean.url} alt="Pending cleaned photo" style={{ width: '100%', display: 'block' }} />
                   </div>
-                  <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginBottom: '18px' }}>
-                    Regenerate to have AI fill in the rest, use it as-is, or go back and adjust it yourself.
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                    <Button variant="indigo" onClick={regenerateFromPending}>Regenerate</Button>
-                    <Button variant="ghost" onClick={() => finalizeClean(true)} disabled={busy}>{busy ? 'Saving…' : 'Use As-Is'}</Button>
-                    <Button variant="ghost" onClick={dismissGapPopup}>Keep Adjusting</Button>
+                  <div style={{ padding: '20px 16px', textAlign: 'center', border: '1px solid var(--amber)', borderRadius: '10px', background: 'var(--surface)' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: '8px' }}>
+                      This photo doesn&apos;t look fully filled to the bottom edge.
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginBottom: '18px' }}>
+                      Regenerate to have AI fill in the rest, use it as-is, or go back and adjust it yourself.
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                      <Button variant="indigo" onClick={regenerateFromPending}>Regenerate</Button>
+                      <Button variant="ghost" onClick={() => finalizeClean(true)} disabled={busy}>{busy ? 'Saving…' : 'Use As-Is'}</Button>
+                      <Button variant="ghost" onClick={dismissGapPopup}>Keep Adjusting</Button>
+                    </div>
                   </div>
                 </div>
               ) : (
