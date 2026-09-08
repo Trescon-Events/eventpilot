@@ -796,7 +796,7 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
             step list + buttons together exceed the modal's own height on a
             shorter viewport, rather than getting silently clipped by the
             outer wrapper's overflow: hidden. */}
-        <div style={{ background: 'var(--surface)', borderRight: '1px solid var(--border-light)', padding: '20px 18px', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+        <div style={{ background: 'var(--surface)', borderRight: '1px solid var(--border-light)', padding: '20px 18px', display: 'flex', flexDirection: 'column', overflowY: 'auto', minHeight: 0 }}>
           <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', marginBottom: '16px' }}>Clean Photo</div>
           <div style={{ display: 'grid', gap: '4px', marginBottom: '18px' }}>
             {visibleSteps.map((s, i) => {
@@ -892,8 +892,18 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
           </div>
         </div>
 
-        {/* Right pane — live preview for the current step */}
-        <div style={{ padding: '28px', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+        {/* Right pane — live preview for the current step. minHeight: 0 is
+            required here (2026-09-08, real bug found live on "Refine with
+            AI" — first phase whose content was ever tall enough to expose
+            this): a grid item's default min-height is auto (fits its own
+            content), which silently defeats `overflow: auto` above — the
+            pane just grows past the modal's own maxHeight instead of
+            scrolling internally, and since nothing then captures the wheel
+            event over the clipped area, it falls through to the page
+            behind the modal instead. min-height: 0 lets this pane actually
+            shrink to its allotted grid track height, which is what makes
+            its own overflow: auto/scrollbar take over. */}
+        <div style={{ padding: '28px', overflow: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           {phase === 'uploading' && !errorMsg && uploadStage === 'sending' && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
               <div style={{ fontSize: '30px', fontWeight: 800, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>{uploadProgress}%</div>
