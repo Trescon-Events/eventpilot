@@ -103,18 +103,45 @@ export async function getKonfhubToken(clientId: string, clientSecret: string): P
   return data.token
 }
 
-// GET /speakers actually returns {categorized: [...], uncategorized: [...]}
-// (confirmed live 2026-08-23), not the flat array the Postman doc's example
-// implies — flattened here so every caller just gets one list.
+// GET /speakers returns {categorized: [...], uncategorized: [...]} (2026-08-23),
+// not the flat array the Postman doc's example implies — but `categorized`'s
+// own entries turned out to be a SECOND level of nesting, not flat speakers
+// directly: each is a {category_id, category_name, speakers: [...]} group
+// (found live 2026-09-07, reconciling DFS's KonfHub listing — DFS's own
+// umbrella KonfHub event has 4 sub-event categories, e.g. category 19271 is
+// "Dubai FinTech Summit ||" with 49 speakers nested under it). The original
+// 2026-08-23 confirmation must have been against an event with no speakers
+// in any category yet, so this shape was never actually exercised until
+// now. `uncategorized` conceptually has nothing to group by, so its entries
+// are assumed to be flat speaker objects — defensively unwrapped the same
+// way if an entry ever does carry its own `speakers` array.
+type KonfhubSpeakerGroupOrSpeaker = KonfhubSpeaker & { category_id?: number; category_name?: string; speakers?: KonfhubSpeaker[] }
+function flattenKonfhubSpeakerGroups(entries: KonfhubSpeakerGroupOrSpeaker[]): KonfhubSpeaker[] {
+  return entries.flatMap(entry => Array.isArray(entry.speakers) ? entry.speakers : [entry])
+}
 export async function listKonfhubSpeakers(konfhubEventId: string, token: string): Promise<KonfhubSpeaker[]> {
   const res = await fetch(`${API_BASE}/${konfhubEventId}/speakers`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   const data = await res.json().catch(() => ({})) as
-    { categorized?: KonfhubSpeaker[]; uncategorized?: KonfhubSpeaker[]; error?: string }
+    { categorized?: KonfhubSpeakerGroupOrSpeaker[]; uncategorized?: KonfhubSpeakerGroupOrSpeaker[]; error?: string }
   if (!res.ok) throw new KonfhubApiError(data.error || 'Failed to list KonfHub speakers', res.status)
-  return [...(data.categorized ?? []), ...(data.uncategorized ?? [])]
+  return [...flattenKonfhubSpeakerGroups(data.categorized ?? []), ...flattenKonfhubSpeakerGroups(data.uncategorized ?? [])]
     .map(s => ({ ...s, speaker_id: String(s.speaker_id) }))
+}
+
+// speaker_category_id is kept as `string | null` everywhere in this file's
+// own types (matches event_websites.konfhub_speaker_category_id, a plain
+// text column) — but KonfHub's own Speakers API schema requires it as a
+// JSON integer, not a string, and 422s the whole request otherwise (found
+// live 2026-09-07, DFS's first real push, blocking every push for any event
+// using this optional umbrella-category field). Converted only in the
+// outgoing wire payload, right before the fetch — never upstream, so
+// EventPilot's own string representation (matching the DB column) is
+// untouched everywhere else.
+function toKonfhubPayload<T extends { speaker_category_id?: string | null }>(fields: T): T {
+  if (fields.speaker_category_id === undefined || fields.speaker_category_id === null) return fields
+  return { ...fields, speaker_category_id: Number(fields.speaker_category_id) as unknown as T['speaker_category_id'] }
 }
 
 export async function updateKonfhubSpeaker(
@@ -129,7 +156,7 @@ export async function updateKonfhubSpeaker(
   const res = await fetch(`${API_BASE}/${konfhubEventId}/speakers/${speakerId}`, {
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(fields),
+    body: JSON.stringify(toKonfhubPayload(fields)),
   })
   const data = await res.json().catch(() => ({})) as { error?: string }
   if (!res.ok) throw new KonfhubApiError(data.error || 'Failed to update KonfHub speaker', res.status)
@@ -146,7 +173,7 @@ export async function createKonfhubSpeaker(
   const res = await fetch(`${API_BASE}/${konfhubEventId}/speakers`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(fields),
+    body: JSON.stringify(toKonfhubPayload(fields)),
   })
   const data = await res.json().catch(() => ({})) as { speaker_id?: string | number; error?: string }
   if (!res.ok || data.speaker_id === undefined) throw new KonfhubApiError(data.error || 'Failed to create KonfHub speaker', res.status)
@@ -227,6 +254,9 @@ export function normalizeSpeakerName(name: string): string {
     .toLowerCase()
     .replace(/[.,]/g, '')
     .replace(/\b(dr|mr|mrs|ms|prof|sr|ts|ir|datuk|dato|tan sri|puan sri)\b/g, '')
+    // Leading-only (never mid-name — "he"/"shri" are real name tokens for
+    // some people, so only strip when they open the string as a title).
+    .replace(/^(he|his excellency|shri|sheikh)\s+/, '')
     .replace(/\s+/g, ' ')
     .trim()
 }

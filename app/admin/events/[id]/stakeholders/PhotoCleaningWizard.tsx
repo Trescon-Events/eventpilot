@@ -170,6 +170,23 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
   // or one where zooming further would drop below a usable resolution),
   // so this never disables a button, just surfaces the suggestion.
   const [composeGaps, setComposeGaps] = useState<{ top: number; left: number; right: number; bottom: number } | null>(null)
+  // Auto-retry (2026-09-07, per Madhu) — the SAME bounding-box "does the
+  // photo reach the bottom" check Compose already gates buttons on
+  // (PhotoFitEditor's onReachesBottomChange) is now also wired up on
+  // Confirm Cleaned Photo, where it's reviewing the AI-FILLED result
+  // instead of the raw photo. If GPT's fill still falls short, one
+  // automatic re-run is fired — sourced from the pending AI-filled photo
+  // itself (source_url/head_box overrides on .../clean-photo/generate),
+  // not the original raw photo, so it only asks GPT to close whatever gap
+  // remains rather than redo the whole extension. Capped at exactly one
+  // auto-retry, and always lands back here for a human look before
+  // finalize — never skips the confirm step, per Madhu: GPT Image 2's mask
+  // isn't a hard fill guarantee (see generateAIFilledPhoto's own doc
+  // comment), so this reduces manual "Regenerate" clicks without removing
+  // the safety net that step exists for.
+  const [cleanReachesBottom, setCleanReachesBottom] = useState(true)
+  const [autoRetriedClean, setAutoRetriedClean] = useState(false)
+  const [retryingClean, setRetryingClean] = useState(false)
   // The just-finalized 1024x1024 cleaned photo — shown on 'cleaned-photo'
   // (enhance/good paths only) so the producer sees the actual updated
   // "clean raw material" before it feeds Website Photo generation, per
@@ -292,6 +309,11 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
 
   async function runClean() {
     setErrorMsg(null)
+    // Fresh base attempt (first run, or Regenerate at Higher Quality) — the
+    // one-shot auto-retry allowance applies per attempt, not per wizard
+    // session, so a deliberate manual regenerate gets its own chance too.
+    setAutoRetriedClean(false)
+    setCleanReachesBottom(true)
     try {
       const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/generate`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -317,7 +339,10 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
   // update so a stale poll from a canceled or superseded run can't act.
   const CLEAN_POLL_INTERVAL_MS = 3000
   const CLEAN_POLL_MAX_ATTEMPTS = 200 // ~10 min ceiling — generous past the ~120s worst case seen so far, just a backstop against a truly stuck job
-  async function pollCleanJob(jobId: string, attempt: number) {
+  // `isRetry` only affects the auto-retry's own `retryingClean` spinner
+  // flag — the polling/job mechanics are identical for a first run and a
+  // retry (both are plain 'ai_fill' generate jobs).
+  async function pollCleanJob(jobId: string, attempt: number, isRetry = false) {
     if (cleaningJobIdRef.current !== jobId) return
     try {
       const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/job/${jobId}`)
@@ -325,11 +350,16 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
       if (cleaningJobIdRef.current !== jobId) return
       if (!res.ok || data.status === 'error') {
         setErrorMsg(data.error || 'Could not clean this photo — please try again.')
+        if (isRetry) setRetryingClean(false)
         return
       }
       if (data.status === 'processing') {
-        if (attempt >= CLEAN_POLL_MAX_ATTEMPTS) { setErrorMsg('This is taking much longer than usual — please try again.'); return }
-        setTimeout(() => pollCleanJob(jobId, attempt + 1), CLEAN_POLL_INTERVAL_MS)
+        if (attempt >= CLEAN_POLL_MAX_ATTEMPTS) {
+          setErrorMsg('This is taking much longer than usual — please try again.')
+          if (isRetry) setRetryingClean(false)
+          return
+        }
+        setTimeout(() => pollCleanJob(jobId, attempt + 1, isRetry), CLEAN_POLL_INTERVAL_MS)
         return
       }
       const result = data.result ?? {}
@@ -337,14 +367,60 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
       setPendingClean({ url: result.pending_photo_url, headBox })
       setCleanBox(headBox)
       setPhase('headfix-clean')
+      if (isRetry) setRetryingClean(false)
     } catch {
       if (cleaningJobIdRef.current !== jobId) return
       // A transient network blip on one poll tick shouldn't fail the whole
       // run — retry like any other tick, same attempt cap as above.
-      if (attempt >= CLEAN_POLL_MAX_ATTEMPTS) { setErrorMsg('Could not clean this photo — check your connection and try again.'); return }
-      setTimeout(() => pollCleanJob(jobId, attempt + 1), CLEAN_POLL_INTERVAL_MS)
+      if (attempt >= CLEAN_POLL_MAX_ATTEMPTS) {
+        setErrorMsg('Could not clean this photo — check your connection and try again.')
+        if (isRetry) setRetryingClean(false)
+        return
+      }
+      setTimeout(() => pollCleanJob(jobId, attempt + 1, isRetry), CLEAN_POLL_INTERVAL_MS)
     }
   }
+
+  // Fires at most once per base attempt (see runClean's reset of
+  // autoRetriedClean) when Confirm Cleaned Photo's own bounding-box check
+  // finds the AI-filled result still doesn't reach the bottom. Sources the
+  // retry from the PENDING result itself (source_url/head_box), not the
+  // original raw photo — GPT is only asked to close whatever gap remains,
+  // same as a human clicking Regenerate would see, just automatic.
+  async function autoRetryClean() {
+    if (!pendingClean) return
+    setAutoRetriedClean(true)
+    setRetryingClean(true)
+    setErrorMsg(null)
+    try {
+      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/generate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'ai_fill', quality: aiQuality, source_url: pendingClean.url, head_box: pendingClean.headBox }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.job_id) {
+        setErrorMsg(data.error || 'Automatic retry failed — you can Regenerate at Higher Quality or adjust manually.')
+        setRetryingClean(false)
+        return
+      }
+      cleaningJobIdRef.current = data.job_id
+      pollCleanJob(data.job_id, 0, true)
+    } catch {
+      setErrorMsg('Automatic retry failed — check your connection, or Regenerate at Higher Quality.')
+      setRetryingClean(false)
+    }
+  }
+
+  // Trigger the one auto-retry as soon as Confirm Cleaned Photo's own
+  // measurement (PhotoFitEditor's onReachesBottomChange, passed below)
+  // reports a shortfall on the current pending result.
+  useEffect(() => {
+    if (phase === 'headfix-clean' && pendingClean && !cleanReachesBottom && !autoRetriedClean && !retryingClean) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- same phase-triggered-side-effect pattern as the doUpload/runClean/runProcessing/runWebsitePhoto dispatch effect above; autoRetryClean sets autoRetriedClean/retryingClean synchronously specifically so this effect can't re-fire itself on the resulting re-render
+      autoRetryClean()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- autoRetryClean itself isn't a dependency: it's redefined every render but its own guards (autoRetriedClean/retryingClean, set synchronously before its first await) already make this effect idempotent regardless
+  }, [phase, pendingClean, cleanReachesBottom, autoRetriedClean, retryingClean])
 
   // Opt-in re-run at the costlier 'high' quality tier (2026-08-22, per
   // Madhu — real case: a medium-quality AI Fill result looked visibly
@@ -562,9 +638,9 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
             )}
             {phase === 'headfix-clean' && (
               <>
-                <Button variant="lime" onClick={finalizeClean} disabled={busy}>{busy ? 'Saving…' : 'Continue'}</Button>
+                <Button variant="lime" onClick={finalizeClean} disabled={busy || retryingClean}>{busy ? 'Saving…' : 'Continue'}</Button>
                 {aiQuality === 'medium' && (
-                  <Button variant="ghost" onClick={regenerateHigherQuality} disabled={busy}>Regenerate at Higher Quality</Button>
+                  <Button variant="ghost" onClick={regenerateHigherQuality} disabled={busy || retryingClean}>Regenerate at Higher Quality</Button>
                 )}
               </>
             )}
@@ -659,7 +735,20 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
               <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
                 This photo didn&apos;t have enough room around the head to fill the frame, so it was extended. The target head position is the fixed ring below — drag the photo to reposition it, scroll/pinch to zoom, until the head sits inside the ring, then confirm.
               </div>
-              <PhotoFitEditor photoUrl={pendingClean.url} target={pendingClean.headBox} initialHeadBox={pendingClean.headBox} onChange={setCleanBox} />
+              {retryingClean ? (
+                <div style={{ padding: '40px 0', textAlign: 'center' }}>
+                  <div style={{ fontSize: '11.5px', color: 'var(--amber)' }}>Still doesn&apos;t reach the bottom — automatically filling in the rest…</div>
+                </div>
+              ) : (
+                <>
+                  <PhotoFitEditor photoUrl={pendingClean.url} target={pendingClean.headBox} initialHeadBox={pendingClean.headBox} onChange={setCleanBox} onReachesBottomChange={setCleanReachesBottom} />
+                  {!cleanReachesBottom && autoRetriedClean && (
+                    <div style={{ marginTop: '10px', fontSize: '11.5px', color: 'var(--amber)' }}>
+                      Still doesn&apos;t reach the bottom after one automatic retry — try &quot;Regenerate at Higher Quality&quot;, or drag/zoom to adjust manually.
+                    </div>
+                  )}
+                </>
+              )}
               {aiQuality === 'medium' && (
                 <div style={{ marginTop: '10px', fontSize: '11px', color: 'var(--ink4)' }}>
                   Not sharp enough? &quot;Regenerate at Higher Quality&quot; re-runs the AI fill at a costlier, higher-detail tier — worth it for a photo that needs it, not something to reach for by default.

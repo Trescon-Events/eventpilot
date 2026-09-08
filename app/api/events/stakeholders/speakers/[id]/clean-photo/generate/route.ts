@@ -7,9 +7,20 @@ import { generateAIFilledPhoto, removeGreenScreenBackground, finalizeCleaningCyc
 import { MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine'
 
 /* POST /api/events/stakeholders/speakers/[id]/clean-photo/generate
-   Body: { mode: 'ai_fill' | 'enhance' | 'good', quality?: 'medium' | 'high' }
+   Body: { mode: 'ai_fill' | 'enhance' | 'good', quality?: 'medium' | 'high',
+           source_url?: string, head_box?: HeadBox }
    `quality` only applies to 'ai_fill' (default 'medium' if omitted) — the
    wizard's "Regenerate at Higher Quality" button on Confirm Cleaned Photo
+
+   `source_url`/`head_box` (2026-09-07) — override what would otherwise be
+   read from the speaker's own saved photo_processed_url/photo_head_box.
+   The wizard's one-shot auto-retry (Confirm Cleaned Photo's own
+   onReachesBottomChange still finding a shortfall on the AI-filled result)
+   is the only caller: it passes the PENDING clean-photo-pending-*.png and
+   its already-target-aligned head box back in here, so the retry only asks
+   GPT to close whatever gap remains in that result — never re-derives from
+   the original raw photo, and never touches event_speakers (same
+   "nothing commits until finalize" contract every mode already follows).
    is the only caller that ever sends 'high' (2026-08-22, per Madhu: don't
    pay the costlier tier's price on every generation by default, only when
    a producer has actually looked at a medium result and asked for a
@@ -74,7 +85,7 @@ import { MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine
    exact buffer is the only way to tell whether a bad result is the AI not
    following the template's own head-size/margin instructions, versus
    something later in the pipeline). The wizard's "AI Edited" step shows it. */
-type Body = { mode?: 'ai_fill' | 'enhance' | 'good'; quality?: 'medium' | 'high' }
+type Body = { mode?: 'ai_fill' | 'enhance' | 'good'; quality?: 'medium' | 'high'; source_url?: string; head_box?: HeadBox }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: speakerId } = await params
@@ -92,9 +103,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
 
-  const sourceUrl = speaker.photo_processed_url || speaker.photo_url
+  // source_url/head_box overrides (2026-09-07) — the wizard's auto-retry
+  // uses these to re-run 'ai_fill' sourced from the PENDING AI-filled
+  // result itself (Confirm Cleaned Photo's own onReachesBottomChange still
+  // finding a shortfall), not the speaker's saved raw photo — so the retry
+  // only asks GPT to close whatever gap remains, same as a human clicking
+  // Regenerate would produce, instead of redoing the whole extension from
+  // scratch. Omitted (undefined) on every normal call, which behaves
+  // exactly as before this change.
+  const sourceUrl = body?.source_url || speaker.photo_processed_url || speaker.photo_url
   if (!sourceUrl) return NextResponse.json({ error: 'No processed photo yet — upload a photo first' }, { status: 422 })
-  const headBox = speaker.photo_head_box as HeadBox | null
+  const headBox = body?.head_box ?? (speaker.photo_head_box as HeadBox | null)
   if (!headBox) return NextResponse.json({ error: 'Position the head before running the Cleaning Cycle' }, { status: 422 })
 
   const { data: template } = await supabaseAdmin
