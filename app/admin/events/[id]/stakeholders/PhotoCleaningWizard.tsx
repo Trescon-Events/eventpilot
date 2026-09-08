@@ -67,7 +67,7 @@ type Props = {
   onClose: () => void
 }
 
-type Phase = 'uploading' | 'compose' | 'cleaning' | 'headfix-clean' | 'processing' | 'cleaned-photo' | 'website-photo' | 'review'
+type Phase = 'uploading' | 'compose' | 'cleaning' | 'headfix-clean' | 'chat-refine' | 'processing' | 'cleaned-photo' | 'website-photo' | 'review'
 type ComposeMode = 'ai_fill' | 'enhance' | 'good'
 
 // Phases where Cancel goes back to Compose instead of closing — either
@@ -82,7 +82,7 @@ type ComposeMode = 'ai_fill' | 'enhance' | 'good'
 // only noticing the finalized result was wrong on Cleaned Photo left no
 // way back except closing the wizard outright and starting over from the
 // Overview page.
-const CANCELABLE_TO_COMPOSE: Phase[] = ['cleaning', 'headfix-clean', 'processing', 'cleaned-photo']
+const CANCELABLE_TO_COMPOSE: Phase[] = ['cleaning', 'headfix-clean', 'chat-refine', 'processing', 'cleaned-photo']
 
 const DEFAULT_BOX: HeadBox = { centerXRatio: 0.5, centerYRatio: 0.22, heightRatio: 0.28 }
 
@@ -99,6 +99,11 @@ const LARGE_GAP_EDGE_COUNT_FOR_HINT = 2
 // stops asking — a photo that structurally can't close the gap shouldn't
 // block forever on a question the producer already answered twice.
 const GAP_PROMPT_CAP = 2
+
+// How many rounds of "Refine with AI" (see refineRoundRef) a producer gets
+// per photo — a real cost/latency tradeoff (each round is its own GPT
+// Image 2 call, ~30-90s), not just a UX nudge; per Madhu's own number.
+const CHAT_REFINE_CAP: number = 2
 
 // Cosmetic only — real progress isn't observable mid-request, mirrors
 // CleanPhotoWizard's own validated long-wait pattern (an elapsed counter
@@ -118,6 +123,7 @@ const STEP_LABELS: { key: Phase; label: string }[] = [
   { key: 'compose', label: 'Compose Photo' },
   { key: 'cleaning', label: 'Cleaning' },
   { key: 'headfix-clean', label: 'Confirm Cleaned Photo' },
+  { key: 'chat-refine', label: 'Refine with AI' },
   { key: 'processing', label: 'Finalizing Photo' },
   { key: 'cleaned-photo', label: 'Cleaned Photo' },
   { key: 'website-photo', label: 'Website Photo' },
@@ -208,6 +214,29 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
   // hits GAP_PROMPT_CAP, neither checkpoint asks again this attempt — see
   // finalizeClean's `force` computation and pollCleanJob's landing check.
   const gapPromptCountRef = useRef(0)
+
+  // "Refine with AI" (2026-09-08, per Madhu) — a dedicated excursion off
+  // Confirm Cleaned Photo, not an inline box on that same screen, so the
+  // iterative back-and-forth doesn't clutter the normal review. Entered
+  // deliberately (button on headfix-clean) and exited deliberately
+  // (Continue commits the latest result as the new pendingClean and
+  // returns to headfix-clean for the SAME review every other AI Fill
+  // result gets — including Checkpoint 1's gap popup; Back Without Changes
+  // discards this excursion entirely). chatWorkingUrl is THIS excursion's
+  // current image — starts as pendingClean.url, updated after each round;
+  // never written to pendingClean itself until Continue.
+  const [chatWorkingUrl, setChatWorkingUrl] = useState<string | null>(null)
+  // Whether the LATEST chat-refine round's own result still has a real gap
+  // (server-side hasRealContentGap, same as Checkpoint 1) — carried into
+  // headfix-clean's own gap popup on Continue, so a chat-refined result
+  // gets the same safety net any other AI Fill result does.
+  const [chatWorkingHasGap, setChatWorkingHasGap] = useState(false)
+  const [chatInstruction, setChatInstruction] = useState('')
+  const [chatLog, setChatLog] = useState<string[]>([])
+  const [chatBusy, setChatBusy] = useState(false)
+  // Same ref-not-state reasoning as gapPromptCountRef — reset at the same
+  // points (runClean(), resetToCompose()).
+  const refineRoundRef = useRef(0)
   // The just-finalized 1024x1024 cleaned photo — shown on 'cleaned-photo'
   // (enhance/good paths only) so the producer sees the actual updated
   // "clean raw material" before it feeds Website Photo generation, per
@@ -336,6 +365,9 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
     gapPromptCountRef.current = 0
     setShowGapPopup(false)
     setCleanReachesBottom(true)
+    refineRoundRef.current = 0
+    setChatWorkingUrl(null)
+    setChatLog([])
     try {
       const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/generate`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -448,6 +480,119 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
   // nothing else changes, the producer just keeps dragging/zooming.
   function dismissGapPopup() {
     setShowGapPopup(false)
+  }
+
+  // Opens the dedicated "Refine with AI" excursion — see its own state
+  // block comment for why this is a separate phase, not an inline box on
+  // Confirm Cleaned Photo. Starts from whatever's CURRENTLY being
+  // reviewed; nothing is touched on pendingClean itself until Continue.
+  function openChatRefine() {
+    if (!pendingClean) return
+    setChatWorkingUrl(pendingClean.url)
+    setChatWorkingHasGap(false)
+    setChatInstruction('')
+    setChatLog([])
+    setErrorMsg(null)
+    setPhase('chat-refine')
+  }
+
+  const CHAT_REFINE_POLL_INTERVAL_MS = 3000
+  const CHAT_REFINE_POLL_MAX_ATTEMPTS = 200
+  async function pollChatRefineJob(jobId: string, attempt: number) {
+    if (cleaningJobIdRef.current !== jobId) return
+    try {
+      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/job/${jobId}`)
+      const data = await res.json().catch(() => ({}))
+      if (cleaningJobIdRef.current !== jobId) return
+      if (!res.ok || data.status === 'error') {
+        setErrorMsg(data.error || 'Could not refine this photo — please try again.')
+        setChatBusy(false)
+        return
+      }
+      if (data.status === 'processing') {
+        if (attempt >= CHAT_REFINE_POLL_MAX_ATTEMPTS) {
+          setErrorMsg('This is taking much longer than usual — please try again.')
+          setChatBusy(false)
+          return
+        }
+        setTimeout(() => pollChatRefineJob(jobId, attempt + 1), CHAT_REFINE_POLL_INTERVAL_MS)
+        return
+      }
+      const result = data.result ?? {}
+      setChatWorkingUrl(result.pending_photo_url)
+      setChatWorkingHasGap(!!result.has_gap)
+      setChatBusy(false)
+    } catch {
+      if (cleaningJobIdRef.current !== jobId) return
+      if (attempt >= CHAT_REFINE_POLL_MAX_ATTEMPTS) {
+        setErrorMsg('Could not refine this photo — check your connection and try again.')
+        setChatBusy(false)
+        return
+      }
+      setTimeout(() => pollChatRefineJob(jobId, attempt + 1), CHAT_REFINE_POLL_INTERVAL_MS)
+    }
+  }
+
+  // Each round refines from the CURRENT working image, not the original —
+  // a real iterative conversation. Capped by refineRoundRef, checked here
+  // (the button is also hidden once capped — see the JSX — this is the
+  // authoritative guard, not just a UI nicety).
+  async function sendChatRefine() {
+    const instruction = chatInstruction.trim()
+    if (!instruction || !chatWorkingUrl || refineRoundRef.current >= CHAT_REFINE_CAP) return
+    setChatBusy(true)
+    setErrorMsg(null)
+    try {
+      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/generate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'chat_refine', source_url: chatWorkingUrl, instruction }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.job_id) {
+        setErrorMsg(data.error || 'Could not refine this photo — please try again.')
+        setChatBusy(false)
+        return
+      }
+      refineRoundRef.current += 1
+      setChatLog(prev => [...prev, instruction])
+      setChatInstruction('')
+      cleaningJobIdRef.current = data.job_id
+      pollChatRefineJob(data.job_id, 0)
+    } catch {
+      setErrorMsg('Could not refine this photo — check your connection and try again.')
+      setChatBusy(false)
+    }
+  }
+
+  // Continue — commits the latest chat-refine result as the new
+  // pendingClean and returns to Confirm Cleaned Photo, per Madhu: "auto
+  // pushed to do the rest of the cleanup job... and rest follows as
+  // usual." Framing (cleanBox) is untouched — this tool fixes content,
+  // not position. Carries chatWorkingHasGap into headfix-clean's own
+  // Checkpoint 1 popup, same as landing there straight from AI Fill.
+  function continueFromChatRefine() {
+    if (!chatWorkingUrl) return
+    setPendingClean({ url: chatWorkingUrl, headBox: cleanBox })
+    setPhase('headfix-clean')
+    if (chatWorkingHasGap && gapPromptCountRef.current < GAP_PROMPT_CAP) {
+      gapPromptCountRef.current += 1
+      setShowGapPopup(true)
+    }
+    setChatWorkingUrl(null)
+    setChatInstruction('')
+    setChatLog([])
+  }
+
+  // Back Without Changes — discards this entire excursion. pendingClean/
+  // cleanBox are untouched, so headfix-clean shows exactly what it did
+  // before "Refine with AI" was opened.
+  function backFromChatRefine() {
+    setChatWorkingUrl(null)
+    setChatInstruction('')
+    setChatLog([])
+    setChatBusy(false)
+    setErrorMsg(null)
+    setPhase('headfix-clean')
   }
 
   // Opt-in re-run at the costlier 'high' quality tier (2026-08-22, per
@@ -607,11 +752,17 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
     setWebsiteCropWarning(null)
     setWebsiteSkippedReason(null)
     setAiQuality('medium')
-    // Abandoning this attempt — the gap popup shouldn't carry over into
-    // whatever's tried next.
+    // Abandoning this attempt — the gap popup and any chat-refine
+    // excursion shouldn't carry over into whatever's tried next.
     gapPromptCountRef.current = 0
     setShowGapPopup(false)
     setRegeneratingClean(false)
+    refineRoundRef.current = 0
+    setChatWorkingUrl(null)
+    setChatWorkingHasGap(false)
+    setChatInstruction('')
+    setChatLog([])
+    setChatBusy(false)
     setPhase('compose')
   }
 
@@ -629,6 +780,9 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
     .filter(s => entry.kind === 'upload' || s.key !== 'uploading')
     .filter(s => !(['cleaning', 'headfix-clean'] as Phase[]).includes(s.key) || chosenMode === 'ai_fill')
     .filter(s => !(['processing', 'cleaned-photo'] as Phase[]).includes(s.key) || chosenMode === 'enhance' || chosenMode === 'good')
+    // Optional side-trip, not a numbered pipeline stage every run goes
+    // through — only shows in the rail while actually on it.
+    .filter(s => s.key !== 'chat-refine' || phase === 'chat-refine')
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'color-mix(in srgb, black 60%, transparent)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
@@ -702,6 +856,15 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
                 {aiQuality === 'medium' && (
                   <Button variant="ghost" onClick={regenerateHigherQuality} disabled={busy || regeneratingClean}>Regenerate at Higher Quality</Button>
                 )}
+                {refineRoundRef.current < CHAT_REFINE_CAP && (
+                  <Button variant="ghost" onClick={openChatRefine} disabled={busy || regeneratingClean}>Refine with AI</Button>
+                )}
+              </>
+            )}
+            {phase === 'chat-refine' && (
+              <>
+                <Button variant="lime" onClick={continueFromChatRefine} disabled={chatBusy || !chatWorkingUrl}>Continue</Button>
+                <Button variant="ghost" onClick={backFromChatRefine} disabled={chatBusy}>Back Without Changes</Button>
               </>
             )}
             {phase === 'cleaned-photo' && (
@@ -832,6 +995,60 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
               {aiQuality === 'medium' && !showGapPopup && (
                 <div style={{ marginTop: '10px', fontSize: '11px', color: 'var(--ink4)' }}>
                   Not sharp enough? &quot;Regenerate at Higher Quality&quot; re-runs the AI fill at a costlier, higher-detail tier — worth it for a photo that needs it, not something to reach for by default.
+                </div>
+              )}
+            </div>
+          )}
+
+          {phase === 'chat-refine' && (
+            <div>
+              <div style={{ fontSize: '13.5px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Refine with AI</div>
+              <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
+                Describe exactly what&apos;s wrong and AI will try to fix just that — {CHAT_REFINE_CAP} request{CHAT_REFINE_CAP === 1 ? '' : 's'} max for this photo ({refineRoundRef.current} used so far). Click Continue once you&apos;re happy — it&apos;ll go through the normal cleanup steps from there.
+              </div>
+              <div style={{
+                position: 'relative', width: '100%', maxWidth: '420px', margin: '0 auto', borderRadius: '8px', overflow: 'hidden', border: '1.5px solid var(--border)',
+                background: 'repeating-conic-gradient(var(--border-light) 0% 25%, var(--surface) 0% 50%) 50% / 14px 14px',
+              }}>
+                {chatWorkingUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element -- reviewing the exact working asset for this excursion, not worth next/image's optimization pass
+                  <img src={chatWorkingUrl} alt="Working photo" style={{ width: '100%', display: 'block', opacity: chatBusy ? 0.4 : 1, transition: 'opacity 0.15s' }} />
+                )}
+                {chatBusy && (
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--ink2)', background: 'var(--card)', padding: '8px 14px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                      Working…
+                    </div>
+                  </div>
+                )}
+              </div>
+              {chatLog.length > 0 && (
+                <div style={{ marginTop: '14px', display: 'grid', gap: '6px' }}>
+                  {chatLog.map((entry, i) => (
+                    <div key={i} style={{ fontSize: '11.5px', color: 'var(--ink3)', padding: '7px 10px', borderRadius: '7px', background: 'var(--surface)', border: '1px solid var(--border-light)' }}>
+                      <span style={{ fontWeight: 700, color: 'var(--ink2)' }}>Request {i + 1}:</span> {entry}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {refineRoundRef.current < CHAT_REFINE_CAP ? (
+                <div style={{ marginTop: '14px', display: 'grid', gap: '8px' }}>
+                  <textarea
+                    value={chatInstruction}
+                    onChange={e => setChatInstruction(e.target.value)}
+                    disabled={chatBusy}
+                    placeholder='e.g. "Remove the extra hair above the headscarf — extend the white fabric there instead"'
+                    rows={3}
+                    maxLength={500}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }}
+                  />
+                  <Button variant="indigo" onClick={sendChatRefine} disabled={chatBusy || !chatInstruction.trim()}>
+                    {chatBusy ? 'Working…' : 'Ask AI to Fix This'}
+                  </Button>
+                </div>
+              ) : (
+                <div style={{ marginTop: '14px', fontSize: '11.5px', color: 'var(--ink4)' }}>
+                  {CHAT_REFINE_CAP} request{CHAT_REFINE_CAP === 1 ? '' : 's'} used for this photo — click Continue to move on, or Back Without Changes to discard this attempt.
                 </div>
               )}
             </div>

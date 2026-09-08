@@ -148,6 +148,15 @@ const PADDING_WARNING_THRESHOLD_PX = 3
 //     conservative instruction as the large-gap case handles this
 //     correctly, confirming the "exactly enough, no more" wording scales
 //     down as well as it constrains the large-gap case.
+//   - [ghutra/agal speaker, 2026-09-08]: real top gap, but the region below
+//     it was headwear fabric + cord, not hair — the old instruction always
+//     said "extend their hair," so GPT generated a fake hair-bump above
+//     the agal. Fix: the instruction now asks GPT to identify hair vs.
+//     headwear from what's actually shown before extending it, with every
+//     overshoot-prevention constraint from the three cases above kept
+//     word-for-word. A plain-hair case must still extend ONLY hair,
+//     exactly enough, no more — re-verify this didn't regress before
+//     considering this checklist entry closed.
 export async function generateAIFilledPhoto(
   sourceBuffer: Buffer,
   headBox: HeadBox,
@@ -204,9 +213,20 @@ export async function generateAIFilledPhoto(
   // wherever it didn't. No separate mask-building step needed.
   const maskBuffer = placed
 
+  // Headwear-aware (2026-09-08, real incident — a ghutra/agal photo got
+  // fake dark hair generated above the agal cord, because this instruction
+  // used to unconditionally assume "the top of every head is hair." It
+  // isn't: a scarf, ghutra, hijab, turban, cap, or hood covers the top of
+  // the head just as often as bare hair does, and this file had NO concept
+  // of that distinction anywhere. Fix is additive, not a rewrite — every
+  // constraint that fixed the three REGRESSION CHECKLIST cases above
+  // (exact-enough-to-reach-the-edge, do NOT overshoot, add less if unsure,
+  // never touch the face) is preserved verbatim; only the "what to extend"
+  // framing changed, from asserting hair to asking GPT to look at what's
+  // actually shown immediately below the gap first.
   const hairInstruction = needsTopFill
-    ? `- Where a masked area is directly adjacent to the TOP of their head (above their existing visible hair), extend their hair upward by EXACTLY enough to reach the top edge of the canvas — same hair color, texture, and style as what's already visible immediately below it, tapering naturally. This is the ONE exception to "generate more than needed" elsewhere in these instructions: for hair specifically, do NOT overshoot, do NOT add extra volume, height, or thickness beyond precisely what's needed to reach the edge — any excess reads as a visibly different, larger hairstyle than the person actually has, which is a mistake, not a safe margin. If you are unsure how much hair to add, add LESS rather than more. Do not invent a different hairstyle, do not change hair color or length, and do not let the extended hair touch or alter any part of the face — the preservation rule above still applies without exception.`
-    : `- Their head and hair are already fully visible with real content reaching the top of the canvas — there is NO missing area above their head. Do not modify, retouch, extend, or alter their hair or head in ANY way, not even slightly; leave that entire region exactly as shown, pixel for pixel.`
+    ? `- Where a masked area is directly adjacent to the TOP of their head, first look at what's actually visible immediately below that gap: is it their own hair, or a headwear/head-covering (a scarf, ghutra/shemagh, hijab, turban, cap, hood, or similar) that already covers part or all of the head? Extend WHICHEVER of those is actually there, by EXACTLY enough to reach the top edge of the canvas — matching its exact color, texture, material, and pattern as shown immediately below it, tapering naturally. This is the ONE exception to "generate more than needed" elsewhere in these instructions: for this region specifically, do NOT overshoot, do NOT add extra volume, height, or thickness beyond precisely what's needed to reach the edge — any excess reads as a visibly different, larger shape than the person actually has, which is a mistake, not a safe margin. If you are unsure how much to add, add LESS rather than more. If it's hair: do not invent a different hairstyle, do not change hair color or length, and do not generate any headwear where none exists. If it's headwear/fabric: do not generate hair under or above it — extend the SAME fabric, material, and any cord/band exactly as shown. Either way, do not let the extension touch or alter any part of the face — the preservation rule above still applies without exception.`
+    : `- Their head and whatever covers it (hair, or a headwear/head-covering) are already fully visible with real content reaching the top of the canvas — there is NO missing area above their head. Do not modify, retouch, extend, or alter their hair, headwear, or head in ANY way, not even slightly; leave that entire region exactly as shown, pixel for pixel.`
   const leftInstruction = needsLeftFill
     ? `- Where a masked area is directly adjacent to the LEFT edge of the frame (their arm, shoulder, or sleeve on that side), extend it naturally — more of the same arm and clothing already visible there (same color, pattern, fabric). Do not invent a different garment or change their pose.`
     : `- The left edge of the frame already has real content reaching it — there is NO missing area on that side. Do not modify, retouch, extend, or alter anything along the left edge in ANY way; leave it exactly as shown, pixel for pixel.`
@@ -224,7 +244,7 @@ ${hairInstruction}
 ${leftInstruction}
 ${rightInstruction}
 ${bottomInstruction}
-- Where a masked area is empty space away from their body (not adjacent to them), fill it with the same solid, evenly-lit chroma-key green background already shown elsewhere in the image — flat and uniform, no gradients, no shadows, no texture, no vignetting.
+- CRITICAL: where a masked area is empty space away from their body (not adjacent to them), you MUST fill it with a single, perfectly flat, uniform chroma-key green — the EXACT same green already visible elsewhere in this image, matched precisely, not merely a similar shade. This background must be completely solid: absolutely no gradients, no shadows, no texture, no vignetting, no lighting variation, no blur, and no color drift anywhere within it. Downstream processing depends on this region being pixel-perfect solid green — any deviation breaks it.
 - While filling, also apply a light overall enhancement to the whole image — subtly improve exposure, contrast, and sharpness — but keep it minimal: the person's existing pixels, position, scale, and clothing color/pattern must stay exactly as instructed above.${customNotes ? `\n\nAdditional notes from the branding team: ${customNotes}` : ''}`
 
   const form = new FormData()
@@ -234,6 +254,61 @@ ${bottomInstruction}
   form.append('quality', quality)
   form.append('image[]', new Blob([new Uint8Array(imageBuffer)], { type: 'image/png' }), 'source.png')
   form.append('mask', new Blob([new Uint8Array(maskBuffer)], { type: 'image/png' }), 'mask.png')
+
+  const res = await fetch('https://api.openai.com/v1/images/edits', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: form,
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`GPT Image 2 edit failed (${res.status}): ${text.slice(0, 300)}`)
+  }
+  const json = await res.json()
+  const b64 = json?.data?.[0]?.b64_json
+  if (!b64) throw new Error('GPT Image 2 returned no image')
+  return Buffer.from(b64, 'base64')
+}
+
+// Chat-based refine (2026-09-08, per Madhu) — a producer-authored free-text
+// fix for whatever a prompt tweak can't anticipate (e.g. the ghutra/fake-
+// hair case above), used from the wizard's dedicated "Refine with AI" step
+// (PhotoCleaningWizard.tsx), never the normal Compose/Confirm flow.
+// Deliberately NO mask: unlike generateAIFilledPhoto, which only ever fills
+// transparent gaps against an opaque-everywhere-else mask, this edits
+// whatever region the producer's own instruction describes — there's no
+// alpha-channel signal for "what's wrong," only their words. This is a
+// real, disclosed tradeoff: without a mask, GPT has more latitude to touch
+// pixels beyond what was literally asked, the same class of imprecision as
+// every other GPT Image 2 edit call in this pipeline already carries. Runs
+// on whatever the producer is CURRENTLY looking at in that step (which
+// changes round to round, capped at a small number of rounds by the
+// caller) — never re-derives from the original raw photo.
+export async function refineWithInstruction(sourceBuffer: Buffer, instruction: string): Promise<Buffer> {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) throw new Error('OPENAI_API_KEY not configured')
+
+  // Same green-flatten convention as generateAIFilledPhoto's own `image`
+  // input — GPT Image 2 can't take a transparent PNG in any more than it
+  // can output one, and the result goes through the SAME despill step
+  // afterward, so keeping this consistent lets both pipelines share that
+  // one downstream step. Skips the crop/positioning math generateAIFilledPhoto
+  // needs (framing is unchanged here) — flatten only, no alignAndCropPhoto.
+  const imageBuffer = await sharp(sourceBuffer).flatten({ background: { r: 0, g: 255, b: 0 } }).png().toBuffer()
+
+  const prompt = `The person in this image must stay recognizable and accurate. Unless the specific request below explicitly asks for it, do not change their face (eyes, nose, mouth, ears, skin, expression), their pose, their body proportions, or their clothing's color/pattern/material — preserve everything not covered by the request exactly as shown, pixel for pixel where possible.
+
+Apply ONLY this specific request from a producer reviewing this photo, nothing more:
+"${instruction}"
+
+Where you make the requested change, blend it naturally with the surrounding image — matching lighting, color, and texture, no visible seams. Anywhere that is empty space away from the person (background) and not part of the requested change must stay (or become) a single, perfectly flat, uniform chroma-key green, pixel-matched to the green already visible elsewhere in the image — no gradients, shadows, texture, or vignetting.`
+
+  const form = new FormData()
+  form.append('model', 'gpt-image-2')
+  form.append('prompt', prompt)
+  form.append('size', '1024x1024')
+  form.append('quality', 'medium')
+  form.append('image[]', new Blob([new Uint8Array(imageBuffer)], { type: 'image/png' }), 'source.png')
 
   const res = await fetch('https://api.openai.com/v1/images/edits', {
     method: 'POST',

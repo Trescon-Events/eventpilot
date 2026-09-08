@@ -3,12 +3,23 @@ import sharp from 'sharp'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { type AlignmentTarget, type HeadBox } from '@/app/lib/media/face-alignment'
-import { generateAIFilledPhoto, removeGreenScreenBackground, finalizeCleaningCycle, hasRealContentGap, CLEANING_CYCLE_CANVAS_SIZE } from '@/app/lib/media/photo-cleaning-pipeline'
+import { generateAIFilledPhoto, refineWithInstruction, removeGreenScreenBackground, finalizeCleaningCycle, hasRealContentGap, CLEANING_CYCLE_CANVAS_SIZE } from '@/app/lib/media/photo-cleaning-pipeline'
 import { MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine'
 
 /* POST /api/events/stakeholders/speakers/[id]/clean-photo/generate
-   Body: { mode: 'ai_fill' | 'enhance' | 'good', quality?: 'medium' | 'high',
-           source_url?: string, head_box?: HeadBox }
+   Body: { mode: 'ai_fill' | 'enhance' | 'good' | 'chat_refine', quality?: 'medium' | 'high',
+           source_url?: string, head_box?: HeadBox, instruction?: string }
+
+   'chat_refine' (2026-09-08) — the wizard's dedicated "Refine with AI" step
+   (a producer-authored free-text fix, capped at a couple rounds per photo,
+   for whatever a prompt tweak can't anticipate — see refineWithInstruction's
+   own doc comment). Structurally its own thing, not a variant of 'ai_fill':
+   requires `source_url` (no fallback to the speaker's saved photo — always
+   operates on whatever the producer is currently looking at in that step)
+   and `instruction` (non-empty, capped length), ignores `head_box`/quality
+   entirely (framing is unchanged; always 'medium'), and is handled in its
+   own early branch below before the shared ai_fill/enhance/good logic.
+   Also background-job-backed, same Cloudflare-timeout reason as 'ai_fill'.
    `quality` only applies to 'ai_fill' (default 'medium' if omitted) — the
    wizard's "Regenerate at Higher Quality" button on Confirm Cleaned Photo
    is the only caller that ever sends 'high' (2026-08-22, per Madhu: don't
@@ -85,14 +96,16 @@ import { MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine
    exact buffer is the only way to tell whether a bad result is the AI not
    following the template's own head-size/margin instructions, versus
    something later in the pipeline). The wizard's "AI Edited" step shows it. */
-type Body = { mode?: 'ai_fill' | 'enhance' | 'good'; quality?: 'medium' | 'high'; source_url?: string; head_box?: HeadBox }
+type Body = { mode?: 'ai_fill' | 'enhance' | 'good' | 'chat_refine'; quality?: 'medium' | 'high'; source_url?: string; head_box?: HeadBox; instruction?: string }
+
+const MAX_INSTRUCTION_LENGTH = 500
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: speakerId } = await params
   const body = await req.json().catch(() => null) as Body | null
   const mode = body?.mode
-  if (mode !== 'ai_fill' && mode !== 'enhance' && mode !== 'good') {
-    return NextResponse.json({ error: "mode must be 'ai_fill', 'enhance', or 'good'" }, { status: 400 })
+  if (mode !== 'ai_fill' && mode !== 'enhance' && mode !== 'good' && mode !== 'chat_refine') {
+    return NextResponse.json({ error: "mode must be 'ai_fill', 'enhance', 'good', or 'chat_refine'" }, { status: 400 })
   }
   const quality = body?.quality === 'high' ? 'high' : 'medium'
   // Distinct, greppable marker for the popup-triggered regenerate
@@ -110,6 +123,41 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .eq('id', speakerId)
     .single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
+
+  // 'chat_refine' — own early branch, own contract (see this file's top
+  // doc comment). Returns before any of the ai_fill/enhance/good logic
+  // below, which doesn't apply here (no template/head_box needed — framing
+  // is unchanged, only content).
+  if (mode === 'chat_refine') {
+    const instruction = body?.instruction?.trim()
+    if (!instruction) return NextResponse.json({ error: 'Describe what you want changed first.' }, { status: 400 })
+    if (instruction.length > MAX_INSTRUCTION_LENGTH) {
+      return NextResponse.json({ error: `Keep it under ${MAX_INSTRUCTION_LENGTH} characters.` }, { status: 400 })
+    }
+    const sourceUrl = body?.source_url
+    if (!sourceUrl) return NextResponse.json({ error: 'source_url required' }, { status: 400 })
+
+    console.log(`[clean-photo][chat-refine] speaker ${speakerId} — "${instruction.slice(0, 100)}"`)
+
+    const { data: job, error: jobErr } = await supabaseAdmin
+      .from('speaker_photo_clean_jobs')
+      .insert({ speaker_id: speakerId, mode: 'chat_refine', quality: 'medium', status: 'processing' })
+      .select('id')
+      .single()
+    if (jobErr || !job) return NextResponse.json({ error: 'Could not start the refine job' }, { status: 500 })
+
+    runChatRefineJob(job.id, speakerId, speaker.event_id, sourceUrl, instruction)
+      .catch(async e => {
+        console.error(`[clean-photo chat_refine job ${job.id}] uncaught error:`, e)
+        await supabaseAdmin.from('speaker_photo_clean_jobs').update({
+          status: 'error',
+          completed_at: new Date().toISOString(),
+          error_message: (e instanceof Error ? e.message : String(e)).slice(0, 2000),
+        }).eq('id', job.id)
+      })
+
+    return NextResponse.json({ job_id: job.id })
+  }
 
   // source_url/head_box overrides (2026-09-07) — the wizard's auto-retry
   // uses these to re-run 'ai_fill' sourced from the PENDING AI-filled
@@ -277,5 +325,42 @@ async function runAiFillJob(
     status: 'done',
     completed_at: new Date().toISOString(),
     result: { needs_confirmation: true, pending_photo_url: pendingPhotoUrl, ai_edited_photo_url: aiEditedPhotoUrl, suggested_head_box: suggestedHeadBox, ai_extended: true, has_gap: hasGap },
+  }).eq('id', jobId)
+}
+
+// The 'chat_refine' pipeline body, run detached (same reasoning as
+// runAiFillJob above). No head_box/target/crop involved — framing is
+// unchanged, this only touches content per the producer's own instruction.
+// Never touches event_speakers — same "nothing commits until finalize"
+// contract every other mode already follows; the wizard's own Continue
+// button on the "Refine with AI" step is what feeds the result back into
+// the normal Confirm Cleaned Photo review, not this route.
+async function runChatRefineJob(
+  jobId: string,
+  speakerId: string,
+  eventId: string,
+  sourceUrl: string,
+  instruction: string,
+) {
+  const imgRes = await fetch(sourceUrl)
+  if (!imgRes.ok) throw new Error(`Failed to fetch current photo: ${imgRes.status}`)
+  const buffer = Buffer.from(await imgRes.arrayBuffer())
+
+  const refined = await refineWithInstruction(buffer, instruction)
+  // Same despill step every other mode's output goes through — a
+  // chat-refined result is not treated as already-final, per Madhu: "auto
+  // pushed to do the rest of the cleanup job... and rest follows as usual."
+  const transparent = await removeGreenScreenBackground(refined)
+  const pendingPhotoUrl = await uploadPublicAsset(
+    `events/${eventId}/speakers/${speakerId}/clean-photo-chat-refined-${Date.now()}.png`,
+    transparent,
+    'image/png'
+  )
+  const hasGap = await hasRealContentGap(transparent)
+
+  await supabaseAdmin.from('speaker_photo_clean_jobs').update({
+    status: 'done',
+    completed_at: new Date().toISOString(),
+    result: { pending_photo_url: pendingPhotoUrl, has_gap: hasGap },
   }).eq('id', jobId)
 }
