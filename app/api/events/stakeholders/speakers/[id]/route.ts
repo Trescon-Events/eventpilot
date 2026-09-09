@@ -64,6 +64,13 @@ type SpeakerPatchBody = {
   producer_staff_id?: string | null
   reference?: string | null
   confirmation_status?: string | null
+  // UAE Resident (2026-09-08) — mirrors the HubSpot onboarding form's own
+  // passport/National ID requirement logic (UAE residents need both,
+  // everyone else needs only Passport), tracked here since none of the
+  // speakers confirmed before this flag existed went through that form.
+  // null = not yet determined; producers set it by hand on the Sensitive
+  // Documents tab. Same producer-editable convention as the fields above.
+  is_uae_resident?: boolean | null
   // Deleted tab's standalone "Mark as done" action (2026-08-26) — clears
   // konfhub_registration_cancel_requested_at once a producer has actually
   // gone and cancelled the booking by hand in KonfHub's own dashboard (no
@@ -141,6 +148,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.producer_staff_id !== undefined) row.producer_staff_id = body.producer_staff_id || null
   if (body.reference !== undefined) row.reference = body.reference || null
   if (body.confirmation_status !== undefined) row.confirmation_status = body.confirmation_status || null
+  if (body.is_uae_resident !== undefined) row.is_uae_resident = body.is_uae_resident
 
   if (Object.keys(row).length === 0) return NextResponse.json({ error: 'no valid fields' }, { status: 400 })
 

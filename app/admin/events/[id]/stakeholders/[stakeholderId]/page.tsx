@@ -43,6 +43,11 @@ import type { Speaker as SaeSpeaker, Partner as SaePartner } from '../../creativ
 type Kind = 'speaker' | 'partner'
 type AnnouncementStatus = 'pending_review' | 'approved' | 'assets_missing' | 'ready' | 'archived'
 
+// Matches the DB CHECK constraint (event_speakers_confirmation_status_
+// check) exactly — 'On Hold' added 2026-09-08 for speakers sitting in
+// EventPilot but not yet pushed to KonfHub, per Madhu. Keep both in sync.
+const CONFIRMATION_STATUS_OPTIONS = ['New Confirmed', 'Reconfirmed', 'Confirmed', 'On Hold']
+
 type StakeholderRecord = {
   id: string; event_id: string
   full_name?: string; job_title?: string; company_name?: string
@@ -97,6 +102,9 @@ type StakeholderRecord = {
   producer_staff_id?: string | null
   reference?: string | null
   confirmation_status?: string | null
+  // UAE Resident (2026-09-08) — see SensitiveDocumentsTab's own comment;
+  // null = not yet determined.
+  is_uae_resident?: boolean | null
 }
 
 // One preview tile — raw or cleaned photo/logo — with a download icon and a
@@ -1097,7 +1105,28 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       )}
 
       {activeTab === 'documents' && kind === 'speaker' && can('sae.sensitive_documents.view') && (
-        <SensitiveDocumentsTab speakerId={stakeholderId} canManage={can('sae.sensitive_documents.manage')} />
+        <SensitiveDocumentsTab
+          speakerId={stakeholderId}
+          canManage={can('sae.sensitive_documents.manage')}
+          isUaeResident={record?.is_uae_resident ?? null}
+          // Goes through the same general PATCH route/permission
+          // (sae.stakeholders.edit) as every other producer-editable field
+          // on this page (Producer, Reference, Confirmation Status) — NOT
+          // sae.sensitive_documents.manage, since that's what the server
+          // actually checks for a non-{announcement_status}-only PATCH
+          // body. canManage above stays scoped to what it already gated
+          // (document upload/delete), so this doesn't quietly widen it.
+          canEditUaeResident={can('sae.stakeholders.edit')}
+          onUaeResidentChange={async (value) => {
+            const res = await fetch(`${base}/${stakeholderId}`, {
+              method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ is_uae_resident: value }),
+            })
+            if (!res.ok) return false
+            setRecord(prev => prev ? { ...prev, is_uae_resident: value } : prev)
+            return true
+          }}
+        />
       )}
 
       {activeTab === 'overview' && (
@@ -1389,11 +1418,19 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                   </div>
                   <div>
                     <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Confirmation Status</label>
-                    <Input
-                      className="tfield-lg" value={confirmationStatus} disabled={!canEdit} onBlur={flushSave}
-                      placeholder="e.g. Reconfirmed, New Confirmed"
+                    {/* Was free text until 2026-09-08 — a real typo-risk
+                        (e.g. "Re-Confirmed") that also blocked reliable
+                        color-coding on the Status Board. CONFIRMATION_
+                        STATUS_OPTIONS matches the DB CHECK constraint
+                        exactly (event_speakers_confirmation_status_check) —
+                        keep both in sync if this ever changes. */}
+                    <Select
+                      className="tfield-lg" value={confirmationStatus} disabled={!canEdit}
                       onChange={e => { setConfirmationStatus(e.target.value); scheduleSave() }}
-                    />
+                    >
+                      <option value="">Not set</option>
+                      {CONFIRMATION_STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                    </Select>
                   </div>
                 </div>
               </div>

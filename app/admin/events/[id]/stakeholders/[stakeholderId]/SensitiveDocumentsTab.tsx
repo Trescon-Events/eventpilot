@@ -46,14 +46,37 @@ function fmtSize(bytes: number | null) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export default function SensitiveDocumentsTab({ speakerId, canManage }: { speakerId: string; canManage: boolean }) {
+export default function SensitiveDocumentsTab({
+  speakerId, canManage, isUaeResident, canEditUaeResident, onUaeResidentChange,
+}: {
+  speakerId: string
+  canManage: boolean
+  // UAE Resident (2026-09-08, per Madhu) — mirrors the HubSpot onboarding
+  // form's own rule: UAE residents must provide BOTH Passport and National
+  // ID; everyone else only needs Passport, and the Status Board shows
+  // National ID as Not Applicable for them. null = not yet determined —
+  // every speaker confirmed before this flag existed predates the form
+  // asking, so producers backfill it here by hand, one speaker at a time.
+  isUaeResident: boolean | null
+  canEditUaeResident: boolean
+  onUaeResidentChange: (value: boolean | null) => Promise<boolean>
+}) {
   const [documents, setDocuments] = useState<ActiveDoc[]>([])
   const [history, setHistory] = useState<HistoryDoc[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [uploadingType, setUploadingType] = useState<DocType | null>(null)
   const [showHistory, setShowHistory] = useState(false)
+  const [savingUaeResident, setSavingUaeResident] = useState(false)
   const fileInputs = { passport: useRef<HTMLInputElement>(null), national_id: useRef<HTMLInputElement>(null) }
+
+  const setUaeResident = async (value: boolean | null) => {
+    setSavingUaeResident(true)
+    setError(null)
+    const ok = await onUaeResidentChange(value)
+    if (!ok) setError('Could not save UAE Resident status — please try again.')
+    setSavingUaeResident(false)
+  }
 
   const load = async () => {
     setLoading(true)
@@ -123,11 +146,40 @@ export default function SensitiveDocumentsTab({ speakerId, canManage }: { speake
           </div>
         </Card>
 
+        <Card padded>
+          <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>UAE Resident?</div>
+          <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '4px', marginBottom: '12px' }}>
+            Determines what&apos;s actually required below — a UAE resident needs both Passport and National ID; everyone else only needs Passport. Not yet asked on the onboarding form for anyone confirmed before it existed, so this is set by hand.
+          </div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {([
+              { value: true, label: 'UAE Resident' },
+              { value: false, label: 'Not a UAE Resident' },
+              { value: null, label: 'Not determined yet' },
+            ] as const).map(opt => (
+              <Button
+                key={String(opt.value)}
+                variant={isUaeResident === opt.value ? 'teal' : 'ghost'}
+                onClick={() => setUaeResident(opt.value)}
+                disabled={!canEditUaeResident || savingUaeResident}
+              >
+                {opt.label}
+              </Button>
+            ))}
+          </div>
+        </Card>
+
         {loading ? (
           <div style={{ fontSize: '13px', color: 'var(--ink4)' }}>Loading…</div>
         ) : (
           (['passport', 'national_id'] as DocType[]).map(type => {
             const doc = docByType(type)
+            // National ID only matters for a UAE resident (see the card
+            // above) — isUaeResident === false is the only case that
+            // excuses it; still not on file for an undetermined residency
+            // reads as ordinary "Missing," same as before this flag
+            // existed, since it might still turn out to be required.
+            const notApplicable = type === 'national_id' && isUaeResident === false && !doc
             return (
               <Card key={type} padded color={doc ? 'teal' : undefined}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
@@ -143,10 +195,12 @@ export default function SensitiveDocumentsTab({ speakerId, canManage }: { speake
                         </div>
                       </>
                     ) : (
-                      <div style={{ fontSize: '13px', color: 'var(--ink4)', marginTop: '4px' }}>Not on file</div>
+                      <div style={{ fontSize: '13px', color: 'var(--ink4)', marginTop: '4px' }}>
+                        {notApplicable ? 'Not required — not a UAE resident' : 'Not on file'}
+                      </div>
                     )}
                   </div>
-                  <Badge color={doc ? 'teal' : 'grey'}>{doc ? 'On file' : 'Missing'}</Badge>
+                  <Badge color={doc ? 'teal' : notApplicable ? 'grey' : 'amber'}>{doc ? 'On file' : notApplicable ? 'Not Applicable' : 'Missing'}</Badge>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '14px' }}>
                   {doc?.signed_url && (

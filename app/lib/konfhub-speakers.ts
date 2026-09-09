@@ -191,6 +191,28 @@ export async function deleteKonfhubSpeaker(konfhubEventId: string, speakerId: st
   }
 }
 
+// PUT /event/:id/speakers/reorder (2026-09-09) — a dedicated bulk-reorder
+// endpoint KonfHub added specifically so producers wouldn't have to
+// manually drag hundreds of speakers into order on their own dashboard
+// (see the Speaker Order page's own doc comment). Body shape is unusual —
+// NOT an array, a flat object keyed by speaker_id with the new
+// speaker_order as the value, e.g. {"50": 3, "51": 1, "52": 2}. Confirmed
+// live 2026-09-09 against DFS's real event (a real swap + immediate
+// revert, verified via a follow-up GET both times) — updateKonfhubSpeaker's
+// own PUT rejects speaker_order outright ("This field is not editable"),
+// this is the only way to change it post-creation.
+export async function reorderKonfhubSpeakers(konfhubEventId: string, token: string, order: Record<string, number>): Promise<void> {
+  const res = await fetch(`${API_BASE}/${konfhubEventId}/speakers/reorder`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(order),
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({})) as { error?: string }
+    throw new KonfhubApiError(data.error || 'Failed to reorder KonfHub speakers', res.status)
+  }
+}
+
 // GET /event/:id/tags (2026-09-05, Integrations page) — undocumented, same
 // endpoint discovered 2026-08-25 for the Speaker/Moderator tag workaround
 // (see konfhub-push/route.ts's doc comment). Returns EVERY tag on the
