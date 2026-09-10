@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, use } from 'react'
-import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
@@ -42,7 +41,6 @@ function draftFromHubSpotField(f: HubSpotFormField): NewFieldDraft {
 const TARGET_TYPE_OPTIONS = [
   { value: 'concept', label: 'EventPilot field' },
   { value: 'asset', label: 'Photo / logo asset' },
-  { value: 'secure_document', label: 'Secure document (passport/ID)' },
   { value: 'custom', label: "Store as extra data (don't map)" },
 ]
 
@@ -50,12 +48,6 @@ const ASSET_ROLE_OPTIONS = [
   { value: 'photo', label: 'Speaker Photo' },
   { value: 'company_logo', label: 'Company Logo (speaker)' },
   { value: 'logo', label: 'Partner Logo' },
-]
-
-const SECURE_ROLE_OPTIONS = [
-  { value: 'passport', label: 'Passport Copy' },
-  { value: 'national_id', label: 'National ID' },
-  { value: 'other_document', label: 'Other Secure Document' },
 ]
 
 function targetType(m: HubSpotFieldMapping | undefined): string {
@@ -289,7 +281,6 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
                           const t = e.target.value
                           if (t === 'concept') updateTarget(f.name, f.label, { type: 'concept', key: conceptFields[0]?.key ?? '' })
                           else if (t === 'asset') updateTarget(f.name, f.label, { type: 'asset', role: 'photo' })
-                          else if (t === 'secure_document') updateTarget(f.name, f.label, { type: 'secure_document', role: 'passport' })
                           else updateTarget(f.name, f.label, { type: 'custom' })
                         }}
                       >
@@ -310,12 +301,6 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
                         <Select disabled={!canManage} value={m?.target.type === 'asset' ? m.target.role : 'photo'}
                           onChange={e => updateTarget(f.name, f.label, { type: 'asset', role: e.target.value as 'photo' | 'company_logo' | 'logo' })}>
                           {ASSET_ROLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                        </Select>
-                      )}
-                      {type === 'secure_document' && (
-                        <Select disabled={!canManage} value={m?.target.type === 'secure_document' ? m.target.role : 'passport'}
-                          onChange={e => updateTarget(f.name, f.label, { type: 'secure_document', role: e.target.value as 'passport' | 'national_id' | 'other_document' })}>
-                          {SECURE_ROLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </Select>
                       )}
                     </div>
@@ -345,10 +330,6 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
               </div>
             )}
 
-            {mapping.some(m => m.target.type === 'secure_document') && (
-              <SecureFolderCard eventId={eventId} canManage={canManage} />
-            )}
-
             <div style={{ marginTop: '20px' }}>
               <Card padded>
                 <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink3)', letterSpacing: '0.6px', textTransform: 'uppercase', marginBottom: '8px' }}>Embed Reference</div>
@@ -367,65 +348,3 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
   )
 }
 
-// Shown once at least one field is mapped to "Secure document" — where a
-// producer points EventPilot at the Drive/OneDrive folder secure documents
-// for THIS event should be copied into, using their own connected
-// account (see /account/connections). configured_by is whoever saves this,
-// so the copy operation always uses that specific person's delegated access.
-function SecureFolderCard({ eventId, canManage }: { eventId: string; canManage: boolean }) {
-  const [folderUrl, setFolderUrl] = useState('')
-  const [existing, setExisting] = useState<{ provider: string; folder_url: string; configured_at: string } | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [msg, setMsg] = useState<string | null>(null)
-  const [msgIsError, setMsgIsError] = useState(false)
-
-  useEffect(() => {
-    fetch(`/api/events/stakeholders/secure-folder?event_id=${eventId}`)
-      .then(r => r.json())
-      .then(d => { if (d?.folder_url) setExisting(d) })
-      .finally(() => setLoading(false))
-  }, [eventId])
-
-  async function save() {
-    if (!folderUrl.trim()) return
-    setSaving(true); setMsg(null)
-    const res = await fetch('/api/events/stakeholders/secure-folder', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event_id: eventId, folder_url: folderUrl.trim() }),
-    })
-    const data = await res.json().catch(() => ({}))
-    setSaving(false)
-    if (res.ok) { setExisting(data); setFolderUrl(''); setMsg('Saved.'); setMsgIsError(false) }
-    else { setMsg(data.error ?? 'Could not save that folder.'); setMsgIsError(true) }
-  }
-
-  return (
-    <div style={{ marginTop: '16px' }}>
-    <Card padded color="amber">
-      <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--amber)', letterSpacing: '0.6px', textTransform: 'uppercase', marginBottom: '8px' }}>Secure Document Folder</div>
-      <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '10px' }}>
-        Passport/ID uploads never touch EventPilot&apos;s own storage — they&apos;re copied straight into a Google Drive or Microsoft OneDrive folder you choose, using <strong>your own</strong> connected account (
-        <Link href="/account/connections" style={{ color: 'var(--teal-mid)' }}>Connected Accounts</Link>
-        ), never a shared credential.
-      </div>
-      {loading ? (
-        <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>Loading…</div>
-      ) : existing ? (
-        <div style={{ fontSize: '12.5px', color: 'var(--ink2)' }}>
-          Currently: {existing.provider === 'google' ? 'Google Drive' : 'Microsoft OneDrive'} — <a href={existing.folder_url} target="_blank" rel="noreferrer" style={{ color: 'var(--teal-mid)' }}>{existing.folder_url}</a>
-        </div>
-      ) : (
-        <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>No folder configured yet — documents will queue until one is set.</div>
-      )}
-      {canManage && (
-        <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-          <Input value={folderUrl} onChange={e => setFolderUrl(e.target.value)} placeholder="Paste a Google Drive or OneDrive folder link" style={{ flex: 1 }} />
-          <Button variant="lime" onClick={save} disabled={saving}>{saving ? 'Saving…' : existing ? 'Update' : 'Save'}</Button>
-        </div>
-      )}
-      {msg && <div style={{ fontSize: '12px', marginTop: '8px', color: msgIsError ? 'var(--red)' : 'var(--success)' }}>{msg}</div>}
-    </Card>
-    </div>
-  )
-}

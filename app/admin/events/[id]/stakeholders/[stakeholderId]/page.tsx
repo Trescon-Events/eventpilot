@@ -18,6 +18,7 @@ import KonfhubRegistrationPushConfirmModal from '../KonfhubRegistrationPushConfi
 import { SPEAKER_KEY_MAP } from '@/app/lib/forms/map-to-stakeholder-record'
 import AnnouncementsTab from './AnnouncementsTab'
 import SensitiveDocumentsTab from './SensitiveDocumentsTab'
+import CommunicationsTab from './CommunicationsTab'
 import type { Speaker as SaeSpeaker, Partner as SaePartner } from '../../creative-templates/page'
 
 /* The generic, canonical full-page review/edit screen for a single
@@ -199,11 +200,12 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   // Announcements tab (2026-08-18, SAE-into-Hub merge) — ?tab=announcements
   // (+ optional ?announcement=X) is how Queue's "Open" links land directly
   // on one creative's review panel, same deep-link idea SAE's own page used.
-  const activeTab: 'overview' | 'registration' | 'secondary' | 'documents' | 'announcements' =
+  const activeTab: 'overview' | 'registration' | 'secondary' | 'documents' | 'communications' | 'announcements' =
     searchParams.get('tab') === 'announcements' ? 'announcements'
     : searchParams.get('tab') === 'registration' ? 'registration'
     : searchParams.get('tab') === 'secondary' ? 'secondary'
     : searchParams.get('tab') === 'documents' ? 'documents'
+    : searchParams.get('tab') === 'communications' ? 'communications'
     : 'overview'
   const initialAnnouncementId = searchParams.get('announcement')
 
@@ -782,7 +784,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     }
   }
 
-  function setTab(tab: 'overview' | 'registration' | 'secondary' | 'documents' | 'announcements') {
+  function setTab(tab: 'overview' | 'registration' | 'secondary' | 'documents' | 'communications' | 'announcements') {
     const params = new URLSearchParams(searchParams.toString())
     params.set('tab', tab)
     if (tab === 'overview') params.delete('announcement')
@@ -948,7 +950,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
               "don't even reveal it exists" treatment as every other
               permission-gated surface in this app. */}
           {(kind === 'speaker'
-            ? (['overview', 'registration', 'secondary', ...(can('sae.sensitive_documents.view') ? ['documents' as const] : []), 'announcements'] as const)
+            ? (['overview', 'registration', 'secondary', ...(can('sae.sensitive_documents.view') ? ['documents' as const] : []), 'communications', 'announcements'] as const)
             : (['overview', 'announcements'] as const)
           ).map(t => (
             <button key={t} onClick={() => setTab(t)}
@@ -957,7 +959,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                 background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: 700,
                 color: activeTab === t ? 'var(--ink)' : 'var(--ink3)', marginBottom: '-1px',
               }}>
-              {t === 'overview' ? 'Overview' : t === 'registration' ? 'Registration' : t === 'secondary' ? 'Second Role' : t === 'documents' ? 'Documents' : 'Announcements'}
+              {t === 'overview' ? 'Overview' : t === 'registration' ? 'Registration' : t === 'secondary' ? 'Second Role' : t === 'documents' ? 'Documents' : t === 'communications' ? 'Communications' : 'Announcements'}
             </button>
           ))}
         </div>
@@ -1127,6 +1129,10 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
             return true
           }}
         />
+      )}
+
+      {activeTab === 'communications' && kind === 'speaker' && (
+        <CommunicationsTab speakerId={stakeholderId} stakeholderName={name || 'this speaker'} />
       )}
 
       {activeTab === 'overview' && (

@@ -47,11 +47,12 @@ export const ACCESS_REGISTRY: AccessModule[] = [
       // them; no route enforces them yet.
       { key: 'sae.invites.send',           label: 'Send speaker/stakeholder invite emails',          enforced: true },
       { key: 'sae.forms.manage',           label: 'Customize onboarding form fields',                enforced: true },
-      { key: 'sae.secure_documents.manage', label: 'Configure the secure passport/ID destination folder', enforced: true },
       // Sensitive Documents (2026-09-04) — Passport/National ID, stored
-      // natively (see app/lib/events/sensitive-storage.ts), the replacement
-      // for the "producer's own Drive" model sae.secure_documents.manage
-      // above configured. Deliberately kept to individual staff assignment
+      // natively (see app/lib/events/sensitive-storage.ts). Superseded the
+      // old "producer's own Drive" model (sae.secure_documents.manage +
+      // the HubSpot secure_document mapping type + event_secure_folders —
+      // removed 2026-09-10, never used in practice; see the Communications
+      // tab work in HANDOFF.md for context). Deliberately kept to individual staff assignment
       // only, per Madhu — this is not meant to be granted department/team-
       // wide the way some other roles are; whoever assigns it picks named
       // people one at a time via this same Assignments tab (it has no

@@ -3,7 +3,6 @@ import crypto from 'crypto'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { HubSpotFieldMapping } from '@/app/lib/hubspot/types'
 import { SubmittedValue } from '@/app/lib/forms/types'
-import { copySecureDocument } from '@/app/lib/security/secure-document-copy'
 
 /* POST /api/public/hubspot/submissions — the HubSpot Workflow webhook
    receiver. Public (under the /api/public prefix middleware.ts already
@@ -106,7 +105,6 @@ export async function POST(req: NextRequest) {
 
   const submittedData: Record<string, SubmittedValue> = {}
   const fileUrls: Record<string, string> = {}
-  const secureDocuments: { role: string; url: string }[] = []
 
   const mapping = (connection.field_mapping ?? []) as HubSpotFieldMapping[]
   for (const m of mapping) {
@@ -119,16 +117,13 @@ export async function POST(req: NextRequest) {
       case 'asset':
         fileUrls[m.target.role] = value
         break
-      case 'secure_document':
-        secureDocuments.push({ role: m.target.role, url: value })
-        break
       case 'custom':
         submittedData[m.hubspot_field_name] = value
         break
     }
   }
 
-  const { data: submission, error } = await supabaseAdmin
+  const { error } = await supabaseAdmin
     .from('stakeholder_form_submissions')
     .insert({
       event_id: connection.event_id,
@@ -138,29 +133,8 @@ export async function POST(req: NextRequest) {
       source: 'hubspot',
       hubspot_submission_key: hash,
     })
-    .select('id')
-    .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  if (secureDocuments.length > 0) {
-    const rows = secureDocuments.map(d => ({
-      submission_id: submission.id,
-      event_id: connection.event_id,
-      document_role: d.role,
-      source_url: d.url,
-      filename: d.url.split('/').pop() || d.role,
-    }))
-    const { data: transfers } = await supabaseAdmin.from('secure_document_transfers').insert(rows).select('id')
-    for (const t of transfers ?? []) {
-      // Fire-and-forget — this app runs on a persistent Railway Node
-      // process (not serverless), so this keeps running after the
-      // response is sent. Failures are caught inside copySecureDocument()
-      // itself and left for the retry sweep; nothing here can crash the
-      // response.
-      copySecureDocument(t.id).catch(e => console.error('Secure document copy failed', t.id, e))
-    }
-  }
 
   return NextResponse.json({ success: true })
 }

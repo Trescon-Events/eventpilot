@@ -15,13 +15,38 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — 08–09 Sep 2026. A long, mostly DFS-focused session: photo-cleaning pipeline bug hunt (three separate real bugs, all fixed live against real speaker photos), a full KonfHub/Excel speaker-data reconciliation, the Sensitive Documents module actually put to use for the first time (21 real documents uploaded), a new UAE Resident field, the Status Board rebuilt (sticky header/column, colored status text, new columns), and a brand-new Speaker Order (drag-to-reorder + KonfHub bulk push) page. |
-| Date | 2026-09-09 |
-| Latest push | This session's own commits, see dated section below — includes the Status Board/UAE-Resident/Speaker-Order work that had been sitting local-only across most of the session, finally pushed as part of this sign-off. |
-| DB migrations applied | Via direct psql (session pooler): added `event_speakers.is_uae_resident` (nullable boolean) and a `confirmation_status` CHECK constraint (`'New Confirmed'\|'Reconfirmed'\|'Confirmed'\|'On Hold'`) — both verified live in Supabase (shared DB between local dev and production, so no separate prod migration needed once code deploys). |
+| Who | Madhu + Claude Code (Sonnet 5) — 10 Sep 2026. Built a new Speaker Communications tab (system-assisted "request outstanding items" email + no-login speaker submission flow), plus removed the never-used HubSpot secure-document pipeline per Madhu's go-ahead. |
+| Date | 2026-09-10 |
+| Latest push | This session's own commit, see dated section below. |
+| DB migrations applied | Via direct psql (session pooler): new `speaker_communication_requests` table + two `email_templates` rows (`speaker_outstanding_items_request`, `speaker_outstanding_items_ack`) — both verified live in Supabase. |
 | Handed off to | Durga. |
 | Deployed | Pushed to `main` this sign-off — Railway auto-deploy, verified via curl below. |
-| Left alone / known follow-up | See "What's next" in the dated section below. Two small loose ends: (1) never checked which producers actually hold the `sae.sensitive_documents.manage` permission (came up mid-session, not followed through); (2) a name-split "flag the tricky ones" policy from earlier in this same session — unclear whether that flagging was ever actually delivered, worth Madhu double-checking. Two pre-existing, unrelated bugs found but deliberately not fixed (out of scope, flagged to Madhu): `/api/events/checklist` queries a `department` column that doesn't exist on `event_checklist`; `/api/feedback` reads from a `platform_feedback` table that doesn't exist at all. Same long-standing open items as 06 Sep further down: Pixelate's contact roster, Khalifa's "Go Live" protocol end-to-end exercise, `RealtimeNotifications.tsx` RLS gap. |
+| Left alone / known follow-up | See "What's next" in the dated section below. Same long-standing open items as 08–09 Sep further down: `sae.sensitive_documents.manage` permission-holder audit never done, the name-split "flag the tricky ones" policy unconfirmed, the `checklist`/`feedback` pre-existing bugs still unfixed, Pixelate's contact roster, Khalifa's "Go Live" protocol end-to-end exercise, `RealtimeNotifications.tsx` RLS gap. |
+
+## 10 Sep 2026 — Speaker Communications tab (outstanding-items request flow), HubSpot secure-document pipeline removed
+
+### The ask
+
+Producers currently have no structured way to chase a speaker for whatever's still missing (Bio, Photo, Passport, National ID) — items trickle in over multiple follow-ups, and there was no tracking of what was asked, when, or whether it's been reviewed. Madhu asked for a Communications tab: a checklist of what's outstanding, a system-generated templated email (like the existing approval-request emails) with a personal link the speaker uses to submit just those items, landing straight into their existing record — with a one-time "submitted, thank you" page, a producer notification with a direct link, and Send Reminder / Send Acknowledgment / Request Again actions. Separately, since sensitive documents are now collected only through EventPilot's own secure upload, the old HubSpot→Drive `secure_document` mapping (configured but confirmed by Madhu as never actually used) was removed.
+
+### What was built
+
+- **New `speaker_communication_requests` table** (modeled on `announcement_approvals`, not the older/broken `stakeholder_invites` pattern) — single-use, 14-day-expiring token, status-driven lock (`pending → submitted → closed`) read fresh on every page load, real `reminder_count`/`last_reminder_at` that actually increments (unlike `stakeholder_invites`' dead columns of the same name).
+- **`app/lib/stakeholders/missing-items.ts`** — shared "what's missing" helper (Full Bio, Photo, Passport, National ID with UAE-residency-aware applicability), reused by the new feature; the Status Board's own route was deliberately left untouched rather than refactored onto it, after finding the refactor would have subtly changed its National-ID "on file" semantics for non-UAE-resident speakers with an uploaded doc.
+- **Communications tab** on the speaker Details page: read-only Outstanding Items checklist, a **Request Missing Items** composer (item checkboxes → templated email preview → send, mirroring `SendForExternalApprovalComposer`'s compose/send UX), a Request History list with **Send Reminder** (pending), **Send Acknowledgment** / **Request Again** (submitted).
+- **Public submission page** (`/public/speaker-submission/[speakerId]`, no login) — speaker uploads only the requested items; each lands directly in their existing `event_speakers` record (Full Bio via the existing PDF/Word-conversion pipeline, Photo as a plain raw upload for the producer's existing Cleaning Wizard to process afterward) or the existing private Sensitive Documents pipeline (Passport/National ID); shows a permanent locked "already submitted" state on any re-visit, verified live by reopening the same link after submitting.
+- **Producer notification on submit** — a fresh Graph-based email (not the older Resend path some other internal notifications still use) to whoever sent that specific request round, with a working `?tab=communications` deep link to the speaker's record.
+- **HubSpot secure-document pipeline removed**: the `secure_document` mapping type, its config UI (including the "Secure Document Folder" card), the `/api/events/stakeholders/secure-folder` route, and the `secure-documents-retry` cron — all deleted. `secure_document_transfers`/`event_secure_folders` tables left in place untouched (no destructive migration; nothing was ever using them for real).
+
+### Verified
+
+`tsc --noEmit` and diff-scoped `eslint` clean across all 17 changed/new files. Full live round-trip tested against a disposable test speaker (created and deleted within this session, not a real record): a real failed-send case (bad mailbox → clean error UI, request row still persisted before the send attempt) and a real successful send (Graph email → producer-attributed sender resolved correctly) → public link opened with no session → file uploaded → checklist recomputed live (item dropped off) → producer-notification email sent → reopening the same submission link showed the permanent locked state, not the form again → Send Reminder (confirmed the counter actually incremented) → Send Acknowledgment (status flipped to closed). Separately verified live (two more disposable test speakers) that the UAE-resident National-ID logic matches Madhu's exact spec: `is_uae_resident = false` → only Passport requested; `is_uae_resident = true` → both Passport and National ID requested.
+
+### What's next
+
+- No automated/scheduled reminders — Send Reminder is entirely producer-triggered, by design (matches what was asked).
+- The public submission page doesn't yet resurface previously-submitted-but-not-yet-reviewed items if a producer sends a second request before reviewing the first — each request is an independent snapshot; not raised as a problem, just worth knowing.
+- Same open items as 08–09 Sep below.
 
 ## 08–09 Sep 2026 — Photo-cleaning bug hunt, DFS speaker data reconciliation, Sensitive Documents in real use, UAE Resident field, Status Board rebuild, Speaker Order page
 

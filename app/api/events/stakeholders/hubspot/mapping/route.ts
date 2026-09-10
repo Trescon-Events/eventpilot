@@ -17,7 +17,6 @@ import { HubSpotFieldMapping } from '@/app/lib/hubspot/types'
    schema (event override > global default > hardcoded fallback). */
 
 const ASSET_ROLES = ['photo', 'company_logo', 'logo']
-const SECURE_ROLES = ['passport', 'national_id', 'other_document']
 
 function validateMapping(mapping: unknown, conceptKeys: Set<string>): string | null {
   if (!Array.isArray(mapping)) return 'field_mapping must be an array'
@@ -34,9 +33,6 @@ function validateMapping(mapping: unknown, conceptKeys: Set<string>): string | n
         break
       case 'asset':
         if (!ASSET_ROLES.includes(m.target.role)) return `Invalid asset role: ${m.target.role}`
-        break
-      case 'secure_document':
-        if (!SECURE_ROLES.includes(m.target.role)) return `Invalid secure document role: ${m.target.role}`
         break
       case 'custom':
         break
