@@ -15,13 +15,42 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — 10 Sep 2026. Built a new Speaker Communications tab (system-assisted "request outstanding items" email + no-login speaker submission flow), plus removed the never-used HubSpot secure-document pipeline per Madhu's go-ahead. |
+| Who | Madhu + Claude Code (Sonnet 5) — 10 Sep 2026 (second session of the day). Replaced the old admin-login HRMS sync with a new secret-key Staff Portal sync API, and added umbrella/child event support (Dubai Future Finance Week + its 5 real child events). |
 | Date | 2026-09-10 |
 | Latest push | This session's own commit, see dated section below. |
-| DB migrations applied | Via direct psql (session pooler): new `speaker_communication_requests` table + two `email_templates` rows (`speaker_outstanding_items_request`, `speaker_outstanding_items_ack`) — both verified live in Supabase. |
+| DB migrations applied | Via direct psql (session pooler): `supabase/staff_portal_sync_migration.sql` — `events.parent_event_id`/`staff_portal_umbrella_id`/`priority`/`staff_portal_series_id`, plus extended `staff_members`/`staff_leave_balances`/`staff_timesheets` columns. Verified live. |
 | Handed off to | Durga. |
 | Deployed | Pushed to `main` this sign-off — Railway auto-deploy, verified via curl below. |
 | Left alone / known follow-up | See "What's next" in the dated section below. Same long-standing open items as 08–09 Sep further down: `sae.sensitive_documents.manage` permission-holder audit never done, the name-split "flag the tricky ones" policy unconfirmed, the `checklist`/`feedback` pre-existing bugs still unfixed, Pixelate's contact roster, Khalifa's "Go Live" protocol end-to-end exercise, `RealtimeNotifications.tsx` RLS gap. |
+
+## 10 Sep 2026 (cont'd) — Staff Portal sync rebuild (secret-key API, replaces admin-login), umbrella/child events
+
+### The ask
+
+Madhu is setting up an "umbrella event" structure in the Staff Portal (Lovable app) — Dubai Future Finance Week (DFFW) as a parent with 5 real child events under it (Future Tokenisation Forum, Future Islamic Finance Forum, Future Sustainability Forum, Dubai FinTech Summit 2026, Dubai Family Wealth Summit — the last one added live mid-session), all under client DIFC. Asked to mirror that structure in EventPilot. Investigating the existing HRMS→EventPilot sync (which the Staff Portal's own `projects`/new `umbrella_events` tables would need to flow through) surfaced that the sync was stale — Staff Portal's own admin-login credential pattern was already slated for replacement. Madhu had Lovable (who builds Staff Portal) design and build a proper secret-key sync-export API in parallel; once it was live, asked Claude Code to rebuild EventPilot's side against it and drop the old admin-login sync entirely.
+
+### What was built
+
+- **Old sync removed**: `app/api/hrms-sync/route.ts` and `app/api/cron/hrms-sync/route.ts` deleted — both used a full Staff Portal admin user login (`HRMS_ADMIN_EMAIL`/`PASSWORD`) on every run. Two UI trigger buttons (`app/admin/page.tsx`, `app/hr/page.tsx`) re-wired to the new route.
+- **New sync**: `app/lib/staff-portal/{client,types,run-sync}.ts` — a single `runStaffPortalSync()` shared by both `app/api/staff-portal-sync` (manual, admin_code-gated) and `app/api/cron/staff-portal-sync` (cron-job.org, `CRON_SECRET`-gated), so the two trigger paths can't drift like the old pair did. Calls Staff Portal's new secret-key `sync-export` API (`STAFF_PORTAL_SYNC_URL`/`STAFF_PORTAL_SYNC_KEY`, both in local `.env.local` only — **not yet in Railway**, so the cron route will 500 in production until Durga/Madhu add them there).
+- **Umbrella/child events**: new `events.parent_event_id` (self-FK) + `staff_portal_umbrella_id` columns. Sync pulls `umbrellas` and `events` (projects) resources, resolving each project's `parent_event_id` from its `umbrella_event_id` in the same upsert (avoids a NOT-NULL-constraint footgun the old manager-link code hit once before — see code comment). An orphaned duplicate "Dubai Future Finance Week" event (tied to Staff Portal's old, since-soft-deleted standalone project) was found and deleted per Madhu's call, after checking it only had 2 harmless `event_staff` rows attached.
+- **Parity gap review with Lovable**: diffed the old sync's exact field/table usage against the new API's documented shapes, surfaced 6 real gaps (RBAC `user_roles`→`access_roles`, 13 staff PII fields, timesheet `task_description` + non-approved-status exclusion, leave balances, event `description`/`notes`, `allocations` vs `assignments` overlap) — Lovable closed all of them same-session (new `roles`, `leave_balances`, `allocations` resources; extended `staff`/`timesheets`/`events` shapes). New columns added to `staff_members`, `staff_leave_balances`, `staff_timesheets` to receive the extended fields (see migration file for the full list).
+- **Fixed a bug found live**: `events.staff_portal_umbrella_id`'s first migration used a partial unique index (`WHERE ... IS NOT NULL`), which Postgres can't use as an `ON CONFLICT` arbiter for a plain `ON CONFLICT (col)` upsert — switched to a real UNIQUE constraint (same pattern the existing `hrms_project_id` column already used correctly).
+- **`middleware.ts`**: swapped the `/api/hrms-sync` session-auth exemption for `/api/staff-portal-sync` (the manual trigger does its own `admin_code` check, same as before) — `/api/cron/staff-portal-sync` was already covered by the existing `/api/cron/` blanket exemption.
+- **Cosmetic-only "HRMS" → "Staff Portal" rename** across UI labels/comments in the touched files (Madhu's explicit ask, scoped to avoid renaming env vars/DB columns/route paths in this pass — those still say `hrms_*` and `HRMS_*` deliberately).
+
+### Verified
+
+`tsc --noEmit` clean throughout. Ran a real sync twice against production via the local dev server: 219 staff, 1 umbrella, 50→51 projects (the 51st — Dubai Family Wealth Summit — appeared correctly on the second run after Madhu added it live in Staff Portal mid-session), 730 event-staff links, 8,562 timesheets, 19 leave balances, 85 checklists auto-seeded. Confirmed via direct DB query: all 5 DFFW child events correctly linked via `parent_event_id`, all client `DIFC` (Future Tokenisation Forum's client was stale `Trescon` before this — now correctly synced as `DIFC`, matching what Madhu had already fixed in Staff Portal). Confirmed deploy landed on Railway via curl (new route returns 401 instead of redirecting to `/login`).
+
+### What's next
+
+- **Add `STAFF_PORTAL_SYNC_URL`/`STAFF_PORTAL_SYNC_KEY` to Railway env vars** — the cron sync won't run in production until this is done (Claude Code didn't do this itself per the "never touch Railway env vars without explicit instruction" rule).
+- Point the existing cron-job.org daily job at `/api/cron/staff-portal-sync` instead of the now-deleted `/api/cron/hrms-sync`, then retire the EventPilot admin user account in Staff Portal per Lovable's note.
+- No UI yet actually *shows* the umbrella/child structure (events list grouping, parent-event picker on create/edit, workspace breadcrumbs) — explicitly deferred to a later pass.
+- Staff Portal's new `roles` resource includes `finance`/`it`/`project_coordinator` values not in EventPilot's own access-role whitelist (`app/lib/access/access-roles.ts`) — they safely fall back to `standard` for now; add real permission bundles if/when needed.
+- `hrms_role_access_map` (the "Staff Portal Mapping" tab) currently has zero configured mappings, so the sync's RBAC auto-grant does nothing yet (`access_granted: 0` is correct, not a bug) — worth configuring if auto-grant-by-project-role is wanted.
+- Per-event Messaging documents / Style Guide inheritance from the umbrella down to children — explicitly deferred by Madhu to a separate, more detailed discussion.
 
 ## 10 Sep 2026 — Speaker Communications tab (outstanding-items request flow), HubSpot secure-document pipeline removed
 
