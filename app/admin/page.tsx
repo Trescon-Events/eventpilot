@@ -340,26 +340,27 @@ function AdminPageInner() {
   const [staffSearch,     setStaffSearch]     = useState('')
   const [staffMode,       setStaffMode]       = useState<'list'|'import'|'add'>('list')
   const [peopleFilter,    setPeopleFilter]    = useState<'all'|'enabled'|'not-enabled'|'profile-done'|'profile-pending'>('all')
-  const [hrmsSyncState,   setHrmsSyncState]   = useState<'idle'|'loading'|'done'|'error'>('idle')
-  const [hrmsSyncResult,  setHrmsSyncResult]  = useState<{synced:number;managers_linked:number;message:string}|null>(null)
+  const [staffPortalSyncState,  setStaffPortalSyncState]  = useState<'idle'|'loading'|'done'|'error'>('idle')
+  const [staffPortalSyncResult, setStaffPortalSyncResult] = useState<{message:string}|null>(null)
+  const [staffPortalSyncError,  setStaffPortalSyncError]  = useState('')
 
-  async function syncFromHRMS() {
-    if (hrmsSyncState === 'loading') return
-    setHrmsSyncState('loading')
-    setHrmsSyncResult(null)
+  async function syncFromStaffPortal() {
+    if (staffPortalSyncState === 'loading') return
+    setStaffPortalSyncState('loading')
+    setStaffPortalSyncResult(null)
     try {
-      const res  = await fetch('/api/hrms-sync', {
+      const res  = await fetch('/api/staff-portal-sync', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026' }),
       })
       const data = await res.json()
-      if (!res.ok || data.error) { setHrmsSyncState('error'); return }
-      setHrmsSyncResult(data)
-      setHrmsSyncState('done')
+      if (!res.ok || data.error) { setStaffPortalSyncError(data.error ?? 'Sync failed'); setStaffPortalSyncState('error'); return }
+      setStaffPortalSyncResult(data)
+      setStaffPortalSyncState('done')
       fetchStaffList()
     } catch {
-      setHrmsSyncState('error')
+      setStaffPortalSyncState('error')
     }
   }
 
@@ -1366,32 +1367,30 @@ function AdminPageInner() {
 
           return (
             <div>
-              {/* HRMS sync bar */}
+              {/* Staff Portal sync bar */}
               <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px 20px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div style={{ width: '36px', height: '36px', borderRadius: '9px', background: 'rgba(0,137,123,0.08)', border: '1px solid rgba(0,137,123,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <svg width="16" height="16" fill="none" stroke="var(--teal-mid)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                   </div>
                   <div>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>HRMS Sync</div>
-                    {hrmsSyncState === 'done' && hrmsSyncResult ? (
-                      <div style={{ fontSize: '12px', color: 'var(--success)', lineHeight: 1.4 }}>
-                        {hrmsSyncResult.message}
-                      </div>
-                    ) : hrmsSyncState === 'error' ? (
-                      <div style={{ fontSize: '12px', color: 'var(--red)', lineHeight: 1.4 }}>Sync failed — check console for details</div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>Staff Portal Sync</div>
+                    {staffPortalSyncState === 'done' && staffPortalSyncResult ? (
+                      <div style={{ fontSize: '12px', color: 'var(--success)', lineHeight: 1.4 }}>{staffPortalSyncResult.message}</div>
+                    ) : staffPortalSyncState === 'error' ? (
+                      <div style={{ fontSize: '12px', color: 'var(--red)', lineHeight: 1.4 }}>{staffPortalSyncError || 'Sync failed — check console for details'}</div>
                     ) : (
-                      <div style={{ fontSize: '12px', color: 'var(--ink3)', lineHeight: 1.4 }}>Pull active staff from HRMS (trescon-resource-planner)</div>
+                      <div style={{ fontSize: '12px', color: 'var(--ink3)', lineHeight: 1.4 }}>Pull active staff, events, and umbrellas from Staff Portal</div>
                     )}
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <button
-                    onClick={syncFromHRMS}
-                    disabled={hrmsSyncState === 'loading'}
-                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '8px 18px', borderRadius: '8px', border: 'none', background: hrmsSyncState === 'loading' ? 'var(--border)' : 'var(--teal-mid)', color: hrmsSyncState === 'loading' ? 'var(--ink3)' : 'var(--teal-light)', fontSize: '13px', fontWeight: 800, cursor: hrmsSyncState === 'loading' ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
+                    onClick={syncFromStaffPortal}
+                    disabled={staffPortalSyncState === 'loading'}
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '8px 18px', borderRadius: '8px', border: 'none', background: staffPortalSyncState === 'loading' ? 'var(--border)' : 'var(--teal-mid)', color: staffPortalSyncState === 'loading' ? 'var(--ink3)' : 'var(--teal-light)', fontSize: '13px', fontWeight: 800, cursor: staffPortalSyncState === 'loading' ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
                   >
-                    {hrmsSyncState === 'loading' ? (
+                    {staffPortalSyncState === 'loading' ? (
                       <>
                         <div style={{ width: '12px', height: '12px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--card)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
                         Syncing…
@@ -1399,7 +1398,7 @@ function AdminPageInner() {
                     ) : (
                       <>
                         <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-                        Sync from HRMS
+                        Sync from Staff Portal
                       </>
                     )}
                   </button>
@@ -1467,7 +1466,7 @@ function AdminPageInner() {
                 <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '60px', textAlign: 'center' }}>
                   <svg width="36" height="36" fill="none" stroke="var(--ink4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ marginBottom: '16px' }}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                   <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)', marginBottom: '6px' }}>No staff records yet</div>
-                  <div style={{ fontSize: '13px', color: 'var(--ink3)', maxWidth: '340px', margin: '0 auto' }}>Staff records will appear here once your HRMS is connected and synced.</div>
+                  <div style={{ fontSize: '13px', color: 'var(--ink3)', maxWidth: '340px', margin: '0 auto' }}>Staff records will appear here once your Staff Portal is connected and synced.</div>
                 </div>
               ) : (
                 <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
@@ -2431,7 +2430,7 @@ function AdminPageInner() {
                     'Persistent sessions — SSO sessions persist 30 days. Microsoft handles re-auth silently',
                     'Course-focused dashboard — regular staff see Course Library + My HR only. Managers see full workspace plus a My Team Learning section with direct reports\' course progress',
                     'Microsoft 365 SSO — staff sign in with @tresconglobal.com credentials, no separate platform password needed',
-                    'Access roles — 6-level role system (Standard → Super Admin) per staff member. Synced from HRMS, overridable by admin',
+                    'Access roles — 6-level role system (Standard → Super Admin) per staff member. Synced from Staff Portal, overridable by admin',
                     'Toolkit per-tool grants — each staff member sees only the tools they\'ve been explicitly granted. Inaccessible tools and sidebar categories hidden entirely',
                     'AIRS scoring — live AI readiness score for every staff member',
                     'Org Chart — Directory (dept-grouped table with tool dots) + Hierarchy (indented list). Click any person: full reporting chain + tool access toggles in a side panel',
@@ -2512,7 +2511,7 @@ function AdminPageInner() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
                     { done: true,  title: 'Microsoft 365 SSO ✓',               desc: 'Staff log in with @tresconglobal.com Microsoft credentials. No platform password needed.' },
-                    { done: true,  title: 'User Management + Access Roles ✓',   desc: 'Backend schema, HRMS sync, and admin UI all complete. 6-role system visible and editable in People tab.' },
+                    { done: true,  title: 'User Management + Access Roles ✓',   desc: 'Backend schema, Staff Portal sync, and admin UI all complete. 6-role system visible and editable in People tab.' },
                     { done: true,  title: 'Staff Review System ✓',              desc: 'Floating Report Issue button on every page. Staff report bugs by tool, type, severity. Admin triages at /admin/reviews.' },
                     { done: true,  title: 'Auto Build Log ✓',                   desc: 'What\'s Next panel now pulls live from GitHub commits. No manual updates needed. Both commit styles (Durga + Madhu) supported.' },
                     { done: true,  title: 'Smart Data — 100% complete ✓',         desc: 'Pipeline Kanban, Email Guesser API, Data Quality dashboard, Saved Audiences, Contact Scoring, Enrichment Audit, live credit bar — all live.' },
@@ -2837,7 +2836,7 @@ function AdminPageInner() {
                 })}
               </div>
               <div style={{ padding: '10px 14px', background: 'var(--surface)', borderRadius: '8px', fontSize: '11px', color: 'var(--ink3)', marginBottom: '20px', lineHeight: 1.5 }}>
-                Changes override HRMS sync until the next full sync. HRMS roles will re-apply on next sync unless you want them locked.
+                Changes override Staff Portal sync until the next full sync. Staff Portal roles will re-apply on next sync unless you want them locked.
               </div>
               <button onClick={save} disabled={rolesSaving} style={{ width: '100%', padding: '13px', borderRadius: '10px', border: 'none', background: rolesSaving ? 'var(--ink4)' : 'linear-gradient(135deg, var(--teal-mid) 0%, var(--teal) 100%)', color: rolesSaving ? 'var(--ink3)' : 'var(--teal-light)', fontSize: '14px', fontWeight: 800, cursor: rolesSaving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                 {rolesSaving ? 'Saving…' : 'Save Roles'}

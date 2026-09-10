@@ -3,11 +3,16 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 // Phase 2 of the Event Workspace Access Roles foundation redesign
 // (2026-08-16) — auto-applies hrms_role_access_map to a freshly-synced
 // batch of project_role rows (see supabase/access_rbac.sql's "HRMS ROLE →
-// ACCESS ROLE MAPPING" section for why this table exists). Called from
-// both app/api/hrms-sync/route.ts (manual button) and
+// ACCESS ROLE MAPPING" section for why this table exists). Previously
+// called from both app/api/hrms-sync/route.ts (manual button) and
 // app/api/cron/hrms-sync/route.ts (daily automated) right after each
-// upserts event_staff.project_role_type, so both paths behave identically
-// rather than duplicating this logic a third time.
+// upserted event_staff.project_role_type, so both paths behaved
+// identically rather than duplicating this logic a third time.
+//
+// NOTE (2026-09-10): both call sites above were removed along with the old
+// admin-login sync — this function is currently unused, not dead code.
+// Re-wire it into whatever replaces the sync (a new secret-key Staff
+// Portal sync API is being built) rather than reimplementing it.
 //
 // Every row this function writes is marked auto_granted = true, which is
 // the whole safety mechanism: a re-sync (role_type changed, or a mapping

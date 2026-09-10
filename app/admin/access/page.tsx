@@ -13,8 +13,10 @@ import StaffPortalMappingTab from './StaffPortalMappingTab'
      visibility across the whole portfolio without being added
      event-by-event.
    - Staff Portal Mapping tab (Phase 2): maps a Staff Portal role_type to
-     one of those same roles, so every HRMS sync auto-grants the matching
-     access — see app/lib/hrms/apply-role-access-map.ts.
+     one of those same roles, so every Staff Portal sync auto-grants the
+     matching access — see app/lib/hrms/apply-role-access-map.ts. Auto-grant
+     is currently dormant: the old admin-login sync route was removed
+     2026-09-10 pending the new secret-key Staff Portal sync API.
    Platform-admin only (enforced by middleware.ts's blanket "/admin/*
    requires session.adm" rule, no separate layout.tsx gate needed). */
 

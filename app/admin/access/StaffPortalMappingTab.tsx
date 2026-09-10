@@ -4,14 +4,16 @@ import { useState, useEffect } from 'react'
 import { Select } from '@/app/components/ui'
 
 /* Phase 2 of the Event Workspace Access Roles foundation redesign
-   (2026-08-16) — maps a Staff Portal (HRMS) functional role_type
-   (already synced into event_staff.project_role_type by app/api/
-   hrms-sync + app/api/cron/hrms-sync) to one of the access roles defined
-   in the Roles tab. Every sync auto-applies this mapping (see
-   app/lib/hrms/apply-role-access-map.ts), so assigning someone a role in
-   Staff Portal auto-grants the matching EventPilot access bundle without
-   anyone touching this page again — this page only sets up the mapping
-   itself, once per role_type. */
+   (2026-08-16) — maps a Staff Portal functional role_type
+   (synced into event_staff.project_role_type by the Staff Portal sync)
+   to one of the access roles defined in the Roles tab. Every sync
+   auto-applies this mapping (see app/lib/hrms/apply-role-access-map.ts),
+   so assigning someone a role in Staff Portal auto-grants the matching
+   EventPilot access bundle without anyone touching this page again — this
+   page only sets up the mapping itself, once per role_type.
+   NOTE: the old admin-login sync route was removed 2026-09-10 pending a
+   new secret-key Staff Portal sync API — auto-grant is dormant until that
+   lands and this mapping is wired into it. */
 
 type MapRow = { role_type: string; access_role_id: string | null; access_role_name: string | null }
 type RoleOption = { id: string; name: string }
@@ -55,9 +57,10 @@ export default function StaffPortalMappingTab() {
     <div>
       <p style={{ fontSize: '13px', color: 'var(--ink3)', margin: '0 0 16px', maxWidth: '640px' }}>
         Every functional role type seen in Staff Portal allocations. Map one to an access role and every
-        Staff Portal sync (daily, or a manual &quot;Sync from HRMS&quot;) automatically grants that role to
-        anyone Staff Portal assigns it to — no manual re-assignment needed here. A manually-assigned role
-        in the Access tab is never overwritten by this. Leave unmapped for &quot;no automatic access.&quot;
+        Staff Portal sync automatically grants that role to anyone Staff Portal assigns it to — no manual
+        re-assignment needed here. A manually-assigned role in the Access tab is never overwritten by this.
+        Leave unmapped for &quot;no automatic access.&quot; (Sync is temporarily disabled — see note in this
+        tab&apos;s source — so this mapping isn&apos;t being auto-applied right now.)
       </p>
       {rows.length === 0 ? (
         <div style={{ fontSize: '13px', color: 'var(--ink3)', padding: '24px', textAlign: 'center' }}>

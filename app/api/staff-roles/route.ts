@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { sanitizeAccessRoles } from '@/app/lib/access/access-roles'
 
 /* PATCH /api/staff-roles  { id, roles: string[] }
-   Manually override a staff member's access_roles, bypassing HRMS sync.
+   Manually override a staff member's access_roles, bypassing Staff Portal sync.
    Always ensures at least ['standard'] is present. */
 export async function PATCH(req: NextRequest) {
   const { id, roles } = await req.json()

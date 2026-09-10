@@ -3,8 +3,9 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 
 /* GET  /api/hrms-role-map — every Staff Portal role_type ever seen in
-   event_staff.project_role_type (already synced there by app/api/
-   hrms-sync + app/api/cron/hrms-sync), unioned with any role_type that
+   event_staff.project_role_type (synced there by the Staff Portal sync —
+   the old admin-login route was removed 2026-09-10 pending a new
+   secret-key sync API), unioned with any role_type that
    has a saved mapping even if it's since disappeared from live data (so
    an admin can still see/clear a stale mapping), each with its current
    access_role_id + role name if mapped. Powers the "Staff Portal Role

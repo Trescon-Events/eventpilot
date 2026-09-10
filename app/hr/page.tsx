@@ -284,12 +284,12 @@ export default function HRDashboard() {
     refreshDashboard()
   }
 
-  async function syncHRMS() {
+  async function syncStaffPortal() {
     setSyncing(true)
-    await fetch('/api/hrms-sync', {
+    await fetch('/api/staff-portal-sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_code: 'eventpilot2026' }),
+      body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026' }),
     })
     setSyncing(false)
     refreshDashboard()
@@ -328,7 +328,7 @@ export default function HRDashboard() {
             Run Alert Checks
           </button>
           <button
-            onClick={syncHRMS}
+            onClick={syncStaffPortal}
             disabled={syncing}
             style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '8px', background: syncing ? C.bg : C.teal, color: syncing ? C.muted : 'var(--teal-light)', fontSize: '13px', fontWeight: 700, border: `1px solid ${syncing ? C.border : C.teal}`, cursor: syncing ? 'not-allowed' : 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}>
             {syncing ? (
@@ -343,7 +343,7 @@ export default function HRDashboard() {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
                   <path d="M4 12a8 8 0 0 1 14.93-4H15m-11 4a8 8 0 0 0 14.93 4H20" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
                 </svg>
-                Sync HRMS
+                Sync Staff Portal
               </>
             )}
           </button>

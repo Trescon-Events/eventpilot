@@ -7,8 +7,8 @@ import { sendSensitiveDocumentPurged } from '@/app/lib/email'
   GET /api/cron/purge-sensitive-documents
   Auth: Authorization: Bearer <CRON_SECRET>
   Schedule on cron-job.org: daily, e.g. 0 3 * * * (03:00 UTC) — register by
-  hand, same as every other cron route (see app/api/cron/hrms-sync's doc
-  comment for the general pattern; nothing in-repo auto-registers a job).
+  hand, same as every other cron-job.org-triggered route in this repo;
+  nothing in-repo auto-registers a job.
 
   Hard-deletes the storage object for any speaker_sensitive_documents row
   past its retention_expires_at, stamps the row (storage_path = null,

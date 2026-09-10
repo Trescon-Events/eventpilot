@@ -206,7 +206,7 @@ export async function middleware(req: NextRequest) {
   if (
     pathname.startsWith('/api/auth/') ||   // covers session, logout, microsoft SSO, callback
     pathname.startsWith('/api/platform-docs') ||
-    pathname.startsWith('/api/hrms-sync') ||
+    pathname.startsWith('/api/staff-portal-sync') ||
     pathname.startsWith('/api/hr/attendance/sync') ||
     pathname.startsWith('/api/admin/set-password') ||
     pathname.startsWith('/api/admin/set-job-level') ||
