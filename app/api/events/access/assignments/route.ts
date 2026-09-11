@@ -46,6 +46,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'expires_at must be in the future' }, { status: 400 })
   }
 
+  // Eligibility gate (2026-09-11, Madhu): module-level access within an
+  // event must be held only by that event's actual Staff (the
+  // event_staff roster, carried forward from Staff Portal's own
+  // allocation) — never granted to someone who isn't staffed on the
+  // event at all. Only applies to event-scoped grants; a global grant
+  // (event_id null — board/leadership, cross-event roles) is deliberately
+  // exempt, since it was never meant to be tied to one event's roster.
+  if (body.event_id) {
+    const { data: rosterRow } = await supabaseAdmin
+      .from('event_staff').select('id').eq('event_id', body.event_id).eq('staff_id', body.staff_id).maybeSingle()
+    if (!rosterRow) {
+      return NextResponse.json({ error: 'This staff member is not on this event\'s Staff roster — add them there first (or use a global assignment if this access genuinely isn\'t event-specific).' }, { status: 422 })
+    }
+  }
+
   const { data, error } = await supabaseAdmin
     .from('event_access_assignments')
     .insert({ event_id: body.event_id, staff_id: body.staff_id, role_id: body.role_id, granted_by: session.sid, expires_at: body.expires_at ?? null })

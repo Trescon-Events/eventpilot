@@ -4,6 +4,7 @@ import { useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import AssignmentsTab from '@/app/admin/events/[id]/access/AssignmentsTab'
 import StaffPortalMappingTab from './StaffPortalMappingTab'
+import StaleAccessTab from './StaleAccessTab'
 
 /* Organization-Wide Access (2026-08-16) — Phase 1 & 2 of the Event
    Workspace Access Roles foundation redesign.
@@ -17,11 +18,15 @@ import StaffPortalMappingTab from './StaffPortalMappingTab'
      matching access — see app/lib/hrms/apply-role-access-map.ts. Auto-grant
      is currently dormant: the old admin-login sync route was removed
      2026-09-10 pending the new secret-key Staff Portal sync API.
+   - Stale Access tab (2026-09-11): surfaces event-scoped grants held by
+     someone who isn't on that event's Staff roster — see the eligibility
+     gate this pairs with in app/api/events/access/assignments/route.ts
+     POST, and app/api/events/access/stale/route.ts for the query.
    Platform-admin only (enforced by middleware.ts's blanket "/admin/*
    requires session.adm" rule, no separate layout.tsx gate needed). */
 
 export default function GlobalAccessPage() {
-  const [tab, setTab] = useState<'assignments' | 'hrms-mapping'>('assignments')
+  const [tab, setTab] = useState<'assignments' | 'hrms-mapping' | 'stale'>('assignments')
 
   return (
     <div style={{ padding: '24px 32px', maxWidth: '1100px', margin: '0 auto' }}>
@@ -35,6 +40,7 @@ export default function GlobalAccessPage() {
         {([
           ['assignments', 'Org-Wide Assignments'],
           ['hrms-mapping', 'Staff Portal Mapping'],
+          ['stale', 'Stale Access'],
         ] as const).map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             style={{
@@ -47,7 +53,7 @@ export default function GlobalAccessPage() {
         ))}
       </div>
 
-      {tab === 'assignments' ? <AssignmentsTab /> : <StaffPortalMappingTab />}
+      {tab === 'assignments' ? <AssignmentsTab /> : tab === 'hrms-mapping' ? <StaffPortalMappingTab /> : <StaleAccessTab />}
     </div>
   )
 }

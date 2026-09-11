@@ -191,8 +191,12 @@ Do not ask Durga to build anything that already exists. Reference this when writ
 | `/admin/events/[id]/brand` | Brand Studio — 9-section brand book builder |
 | `/admin/events/[id]/website` | Website Builder — template selection, content editing |
 | `/admin/events/[id]/market-intel` | Market Intelligence reports |
-| `/admin/events/[id]/details` | Event Details (11 Aug 2026) — public-facing name/dates/venue/links/socials (separate from the internal HR-synced name), per-form-type "Public Onboarding Pages" links, and the Topline Messaging Doc (PDF upload → draft → chat-review → Approve gate). Every field change is logged (`event_details_field_changes`) |
+| `/admin/events/[id]/details` | Event Details (11 Aug 2026) — public-facing name/dates/venue/links/socials (separate from the internal HR-synced name), per-form-type "Public Onboarding Pages" links, and the Topline Messaging Doc (PDF upload → draft → chat-review → Approve gate). Every field change is logged (`event_details_field_changes`). Since 11 Sep 2026 also carries the full Reference Documents system: multi-doc upload (style guide/messaging/production pack) with authority ranking and client-approval gating, a compiled-reference viewer, clarification Q&A panel, and a suggested-validation-rules panel |
+| `/admin/events/[id]/content-check` | Content Validation (11 Sep 2026) — runs deterministic rules (forbidden term/pattern, required format, proximity) against draft copy before it goes out; no model call, pure/synchronous |
 | `/admin/events/[id]/stakeholders` | Stakeholder Hub — speaker/sponsor/partner onboarding, RBAC-gated (`sae.*` permission keys). Forms are managed in HubSpot, not built in-app — see `.../stakeholders/hubspot-form/[formType]` to connect a form and map its fields |
+| `/admin/umbrellas` | Umbrella Events index (11 Sep 2026) — simplified list of umbrella groupings (e.g. Dubai Future Finance Week), separate from the regular events list |
+| `/admin/umbrellas/[id]` | Single umbrella workspace — its own reference documents/validation rules, child events, no full event workspace (deliberately simpler than `/admin/events/[id]`) |
+| `/admin/access` | Organization-Wide Access — org-wide role assignments, Staff Portal role-type mapping, and (since 11 Sep 2026) a Stale Access report flagging event-scoped grants held by staff no longer on that event's roster |
 | `/admin/toolkit` | Full toolkit — every tool as a card, gated by `tool_grants` (see §4) |
 | `/admin/courses` | Course Builder — create/edit/publish courses |
 | `/admin/templates` | Manage microsite templates |
@@ -220,8 +224,11 @@ These tables already exist. Any new tool should use them where relevant, or add 
 | `staff_task_profiles` | staff_id, task_name, task_description, tools_used, ai_readiness | AIRS assessment responses |
 | `courses` | title, tier_level, dept_tags, is_mandatory, status | AI learning courses |
 | `course_completions` | staff_id, course_id, test_score, passed | Passed course assessments |
-| `events` | name, type, status, event_date, venue, city, client_name | Company events |
-| `event_staff` | event_id, staff_id, role | Staff assignments to events |
+| `events` | name, type, status, event_date, venue, city, client_name, umbrella_id | Company events. `umbrella_id` (nullable FK) links a child event to its umbrella — see `event_umbrellas` below |
+| `event_umbrellas` | name, client_name, status | Umbrella groupings (11 Sep 2026, e.g. Dubai Future Finance Week) — their own simplified table/workspace, not a regular event |
+| `event_staff` | event_id, staff_id, role | Staff assignments to events — this is the roster event-scoped `event_access_assignments` grants are checked against (see §Access Roles) |
+| `event_messaging_docs` | event_id/umbrella_id (exactly one set), role, authority_rank, provenance | Reference documents (style guide/messaging/production pack), one live doc per (owner, role) |
+| `event_validation_rules` | event_id/umbrella_id (exactly one set), rule_type, pattern | Deterministic content-validation rules (forbidden_term/forbidden_pattern/required_format/proximity) |
 | `notifications` | staff_id, type, title, body, read | In-app bell notifications |
 | `messages` | from_id, to_id, body, read | Internal DMs |
 | `documents` | title, type, extracted_text, visibility | Knowledge base uploads |
