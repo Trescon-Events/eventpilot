@@ -24,6 +24,16 @@ const PRONOUN_GUIDANCE: Record<string, string> = {
   her_highness: '"Her Highness" (not "she/her")',
 }
 
+// 2026-09-11: event_speakers.role often carries a dual title straight from
+// Staff Portal/HR data (e.g. "Chief Executive Officer & Co-Founder") — an
+// "&" flowing into generated copy trips the DIFC style guide's
+// difc-ampersand validation rule on every single generation for that
+// speaker. Normalizing at the point a title enters prompt context is
+// cheaper and more reliable than asking the model to catch it itself.
+function normalizeTitle(title: unknown): string {
+  return String(title ?? '').replace(/&/g, 'and')
+}
+
 export type EventContext = {
   name: string
   venue: string | null; city: string | null
@@ -70,7 +80,7 @@ export async function generatePostCopy(
     : ''
 
   const stakeholderContext = speaker
-    ? `Speaker: ${speakerName}, ${speaker.role} at ${speaker.company}${speaker.country ? `, ${speaker.country}` : ''}.\nBio: ${speaker.bio ?? '(not provided)'}${talkingPoints}${pronounGuidance}`
+    ? `Speaker: ${speakerName}, ${normalizeTitle(speaker.role)} at ${speaker.company}${speaker.country ? `, ${speaker.country}` : ''}.\nBio: ${speaker.bio ?? '(not provided)'}${talkingPoints}${pronounGuidance}`
     : `Partner: ${partner!.name}${partner!.country ? `, ${partner!.country}` : ''}, category: ${String(partner!.partner_type).replace(/_/g, ' ')}.\nDescription: ${partner!.company_description ?? '(not provided)'}`
 
   const prompt = `You are writing social media announcement posts for Trescon events.
@@ -78,8 +88,6 @@ You write in the established Trescon voice: confident, data-driven, forward-look
 Grounded only in the provided data — never fabricate credentials, statistics, or event details not given below.
 
 ${eventContext}
-
-${messagingContext}
 
 ${stakeholderContext}
 
@@ -92,14 +100,17 @@ whitespace-separated text, never one dense unbroken wall of text. Favor
 shorter over longer; do not pad toward the character ceiling.
 
 1. Opening hook — one punchy line grounded in the ${speaker ? "speaker's topic/expertise" : "partner's relevance"} (a bold claim, a sharp question, or a trend statement). Do NOT name the ${speaker ? 'speaker' : 'partner'} yet — save the name for paragraph 2.
-2. A DIRECT, ENERGETIC announcement that names the ${speaker ? 'speaker' : 'partner'} (with ${speaker ? 'their title and company' : 'their category'}) and explicitly states they are speaking at / joining the event — e.g. "Excited to welcome [Name] ([Title], [Company]) to the stage at [Event]!", "We're thrilled to welcome [Name] to [Event]!", or "[Name] is the latest to join our speaker lineup for [Event]!". This sentence MUST unambiguously say they ARE speaking/joining — never leave that implied only through a bio. This is the single most important paragraph; do not bury or soften it.
+2. A paragraph that names the ${speaker ? 'speaker' : 'partner'} (with ${speaker ? 'their title and company' : 'their category'}) and explicitly, unambiguously states they ARE speaking at / joining the event — this must be stated outright as fact, never left implied only through a bio. This is the single most important paragraph; do not bury or soften it. Use whatever register the rules below establish for this event — do not default to generic announcement-boilerplate phrasing unless the rules explicitly allow it.
 3. Why this ${speaker ? 'speaker' : 'partner'} matters — one credibility line grounded in their real, given experience (years, scale, a notable achievement) tied to the event's themes.
-4. Event dates and venue as a single compact line, not a full sentence — e.g. "9-10 Sept 2026 | DoubleTree by Hilton, KL" — if given above.
+4. Event dates and venue as a single compact line, not a full sentence — reuse the exact Dates/Venue values given above verbatim (e.g. "<Dates> | <Venue>"), never an invented or reformatted date — if given above.
 5. A short call to action with the registration link, if given above.
 
-Tone: confident and genuinely excited — this should read like real
-enthusiasm about a great ${speaker ? 'speaker' : 'partner'} joining, not a
-formal press release. Short, punchy sentences beat long, descriptive ones.
+Tone: confident by default — genuine enthusiasm about a great
+${speaker ? 'speaker' : 'partner'} joining, not a formal press release —
+but this is the DEFAULT register only; the rules below may call for
+something more formal or restrained for this event, and when they do,
+follow them instead. Short, punchy sentences beat long, descriptive ones
+regardless of register.
 
 Plain text only — no markdown syntax of any kind (no **bold**, no #
 headings, no - or * bullet markers). LinkedIn and every other social
@@ -118,6 +129,13 @@ it doesn't fit). Keep the ${speaker ? 'speaker' : 'partner'} name and the
 single most important fact (who + what + event name); drop the venue/date
 line and registration link if there's no room. Punchy and complete on its
 own — never a truncated fragment of the LinkedIn copy.
+
+${messagingContext}
+
+Where the messaging-doc rules above conflict with any generic structural
+or tone guidance given earlier in this prompt, the rules always win —
+adapt the structure and tone to comply with them, do not follow the
+earlier guidance literally.
 
 Return JSON only, no markdown fences: { "copy": "...", "hashtags": ["#...", "..."], "x_copy": "..." }`
 
@@ -281,9 +299,7 @@ or claims not given.
 
 ${eventContext}
 
-${messagingContext}
-
-Speaker: ${publicName}, ${speaker.role} at ${speaker.company}.
+Speaker: ${publicName}, ${normalizeTitle(speaker.role)} at ${speaker.company}.
 Bio: ${speaker.bio ?? '(not provided)'}
 Session: ${speaker.session_title ?? '(not provided)'}
 ${talkingPoints}
@@ -321,6 +337,13 @@ Also write a SEPARATE, SHORT first-person version for X (Twitter) in
 x_copy over 280 characters — trim content, not just hashtags, if it
 doesn't fit). Keep the single most important thought/fact; this must read
 as complete on its own, never a truncated fragment of the LinkedIn copy.
+
+${messagingContext}
+
+Where the messaging-doc rules above conflict with any generic structural
+or tone guidance given earlier in this prompt, the rules always win —
+adapt the structure and tone to comply with them, do not follow the
+earlier guidance literally.
 
 Return JSON only, no markdown fences: { "copy": "...", "hashtags": ["#...", "..."], "x_copy": "..." }`
 
