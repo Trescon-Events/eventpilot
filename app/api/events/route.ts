@@ -22,12 +22,19 @@ export async function GET(req: NextRequest) {
           social_linkedin, social_x, social_instagram, social_facebook, social_youtube,
           venue_map_url, postiz_profile_key, creative_template_config,
           client_contact_name, client_contact_job_title, client_contact_email,
+          umbrella_id, requires_client_approval,
           event_staff(count),
           documents(count)
         `)
         .eq('id', id)
         .single()
       if (error) return NextResponse.json({ error: error.message }, { status: 404 })
+      // Umbrella/event separation (2026-09-11) — an event can never itself
+      // be an umbrella anymore (umbrellas live in event_umbrellas, a
+      // separate table with its own page/workspace), so there's no more
+      // is_umbrella to compute here. umbrella_id (whether this event
+      // belongs to one) is still returned for Content Approval inheritance
+      // display.
       return NextResponse.json(data)
     }
 

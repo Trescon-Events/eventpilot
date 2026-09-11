@@ -6,6 +6,9 @@ import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { compositeAnnouncement } from '@/app/lib/announcements/composite'
 import { generatePostCopy, generateSelfPromoPostCopy, describeGeminiError, buildCompositeInputs, type CreativeTemplateConfig, type NeededAsset } from '@/app/lib/events/announcements'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
+import { resolveEffectiveRules } from '@/app/lib/content/resolve-validation-rules'
+import { validateText } from '@/app/lib/content/validate'
+import { getLatestCompiledReference } from '@/app/lib/content/compile-reference'
 
 /* POST /api/events/stakeholders/announcements/generate
    Body: { event_id, stakeholder_type: 'speaker'|'partner', speaker_id?,
@@ -65,7 +68,7 @@ export async function POST(req: NextRequest) {
 
   // Four independent reads (2026-08-04 perf pass) — none depends on
   // another's result, but were previously awaited one after another.
-  const [eventRes, speakerRes, partnerRes, messagingDocRes] = await Promise.all([
+  const [eventRes, speakerRes, partnerRes, compiledRef] = await Promise.all([
     supabaseAdmin
       .from('events')
       .select('name, venue, city, event_hashtag, registration_url, creative_template_config, public_name, public_dates_display, public_venue_display')
@@ -77,14 +80,10 @@ export async function POST(req: NextRequest) {
     body.stakeholder_type === 'partner'
       ? supabaseAdmin.from('event_sponsors').select('*').eq('id', body.partner_id!).single()
       : Promise.resolve({ data: null, error: null }),
-    supabaseAdmin
-      .from('event_messaging_docs')
-      .select('structured_json')
-      .eq('event_id', body.event_id)
-      .eq('status', 'live')
-      .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+    // Reference Documents spec, Stage 4 (2026-09-10) — SAE reads the
+    // compiled reference (umbrella + event docs merged, rank-ordered,
+    // conflicts flagged), not the raw live doc directly.
+    getLatestCompiledReference(body.event_id),
   ])
 
   const event = eventRes.data
@@ -95,7 +94,19 @@ export async function POST(req: NextRequest) {
   if (body.stakeholder_type === 'speaker' && !speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
   if (body.stakeholder_type === 'partner' && !partner) return NextResponse.json({ error: 'Partner not found' }, { status: 404 })
 
-  const messagingDoc = messagingDocRes.data
+  // Fallback for an event that's never been compiled (e.g. its live doc
+  // was approved before Stage 2 shipped, or before this event's umbrella
+  // linked up) — same raw-doc read Stage 1-3 always used, so generation
+  // never silently loses grounding just because a compile hasn't run yet.
+  let messagingSections = compiledRef?.sections ?? null
+  if (!messagingSections) {
+    const { data: rawDoc } = await supabaseAdmin
+      .from('event_messaging_docs').select('structured_json')
+      .eq('event_id', body.event_id).eq('status', 'live')
+      .order('version', { ascending: false }).limit(1).maybeSingle()
+    messagingSections = (rawDoc?.structured_json as { sections?: unknown } | null)?.sections as typeof messagingSections ?? null
+  }
+  const messagingDoc = messagingSections ? { structured_json: { sections: messagingSections } } : null
 
   // Build inputs FIRST (sync, cheap) — fail fast on a broken/missing
   // template config before spending any time on either async step below.
@@ -156,6 +167,16 @@ export async function POST(req: NextRequest) {
   }
   const { copy: postCopy, xCopy: postCopyX } = postCopyResult
 
+  // Reference Documents spec, Stage 3 (2026-09-10) — deterministic
+  // validation against the event's effective rule set (its own +
+  // its umbrella's). Never blocks generation — findings are stored
+  // alongside the draft for the reviewer to see, not enforced.
+  const effectiveRules = await resolveEffectiveRules(body.event_id).catch(() => [])
+  const validationFindings = {
+    post_copy: validateText(postCopy, effectiveRules),
+    post_copy_x: validateText(postCopyX, effectiveRules),
+  }
+
   // ── 3. Create the draft announcement ─────────────────────────────────────
   const { data: announcement, error: insertErr } = await supabaseAdmin
     .from('stakeholder_announcements')
@@ -170,6 +191,7 @@ export async function POST(req: NextRequest) {
       creative_variant_id: creativeUrl ? inputs.variant.id : null,
       status: 'draft',
       announcement_kind: kind,
+      validation_findings: validationFindings,
     })
     .select()
     .single()
@@ -181,5 +203,6 @@ export async function POST(req: NextRequest) {
     post_copy: postCopy,
     post_copy_x: postCopyX,
     creative_url: creativeUrl,
+    validation_findings: validationFindings,
   }, { status: 201 })
 }

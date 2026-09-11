@@ -61,6 +61,13 @@ export const ACCESS_REGISTRY: AccessModule[] = [
       { key: 'sae.sensitive_documents.view',   label: 'View Passport / National ID documents',                       enforced: true },
       { key: 'sae.sensitive_documents.manage', label: 'Upload, replace or delete Passport / National ID documents',  enforced: true },
       { key: 'sae.messaging.use',          label: 'Use the Messaging module for this event',         enforced: false },
+      // Reference Documents (2026-09-10) — uploading a document to an
+      // UMBRELLA event changes every child event's effective document set
+      // at once, so it's gated behind this higher permission rather than
+      // sae.forms.manage; a regular (non-umbrella) event's own documents
+      // still only need sae.forms.manage. See app/api/events/stakeholders/
+      // messaging/route.ts POST.
+      { key: 'sae.messaging.umbrella_manage', label: 'Upload/manage reference documents on an umbrella event (affects every child event)', enforced: true },
       // Integrations (2026-09-05) — the new consolidated per-event page for
       // KonfHub/HubSpot/Postiz/Client Approval Contact config, replacing
       // the scattered inline-edit panels and the Website Builder's own

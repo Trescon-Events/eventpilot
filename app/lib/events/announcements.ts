@@ -54,7 +54,7 @@ export async function generatePostCopy(
   ].filter(Boolean).join('\n')
 
   const messagingContext = messagingJson
-    ? `Messaging doc context (use for positioning/tone/themes — do not invent facts beyond this). Any section with "kind":"rules" is a hard constraint (naming/style rules, verbatim lines, things that must never appear) — never violate it, even if it conflicts with your default instincts:\n${JSON.stringify(messagingJson)}`
+    ? `Messaging doc context (use for positioning/tone/themes — do not invent facts beyond this). Any section with "kind":"rules" is a hard constraint (naming/style rules, verbatim lines, things that must never appear) — never violate it, even if it conflicts with your default instincts. If multiple sections carry an "authority_rank", lower always outranks higher on any conflict. Any section with "kind":"facts" is the ONLY permitted source for a statistic, figure, attendance number, or scale claim — never state a number that isn't grounded in a "facts" section, even one that sounds plausible or was true for a past edition:\n${JSON.stringify(messagingJson)}`
     : 'No topline messaging doc uploaded for this event yet — write in a neutral, professional Trescon voice.'
 
   // 2026-08-18: public_name overrides the raw `name` for anything
@@ -261,7 +261,7 @@ export async function generateSelfPromoPostCopy(
   ].filter(Boolean).join('\n')
 
   const messagingContext = messagingJson
-    ? `Messaging doc context (use for positioning/tone/themes only — do not invent facts beyond this). Any "kind":"rules" section is a hard constraint, never violate it:\n${JSON.stringify(messagingJson)}`
+    ? `Messaging doc context (use for positioning/tone/themes only — do not invent facts beyond this). Any "kind":"rules" section is a hard constraint, never violate it — lower "authority_rank" outranks higher on any conflict. Any "kind":"facts" section is the ONLY permitted source for a statistic, figure, or scale claim:\n${JSON.stringify(messagingJson)}`
     : 'No topline messaging doc uploaded for this event yet.'
 
   const publicName = speaker.public_name || speaker.name

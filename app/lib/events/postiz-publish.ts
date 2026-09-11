@@ -8,6 +8,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { schedulePostizPost, listPostizIntegrations, listPostizPostsInRange, type PostizPostSummary } from '@/app/lib/postiz'
+import { resolveRequiresClientApproval } from '@/app/lib/events/client-approval-gate'
 
 type ChannelResult = { success: boolean; postId: string; state?: string; url?: string }
 
@@ -66,7 +67,17 @@ export async function checkCanPublish(req: NextRequest, eventId: string, announc
   }
 
   const clientStatus = latestStatus('client')
-  if (!layerOk(clientStatus, bypasses?.client_approval_bypassed_at)) {
+  // Reference Documents spec, Stage 4 (2026-09-10) — client approval is
+  // opt-in per announcement by default (status 'none' = never requested =
+  // fine, same as always). Where the event's requires_client_approval is
+  // on, 'none' stops being an acceptable state — client sign-off becomes
+  // mandatory before publish, not just first-in-line if requested.
+  if (clientStatus === 'none') {
+    const requiresClient = await resolveRequiresClientApproval(eventId)
+    if (requiresClient && !bypasses?.client_approval_bypassed_at) {
+      return { ok: false, message: 'Cannot publish — this event requires client approval and none has been requested yet.' }
+    }
+  } else if (!layerOk(clientStatus, bypasses?.client_approval_bypassed_at)) {
     return { ok: false, message: `Cannot publish — client approval is ${clientStatus === 'changes_requested' ? 'requesting changes' : 'pending'}` }
   }
 

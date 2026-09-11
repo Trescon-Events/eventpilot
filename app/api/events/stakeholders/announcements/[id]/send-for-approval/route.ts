@@ -4,6 +4,7 @@ import { Resend } from 'resend'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getStakeholderEmailHeaderHtml } from '@/app/lib/branding/email-header'
 import { getSession } from '@/app/lib/access/session'
+import { checkClientApprovalPrerequisite } from '@/app/lib/events/client-approval-gate'
 
 /* POST /api/events/stakeholders/announcements/[id]/send-for-approval
    Body: { approvers: [{ staff_id, role_label }] }
@@ -26,6 +27,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .eq('id', id)
     .single()
   if (annErr || !announcement) return NextResponse.json({ error: 'Announcement not found' }, { status: 404 })
+
+  // Reference Documents spec, Stage 4 (2026-09-10) — where this event
+  // requires client approval, it must come first, before internal.
+  const gate = await checkClientApprovalPrerequisite(id, announcement.event_id)
+  if (!gate.ok) return NextResponse.json({ error: gate.message }, { status: 422 })
 
   const notifiedAt = new Date().toISOString()
   const tokenExpiresAt = new Date(Date.now() + TOKEN_TTL_MS).toISOString()

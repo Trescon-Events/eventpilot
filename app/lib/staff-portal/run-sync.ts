@@ -66,6 +66,14 @@ function deriveJobLevel(designation: string | null, existingLevel?: string): str
 
 export async function runStaffPortalSync() {
   // ── 1. Umbrellas ──────────────────────────────────────────────────────
+  // Umbrella/event separation (2026-09-11) — umbrellas now upsert into
+  // their own event_umbrellas table, not events, matching Staff Portal's
+  // own schema (umbrella_events is a genuinely separate table there too,
+  // confirmed live). `type` intentionally not mapped yet — Staff Portal
+  // doesn't send one for umbrellas as of this sync (Madhu, 2026-09-10:
+  // "I will now update staff portal for this also"); when it starts
+  // arriving, add it here — omitting it from the upsert payload leaves
+  // any manually-set value untouched rather than nulling it out.
   const { rows: umbrellas } = await fetchAllStaffPortal<StaffPortalUmbrella>('umbrellas')
   const umbrellaRows = umbrellas.map(u => ({
     staff_portal_umbrella_id: u.id,
@@ -77,25 +85,25 @@ export async function runStaffPortalSync() {
     end_date:                 u.end_date ?? null,
   }))
   if (umbrellaRows.length > 0) {
-    const { error } = await supabaseAdmin.from('events')
+    const { error } = await supabaseAdmin.from('event_umbrellas')
       .upsert(umbrellaRows, { onConflict: 'staff_portal_umbrella_id', ignoreDuplicates: false })
     if (error) throw new Error(`Umbrella upsert failed: ${error.message}`)
   }
 
-  // Local umbrella id lookup, used to resolve each project's parent_event_id
+  // Local umbrella id lookup, used to resolve each project's umbrella_id
   // in the SAME upsert as the events below — deliberately not a separate
-  // partial upsert afterward: an upsert that sends only {id, parent_event_id}
+  // partial upsert afterward: an upsert that sends only {id, umbrella_id}
   // still validates the candidate row's NOT NULL constraints (events.name)
   // before the conflict check redirects it to an UPDATE (see the 2026-08-16
   // manager-link fix in the old hrms-sync route for the same footgun).
-  const { data: umbrellaEvents } = await supabaseAdmin.from('events')
+  const { data: umbrellaEvents } = await supabaseAdmin.from('event_umbrellas')
     .select('id, staff_portal_umbrella_id')
     .not('staff_portal_umbrella_id', 'is', null)
   const umbrellaIdToLocalId = Object.fromEntries(
     (umbrellaEvents ?? []).map(e => [e.staff_portal_umbrella_id as string, e.id as string])
   )
 
-  // ── 2. Events (projects), including parent_event_id resolution ─────────
+  // ── 2. Events (projects), including umbrella_id resolution ─────────────
   const { rows: projects } = await fetchAllStaffPortal<StaffPortalEvent>('events')
   const eventRows = projects.map(p => ({
     hrms_project_id:          p.id,
@@ -108,7 +116,7 @@ export async function runStaffPortalSync() {
     type:                     p.project_type ?? null,
     priority:                 p.priority ?? null,
     staff_portal_series_id:   p.series_id ?? null,
-    parent_event_id:          p.umbrella_event_id ? (umbrellaIdToLocalId[p.umbrella_event_id] ?? null) : null,
+    umbrella_id:              p.umbrella_event_id ? (umbrellaIdToLocalId[p.umbrella_event_id] ?? null) : null,
   }))
   if (eventRows.length > 0) {
     const { error } = await supabaseAdmin.from('events')
@@ -333,8 +341,8 @@ export async function runStaffPortalSync() {
       if (lbErr) leaveBalancesError = lbErr.message
       else leaveBalancesSynced = balanceRows.length
     }
-  } catch (e: any) {
-    leaveBalancesError = e?.message ?? 'Unknown error'
+  } catch (e) {
+    leaveBalancesError = e instanceof Error ? e.message : 'Unknown error'
   }
 
   // ── Auto-seed checklists for new events ─────────────────────────────────

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { logEventFieldChanges } from '@/app/lib/events/detail-field-log'
+import { recompileEventAndChildren } from '@/app/lib/content/compile-reference'
 
 /* POST /api/events/stakeholders/messaging/[id]/apply-edit
    Body: { target_type: 'section'|'default_field', target_key: string, new_content: unknown, instruction: string, applied_by?: string }
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: doc, error: docErr } = await supabaseAdmin
     .from('event_messaging_docs')
-    .select('id, event_id, status, structured_json')
+    .select('id, event_id, umbrella_id, status, structured_json')
     .eq('id', id)
     .single()
   if (docErr || !doc) return NextResponse.json({ error: 'Messaging doc not found' }, { status: 404 })
@@ -70,6 +71,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       updated_at: now,
       updated_by: appliedBy,
       change_note: instruction.trim(),
+      // Reference Documents spec, Stage 1 (2026-09-10): a producer-edited
+      // section is no longer guaranteed to match what the source document
+      // actually says. This badge is the only thing standing between that
+      // and silent drift from an approved reference — see the spec's
+      // "Why the badge matters" note. Sticky once set; there's no path
+      // that clears it, since an edited section never goes back to being
+      // a pure extraction.
+      diverged_from_source: true,
     }
     updatedStructuredJson = { ...doc.structured_json, sections: updatedSections }
     logSectionId = targetKey
@@ -80,6 +89,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     updatedStructuredJson = { ...doc.structured_json, default_fields: defaultFields }
     logSectionId = `default_field:${targetKey}`
   } else if (doc.status === 'live') {
+    // default_field sync only makes sense for a real event — event_umbrellas
+    // has no Common Detail columns to write into.
+    if (!doc.event_id) return NextResponse.json({ error: 'Default fields can only be synced on a document owned by a real event, not an umbrella.' }, { status: 400 })
     const newValue = typeof newContent === 'string' ? newContent : null
     const { data: currentEvent } = await supabaseAdmin.from('events').select(targetKey).eq('id', doc.event_id).single() as { data: Record<string, unknown> | null }
     const oldValue = (currentEvent?.[targetKey] as string | null | undefined) ?? null
@@ -109,6 +121,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // the edit from taking effect, but it should be visible, not silent.
   const { error: logErr } = await supabaseAdmin.from('event_messaging_doc_edits').insert({
     event_id:       doc.event_id,
+    umbrella_id:    doc.umbrella_id,
     doc_id:         doc.id,
     section_id:     logSectionId,
     instruction:    instruction.trim(),
@@ -118,6 +131,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     applied_at:     now,
   })
   if (logErr) console.error('Failed to log messaging doc edit:', logErr)
+
+  // Stage 2 (2026-09-10): only a LIVE doc's edit changes the effective
+  // document set's actual content — a draft isn't in any event's effective
+  // set yet (see resolve-reference-docs.ts), so editing one doesn't need
+  // a recompile until it's later approved (approve/route.ts triggers it).
+  if (doc.status === 'live') {
+    await recompileEventAndChildren(doc.event_id ? { kind: 'event', id: doc.event_id } : { kind: 'umbrella', id: doc.umbrella_id! })
+  }
 
   return NextResponse.json(updatedDoc)
 }

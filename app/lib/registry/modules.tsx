@@ -1042,6 +1042,18 @@ export function getModuleRegistry(): ModuleDef[] {
       sidebar: { section: 'events', parent: 'events', order: 7 },
     },
     {
+      key: 'admin-event-content-check', label: 'Content Check',
+      description: 'Paste hand-written copy and check it against this event\'s deterministic validation rules (banned terms, style rules, proximity checks) before it goes out.',
+      icon: I.doc, color: '#F0AB3C',
+      href: ctx => `/admin/events/${ctx.eventId}/content-check`,
+      needsEvent: true,
+      breadcrumbPattern: '/admin/events/:eventId/content-check', breadcrumbParent: 'admin-event-workspace',
+      // Deliberately broad — "so Fouzan, Khalifa and anyone else can paste
+      // hand-written copy and check it" (Reference Documents spec, Stage 3).
+      access: { kind: 'admin_only' },
+      sidebar: { section: 'events', parent: 'events', order: 8 },
+    },
+    {
       key: 'admin-event-access', label: 'Access',
       description: 'Define roles and assign staff access to this event\'s modules.',
       icon: I.gear, color: '#8C8C8C',

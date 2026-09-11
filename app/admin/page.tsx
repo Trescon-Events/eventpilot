@@ -1892,6 +1892,9 @@ function AdminPageInner() {
                       </button>
                     ))}
                     <div style={{ flex: 1 }} />
+                    <a href="/admin/umbrellas" style={{ fontSize: '13px', fontWeight: 700, color: 'var(--teal-mid)', textDecoration: 'none', padding: '8px 12px' }}>
+                      Umbrella Events →
+                    </a>
                     <div style={{ position: 'relative' }}>
                       <svg width="12" height="12" fill="none" stroke="var(--ink3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                       <input value={eventSearch} onChange={e => setEventSearch(e.target.value)} placeholder="Search events…"

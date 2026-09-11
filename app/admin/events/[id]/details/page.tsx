@@ -22,7 +22,7 @@ import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
    Overview stale, so Overview offers "Sync with Messaging Doc" to re-
    derive just the fields that drifted. */
 
-type EventRow = { id: string; name: string } & Record<TrackedEventField, string | null>
+type EventRow = { id: string; name: string; type: string | null; umbrella_id?: string | null; requires_client_approval: boolean | null } & Record<TrackedEventField, string | null>
 
 type PageLink = { form_type: string; hubspot_form_name: string | null; public_page_url: string | null }
 
@@ -33,19 +33,26 @@ type HistoryRow = {
 }
 
 type SectionKind = 'text' | 'table' | 'facts' | 'rules'
-type Section = {
+export type Section = {
   id: string; order: number; title: string; kind: SectionKind; content: unknown
   updated_at?: string; updated_by?: string | null; change_note?: string | null
+  diverged_from_source?: boolean
 }
 
-type MessagingDoc = {
+export type DocRole = 'style_guide' | 'messaging' | 'production_pack'
+export type Provenance = 'client_approved' | 'trescon_authored'
+export const DOC_ROLE_LABELS: Record<DocRole, string> = { style_guide: 'Style Guide', messaging: 'Messaging Doc', production_pack: 'Production Pack' }
+export const PROVENANCE_LABELS: Record<Provenance, string> = { client_approved: 'Client Approved', trescon_authored: 'Trescon Authored' }
+
+export type MessagingDoc = {
   id: string; event_id: string; version: number; title: string
   status: 'draft' | 'live' | 'superseded'
+  role: DocRole; authority_rank: number; provenance: Provenance
   structured_json: { sections: Section[]; default_fields?: Record<string, string | null> } | null
   source_url: string | null; updated_at: string; created_at: string
 }
 
-type Proposal = {
+export type Proposal = {
   target_type: 'section' | 'default_field'
   target_key: string
   target_label: string
@@ -55,7 +62,7 @@ type Proposal = {
   conflict: string | null
   status: 'pending' | 'approved' | 'discarded'
 }
-type ChatMessage = { role: 'user' | 'assistant'; text: string; instruction?: string; proposals?: Proposal[] }
+export type ChatMessage = { role: 'user' | 'assistant'; text: string; instruction?: string; proposals?: Proposal[] }
 
 function getSession() {
   if (typeof document === 'undefined') return null
@@ -94,7 +101,257 @@ function renderMarkdownLite(text: string) {
   })
 }
 
-function SectionBody({ section }: { section: Section }) {
+// Reference Documents spec, Stage 1 (2026-09-10) — a producer-edited
+// section no longer necessarily matches what the source document says.
+// See apply-edit/route.ts for where this gets set; there's no path that
+// clears it once set.
+export function DivergedBadge() {
+  return (
+    <span title="This section was manually edited — it may no longer match the original source document exactly."
+      style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--amber)', background: 'var(--amber-light)', border: '1px solid var(--amber-border)', padding: '2px 8px', borderRadius: '20px' }}>
+      Edited — may diverge from source
+    </span>
+  )
+}
+
+// Reference Documents spec, Stage 1 (2026-09-10) — authority_rank and
+// provenance are both producer-overridable after upload (provenance
+// explicitly so, per the spec; rank is a manual knob independent of role —
+// see the migration's comment). role is included read-only here; changing
+// a doc's role after upload is possible via the API but not exposed in
+// this compact editor to avoid producers accidentally reclassifying a
+// document mid-review.
+export function ReferenceDocMeta({ doc, canManage, onUpdated }: { doc: MessagingDoc; canManage: boolean; onUpdated: () => void }) {
+  const [saving, setSaving] = useState(false)
+  async function patch(body: Record<string, unknown>) {
+    setSaving(true)
+    await fetch(`/api/events/stakeholders/messaging/${doc.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    })
+    setSaving(false)
+    onUpdated()
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', fontSize: '12px', color: 'var(--ink3)', marginBottom: '10px' }}>
+      <span>{DOC_ROLE_LABELS[doc.role]}</span>
+      {canManage ? (
+        <>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            Rank
+            <input type="number" min={1} value={doc.authority_rank} disabled={saving}
+              onChange={e => { const n = Number(e.target.value); if (Number.isFinite(n) && n >= 1) patch({ authority_rank: n }) }}
+              style={{ width: '44px', fontSize: '12px', padding: '3px 6px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontFamily: 'inherit' }} />
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            Provenance
+            <select value={doc.provenance} disabled={saving} onChange={e => patch({ provenance: e.target.value })}
+              style={{ fontSize: '12px', padding: '3px 6px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontFamily: 'inherit' }}>
+              {(Object.keys(PROVENANCE_LABELS) as Provenance[]).map(p => <option key={p} value={p}>{PROVENANCE_LABELS[p]}</option>)}
+            </select>
+          </label>
+        </>
+      ) : (
+        <span>Rank {doc.authority_rank} · {PROVENANCE_LABELS[doc.provenance]}</span>
+      )}
+    </div>
+  )
+}
+
+type ClarificationOption = { value: string; label: string; description?: string }
+type Clarification = {
+  id: string; round: number; question_key: string; question_text: string
+  context: string | null; options: ClarificationOption[]; allows_other: boolean
+  status: 'pending' | 'answered'
+}
+
+// Extraction-time clarification Q&A (2026-09-10, agreed with Madhu after
+// Stage 3) — multiple-choice, same shape as an AskUserQuestion call, not
+// open-ended chat. Runs in rounds (capped server-side at
+// MAX_CLARIFICATION_ROUNDS); every question in the current round must be
+// answered before the batch can be submitted — no skip, per Madhu: "these
+// are important documents... let them go through the questions." Blocks
+// Approve while any round is pending (see blockedByClarifications in
+// DraftReview above).
+export function ClarificationsPanel({ docId, canManage, session, onStatusChange, onResolved }: {
+  docId: string
+  canManage: boolean
+  session: { sid: string } | null
+  onStatusChange: (blocked: boolean) => void
+  onResolved: () => void
+}) {
+  const [pending, setPending] = useState<Clarification[]>([])
+  const [answers, setAnswers] = useState<Record<string, { value: string; note: string }>>({})
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function load() {
+    const res = await fetch(`/api/events/stakeholders/messaging/${docId}/clarifications`)
+    const data = await res.json().catch(() => null)
+    const list: Clarification[] = data?.clarifications ?? []
+    const currentPending = list.filter(c => c.status === 'pending')
+    setPending(currentPending)
+    setAnswers(Object.fromEntries(currentPending.map(c => [c.question_key, { value: '', note: '' }])))
+    setLoading(false)
+    onStatusChange(currentPending.length > 0)
+  }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount, matches this module's other top-level fetch effects
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load is stable for this effect's purpose (mount + docId change only)
+  }, [docId])
+
+  function setAnswer(key: string, value: string) {
+    setAnswers(prev => ({ ...prev, [key]: { value, note: prev[key]?.note ?? '' } }))
+  }
+  function setNote(key: string, note: string) {
+    setAnswers(prev => ({ ...prev, [key]: { value: prev[key]?.value ?? '', note } }))
+  }
+
+  const allAnswered = pending.length > 0 && pending.every(c => {
+    const a = answers[c.question_key]
+    if (!a?.value) return false
+    return a.value !== 'other' || a.note.trim().length > 0
+  })
+
+  async function submit() {
+    if (!allAnswered || submitting) return
+    setSubmitting(true); setError(null)
+    const res = await fetch(`/api/events/stakeholders/messaging/${docId}/clarifications/answer`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        answers: pending.map(c => ({ question_key: c.question_key, answer_value: answers[c.question_key].value, answer_note: answers[c.question_key].note || undefined })),
+        answered_by: session?.sid ?? null,
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSubmitting(false)
+    if (!res.ok) { setError(data.error ?? 'Failed to submit answers.'); return }
+    onResolved()
+    await load()
+  }
+
+  if (loading || pending.length === 0) return null
+
+  return (
+    <div style={{ marginBottom: '16px', padding: '14px', borderRadius: '10px', border: '1.5px solid var(--amber-border)', background: 'var(--amber-light)' }}>
+      <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: '4px' }}>
+        Round {pending[0].round} — {pending.length} question{pending.length === 1 ? '' : 's'} need{pending.length === 1 ? 's' : ''} your answer
+      </div>
+      <div style={{ fontSize: '11px', color: 'var(--ink3)', marginBottom: '12px' }}>
+        The extraction wasn&apos;t confident about these — answer all of them to continue. Answering may raise a follow-up round.
+      </div>
+      <div style={{ display: 'grid', gap: '14px' }}>
+        {pending.map(c => (
+          <div key={c.id}>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: '2px' }}>{c.question_text}</div>
+            {c.context && <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginBottom: '6px', fontStyle: 'italic' }}>{c.context}</div>}
+            <div style={{ display: 'grid', gap: '4px' }}>
+              {c.options.map(opt => (
+                <label key={opt.value} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', padding: '6px 8px', borderRadius: '6px', background: answers[c.question_key]?.value === opt.value ? 'var(--card)' : 'transparent', cursor: canManage ? 'pointer' : 'default' }}>
+                  <input type="radio" name={c.question_key} disabled={!canManage} checked={answers[c.question_key]?.value === opt.value} onChange={() => setAnswer(c.question_key, opt.value)} style={{ marginTop: '3px' }} />
+                  <div>
+                    <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink)' }}>{opt.label}</div>
+                    {opt.description && <div style={{ fontSize: '11.5px', color: 'var(--ink3)' }}>{opt.description}</div>}
+                  </div>
+                </label>
+              ))}
+              {c.allows_other && (
+                <label style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', padding: '6px 8px', borderRadius: '6px', background: answers[c.question_key]?.value === 'other' ? 'var(--card)' : 'transparent', cursor: canManage ? 'pointer' : 'default' }}>
+                  <input type="radio" name={c.question_key} disabled={!canManage} checked={answers[c.question_key]?.value === 'other'} onChange={() => setAnswer(c.question_key, 'other')} style={{ marginTop: '3px' }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>Other</div>
+                    <input type="text" disabled={!canManage} placeholder="Type your own answer…" value={answers[c.question_key]?.note ?? ''}
+                      onChange={e => { setNote(c.question_key, e.target.value); if (answers[c.question_key]?.value !== 'other') setAnswer(c.question_key, 'other') }}
+                      style={{ width: '100%', fontSize: '12.5px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  </div>
+                </label>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      {error && <div style={{ fontSize: '11px', color: 'var(--red)', marginTop: '10px' }}>{error}</div>}
+      {canManage && (
+        <div style={{ marginTop: '12px' }}>
+          <Button variant="lime" onClick={submit} disabled={!allAnswered || submitting}>{submitting ? 'Submitting…' : 'Submit answers'}</Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+type SuggestedRule = {
+  id: string; rule_key: string; rule_type: string; pattern: string
+  severity: 'error' | 'warning'; message: string; source_clause: string | null
+}
+
+// Clarification-to-validation-rule bridge (2026-09-10, agreed after Stage
+// 4) — event-scoped, not doc-scoped (a rule applies to every future
+// generated asset for the event), so this can surface suggestions from
+// any doc's clarification rounds, not just the one currently open. Never
+// auto-activates anything — Accept/Dismiss are the only ways a suggestion
+// leaves the review queue.
+export function SuggestedRulesPanel({ docId, canManage }: { docId: string; canManage: boolean }) {
+  const [rules, setRules] = useState<SuggestedRule[]>([])
+  const [loading, setLoading] = useState(true)
+  const [acting, setActing] = useState<string | null>(null)
+
+  async function load() {
+    const res = await fetch(`/api/events/stakeholders/messaging/${docId}/suggested-rules`)
+    const data = await res.json().catch(() => null)
+    setRules(data?.suggested_rules ?? [])
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount, matches this module's other top-level fetch effects
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load is stable for this effect's purpose (mount + docId change only)
+  }, [docId])
+
+  async function act(ruleId: string, action: 'accept' | 'dismiss') {
+    setActing(ruleId)
+    await fetch(`/api/events/stakeholders/messaging/${docId}/suggested-rules/${ruleId}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }),
+    })
+    setActing(null)
+    await load()
+  }
+
+  if (loading || rules.length === 0) return null
+
+  return (
+    <div style={{ marginBottom: '16px', padding: '14px', borderRadius: '10px', border: '1.5px solid var(--teal-mid)', background: 'var(--teal-light)' }}>
+      <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '4px' }}>
+        Suggested validation rules ({rules.length})
+      </div>
+      <div style={{ fontSize: '11px', color: 'var(--ink3)', marginBottom: '12px' }}>
+        Proposed from clarification answers. Accepting makes a rule check every future generated asset for this event — nothing here is active yet.
+      </div>
+      <div style={{ display: 'grid', gap: '10px' }}>
+        {rules.map(r => (
+          <div key={r.id} style={{ padding: '10px 12px', borderRadius: '8px', background: 'var(--card)', border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink)' }}>{r.message}</div>
+            <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginTop: '3px' }}>
+              {r.rule_type} · <code style={{ background: 'var(--surface)', padding: '1px 6px', borderRadius: '4px' }}>{r.pattern}</code>
+              {r.source_clause && <span> · {r.source_clause}</span>}
+            </div>
+            {canManage && (
+              <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                <Button variant="lime" onClick={() => act(r.id, 'accept')} disabled={acting === r.id}>Accept</Button>
+                <Button variant="ghost" onClick={() => act(r.id, 'dismiss')} disabled={acting === r.id}>Dismiss</Button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export function SectionBody({ section }: { section: Section }) {
   if (section.kind === 'table') {
     const t = section.content as { columns: string[]; rows: string[][] }
     if (!t?.columns) return null
@@ -165,6 +422,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
   const [docs, setDocs] = useState<MessagingDoc[]>([])
   const [versions, setVersions] = useState<MessagingDoc[]>([])
   const [showVersions, setShowVersions] = useState(false)
+  const [uploadRole, setUploadRole] = useState<DocRole>('messaging')
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -177,9 +435,20 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
 
   const can = (key: string) => permissionSetSatisfies(permissions, key)
   const canManage = can('sae.forms.manage')
+  // Umbrella/event separation (2026-09-11) — an event can never itself be
+  // an umbrella anymore (see app/admin/umbrellas/[id]/page.tsx for that
+  // workspace and its own elevated sae.messaging.umbrella_manage gate), so
+  // this page's own upload permission is always just the regular one.
+  const canUploadHere = canManage
 
-  const liveDoc = docs.find(d => d.status === 'live') ?? null
-  const draftDoc = docs.filter(d => d.status === 'draft').sort((a, b) => b.version - a.version)[0] ?? null
+  // This tab is specifically the Messaging Doc — style_guide/production_pack
+  // docs (Stage 1, 2026-09-10) live in the same table but don't appear here.
+  // Every pre-Stage-1 doc was backfilled to role='messaging', so this is
+  // behaviorally identical to the old unscoped lookup for every event that
+  // only ever had one document.
+  const liveDoc = docs.find(d => d.status === 'live' && d.role === 'messaging') ?? null
+  const draftDoc = docs.filter(d => d.status === 'draft' && d.role === 'messaging').sort((a, b) => b.version - a.version)[0] ?? null
+  const otherRoleDocs = docs.filter(d => d.role !== 'messaging' && d.status !== 'superseded')
 
   const lastAiSyncAt = useMemo(() => {
     const rows = (history ?? []).filter(h => h.change_source === 'ai_extraction')
@@ -219,7 +488,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
   }
 
   async function makeLive(target: MessagingDoc) {
-    const currentLive = docs.find(d => d.status === 'live')
+    const currentLive = docs.find(d => d.status === 'live' && d.role === target.role)
     if (currentLive && currentLive.id !== target.id) {
       await fetch(`/api/events/stakeholders/messaging/${currentLive.id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'superseded' }),
@@ -243,6 +512,21 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
     else { setMsg(data.error ?? 'Save failed.'); setMsgIsError(true) }
   }
 
+  // Reference Documents spec, Stage 4 (2026-09-10) — release gate. null =
+  // inherit from umbrella (resolved server-side, see
+  // app/lib/events/client-approval-gate.ts); an explicit true/false here
+  // overrides. Opt-in per event, never derived from `type`.
+  async function saveRequiresClientApproval(value: boolean | null) {
+    setSaving(true); setMsg(null)
+    const res = await fetch(`/api/events?id=${eventId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requires_client_approval: value }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSaving(false)
+    if (res.ok) { setEvent(data); setMsg('Saved.'); setMsgIsError(false) }
+    else { setMsg(data.error ?? 'Save failed.'); setMsgIsError(true) }
+  }
+
   async function savePageLink(formType: string) {
     setSaving(true); setMsg(null)
     const res = await fetch('/api/events/stakeholders/hubspot/public-page-link', {
@@ -258,11 +542,12 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
     } else { setMsg(data.error ?? 'Save failed.'); setMsgIsError(true) }
   }
 
-  async function uploadMessagingDoc(file: File) {
+  async function uploadMessagingDoc(file: File, role: DocRole = 'messaging') {
     setSaving(true); setMsg(null)
     const form = new FormData()
     form.append('event_id', eventId)
     form.append('file', file)
+    form.append('role', role)
     if (session?.sid) form.append('uploaded_by', session.sid)
     const res = await fetch('/api/events/stakeholders/messaging', { method: 'POST', body: form })
     setSaving(false)
@@ -445,6 +730,30 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
               )}
             </Card>
 
+            <Card padded>
+              <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '4px' }}>Content Approval</div>
+              <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '14px' }}>
+                When on, every generated asset needs client sign-off before internal approval or publish — not all managed-event clients require this, so it&apos;s opt-in per event.
+                {event.umbrella_id && ' Leave on "Inherit" to follow the umbrella event\'s setting.'}
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {(event.umbrella_id
+                  ? ([['inherit', 'Inherit from umbrella'], ['on', 'Require'], ['off', "Don't require"]] as const)
+                  : ([['on', 'Require'], ['off', "Don't require"]] as const)
+                ).map(([key, label]) => {
+                  const current = event.requires_client_approval === null ? 'inherit' : event.requires_client_approval ? 'on' : 'off'
+                  const selected = current === key
+                  return (
+                    <button key={key} disabled={!canManage || saving}
+                      onClick={() => saveRequiresClientApproval(key === 'inherit' ? null : key === 'on')}
+                      style={{ padding: '8px 14px', borderRadius: '8px', fontSize: '12.5px', fontWeight: 700, cursor: canManage ? 'pointer' : 'default', fontFamily: 'inherit', border: selected ? '1.5px solid var(--teal-mid)' : '1px solid var(--border)', background: selected ? 'var(--teal-light)' : 'var(--card)', color: selected ? 'var(--teal-mid)' : 'var(--ink2)' }}>
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+            </Card>
+
             {pageLinks.length > 0 && (
               <Card padded>
                 <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '4px' }}>Public Onboarding Pages</div>
@@ -482,16 +791,22 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
                     <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '4px' }}>No live version yet</div>
                   )}
                 </div>
-                <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                <div style={{ display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center' }}>
                   <Button variant="ghost" onClick={() => { const v = !showVersions; setShowVersions(v); if (v) fetchVersions() }}>
                     {showVersions ? 'Hide versions' : 'Version history'}
                   </Button>
-                  {canManage && (
-                    <label style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.6 : 1 }}>
-                      {saving ? 'Uploading…' : liveDoc || draftDoc ? 'Upload replacement PDF ▲' : 'Upload PDF ▲'}
-                      <input type="file" accept="application/pdf" disabled={saving} style={{ display: 'none' }}
-                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadMessagingDoc(f); e.target.value = '' }} />
-                    </label>
+                  {canUploadHere && (
+                    <>
+                      <select value={uploadRole} onChange={e => setUploadRole(e.target.value as DocRole)}
+                        style={{ fontSize: '12px', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontFamily: 'inherit' }}>
+                        {(Object.keys(DOC_ROLE_LABELS) as DocRole[]).map(r => <option key={r} value={r}>{DOC_ROLE_LABELS[r]}</option>)}
+                      </select>
+                      <label style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.6 : 1 }}>
+                        {saving ? 'Uploading…' : 'Upload PDF ▲'}
+                        <input type="file" accept="application/pdf" disabled={saving} style={{ display: 'none' }}
+                          onChange={e => { const f = e.target.files?.[0]; if (f) uploadMessagingDoc(f, uploadRole); e.target.value = '' }} />
+                      </label>
+                    </>
                   )}
                 </div>
               </div>
@@ -507,6 +822,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
                       <div style={{ fontSize: '12.5px', color: 'var(--ink)' }}>
                         v{v.version} · {v.title} · {fmtDate(v.created_at)}
                         <span style={{ marginLeft: '8px', fontSize: '10.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: v.status === 'live' ? 'var(--teal-mid)' : v.status === 'draft' ? 'var(--amber)' : 'var(--ink3)' }}>{v.status}</span>
+                        <span style={{ marginLeft: '8px', fontSize: '10.5px', color: 'var(--ink4)' }}>{DOC_ROLE_LABELS[v.role]} · rank {v.authority_rank} · {PROVENANCE_LABELS[v.provenance]}</span>
                       </div>
                       {v.status === 'superseded' && (
                         <Button variant="ghost" onClick={() => makeLive(v)}>Make live</Button>
@@ -537,6 +853,35 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
             {liveDoc && !draftDoc && (
               <LiveDocView doc={liveDoc} canManage={canManage} session={session} onUpdated={loadAll} />
             )}
+
+            {/* Reference Documents spec, Stage 1 (2026-09-10) — style_guide
+                and production_pack docs share this table/pipeline but are
+                a separate concern from the Topline Messaging Doc above;
+                shown here so an uploaded draft has somewhere to be
+                reviewed and approved, not just visible in Version history. */}
+            {(['style_guide', 'production_pack'] as DocRole[]).map(role => {
+              const roleLive = otherRoleDocs.find(d => d.role === role && d.status === 'live') ?? null
+              const roleDraft = otherRoleDocs.filter(d => d.role === role && d.status === 'draft').sort((a, b) => b.version - a.version)[0] ?? null
+              if (!roleLive && !roleDraft) return null
+              return (
+                <div key={role}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginTop: '8px', marginBottom: '8px' }}>
+                    {DOC_ROLE_LABELS[role]}
+                  </div>
+                  {roleDraft && (
+                    <Card padded color="amber">
+                      <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--amber)', letterSpacing: '0.6px', textTransform: 'uppercase', marginBottom: '8px' }}>
+                        Draft v{roleDraft.version} — review before it goes live
+                      </div>
+                      <DraftReview doc={roleDraft} canManage={canManage} session={session} onApproved={loadAll} />
+                    </Card>
+                  )}
+                  {roleLive && !roleDraft && (
+                    <LiveDocView doc={roleLive} canManage={canManage} session={session} onUpdated={loadAll} />
+                  )}
+                </div>
+              )
+            })}
           </>
         )}
       </div>
@@ -544,7 +889,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
   )
 }
 
-function DraftReview({ doc, canManage, session, onApproved }: {
+export function DraftReview({ doc, canManage, session, onApproved }: {
   doc: MessagingDoc
   canManage: boolean
   session: { sid: string } | null
@@ -554,6 +899,7 @@ function DraftReview({ doc, canManage, session, onApproved }: {
   const [input, setInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
   const [approving, setApproving] = useState(false)
+  const [blockedByClarifications, setBlockedByClarifications] = useState(false)
 
   const sections = (doc.structured_json?.sections ?? []).slice().sort((a, b) => a.order - b.order)
   const defaultFields = doc.structured_json?.default_fields ?? {}
@@ -610,6 +956,7 @@ function DraftReview({ doc, canManage, session, onApproved }: {
   }
 
   async function approveDraft() {
+    if (blockedByClarifications) return
     if (!window.confirm('Approve this version? It will go live, superseding the current live doc, and its default fields will be written into Common Details above.')) return
     setApproving(true)
     const res = await fetch(`/api/events/stakeholders/messaging/${doc.id}/approve`, {
@@ -623,6 +970,9 @@ function DraftReview({ doc, canManage, session, onApproved }: {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(280px, 380px)', gap: '16px', alignItems: 'start' }}>
       <div>
+        <ReferenceDocMeta doc={doc} canManage={canManage} onUpdated={onApproved} />
+        <ClarificationsPanel docId={doc.id} canManage={canManage} session={session} onStatusChange={setBlockedByClarifications} onResolved={onApproved} />
+        <SuggestedRulesPanel docId={doc.id} canManage={canManage} />
         <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '6px' }}>Default fields found</div>
         <div style={{ display: 'grid', gap: '4px', marginBottom: '14px' }}>
           {TRACKED_EVENT_FIELDS.map(key => (
@@ -634,11 +984,19 @@ function DraftReview({ doc, canManage, session, onApproved }: {
         <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '6px' }}>Sections ({sections.length})</div>
         <div style={{ display: 'grid', gap: '4px', marginBottom: '14px' }}>
           {sections.map(s => (
-            <div key={s.id} style={{ fontSize: '12px', color: 'var(--ink2)' }}>{s.title} <span style={{ fontSize: '10px', color: 'var(--ink4)', textTransform: 'uppercase' }}>{s.kind}</span></div>
+            <div key={s.id} style={{ fontSize: '12px', color: 'var(--ink2)' }}>
+              {s.title} <span style={{ fontSize: '10px', color: 'var(--ink4)', textTransform: 'uppercase' }}>{s.kind}</span>
+              {s.diverged_from_source && <DivergedBadge />}
+            </div>
           ))}
         </div>
         {canManage && (
-          <Button variant="lime" onClick={approveDraft} disabled={approving}>{approving ? 'Approving…' : 'Approve — make this version live'}</Button>
+          <>
+            <Button variant="lime" onClick={approveDraft} disabled={approving || blockedByClarifications}>{approving ? 'Approving…' : 'Approve — make this version live'}</Button>
+            {blockedByClarifications && (
+              <div style={{ fontSize: '11px', color: 'var(--amber)', marginTop: '6px' }}>Answer the clarification questions above before approving.</div>
+            )}
+          </>
         )}
       </div>
 
@@ -701,7 +1059,7 @@ function DraftReview({ doc, canManage, session, onApproved }: {
 // from the old standalone /messaging page. Chat here only ever targets
 // sections (target_type 'section') — default_field changes on a live doc
 // go through Overview's "Sync with Messaging Doc" instead, not ad-hoc chat.
-function LiveDocView({ doc, canManage, session, onUpdated }: {
+export function LiveDocView({ doc, canManage, session, onUpdated }: {
   doc: MessagingDoc
   canManage: boolean
   session: { sid: string } | null
@@ -778,6 +1136,8 @@ function LiveDocView({ doc, canManage, session, onUpdated }: {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(280px, 1fr)', gap: '16px', alignItems: 'start' }}>
       <div style={{ display: 'grid', gap: '10px' }}>
+        <ReferenceDocMeta doc={doc} canManage={canManage} onUpdated={onUpdated} />
+        <SuggestedRulesPanel docId={doc.id} canManage={canManage} />
         {sections.map(section => {
           const isSelected = section.id === selectedSectionId
           return (
@@ -795,6 +1155,7 @@ function LiveDocView({ doc, canManage, session, onUpdated }: {
                   {section.kind === 'rules' && (
                     <span style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--red)', background: 'var(--red-light)', padding: '2px 8px', borderRadius: '20px' }}>Hard rule</span>
                   )}
+                  {section.diverged_from_source && <DivergedBadge />}
                   {isSelected && (
                     <span style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--teal-mid)', background: 'var(--teal-light)', padding: '2px 8px', borderRadius: '20px' }}>Editing</span>
                   )}
