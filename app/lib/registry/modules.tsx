@@ -475,6 +475,15 @@ export function getModuleRegistry(): ModuleDef[] {
       breadcrumbParent: 'admin-access-center',
     },
     {
+      key: 'admin-google-connection', label: 'Google Connection',
+      description: 'The one shared Google account (GA4 + Search Console) used for every event\'s Site Registry. Connect/disconnect and fetch-and-select GA4 accounts or Search Console sites.',
+      icon: I.gear, color: '#12C9BD',
+      href: '/admin/settings/google',
+      access: { kind: 'admin_only' },
+      breadcrumbParent: 'admin',
+      sidebar: { section: 'admin', parent: 'admin', order: 7 },
+    },
+    {
       key: 'dev-approvals', label: 'PR Approvals',
       description: 'Review and approve Khalifa\'s Task Manager pull requests from inside EventPilot — friendly summary, live CI status, one-click approve & ship or send back.',
       icon: I.check, color: '#166534',
