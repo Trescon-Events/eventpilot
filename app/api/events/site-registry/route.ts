@@ -18,7 +18,12 @@ import { hasEventPermission } from '@/app/lib/access/event-access'
    existing row if one exists, otherwise inserts. Same gate as the rest of
    the Integrations page (sae.integrations.manage). */
 
-const EDITABLE_FIELDS = ['live_url', 'repo_url', 'preview_url', 'hosting_provider'] as const
+const EDITABLE_FIELDS = [
+  'live_url', 'repo_url', 'preview_url', 'hosting_provider',
+  // Phase 4 — written by the commissioning orchestrator's Classify step,
+  // not hand-entered by a producer.
+  'registrable_domain', 'launch_scenario', 'commissioning_state',
+] as const
 
 export async function GET(req: NextRequest) {
   const eventId = req.nextUrl.searchParams.get('event_id')

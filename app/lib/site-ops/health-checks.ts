@@ -45,7 +45,7 @@ async function checkSiteReachable(site: SiteRow): Promise<CheckResult> {
   }
 }
 
-async function checkGa4Receiving(siteId: string): Promise<CheckResult> {
+export async function checkGa4Receiving(siteId: string): Promise<CheckResult> {
   const { data: conn } = await supabaseAdmin
     .from('site_connections')
     .select('property_ref, stream_ref, status')
@@ -77,7 +77,7 @@ async function checkGa4Receiving(siteId: string): Promise<CheckResult> {
   return { checkKey: 'ga4_receiving', status: 'warn', detail: 'Connected, but no hits in the last 24h.' }
 }
 
-async function checkSearchConsoleVerified(siteId: string): Promise<CheckResult> {
+export async function checkSearchConsoleVerified(siteId: string): Promise<CheckResult> {
   const { data: conn } = await supabaseAdmin
     .from('site_connections')
     .select('property_ref')

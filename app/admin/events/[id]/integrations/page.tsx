@@ -139,6 +139,8 @@ type EventSite = {
   preview_url: string | null
   hosting_provider: string | null
   commissioning_state: 'registered' | 'in_progress' | 'commissioned' | 'archived'
+  registrable_domain: string | null
+  launch_scenario: 'new_domain_new_series' | 'new_domain_existing_series' | 'existing_domain_new_edition' | null
 }
 
 type HealthCheck = { check_key: string; status: 'pass' | 'warn' | 'fail'; detail: string; checked_at: string }
@@ -150,6 +152,15 @@ const HEALTH_CHECK_LABELS: Record<string, string> = {
   schema_valid: 'Structured data valid',
   private_routes_excluded: 'Private routes excluded (partial)',
 }
+
+type SiteConnection = { provider: string; account_ref: string | null; property_ref: string | null; stream_ref: string | null; status: string; last_verified_at: string | null; last_error: string | null }
+type ClassifyResult = {
+  registrableDomain: string
+  scenario: 'new_domain_new_series' | 'not_new_domain'
+  evidence: { siblingEvents: { eventId: string; eventName: string; liveUrl: string | null }[]; matchingGscSites: string[]; googleConnected: boolean }
+}
+type Ga4Account = { id: string; name: string; properties: { id: string; name: string }[] }
+type GscSite = { url: string; permissionLevel: string; verified: boolean }
 
 export default function IntegrationsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = use(params)
@@ -214,6 +225,27 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
   const [healthChecks, setHealthChecks] = useState<HealthCheck[]>([])
   const [runningHealthCheck, setRunningHealthCheck] = useState(false)
 
+  // Commissioning Orchestrator (Phase 4) — Scenario A only for now
+  const [siteConnections, setSiteConnections] = useState<SiteConnection[]>([])
+  const [classifyResult, setClassifyResult] = useState<ClassifyResult | null>(null)
+  const [classifying, setClassifying] = useState(false)
+  const [scenarioOverride, setScenarioOverride] = useState<ClassifyResult['scenario'] | ''>('')
+
+  const [ga4Accounts, setGa4Accounts] = useState<Ga4Account[] | null>(null)
+  const [fetchingGa4Accounts, setFetchingGa4Accounts] = useState(false)
+  const [selectedGa4AccountId, setSelectedGa4AccountId] = useState('')
+  const [selectedGa4PropertyId, setSelectedGa4PropertyId] = useState('')
+  const [newGa4Name, setNewGa4Name] = useState('')
+  const [creatingGa4Property, setCreatingGa4Property] = useState(false)
+  const [savingGa4Connection, setSavingGa4Connection] = useState(false)
+
+  const [gscSites, setGscSites] = useState<GscSite[] | null>(null)
+  const [fetchingGscSites, setFetchingGscSites] = useState(false)
+  const [selectedGscSite, setSelectedGscSite] = useState('')
+  const [savingGscConnection, setSavingGscConnection] = useState(false)
+
+  const [verifying, setVerifying] = useState(false)
+
   const [activeSection, setActiveSection] = useState<string>(NAV_SECTIONS[0].id)
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
 
@@ -234,7 +266,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
 
   async function load() {
     setLoading(true)
-    const [settingsRes, eventRes, permRes, fieldsRes, postizRes, contactsRes, siteRes, healthRes] = await Promise.all([
+    const [settingsRes, eventRes, permRes, fieldsRes, postizRes, contactsRes, siteRes, healthRes, connRes] = await Promise.all([
       fetch(`/api/events/konfhub/settings?event_id=${eventId}`),
       fetch(`/api/events?id=${eventId}`),
       fetch(`/api/events/access/me?event_id=${eventId}`),
@@ -243,6 +275,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
       fetch(`/api/events/client-approval-contacts?event_id=${eventId}`),
       fetch(`/api/events/site-registry?event_id=${eventId}`),
       fetch(`/api/events/site-registry/health-check?event_id=${eventId}`),
+      fetch(`/api/events/site-registry/connections?event_id=${eventId}`),
     ])
     const settingsData = await settingsRes.json().catch(() => null)
     if (settingsRes.ok && settingsData) {
@@ -305,6 +338,9 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
 
     const healthData = await healthRes.json().catch(() => ({ checks: [] }))
     setHealthChecks(healthData.checks ?? [])
+
+    const connData = await connRes.json().catch(() => ({ connections: [] }))
+    setSiteConnections(connData.connections ?? [])
 
     setLoading(false)
   }
@@ -504,6 +540,130 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
     })))
     setMsg({ text: 'Health checks run.', ok: true })
   }
+
+  async function loadConnections() {
+    const res = await fetch(`/api/events/site-registry/connections?event_id=${eventId}`)
+    const data = await res.json().catch(() => ({ connections: [] }))
+    setSiteConnections(data.connections ?? [])
+  }
+
+  async function classifyDomain() {
+    setClassifying(true)
+    setMsg(null)
+    const res = await fetch(`/api/events/site-registry/classify?event_id=${eventId}`, { method: 'POST' })
+    const data = await res.json().catch(() => ({}))
+    setClassifying(false)
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not classify domain.', ok: false }); return }
+    setClassifyResult(data)
+  }
+
+  async function confirmClassification(scenario: ClassifyResult['scenario']) {
+    if (!classifyResult) return
+    const res = await fetch(`/api/events/site-registry?event_id=${eventId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        registrable_domain: classifyResult.registrableDomain,
+        launch_scenario: scenario === 'new_domain_new_series' ? 'new_domain_new_series' : 'existing_domain_new_edition',
+        commissioning_state: 'in_progress',
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not save classification.', ok: false }); return }
+    setSite(data.site)
+    setMsg({ text: 'Classification saved.', ok: true })
+  }
+
+  async function fetchGa4Accounts() {
+    setFetchingGa4Accounts(true)
+    setMsg(null)
+    const res = await fetch('/api/connect/google-org/ga4-accounts')
+    const data = await res.json().catch(() => ({}))
+    setFetchingGa4Accounts(false)
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not fetch GA4 accounts.', ok: false }); return }
+    setGa4Accounts(data.accounts ?? [])
+  }
+
+  async function fetchGscSites() {
+    setFetchingGscSites(true)
+    setMsg(null)
+    const res = await fetch('/api/connect/google-org/search-console-sites')
+    const data = await res.json().catch(() => ({}))
+    setFetchingGscSites(false)
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not fetch Search Console sites.', ok: false }); return }
+    setGscSites(data.sites ?? [])
+  }
+
+  async function createGa4Property() {
+    if (!selectedGa4AccountId || !newGa4Name.trim() || !site?.live_url) return
+    setCreatingGa4Property(true)
+    setMsg(null)
+    const res = await fetch(`/api/events/site-registry/ga4-property?event_id=${eventId}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accountId: selectedGa4AccountId, displayName: newGa4Name.trim(), liveUrl: site.live_url }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setCreatingGa4Property(false)
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not create GA4 property.', ok: false }); return }
+    await fetchGa4Accounts()
+    setSelectedGa4PropertyId(data.propertyId)
+    setMsg({ text: `GA4 property created${data.measurementId ? ` — measurement ID ${data.measurementId}` : ''}.`, ok: true })
+  }
+
+  async function saveGa4Connection() {
+    if (!selectedGa4AccountId || !selectedGa4PropertyId) return
+    setSavingGa4Connection(true)
+    setMsg(null)
+    const selectedAccount = ga4Accounts?.find(a => a.id === selectedGa4AccountId)
+    const selectedProperty = selectedAccount?.properties.find(p => p.id === selectedGa4PropertyId)
+    const res = await fetch(`/api/events/site-registry/connections?event_id=${eventId}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: 'ga4', account_ref: selectedGa4AccountId, property_ref: selectedGa4PropertyId, stream_ref: selectedProperty?.id ?? null }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSavingGa4Connection(false)
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not save GA4 connection.', ok: false }); return }
+    await loadConnections()
+    setMsg({ text: 'GA4 connection saved.', ok: true })
+  }
+
+  async function saveGscConnection() {
+    if (!selectedGscSite) return
+    setSavingGscConnection(true)
+    setMsg(null)
+    const res = await fetch(`/api/events/site-registry/connections?event_id=${eventId}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: 'search_console', property_ref: selectedGscSite }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSavingGscConnection(false)
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not save Search Console connection.', ok: false }); return }
+    await loadConnections()
+    setMsg({ text: 'Search Console connection saved.', ok: true })
+  }
+
+  async function runVerify() {
+    setVerifying(true)
+    setMsg(null)
+    const res = await fetch(`/api/events/site-registry/verify?event_id=${eventId}`, { method: 'POST' })
+    const data = await res.json().catch(() => ({}))
+    setVerifying(false)
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not verify connections.', ok: false }); return }
+    await loadConnections()
+    setMsg({ text: `GA4: ${data.ga4?.status} — Search Console: ${data.searchConsole?.status}`, ok: data.ga4?.status === 'pass' && data.searchConsole?.status === 'pass' })
+  }
+
+  async function markCommissioned() {
+    const res = await fetch(`/api/events/site-registry?event_id=${eventId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ commissioning_state: 'commissioned' }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not mark as commissioned.', ok: false }); return }
+    setSite(data.site)
+    setMsg({ text: 'Site marked commissioned.', ok: true })
+  }
+
+  const ga4Connection = siteConnections.find(c => c.provider === 'ga4')
+  const gscConnection = siteConnections.find(c => c.provider === 'search_console')
 
   const selectedTicket: KonfhubTicket | null = fetchedCategories && selectedTicketId
     ? fetchedCategories.flatMap(c => c.tickets).find(t => String(t.ticket_id) === selectedTicketId) ?? null
@@ -862,6 +1022,114 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
           </div>
           {canManage && <Button variant="teal" onClick={saveSite} disabled={savingSite}>{savingSite ? 'Saving…' : site ? 'Save Changes' : 'Register Site'}</Button>}
         </Card></div>
+
+        {site && site.commissioning_state !== 'commissioned' && (
+          <div style={{ marginTop: '16px' }}><Card padded>
+            <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Commissioning</div>
+            <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
+              Classifies the domain, connects GA4 and Search Console, and verifies both before marking this site live. Scenario A (new domain, new series) only for now — an existing domain is detected and flagged, not auto-handled.
+            </div>
+
+            {!site.registrable_domain ? (
+              <div>
+                {!classifyResult ? (
+                  <Button variant="ghost" onClick={classifyDomain} disabled={classifying}>{classifying ? 'Classifying…' : 'Classify Domain'}</Button>
+                ) : (
+                  <div style={{ display: 'grid', gap: '12px' }}>
+                    <div style={{ padding: '10px 12px', borderRadius: '8px', background: 'var(--card-hi)', fontSize: '12.5px', color: 'var(--ink2)' }}>
+                      <div style={{ fontWeight: 700, marginBottom: '4px' }}>Domain: {classifyResult.registrableDomain}</div>
+                      <div>Sibling events on this domain: {classifyResult.evidence.siblingEvents.length === 0 ? 'none' : classifyResult.evidence.siblingEvents.map(s => s.eventName).join(', ')}</div>
+                      <div>Matching Search Console properties: {classifyResult.evidence.matchingGscSites.length === 0 ? 'none' : classifyResult.evidence.matchingGscSites.join(', ')}</div>
+                      {!classifyResult.evidence.googleConnected && <div style={{ color: 'var(--amber)', marginTop: '4px' }}>Google account not connected — evidence is incomplete.</div>}
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Detected scenario (override if wrong)</label>
+                      <Select value={scenarioOverride || classifyResult.scenario} onChange={e => setScenarioOverride(e.target.value as ClassifyResult['scenario'])} style={{ maxWidth: '320px' }}>
+                        <option value="new_domain_new_series">New domain, new series</option>
+                        <option value="not_new_domain">Existing domain (manual handling — Scenario B/C not built yet)</option>
+                      </Select>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <Button variant="teal" onClick={() => confirmClassification(scenarioOverride || classifyResult.scenario)}>Confirm Classification</Button>
+                      <Button variant="ghost" onClick={classifyDomain} disabled={classifying}>{classifying ? 'Re-classifying…' : 'Re-classify'}</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: '16px' }}>
+                <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>
+                  Domain <strong>{site.registrable_domain}</strong> — {site.launch_scenario === 'new_domain_new_series' ? 'new domain, new series' : 'existing domain (manual)'}
+                </div>
+
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: '6px' }}>
+                    Google Analytics {ga4Connection && <Badge color={ga4Connection.status === 'verified' ? 'teal' : 'amber'}>{ga4Connection.status}</Badge>}
+                  </div>
+                  {ga4Connection ? (
+                    <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>Property {ga4Connection.property_ref} (account {ga4Connection.account_ref}){ga4Connection.last_error && <div style={{ color: 'var(--amber)' }}>{ga4Connection.last_error}</div>}</div>
+                  ) : !ga4Accounts ? (
+                    <Button variant="ghost" onClick={fetchGa4Accounts} disabled={fetchingGa4Accounts}>{fetchingGa4Accounts ? 'Fetching…' : 'Fetch GA4 Accounts'}</Button>
+                  ) : (
+                    <div style={{ display: 'grid', gap: '10px' }}>
+                      <Select value={selectedGa4AccountId} onChange={e => { setSelectedGa4AccountId(e.target.value); setSelectedGa4PropertyId('') }} style={{ maxWidth: '360px' }}>
+                        <option value="">— Select GA4 account —</option>
+                        {ga4Accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                      </Select>
+                      {selectedGa4AccountId && (
+                        <>
+                          <Select value={selectedGa4PropertyId} onChange={e => setSelectedGa4PropertyId(e.target.value)} style={{ maxWidth: '360px' }}>
+                            <option value="">— Select existing property —</option>
+                            {ga4Accounts.find(a => a.id === selectedGa4AccountId)?.properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                          </Select>
+                          {site.launch_scenario === 'new_domain_new_series' && (
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <Input value={newGa4Name} onChange={e => setNewGa4Name(e.target.value)} placeholder="New property name" style={{ maxWidth: '240px' }} />
+                              <Button variant="ghost" onClick={createGa4Property} disabled={creatingGa4Property || !newGa4Name.trim()}>{creatingGa4Property ? 'Creating…' : 'Create New Property'}</Button>
+                            </div>
+                          )}
+                          {selectedGa4PropertyId && (
+                            <Button variant="teal" onClick={saveGa4Connection} disabled={savingGa4Connection}>{savingGa4Connection ? 'Saving…' : 'Save GA4 Connection'}</Button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: '6px' }}>
+                    Search Console {gscConnection && <Badge color={gscConnection.status === 'verified' ? 'teal' : 'amber'}>{gscConnection.status}</Badge>}
+                  </div>
+                  {gscConnection ? (
+                    <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>{gscConnection.property_ref}{gscConnection.last_error && <div style={{ color: 'var(--amber)' }}>{gscConnection.last_error}</div>}</div>
+                  ) : !gscSites ? (
+                    <Button variant="ghost" onClick={fetchGscSites} disabled={fetchingGscSites}>{fetchingGscSites ? 'Fetching…' : 'Fetch Search Console Sites'}</Button>
+                  ) : (
+                    <div style={{ display: 'grid', gap: '10px' }}>
+                      <Select value={selectedGscSite} onChange={e => setSelectedGscSite(e.target.value)} style={{ maxWidth: '360px' }}>
+                        <option value="">— Select site —</option>
+                        {gscSites.map(s => <option key={s.url} value={s.url}>{s.url}{s.verified ? '' : ' (unverified)'}</option>)}
+                      </Select>
+                      {selectedGscSite && (
+                        <Button variant="teal" onClick={saveGscConnection} disabled={savingGscConnection}>{savingGscConnection ? 'Saving…' : 'Save Search Console Connection'}</Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {ga4Connection && gscConnection && (
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <Button variant="ghost" onClick={runVerify} disabled={verifying}>{verifying ? 'Verifying…' : 'Verify Connections'}</Button>
+                    {ga4Connection.status === 'verified' && gscConnection.status === 'verified' && (
+                      <Button variant="teal" onClick={markCommissioned}>Mark Commissioned</Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </Card></div>
+        )}
         </section>
 
         <section id="health-checks" ref={el => { sectionRefs.current['health-checks'] = el }} style={{ scrollMarginTop: '20px' }}>
