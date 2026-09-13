@@ -12,11 +12,19 @@ import { FORM_TYPES, FORM_TITLES, type FormType } from '@/app/lib/forms/types'
 // scroll-spied (IntersectionObserver) rather than routed, since KonfHub/
 // HubSpot/Postiz/Client Approval all genuinely live on this one page/one
 // fetch — only HubSpot's own "Manage" link leaves the page.
+//
+// Site Registry added 2026-09-13 (Site Operations module, Phase 1 — see
+// docs/EventPilot-SiteOps-Build-Spec-v1.1.md). Remaining sections from
+// that spec (Google Analytics, Search Console, SEO & Discovery, Off-site
+// Presence, Health Checks) land in their own later phases per the spec's
+// build order — not added here yet so the nav never points at an unbuilt
+// section.
 const NAV_SECTIONS = [
   { id: 'konfhub', label: 'KonfHub' },
   { id: 'hubspot', label: 'HubSpot Forms' },
   { id: 'postiz', label: 'Postiz' },
   { id: 'client-approval', label: 'Client Approval Contacts' },
+  { id: 'site-registry', label: 'Site Registry' },
 ] as const
 
 function IntegrationsSideNav({ active }: { active: string }) {
@@ -123,6 +131,15 @@ type PostizGroup = { id: string; name: string }
 type PostizChannel = { id: string; name: string; identifier: string; disabled: boolean }
 type ClientApprovalContact = { id: string; name: string; email: string; is_primary: boolean }
 
+type EventSite = {
+  id: string
+  live_url: string | null
+  repo_url: string | null
+  preview_url: string | null
+  hosting_provider: string | null
+  commissioning_state: 'registered' | 'in_progress' | 'commissioned' | 'archived'
+}
+
 export default function IntegrationsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = use(params)
   const [eventName, setEventName] = useState('')
@@ -177,6 +194,11 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
   const [addingContact, setAddingContact] = useState(false)
   const [contactBusyId, setContactBusyId] = useState<string | null>(null)
 
+  // Site Registry
+  const [site, setSite] = useState<EventSite | null>(null)
+  const [siteFields, setSiteFields] = useState({ live_url: '', repo_url: '', preview_url: '', hosting_provider: '' })
+  const [savingSite, setSavingSite] = useState(false)
+
   const [activeSection, setActiveSection] = useState<string>(NAV_SECTIONS[0].id)
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
 
@@ -197,13 +219,14 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
 
   async function load() {
     setLoading(true)
-    const [settingsRes, eventRes, permRes, fieldsRes, postizRes, contactsRes] = await Promise.all([
+    const [settingsRes, eventRes, permRes, fieldsRes, postizRes, contactsRes, siteRes] = await Promise.all([
       fetch(`/api/events/konfhub/settings?event_id=${eventId}`),
       fetch(`/api/events?id=${eventId}`),
       fetch(`/api/events/access/me?event_id=${eventId}`),
       fetch(`/api/events/konfhub/registration-fields?event_id=${eventId}`),
       fetch(`/api/events/postiz/settings?event_id=${eventId}`),
       fetch(`/api/events/client-approval-contacts?event_id=${eventId}`),
+      fetch(`/api/events/site-registry?event_id=${eventId}`),
     ])
     const settingsData = await settingsRes.json().catch(() => null)
     if (settingsRes.ok && settingsData) {
@@ -254,6 +277,15 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
 
     const contactsData = await contactsRes.json().catch(() => ({ contacts: [] }))
     setContacts(contactsData.contacts ?? [])
+
+    const siteData = await siteRes.json().catch(() => ({ site: null }))
+    setSite(siteData.site ?? null)
+    setSiteFields({
+      live_url: siteData.site?.live_url ?? '',
+      repo_url: siteData.site?.repo_url ?? '',
+      preview_url: siteData.site?.preview_url ?? '',
+      hosting_provider: siteData.site?.hosting_provider ?? '',
+    })
 
     setLoading(false)
   }
@@ -426,6 +458,19 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
     setContactBusyId(null)
     if (!res.ok) { const d = await res.json().catch(() => ({})); setMsg({ text: d.error ?? 'Could not remove contact.', ok: false }); return }
     setContacts(prev => prev.filter(c => c.id !== contactId))
+  }
+
+  async function saveSite() {
+    setSavingSite(true)
+    setMsg(null)
+    const res = await fetch(`/api/events/site-registry?event_id=${eventId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(siteFields),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSavingSite(false)
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not save site registry.', ok: false }); return }
+    setSite(data.site)
+    setMsg({ text: 'Site registered.', ok: true })
   }
 
   const selectedTicket: KonfhubTicket | null = fetchedCategories && selectedTicketId
@@ -749,6 +794,41 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
               </Button>
             </div>
           )}
+        </Card></div>
+        </section>
+
+        <section id="site-registry" ref={el => { sectionRefs.current['site-registry'] = el }} style={{ scrollMarginTop: '20px' }}>
+        <div style={{ marginTop: '16px' }}><Card padded>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+            <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Site Registry</div>
+            {site && (
+              <Badge color={site.commissioning_state === 'commissioned' ? 'teal' : 'grey'}>
+                {site.commissioning_state.replace('_', ' ')}
+              </Badge>
+            )}
+          </div>
+          <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
+            Registers this event&apos;s website as a record EventPilot knows about — the first step before anything else in the Site Operations module (analytics, search, health checks) can exist. Everything else about the site — Cloudflare account/zone, deploy status, domain classification — is derived or fetched in later phases, not entered here.
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px', marginBottom: '16px' }}>
+            <div>
+              <label style={labelStyle}>Live URL</label>
+              <Input value={siteFields.live_url} disabled={!canManage} onChange={e => setSiteFields(p => ({ ...p, live_url: e.target.value }))} placeholder="https://example.com" />
+            </div>
+            <div>
+              <label style={labelStyle}>Repo URL</label>
+              <Input value={siteFields.repo_url} disabled={!canManage} onChange={e => setSiteFields(p => ({ ...p, repo_url: e.target.value }))} placeholder="https://github.com/Trescon-Events/..." />
+            </div>
+            <div>
+              <label style={labelStyle}>Preview URL</label>
+              <Input value={siteFields.preview_url} disabled={!canManage} onChange={e => setSiteFields(p => ({ ...p, preview_url: e.target.value }))} />
+            </div>
+            <div>
+              <label style={labelStyle}>Hosting Provider</label>
+              <Input value={siteFields.hosting_provider} disabled={!canManage} onChange={e => setSiteFields(p => ({ ...p, hosting_provider: e.target.value }))} placeholder="e.g. Cloudflare Pages, Railway" />
+            </div>
+          </div>
+          {canManage && <Button variant="teal" onClick={saveSite} disabled={savingSite}>{savingSite ? 'Saving…' : site ? 'Save Changes' : 'Register Site'}</Button>}
         </Card></div>
         </section>
 
