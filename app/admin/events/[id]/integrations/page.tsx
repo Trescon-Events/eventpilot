@@ -13,18 +13,19 @@ import { FORM_TYPES, FORM_TITLES, type FormType } from '@/app/lib/forms/types'
 // HubSpot/Postiz/Client Approval all genuinely live on this one page/one
 // fetch — only HubSpot's own "Manage" link leaves the page.
 //
-// Site Registry added 2026-09-13 (Site Operations module, Phase 1 — see
-// docs/EventPilot-SiteOps-Build-Spec-v1.1.md). Remaining sections from
-// that spec (Google Analytics, Search Console, SEO & Discovery, Off-site
-// Presence, Health Checks) land in their own later phases per the spec's
-// build order — not added here yet so the nav never points at an unbuilt
-// section.
+// Site Registry added 2026-09-13 (Site Operations module, Phase 1).
+// Health Checks added 2026-09-13 (Phase 3). Remaining sections from that
+// spec (Google Analytics, Search Console, SEO & Discovery, Off-site
+// Presence) land in their own later phases per the spec's build order —
+// not added here yet so the nav never points at an unbuilt section. See
+// docs/EventPilot-SiteOps-Build-Spec-v1.1.md.
 const NAV_SECTIONS = [
   { id: 'konfhub', label: 'KonfHub' },
   { id: 'hubspot', label: 'HubSpot Forms' },
   { id: 'postiz', label: 'Postiz' },
   { id: 'client-approval', label: 'Client Approval Contacts' },
   { id: 'site-registry', label: 'Site Registry' },
+  { id: 'health-checks', label: 'Health Checks' },
 ] as const
 
 function IntegrationsSideNav({ active }: { active: string }) {
@@ -140,6 +141,16 @@ type EventSite = {
   commissioning_state: 'registered' | 'in_progress' | 'commissioned' | 'archived'
 }
 
+type HealthCheck = { check_key: string; status: 'pass' | 'warn' | 'fail'; detail: string; checked_at: string }
+
+const HEALTH_CHECK_LABELS: Record<string, string> = {
+  site_reachable: 'Site reachable',
+  ga4_receiving: 'GA4 receiving',
+  search_console_verified: 'Search Console verified',
+  schema_valid: 'Structured data valid',
+  private_routes_excluded: 'Private routes excluded (partial)',
+}
+
 export default function IntegrationsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = use(params)
   const [eventName, setEventName] = useState('')
@@ -199,6 +210,10 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
   const [siteFields, setSiteFields] = useState({ live_url: '', repo_url: '', preview_url: '', hosting_provider: '' })
   const [savingSite, setSavingSite] = useState(false)
 
+  // Health Checks
+  const [healthChecks, setHealthChecks] = useState<HealthCheck[]>([])
+  const [runningHealthCheck, setRunningHealthCheck] = useState(false)
+
   const [activeSection, setActiveSection] = useState<string>(NAV_SECTIONS[0].id)
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
 
@@ -219,7 +234,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
 
   async function load() {
     setLoading(true)
-    const [settingsRes, eventRes, permRes, fieldsRes, postizRes, contactsRes, siteRes] = await Promise.all([
+    const [settingsRes, eventRes, permRes, fieldsRes, postizRes, contactsRes, siteRes, healthRes] = await Promise.all([
       fetch(`/api/events/konfhub/settings?event_id=${eventId}`),
       fetch(`/api/events?id=${eventId}`),
       fetch(`/api/events/access/me?event_id=${eventId}`),
@@ -227,6 +242,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
       fetch(`/api/events/postiz/settings?event_id=${eventId}`),
       fetch(`/api/events/client-approval-contacts?event_id=${eventId}`),
       fetch(`/api/events/site-registry?event_id=${eventId}`),
+      fetch(`/api/events/site-registry/health-check?event_id=${eventId}`),
     ])
     const settingsData = await settingsRes.json().catch(() => null)
     if (settingsRes.ok && settingsData) {
@@ -286,6 +302,9 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
       preview_url: siteData.site?.preview_url ?? '',
       hosting_provider: siteData.site?.hosting_provider ?? '',
     })
+
+    const healthData = await healthRes.json().catch(() => ({ checks: [] }))
+    setHealthChecks(healthData.checks ?? [])
 
     setLoading(false)
   }
@@ -471,6 +490,19 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
     if (!res.ok) { setMsg({ text: data.error ?? 'Could not save site registry.', ok: false }); return }
     setSite(data.site)
     setMsg({ text: 'Site registered.', ok: true })
+  }
+
+  async function runHealthCheck() {
+    setRunningHealthCheck(true)
+    setMsg(null)
+    const res = await fetch(`/api/events/site-registry/health-check?event_id=${eventId}`, { method: 'POST' })
+    const data = await res.json().catch(() => ({}))
+    setRunningHealthCheck(false)
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not run health checks.', ok: false }); return }
+    setHealthChecks((data.results ?? []).map((r: { checkKey: string; status: string; detail: string }) => ({
+      check_key: r.checkKey, status: r.status, detail: r.detail, checked_at: new Date().toISOString(),
+    })))
+    setMsg({ text: 'Health checks run.', ok: true })
   }
 
   const selectedTicket: KonfhubTicket | null = fetchedCategories && selectedTicketId
@@ -829,6 +861,42 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
             </div>
           </div>
           {canManage && <Button variant="teal" onClick={saveSite} disabled={savingSite}>{savingSite ? 'Saving…' : site ? 'Save Changes' : 'Register Site'}</Button>}
+        </Card></div>
+        </section>
+
+        <section id="health-checks" ref={el => { sectionRefs.current['health-checks'] = el }} style={{ scrollMarginTop: '20px' }}>
+        <div style={{ marginTop: '16px' }}><Card padded>
+          <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Health Checks</div>
+          <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
+            Runs daily automatically; run on demand any time. A site with no GA4/Search Console connection yet shows those checks as amber, not red — that&apos;s expected mid-commissioning, not a failure.
+          </div>
+          {!site ? (
+            <div style={{ fontSize: '13px', color: 'var(--ink4)' }}>Register the site above first.</div>
+          ) : (
+            <div style={{ display: 'grid', gap: '8px' }}>
+              {healthChecks.length === 0 ? (
+                <div style={{ fontSize: '13px', color: 'var(--ink4)', marginBottom: '4px' }}>No checks run yet.</div>
+              ) : (
+                healthChecks.map(c => {
+                  const color = c.status === 'pass' ? 'teal' : c.status === 'warn' ? 'amber' : 'red'
+                  return (
+                    <div key={c.check_key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: '8px', background: 'var(--card-hi)' }}>
+                      <div>
+                        <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>{HEALTH_CHECK_LABELS[c.check_key] ?? c.check_key}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--ink4)', marginTop: '2px' }}>{c.detail}</div>
+                      </div>
+                      <Badge color={color}>{c.status}</Badge>
+                    </div>
+                  )
+                })
+              )}
+              {canManage && (
+                <div style={{ marginTop: '4px' }}>
+                  <Button variant="ghost" onClick={runHealthCheck} disabled={runningHealthCheck}>{runningHealthCheck ? 'Running…' : 'Run Health Check Now'}</Button>
+                </div>
+              )}
+            </div>
+          )}
         </Card></div>
         </section>
 
