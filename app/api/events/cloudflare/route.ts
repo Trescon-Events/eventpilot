@@ -5,40 +5,37 @@ import { supabaseAdmin } from '@/app/lib/supabase'
   POST /api/events/cloudflare
   Body: { website_id, cf_token, cf_zone_id, domain }
 
-  1. Calls Cloudflare API to create a CNAME DNS record:
-       domain → CNAME → eventpilot-trescons-projects.vercel.app (proxied)
-  2. Saves custom_domain + cf_zone_id to event_websites record.
+  Creates a CNAME DNS record for a custom domain and saves custom_domain +
+  cf_zone_id to the event_websites record.
+
+  NOTE (Site Operations Phase 0, 13 Sep 2026): this previously derived its
+  CNAME target from event_sites.worker_name, a table from an abandoned
+  site-deploy pipeline that was dropped after confirming it had 0 rows in
+  production (see docs/EventPilot-SiteOps-Build-Spec-v1.1.md). That lookup
+  always failed and silently fell back to a Vercel hostname that has not
+  existed since Vercel was removed 18 Jun 2026 — so this endpoint has likely
+  never written a working DNS record. Rather than guess another wrong target,
+  it now requires the caller to supply one explicitly, until the Site
+  Registry (Phase 1) can resolve it from a real, verified hosting record.
 
   The CF API token is never stored — used only for this one-time call.
 */
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
-  const { website_id, cf_token, cf_zone_id, domain } = body ?? {}
+  const { website_id, cf_token, cf_zone_id, domain, cname_target } = body ?? {}
 
   if (!website_id || !cf_token || !cf_zone_id || !domain) {
     return NextResponse.json({ error: 'website_id, cf_token, cf_zone_id, and domain are required' }, { status: 400 })
   }
 
-  // Look up the deployed site to get the Workers URL as CNAME target
-  const { data: websiteRecord } = await supabaseAdmin
-    .from('event_websites')
-    .select('event_id')
-    .eq('id', website_id)
-    .single()
-
-  let cnameTarget = 'cname.vercel-dns.com' // fallback
-  if (websiteRecord?.event_id) {
-    const { data: siteRecord } = await supabaseAdmin
-      .from('event_sites')
-      .select('worker_name, site_url')
-      .eq('event_id', websiteRecord.event_id)
-      .single()
-    if (siteRecord?.worker_name) {
-      // Cloudflare Workers custom domains need a CNAME to the workers.dev subdomain
-      cnameTarget = `${siteRecord.worker_name}.workers.dev`
-    }
+  if (!cname_target) {
+    return NextResponse.json({
+      error: 'Custom domain automation is temporarily unavailable: no verified hosting target for this site. This is being rebuilt as part of the Site Registry — pass cname_target explicitly to proceed manually in the meantime.',
+    }, { status: 400 })
   }
+
+  const cnameTarget = cname_target as string
 
   // Normalise domain — strip protocol and trailing slash
   const cleanDomain = domain.replace(/^https?:\/\//i, '').replace(/\/$/, '').toLowerCase()
