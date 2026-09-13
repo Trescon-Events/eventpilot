@@ -93,9 +93,14 @@ export async function POST(req: NextRequest) {
     const { buffer: cropped, padding } = await alignAndCropPhoto(cutoutBuffer, target, headBox)
     const PADDING_WARNING_THRESHOLD_PX = 3
     const cropWarning = Math.max(padding.left, padding.top, padding.right, padding.bottom) > PADDING_WARNING_THRESHOLD_PX ? padding : null
-    const finalBuffer = await compositeOnBackground(cropped, backgroundBuffer, { canvasWidth: variant.canvas_width, canvasHeight: variant.canvas_height })
+    // WebP output (2026-09-12, per Madhu) — this is the file KonfHub
+    // publishes straight to the public event website; a lossless PNG here
+    // was making that page heavier than it needed to be for no visible
+    // quality gain, since the composite is fully opaque (see
+    // compositeOnBackground's own comment for why lossy is safe here).
+    const finalBuffer = await compositeOnBackground(cropped, backgroundBuffer, { canvasWidth: variant.canvas_width, canvasHeight: variant.canvas_height, format: 'webp' })
 
-    const websiteCardUrl = await uploadPublicAsset(`events/${body.event_id}/speakers/${body.speaker_id}/website-photo/${Date.now()}.png`, finalBuffer, 'image/png')
+    const websiteCardUrl = await uploadPublicAsset(`events/${body.event_id}/speakers/${body.speaker_id}/website-photo/${Date.now()}.webp`, finalBuffer, 'image/webp')
     const { error: updateErr } = await supabaseAdmin.from('event_speakers').update({ website_card_url: websiteCardUrl, website_photo_crop_warning: cropWarning }).eq('id', body.speaker_id)
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
     return NextResponse.json({ website_card_url: websiteCardUrl, crop_warning: cropWarning })

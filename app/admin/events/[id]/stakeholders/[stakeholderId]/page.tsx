@@ -1222,7 +1222,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                   </div>
                   <div>
                     <AssetTile
-                      label="Website Photo" url={record.website_card_url ?? null} filename={`${namePrefix}-website-photo.png`} size={176}
+                      label="Website Photo" url={record.website_card_url ?? null} filename={`${namePrefix}-website-photo.webp`} size={176}
                       onOpen={(url, label) => setLightbox({ url, label })}
                       badges={record.website_photo_crop_warning ? [{ text: 'Needs Review', tone: 'amber' as const }] : undefined}
                     />
