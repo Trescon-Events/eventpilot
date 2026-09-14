@@ -1,35 +1,47 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { encryptToken, decryptToken } from './token-crypto'
 
-/* Site Operations module, Phase 2 — the ONE shared org-level Google
-   connection (GA4 + Search Console), stored in the singleton
-   google_org_connection table. Deliberately not per-staff (unlike the old,
-   now-deleted Drive integration's staff_oauth_connections): every event's
-   Site Registry fetches GA4/Search Console data from the same connected
-   account, per Madhu's explicit decision — see
-   docs/EventPilot-SiteOps-Build-Spec-v1.1.md. */
+/* Site Operations module — Google connections (GA4 + Search Console).
+   v1.3: multiple named org-level connections, not one shared singleton.
+   Event analytics properties are genuinely split across more than one
+   Google identity (confirmed 2026-09-14 — see docs/
+   EventPilot-SiteOps-Build-Spec-v1.1.md, Changelog v1.2 -> v1.3), and that
+   split isn't temporary: GA4/Search Console properties can't be transferred
+   between Google accounts, so some events permanently live under a
+   different connection than others. Every caller now takes an explicit
+   connectionId — there's no "the" connection anymore. */
 
-type ConnectionRow = {
+export type ConnectionRow = {
   id: string
   access_token_enc: string | null
   refresh_token_enc: string | null
   expires_at: string | null
   google_account_email: string | null
+  connected_by: string | null
+  connected_at: string | null
 }
 
-export async function getGoogleOrgConnection(): Promise<ConnectionRow | null> {
+export async function listGoogleConnections(): Promise<ConnectionRow[]> {
   const { data } = await supabaseAdmin
-    .from('google_org_connection')
-    .select('id, access_token_enc, refresh_token_enc, expires_at, google_account_email')
-    .limit(1)
-    .single()
+    .from('google_connections')
+    .select('id, access_token_enc, refresh_token_enc, expires_at, google_account_email, connected_by, connected_at')
+    .order('connected_at', { ascending: true })
+  return data ?? []
+}
+
+export async function getGoogleConnection(connectionId: string): Promise<ConnectionRow | null> {
+  const { data } = await supabaseAdmin
+    .from('google_connections')
+    .select('id, access_token_enc, refresh_token_enc, expires_at, google_account_email, connected_by, connected_at')
+    .eq('id', connectionId)
+    .maybeSingle()
   return data ?? null
 }
 
-/* Returns a live access token, refreshing if expired. Null if never
-   connected (no refresh token on file). */
-export async function getGoogleOrgAccessToken(): Promise<string | null> {
-  const row = await getGoogleOrgConnection()
+/* Returns a live access token for the given connection, refreshing if
+   expired. Null if the connection doesn't exist or was never completed. */
+export async function getGoogleAccessToken(connectionId: string): Promise<string | null> {
+  const row = await getGoogleConnection(connectionId)
   if (!row?.refresh_token_enc) return null
 
   if (!row.expires_at || new Date(row.expires_at) < new Date()) {
@@ -49,7 +61,7 @@ export async function getGoogleOrgAccessToken(): Promise<string | null> {
     if (!tokens.access_token) return null
 
     await supabaseAdmin
-      .from('google_org_connection')
+      .from('google_connections')
       .update({
         access_token_enc: encryptToken(tokens.access_token),
         expires_at: new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000).toISOString(),

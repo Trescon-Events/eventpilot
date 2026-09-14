@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
+import { listGoogleConnections } from '@/app/lib/security/google-org-auth'
 
-/* GET /api/connect/google-org/status — whether the shared org-level
-   Google connection exists, and which account it is. Never exposes
-   tokens. Admin-only, same as the rest of this connection's routes. */
+/* GET /api/connect/google-org/status — v1.3: every connected Google
+   account, not one. Never exposes tokens. Admin-only, same as the rest of
+   this connection's routes. */
 
 export async function GET(req: NextRequest) {
   const session = getSession(req)
@@ -12,15 +12,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Admin access required.' }, { status: 403 })
   }
 
-  const { data } = await supabaseAdmin
-    .from('google_org_connection')
-    .select('google_account_email, connected_at, connected_by')
-    .limit(1)
-    .single()
+  const rows = await listGoogleConnections()
 
   return NextResponse.json({
-    connected: !!data?.google_account_email,
-    email: data?.google_account_email ?? null,
-    connectedAt: data?.connected_at ?? null,
+    connections: rows
+      .filter(r => !!r.google_account_email)
+      .map(r => ({ id: r.id, email: r.google_account_email, connectedAt: r.connected_at })),
   })
 }

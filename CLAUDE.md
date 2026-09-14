@@ -69,9 +69,11 @@ Railway internal URL: eventpilot-production-90c6.up.railway.app
 
 1. Vercel is gone — deleted 18 Jun 2026. Never create or reference a Vercel project for this app.
 2. Never run vercel deploy or wrangler deploy commands
-3. Never touch Cloudflare Worker routing without explicit instruction from Durga
+3. Never touch Cloudflare Worker routing without explicit instruction — Madhu's sign-off is sufficient (confirmed 14 Sep 2026); it no longer requires Durga specifically
 4. Never change environment variables in Railway without explicit instruction
 5. Never add default passwords or hardcoded credentials to code without asking first
 6. Never deploy to production without user saying so explicitly in that message
 7. Always tell Durga what you are going to do BEFORE doing it
 8. Only do exactly what is asked — nothing extra
+
+Note (14 Sep 2026): Madhu's sign-off is sufficient authorization project-wide going forward — rules above are no longer gated on Durga specifically unless a rule says otherwise. Rule 7 (keeping Durga informed) is a separate communication expectation, not an authorization gate, and still stands.

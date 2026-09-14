@@ -153,14 +153,19 @@ const HEALTH_CHECK_LABELS: Record<string, string> = {
   private_routes_excluded: 'Private routes excluded (partial)',
 }
 
-type SiteConnection = { provider: string; account_ref: string | null; property_ref: string | null; stream_ref: string | null; status: string; last_verified_at: string | null; last_error: string | null }
+type SiteConnection = { provider: string; account_ref: string | null; property_ref: string | null; stream_ref: string | null; status: string; last_verified_at: string | null; last_error: string | null; google_connection_id: string | null }
 type ClassifyResult = {
   registrableDomain: string
   scenario: 'new_domain_new_series' | 'not_new_domain'
-  evidence: { siblingEvents: { eventId: string; eventName: string; liveUrl: string | null }[]; matchingGscSites: string[]; googleConnected: boolean }
+  evidence: {
+    siblingEvents: { eventId: string; eventName: string; liveUrl: string | null }[]
+    matchingGscSites: { siteUrl: string; connectionId: string; connectionEmail: string | null }[]
+    googleConnectionsChecked: number
+  }
 }
 type Ga4Account = { id: string; name: string; properties: { id: string; name: string }[] }
 type GscSite = { url: string; permissionLevel: string; verified: boolean }
+type GoogleConnection = { id: string; email: string; connectedAt: string | null }
 
 export default function IntegrationsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = use(params)
@@ -231,6 +236,12 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
   const [classifying, setClassifying] = useState(false)
   const [scenarioOverride, setScenarioOverride] = useState<ClassifyResult['scenario'] | ''>('')
 
+  // v1.3: which named Google connection this event uses — a real pick, not
+  // an assumed shared account. Loaded once; the human selects before any
+  // GA4/Search Console fetch can happen.
+  const [googleConnections, setGoogleConnections] = useState<GoogleConnection[]>([])
+  const [selectedConnectionId, setSelectedConnectionId] = useState('')
+
   const [ga4Accounts, setGa4Accounts] = useState<Ga4Account[] | null>(null)
   const [fetchingGa4Accounts, setFetchingGa4Accounts] = useState(false)
   const [selectedGa4AccountId, setSelectedGa4AccountId] = useState('')
@@ -266,7 +277,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
 
   async function load() {
     setLoading(true)
-    const [settingsRes, eventRes, permRes, fieldsRes, postizRes, contactsRes, siteRes, healthRes, connRes] = await Promise.all([
+    const [settingsRes, eventRes, permRes, fieldsRes, postizRes, contactsRes, siteRes, healthRes, connRes, googleConnRes] = await Promise.all([
       fetch(`/api/events/konfhub/settings?event_id=${eventId}`),
       fetch(`/api/events?id=${eventId}`),
       fetch(`/api/events/access/me?event_id=${eventId}`),
@@ -276,6 +287,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
       fetch(`/api/events/site-registry?event_id=${eventId}`),
       fetch(`/api/events/site-registry/health-check?event_id=${eventId}`),
       fetch(`/api/events/site-registry/connections?event_id=${eventId}`),
+      fetch('/api/connect/google-org/status'),
     ])
     const settingsData = await settingsRes.json().catch(() => null)
     if (settingsRes.ok && settingsData) {
@@ -341,6 +353,15 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
 
     const connData = await connRes.json().catch(() => ({ connections: [] }))
     setSiteConnections(connData.connections ?? [])
+
+    const googleConnData = await googleConnRes.json().catch(() => ({ connections: [] }))
+    const googleConns: GoogleConnection[] = googleConnData.connections ?? []
+    setGoogleConnections(googleConns)
+    // Default to whichever connection this site's GA4/GSC rows already use,
+    // if any; otherwise leave unselected until the human picks one.
+    const existingConnId = (connData.connections ?? []).find((c: SiteConnection) => c.google_connection_id)?.google_connection_id
+    if (existingConnId) setSelectedConnectionId(existingConnId)
+    else if (googleConns.length === 1) setSelectedConnectionId(googleConns[0].id)
 
     setLoading(false)
   }
@@ -574,9 +595,10 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
   }
 
   async function fetchGa4Accounts() {
+    if (!selectedConnectionId) { setMsg({ text: 'Pick which Google account to use first.', ok: false }); return }
     setFetchingGa4Accounts(true)
     setMsg(null)
-    const res = await fetch('/api/connect/google-org/ga4-accounts')
+    const res = await fetch(`/api/connect/google-org/ga4-accounts?connection_id=${selectedConnectionId}`)
     const data = await res.json().catch(() => ({}))
     setFetchingGa4Accounts(false)
     if (!res.ok) { setMsg({ text: data.error ?? 'Could not fetch GA4 accounts.', ok: false }); return }
@@ -584,9 +606,10 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
   }
 
   async function fetchGscSites() {
+    if (!selectedConnectionId) { setMsg({ text: 'Pick which Google account to use first.', ok: false }); return }
     setFetchingGscSites(true)
     setMsg(null)
-    const res = await fetch('/api/connect/google-org/search-console-sites')
+    const res = await fetch(`/api/connect/google-org/search-console-sites?connection_id=${selectedConnectionId}`)
     const data = await res.json().catch(() => ({}))
     setFetchingGscSites(false)
     if (!res.ok) { setMsg({ text: data.error ?? 'Could not fetch Search Console sites.', ok: false }); return }
@@ -594,12 +617,12 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
   }
 
   async function createGa4Property() {
-    if (!selectedGa4AccountId || !newGa4Name.trim() || !site?.live_url) return
+    if (!selectedConnectionId || !selectedGa4AccountId || !newGa4Name.trim() || !site?.live_url) return
     setCreatingGa4Property(true)
     setMsg(null)
     const res = await fetch(`/api/events/site-registry/ga4-property?event_id=${eventId}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accountId: selectedGa4AccountId, displayName: newGa4Name.trim(), liveUrl: site.live_url }),
+      body: JSON.stringify({ connectionId: selectedConnectionId, accountId: selectedGa4AccountId, displayName: newGa4Name.trim(), liveUrl: site.live_url }),
     })
     const data = await res.json().catch(() => ({}))
     setCreatingGa4Property(false)
@@ -610,14 +633,14 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
   }
 
   async function saveGa4Connection() {
-    if (!selectedGa4AccountId || !selectedGa4PropertyId) return
+    if (!selectedConnectionId || !selectedGa4AccountId || !selectedGa4PropertyId) return
     setSavingGa4Connection(true)
     setMsg(null)
     const selectedAccount = ga4Accounts?.find(a => a.id === selectedGa4AccountId)
     const selectedProperty = selectedAccount?.properties.find(p => p.id === selectedGa4PropertyId)
     const res = await fetch(`/api/events/site-registry/connections?event_id=${eventId}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider: 'ga4', account_ref: selectedGa4AccountId, property_ref: selectedGa4PropertyId, stream_ref: selectedProperty?.id ?? null }),
+      body: JSON.stringify({ provider: 'ga4', connectionId: selectedConnectionId, account_ref: selectedGa4AccountId, property_ref: selectedGa4PropertyId, stream_ref: selectedProperty?.id ?? null }),
     })
     const data = await res.json().catch(() => ({}))
     setSavingGa4Connection(false)
@@ -627,12 +650,12 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
   }
 
   async function saveGscConnection() {
-    if (!selectedGscSite) return
+    if (!selectedConnectionId || !selectedGscSite) return
     setSavingGscConnection(true)
     setMsg(null)
     const res = await fetch(`/api/events/site-registry/connections?event_id=${eventId}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider: 'search_console', property_ref: selectedGscSite }),
+      body: JSON.stringify({ provider: 'search_console', connectionId: selectedConnectionId, property_ref: selectedGscSite }),
     })
     const data = await res.json().catch(() => ({}))
     setSavingGscConnection(false)
@@ -1039,8 +1062,11 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
                     <div style={{ padding: '10px 12px', borderRadius: '8px', background: 'var(--card-hi)', fontSize: '12.5px', color: 'var(--ink2)' }}>
                       <div style={{ fontWeight: 700, marginBottom: '4px' }}>Domain: {classifyResult.registrableDomain}</div>
                       <div>Sibling events on this domain: {classifyResult.evidence.siblingEvents.length === 0 ? 'none' : classifyResult.evidence.siblingEvents.map(s => s.eventName).join(', ')}</div>
-                      <div>Matching Search Console properties: {classifyResult.evidence.matchingGscSites.length === 0 ? 'none' : classifyResult.evidence.matchingGscSites.join(', ')}</div>
-                      {!classifyResult.evidence.googleConnected && <div style={{ color: 'var(--amber)', marginTop: '4px' }}>Google account not connected — evidence is incomplete.</div>}
+                      <div>
+                        Matching Search Console properties: {classifyResult.evidence.matchingGscSites.length === 0 ? 'none' : classifyResult.evidence.matchingGscSites.map(s => `${s.siteUrl} (${s.connectionEmail ?? 'unknown account'})`).join(', ')}
+                      </div>
+                      <div style={{ color: 'var(--ink4)', marginTop: '4px' }}>Checked across {classifyResult.evidence.googleConnectionsChecked} connected Google account{classifyResult.evidence.googleConnectionsChecked === 1 ? '' : 's'}.</div>
+                      {classifyResult.evidence.googleConnectionsChecked === 0 && <div style={{ color: 'var(--amber)', marginTop: '4px' }}>No Google account connected anywhere — evidence is incomplete. <a href="/admin/settings/google">Connect one</a>.</div>}
                     </div>
                     <div>
                       <label style={labelStyle}>Detected scenario (override if wrong)</label>
@@ -1062,6 +1088,20 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
                   Domain <strong>{site.registrable_domain}</strong> — {site.launch_scenario === 'new_domain_new_series' ? 'new domain, new series' : 'existing domain (manual)'}
                 </div>
 
+                {!ga4Connection && !gscConnection && (
+                  <div>
+                    <label style={labelStyle}>Google account to use for this site</label>
+                    {googleConnections.length === 0 ? (
+                      <div style={{ fontSize: '12.5px', color: 'var(--amber)' }}>No Google accounts connected yet. <a href="/admin/settings/google">Connect one</a> before continuing.</div>
+                    ) : (
+                      <Select value={selectedConnectionId} onChange={e => { setSelectedConnectionId(e.target.value); setGa4Accounts(null); setGscSites(null) }} style={{ maxWidth: '360px' }}>
+                        <option value="">— Select Google account —</option>
+                        {googleConnections.map(c => <option key={c.id} value={c.id}>{c.email}</option>)}
+                      </Select>
+                    )}
+                  </div>
+                )}
+
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: '6px' }}>
                     Google Analytics {ga4Connection && <Badge color={ga4Connection.status === 'verified' ? 'teal' : 'amber'}>{ga4Connection.status}</Badge>}
@@ -1069,7 +1109,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
                   {ga4Connection ? (
                     <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>Property {ga4Connection.property_ref} (account {ga4Connection.account_ref}){ga4Connection.last_error && <div style={{ color: 'var(--amber)' }}>{ga4Connection.last_error}</div>}</div>
                   ) : !ga4Accounts ? (
-                    <Button variant="ghost" onClick={fetchGa4Accounts} disabled={fetchingGa4Accounts}>{fetchingGa4Accounts ? 'Fetching…' : 'Fetch GA4 Accounts'}</Button>
+                    <Button variant="ghost" onClick={fetchGa4Accounts} disabled={fetchingGa4Accounts || !selectedConnectionId}>{fetchingGa4Accounts ? 'Fetching…' : 'Fetch GA4 Accounts'}</Button>
                   ) : (
                     <div style={{ display: 'grid', gap: '10px' }}>
                       <Select value={selectedGa4AccountId} onChange={e => { setSelectedGa4AccountId(e.target.value); setSelectedGa4PropertyId('') }} style={{ maxWidth: '360px' }}>
@@ -1104,7 +1144,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
                   {gscConnection ? (
                     <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>{gscConnection.property_ref}{gscConnection.last_error && <div style={{ color: 'var(--amber)' }}>{gscConnection.last_error}</div>}</div>
                   ) : !gscSites ? (
-                    <Button variant="ghost" onClick={fetchGscSites} disabled={fetchingGscSites}>{fetchingGscSites ? 'Fetching…' : 'Fetch Search Console Sites'}</Button>
+                    <Button variant="ghost" onClick={fetchGscSites} disabled={fetchingGscSites || !selectedConnectionId}>{fetchingGscSites ? 'Fetching…' : 'Fetch Search Console Sites'}</Button>
                   ) : (
                     <div style={{ display: 'grid', gap: '10px' }}>
                       <Select value={selectedGscSite} onChange={e => setSelectedGscSite(e.target.value)} style={{ maxWidth: '360px' }}>

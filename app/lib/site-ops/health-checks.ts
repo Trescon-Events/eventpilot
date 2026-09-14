@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
-import { getGoogleOrgAccessToken } from '@/app/lib/security/google-org-auth'
+import { getGoogleAccessToken } from '@/app/lib/security/google-org-auth'
 
 /* Site Operations module, Phase 3 — health check functions. Each one is
    independent and best-effort: a site with no GA4/Search Console
@@ -48,14 +48,15 @@ async function checkSiteReachable(site: SiteRow): Promise<CheckResult> {
 export async function checkGa4Receiving(siteId: string): Promise<CheckResult> {
   const { data: conn } = await supabaseAdmin
     .from('site_connections')
-    .select('property_ref, stream_ref, status')
+    .select('property_ref, stream_ref, status, google_connection_id')
     .eq('site_id', siteId).eq('provider', 'ga4')
     .maybeSingle()
 
   if (!conn?.property_ref) return { checkKey: 'ga4_receiving', status: 'warn', detail: 'GA4 not connected for this site yet.' }
+  if (!conn.google_connection_id) return { checkKey: 'ga4_receiving', status: 'warn', detail: 'No Google connection recorded for this property — reconnect via Site Registry.' }
 
-  const accessToken = await getGoogleOrgAccessToken()
-  if (!accessToken) return { checkKey: 'ga4_receiving', status: 'warn', detail: 'Org Google connection not set up.' }
+  const accessToken = await getGoogleAccessToken(conn.google_connection_id)
+  if (!accessToken) return { checkKey: 'ga4_receiving', status: 'warn', detail: 'The Google connection this site uses is not set up.' }
 
   const res = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${conn.property_ref}:runReport`, {
     method: 'POST',
@@ -80,14 +81,15 @@ export async function checkGa4Receiving(siteId: string): Promise<CheckResult> {
 export async function checkSearchConsoleVerified(siteId: string): Promise<CheckResult> {
   const { data: conn } = await supabaseAdmin
     .from('site_connections')
-    .select('property_ref')
+    .select('property_ref, google_connection_id')
     .eq('site_id', siteId).eq('provider', 'search_console')
     .maybeSingle()
 
   if (!conn?.property_ref) return { checkKey: 'search_console_verified', status: 'warn', detail: 'Search Console not connected for this site yet.' }
+  if (!conn.google_connection_id) return { checkKey: 'search_console_verified', status: 'warn', detail: 'No Google connection recorded for this property — reconnect via Site Registry.' }
 
-  const accessToken = await getGoogleOrgAccessToken()
-  if (!accessToken) return { checkKey: 'search_console_verified', status: 'warn', detail: 'Org Google connection not set up.' }
+  const accessToken = await getGoogleAccessToken(conn.google_connection_id)
+  if (!accessToken) return { checkKey: 'search_console_verified', status: 'warn', detail: 'The Google connection this site uses is not set up.' }
 
   const res = await fetch(`https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(conn.property_ref)}`, {
     headers: { Authorization: `Bearer ${accessToken}` },

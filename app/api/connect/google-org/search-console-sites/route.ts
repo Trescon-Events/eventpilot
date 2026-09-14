@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/app/lib/access/session'
-import { getGoogleOrgAccessToken } from '@/app/lib/security/google-org-auth'
+import { getGoogleAccessToken } from '@/app/lib/security/google-org-auth'
 
-/* GET /api/connect/google-org/search-console-sites — every Search Console
-   property the connected org-level Google account has verified access to.
-   Fetch-and-select only, on explicit request. */
+/* GET /api/connect/google-org/search-console-sites?connection_id=X — every
+   Search Console property the given named Google connection has access to.
+   v1.3: which connection to query is now explicit. Fetch-and-select only,
+   on explicit request. */
 
 type SearchConsoleSite = {
   siteUrl: string
@@ -17,7 +18,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Admin access required.' }, { status: 403 })
   }
 
-  const accessToken = await getGoogleOrgAccessToken()
+  const connectionId = req.nextUrl.searchParams.get('connection_id')
+  if (!connectionId) return NextResponse.json({ error: 'connection_id required' }, { status: 400 })
+
+  const accessToken = await getGoogleAccessToken(connectionId)
   if (!accessToken) {
     return NextResponse.json({ error: 'Google account not connected. Connect it first.' }, { status: 400 })
   }

@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/app/lib/access/session'
-import { getGoogleOrgAccessToken } from '@/app/lib/security/google-org-auth'
+import { getGoogleAccessToken } from '@/app/lib/security/google-org-auth'
 
-/* GET /api/connect/google-org/ga4-accounts — every GA4 account and
-   property the connected org-level Google account can see, via the
+/* GET /api/connect/google-org/ga4-accounts?connection_id=X — every GA4
+   account and property the given named Google connection can see, via the
    Admin API's accountSummaries endpoint (one call, nested properties —
-   no need to list accounts then properties separately). Fetch-and-select
-   only, on explicit request from the UI — never auto-run, per this
-   module's design principles (docs/EventPilot-SiteOps-Build-Spec-v1.1.md). */
+   no need to list accounts then properties separately). v1.3: which
+   connection to query is now explicit, not assumed. Fetch-and-select only,
+   on explicit request from the UI — never auto-run, per this module's
+   design principles (docs/EventPilot-SiteOps-Build-Spec-v1.1.md). */
 
 type GA4PropertySummary = {
   property: string        // "properties/12345"
@@ -27,7 +28,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Admin access required.' }, { status: 403 })
   }
 
-  const accessToken = await getGoogleOrgAccessToken()
+  const connectionId = req.nextUrl.searchParams.get('connection_id')
+  if (!connectionId) return NextResponse.json({ error: 'connection_id required' }, { status: 400 })
+
+  const accessToken = await getGoogleAccessToken(connectionId)
   if (!accessToken) {
     return NextResponse.json({ error: 'Google account not connected. Connect it first.' }, { status: 400 })
   }

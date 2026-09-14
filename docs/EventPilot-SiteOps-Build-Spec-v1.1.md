@@ -6,11 +6,159 @@ Everything required to take an event website from "published" to "fully
 commissioned and competing" — search, analytics, AI discovery, social, off-site
 presence and ongoing health — managed from inside EventPilot.
 
-Version 1.1 · 13 September 2026 (revised from v1.0 same day, post codebase verification)
+Version 1.3 · 14 September 2026 (addendum — multi-account Google connection)
 
 ---
 
-## Changelog — v1.0 → v1.1
+## Changelog — v1.2 → v1.3
+
+Phase 2 (section 8) built `google_org_connection` as a **singleton** — one
+shared Google identity for every event's GA4/Search Console access. That
+assumption is wrong. Confirmed 14 Sep 2026: event analytics properties are
+currently split across at least two Google accounts in active use —
+`tresconsocial@gmail.com` (existing, holds some events already) and
+`digital@tresconglobal.com` (the account Madhu is consolidating into, access
+expected 15 Sep 2026) — plus `md@tresconglobal.com`, which owns the GCP OAuth
+client itself (`eventpilot-site-operations`) but which Madhu does not intend
+to keep using for event property access going forward (retained for admin
+access only). Because GA4/Search Console properties cannot be transferred
+between Google accounts, `tresconsocial@gmail.com` is a **permanent** second
+home for some events, not a migration artifact that resolves itself — the
+singleton model was never going to be sufficient, not just temporarily wrong.
+
+This surfaced directly from Scenario B/C planning: World AI Show Malaysia is
+meant to test Scenario C (reusing WAIS Indonesia's existing GA4
+stream/Search Console property, per section 3's own example), which only
+works if EventPilot is looking through the Google account that actually
+holds those properties. A singleton connection can silently look through the
+wrong one and misclassify a site as Scenario A — creating a duplicate
+property for a domain that already has one — with no evidence to even
+present for override, since it never queried the account holding the
+evidence.
+
+**This addendum replaces the singleton with a named multi-account model.**
+Everything below is being built now; connecting the actual
+`digital@tresconglobal.com` account is data entry through the resulting UI,
+gated on Madhu's access arriving — not a code dependency.
+
+### Schema
+
+`google_org_connection` (singleton, one implicit row) becomes
+`google_connections` (one row per Google identity, keyed by the email Google
+itself returns via `userinfo` at connect time — never free-typed, consistent
+with principle 1):
+
+```sql
+alter table google_org_connection rename to google_connections;
+alter table google_connections drop column if exists id;
+-- (id/access_token_enc/refresh_token_enc/expires_at/google_account_email/
+--  connected_by/connected_at/updated_at all carry forward unchanged in shape;
+--  only the "exactly one row" assumption is dropped)
+alter table google_connections
+  add constraint google_connections_email_unique unique (google_account_email);
+-- No pre-seeded row anymore — a row only exists once something has connected.
+```
+
+`site_connections` gains one column, so every per-site GA4/Search Console
+connection records *which* org-level Google identity it came from — this is
+what audit mode and health checks use to re-authenticate correctly later,
+and what Step 2 (Classify) uses to know which connections to search across:
+
+```sql
+alter table site_connections
+  add column google_connection_id uuid references google_connections(id);
+```
+
+### Behavioural changes
+
+- **Connect flow (`/api/connect/google-org` → `callback`)**: unchanged
+  mechanically (still OAuth, still fetches `userinfo.email` after token
+  exchange) — the callback now **upserts by `google_account_email`** instead
+  of always updating "the" one row. Connecting a Google identity that's
+  already on file refreshes its tokens; connecting a new one adds a new row.
+  Any admin can add a connection for any account they can complete the OAuth
+  consent screen for — there's no restriction to one connector.
+- **Disconnect**: now takes a `connection_id` and deletes that row outright
+  (no reason to keep an empty placeholder row per-account the way the
+  singleton did).
+- **Status → list**: `/api/connect/google-org/status` returns every
+  connection (`id`, `email`, `connectedAt`), not one.
+- **`ga4-accounts`, `search-console-sites`, `ga4-property`**: all now require
+  a `connection_id` — fetch-and-select extends one level: pick *which
+  connected account* to fetch from, then pick the property/site as before.
+- **Step 1 of the orchestrator (Connect Google)** changes shape slightly: it
+  was "OAuth to the Google account" (implying one); it becomes "pick which
+  already-connected account applies to this site, or connect a new one right
+  here if none fit." That choice is what gets stored in the new
+  `site_connections.google_connection_id`.
+- **Step 2 (Classify)**: the existing Search-Console-evidence check
+  (`classify/route.ts`) now loops across **every** connection, not the one
+  connection, when looking for a matching domain. GA4-side evidence
+  gathering for classification isn't built at all yet (today's evidence is
+  Search Console + sibling EventPilot events only) — that gap is real but
+  pre-existing and belongs to the Scenario B/C build itself (section 8, item
+  5), not fixed as a side effect of this addendum.
+- **Health checks** (`checkGa4Receiving`, `checkSearchConsoleVerified`): now
+  read `site_connections.google_connection_id` for the site being checked
+  and re-authenticate against that specific account, instead of the one
+  singleton token.
+- **Admin UI (`/admin/settings/google`)**: becomes a list of connected
+  accounts (add another, disconnect one, fetch GA4/Search Console per
+  account) instead of a single connected/not-connected card.
+- **Per-event Integrations page**: Step 1's Google section gets an account
+  picker ahead of the existing GA4/Search Console fetch-and-select UI.
+
+### What ships today vs. what waits
+
+Everything above — schema, API routes, both UI surfaces — is buildable now
+and has no dependency on any specific account being connected. The only
+thing waiting on Madhu is *using* the resulting "Add Google Account" flow to
+actually connect `digital@tresconglobal.com`, which needs his access
+(expected 15 Sep 2026). `tresconsocial@gmail.com` can be connected whenever
+someone completes the OAuth screen as that identity. Live testing of any of
+this is still blocked on the pre-existing `NEXT_PUBLIC_SITE_URL` issue
+(Phase 2 finding — the OAuth redirect always resolves to production), so
+none of this can be end-to-end verified locally regardless of which account
+is used.
+
+---
+
+## Changelog — v1.1 → v1.2
+
+Phases 0-4 (section 8) are built and committed as of 13 Sep 2026, covering
+Step 0 (Site Registry), Step 1 (Google connection), Steps 2-3 (Classify,
+Verify) of the Commissioning Orchestrator, and Health Checks (5.6). This
+addendum details Steps 4-9 — the actual GA4/Search Console/technical-SEO
+settings work, not yet built — and closes one structural gap found while
+scoping it.
+
+1. **Audit mode, added.** The orchestrator as written in v1.1 assumes a
+   linear, greenfield walkthrough. There was no defined way to run it against
+   a site that's already live with partial setup — detect what's missing,
+   propose only the delta. See the new "Two entry modes" note at the top of
+   section 4, and the "Detection basis" line added to each of Steps 4-9.
+2. **GA4 cross-domain measurement, added to Step 6 and section 5.2.** Not in
+   v1.1. Ticket purchases route through `konfhub.com` — a different domain
+   from the event site — so without cross-domain configuration, GA4
+   under-counts the actual conversion funnel (visit → click buy → complete on
+   KonfHub).
+3. **Health Checks table (5.6) extended** with the checks needed to drive
+   audit-mode detection for Steps 4, 5, 6, 7 and 8, each annotated with the
+   step it audits. No new tables required — `site_health_checks` already
+   supports arbitrary `check_key` values.
+4. **How Step 4 actually "publishes" `robots.txt`/`sitemap.xml`/`llms.txt` —
+   resolved 14 Sep 2026.** Branding owns every site's repo and deploy
+   pipeline; EventPilot has never had write access to it, by design. The
+   approach: edge-serve these three paths via a Cloudflare Worker route
+   scoped to the site's zone (`event_sites.cf_zone_id`/`cf_account_id`,
+   already in schema), intercepting them ahead of the branding site's own
+   build. **This is Cloudflare Worker routing — CLAUDE.md's hard rule 3 named
+   Durga as the required sign-off; Madhu has since confirmed his own
+   sign-off is sufficient project-wide, superseding that line.** Cleared to
+   build. One remaining check before building it broadly: confirm which
+   hosting providers the actual target sites run on (Site Registry's
+   `hosting_provider` field) — this mechanism assumes Cloudflare-fronted
+   sites specifically, and needs a fallback for any that aren't.
 
 v1.0 was written and reviewed against the live codebase before any code was
 touched. Four things changed as a result. Everything not listed here was
@@ -189,6 +337,19 @@ before the next unlocks.
 Step order below is revised from v1.0: classification requires evidence from
 the Google account, so connecting it must happen first.
 
+**Two entry modes.** A site enters this orchestrator once, at commissioning —
+Scenario A, B or C, Steps 0-9 in full. It can also re-enter later in **Audit
+mode**: triggered manually from the Integrations page, or automatically when
+Health Checks (5.6) surface a fail/warn on any of the checks Steps 4-9 own.
+Audit mode skips Steps 0-3 (already satisfied for a commissioned site) and
+runs a detection pass across Steps 4-9: each step's proposal panel shows only
+what's missing or broken, with anything already correctly configured shown as
+confirmed and skipped. This is not a second flow — the same step
+implementation serves both modes. A step's job is always *detect current
+state, propose only the delta, execute what's confirmed* — never assume
+greenfield. This is why each step below now carries a **Detection basis**
+line: that's the exact signal Audit mode uses to decide what to show.
+
 ### Step 0 — Register the site
 Human enters: live URL, repo URL, preview URL, hosting provider. Everything
 else is derived or fetched.
@@ -245,6 +406,23 @@ Generate and publish, then verify each:
 - 404 page resolves
 - `www` and apex resolve to one canonical host
 
+**Detection basis (audit mode)**: fetch `robots.txt`/`sitemap.xml`/`llms.txt`
+live and parse; scan a sample of routes for canonical tags and `noindex`
+headers/meta; request a known-bad path to confirm 404 behaviour; resolve both
+`www` and apex hosts and compare. All of this is read-only against the live
+site — no publish access needed to detect a gap, only to fix one.
+
+**Open decision — how "publish" actually works here, not yet resolved (see
+Changelog item 4).** Branding owns every site's repo/deploy; EventPilot has
+never had write access. The schema-consistent option is edge-serving these
+three paths via a Cloudflare Worker route bound to the site's existing
+`cf_zone_id`, intercepting them ahead of the branding site's own build and
+serving EventPilot-generated content instead — no repo access needed. **This
+touches Cloudflare Worker routing, which requires Durga's explicit
+sign-off per this project's hard rules — not assumed by this spec.** Build
+the detection/verification half of this step first; hold the publish
+mechanism until that sign-off exists.
+
 ### Step 5 — Search submission
 - Submit sitemap to Search Console
 - **Bing Webmaster Tools** — connect and submit. Routinely skipped and it feeds
@@ -256,6 +434,15 @@ Generate and publish, then verify each:
   Google surfaces events in its own event experience, and incomplete Event
   markup silently excludes the site from it.
 
+**Detection basis (audit mode)**: Search Console's `sitemaps.list` API
+(submitted status, last read, errors) — already the source for the existing
+"Sitemap readable" health check; Bing Webmaster's equivalent sitemap-status
+call once that connection exists; presence of an IndexNow key in
+`site_connections` (provider `indexnow`, schema already anticipates this) plus
+a check of whether recent publishes actually pinged it; re-run the existing
+schema-validity check (5.6) against the live page's JSON-LD for Event-field
+completeness specifically, not just parseability.
+
 ### Step 6 — Analytics configuration
 - Conversion events, one per form, named so sponsorship enquiries are
   distinguishable from delegate applications
@@ -264,12 +451,33 @@ Generate and publish, then verify each:
 - **Consent Mode v2** — required for EU traffic and mandatory for Google Ads
   personalisation. Set up now rather than retrofitted mid-campaign.
 - Content groupings, per scenario classification
+- **GA4 cross-domain measurement, added in v1.2.** Ticket purchases route
+  through `konfhub.com` — a separate domain from the event site. Without
+  configuring `konfhub.com` as a linked domain in the GA4 data stream's
+  cross-domain settings, GA4 treats the handoff as a new session and loses
+  the referral, undercounting the real conversion funnel (visit → click buy →
+  complete on KonfHub). Configure this for every event, not just ones already
+  showing a conversion-rate anomaly.
+
+**Detection basis (audit mode)**: GA4 Admin API for conversion event
+definitions, the GA4↔Search Console link resource, the GA4↔Ads link resource,
+and the cross-domain/"configure your domains" setting on the data stream; a
+live scan of the site for a consent-management-platform script or the
+`gtag('consent', ...)` call to confirm Consent Mode is actually wired on the
+site side, not just configured in GA4.
 
 ### Step 7 — Social and preview
 - Validate every OG image resolves and is 1200×630
 - Run each route through the LinkedIn Post Inspector to prime its cache —
   LinkedIn caches aggressively, and a bad first scrape persists
 - Confirm `og:locale`, `twitter:card` and site name
+
+**Detection basis (audit mode)**: HTTP HEAD + dimension check on every
+`og:image` (extends the existing "OG images resolve" health check from
+existence-only to dimension-correctness); meta-tag scan for `og:locale` /
+`twitter:card` / `og:site_name`; LinkedIn Post Inspector's own re-scrape
+response indicates whether its cached preview is stale relative to the live
+page.
 
 ### Step 8 — Off-site presence
 - Generate the standard listing copy at three lengths from the messaging
@@ -278,12 +486,23 @@ Generate and publish, then verify each:
 - Flag any conflict with a sibling event on the same domain, so two Trescon
   events do not compete for the same query with identical copy
 
+**Detection basis (audit mode)**: a straight status rollup from
+`site_directory_listings` (already exists, section 6) — this step's audit
+mode is purely "what's still `not_submitted`," nothing new to fetch.
+
 ### Step 9 — Baseline and handover
 - Record Core Web Vitals baseline
 - Run the full health check suite
 - Assign roles: `content` to marketing, `design` to branding, `admin` to event
   lead
 - Mark the site `live`
+
+**Detection basis (audit mode)**: re-running this step for an already-live
+site is just "refresh the Core Web Vitals baseline and re-run health
+checks" — role assignment and the `live` flag don't need re-confirming once
+set. In practice, Audit mode for an already-commissioned site mostly means
+Steps 4-8; Step 9 only matters again if Core Web Vitals baseline data is
+stale or missing.
 
 ---
 
@@ -303,7 +522,11 @@ the new `event_sites`/`site_connections` records instead of the dead
 ### 5.2 Google Analytics
 Connected account, selected property and stream, measurement ID (read-only,
 fetched), verification state with last-hit timestamp, conversion event list,
-Consent Mode status, Ads link status.
+Consent Mode status, Ads link status, **cross-domain measurement status
+(added v1.2)** — whether `konfhub.com` is configured as a linked domain on
+this stream, surfaced as its own state rather than buried inside a generic
+"configured" flag, since it's easy to set up GA4 correctly and still miss
+this one setting.
 
 ### 5.3 Search Console
 Connected account, selected property, verification method and state, sitemap
@@ -345,6 +568,17 @@ Scheduled daily, runnable on demand. Failures notify the `admin` role.
 | Venue consistency | Venue confirmed in EventPilot but stale on site |
 | SSL expiry | Certificate expires within 30 days |
 | Core Web Vitals | Mobile LCP, CLS or INP outside thresholds |
+| `robots.txt` valid *(v1.2, Step 4)* | Missing, or AI crawler allowlist absent |
+| `llms.txt` present *(v1.2, Step 4)* | Missing, or stale against current event facts |
+| Canonical host *(v1.2, Step 4)* | `www` and apex do not resolve to one host |
+| Bing indexed *(v1.2, Step 5)* | Bing Webmaster property unverified, or sitemap not submitted there |
+| IndexNow configured *(v1.2, Step 5)* | No key on record, or no successful ping in the last 30 days |
+| GA4↔Search Console linked *(v1.2, Step 6)* | Link resource absent |
+| GA4 cross-domain configured *(v1.2, Step 6)* | `konfhub.com` not present in the stream's linked domains |
+| Consent Mode live *(v1.2, Step 6)* | GA4 configured for Consent Mode, but no consent signal detected on the live site |
+| OG image dimensions *(v1.2, Step 7)* | Resolves, but not 1200×630 |
+| LinkedIn preview fresh *(v1.2, Step 7)* | Post Inspector's cached preview is stale vs. the live page |
+| Directory listings *(v1.2, Step 8)* | Any tracked listing still `not_submitted` past its target date |
 
 ---
 
@@ -428,6 +662,14 @@ stop reading `worker_name`/`site_url` from the old `event_sites` shape (those
 columns no longer exist) and instead resolve its CNAME target from
 `site_connections` (provider `cloudflare`) / the new `event_sites` fields.
 
+**v1.2 note: no new tables needed for Steps 4-9.** `site_health_checks`
+already accepts arbitrary `check_key` values (the new rows added to 5.6's
+table above need no migration), and `site_connections.provider` already
+anticipates `bing` and `indexnow`. The one open item is *not* a schema
+question — it's whether `robots.txt`/`sitemap.xml`/`llms.txt` get published
+via Cloudflare Worker routing (Step 4's flagged decision, pending Durga's
+sign-off) or some other mechanism; either way it doesn't change this schema.
+
 ---
 
 ## 7. KonfHub gaps
@@ -491,10 +733,28 @@ of this same pass, per section 5.1.
 3. **Health checks.** Start with GA4 receiving, Search Console verified, schema
    valid, private routes excluded. Highest assurance per line of code.
 4. **Commissioning orchestrator, Scenario A only.** Prove the flow on a new
-   domain before adding B and C.
+   domain before adding B and C. *(Done, 13 Sep 2026 — Steps 2-3 only.)*
 5. **Scenarios B and C.**
-6. **SEO & Discovery section**, page metadata first.
-7. **Off-site presence tracker.**
+5a. **Step 4 (Technical foundation)** — detection half (audit-mode checks:
+    robots.txt/sitemap.xml/llms.txt/canonical/private-routes/host scan, new
+    health-check rows) and the Cloudflare Worker publish mechanism (v1.2
+    Changelog item 4, cleared 14 Sep 2026) can now be built together.
+5b. **Step 5 (Search submission)** — Bing Webmaster connection (new
+    `site_connections` provider row, same OAuth/API-key pattern as Google),
+    IndexNow key generation and ping wiring, structured-data completeness
+    check.
+5c. **Step 6 (Analytics configuration)** — conversion events, GA4↔Search
+    Console link, Consent Mode v2, content groupings, and the new GA4
+    cross-domain measurement setting (v1.2).
+5d. **Step 7 (Social/preview)** — OG image dimension validation, LinkedIn
+    Post Inspector integration, meta tag scan.
+6. **SEO & Discovery section (5.4)**, page metadata first — the persistent
+   settings panel backing Steps 4-6 above.
+7. **Off-site presence tracker (Step 8 / 5.5).**
+7a. **Audit-mode wiring** — the shared "detect current state, propose only
+    the delta" entry point across Steps 4-9, once each step above exists
+    individually. Health Checks (already live, Phase 3) become the trigger
+    surface for it.
 8. **KonfHub sponsor and agenda push.** (Independent track — see section 7.)
 9. **KonfHub two-way sync** with the ownership rule.
 10. **Google Ads connection**, same pattern, when campaigns start.

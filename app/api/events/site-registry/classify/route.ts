@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
-import { getGoogleOrgAccessToken } from '@/app/lib/security/google-org-auth'
+import { listGoogleConnections, getGoogleAccessToken } from '@/app/lib/security/google-org-auth'
 import { registrableDomain } from '@/app/lib/site-ops/domain'
 
 /* POST /api/events/site-registry/classify?event_id=X — Commissioning
@@ -13,7 +13,14 @@ import { registrableDomain } from '@/app/lib/site-ops/domain'
    existing infrastructure is reported as such, but this route makes no
    attempt to auto-reuse/link an existing GA4 property or Search Console
    site; that stays a manual pick via the existing fetch-and-select
-   endpoints (ga4-accounts, search-console-sites) regardless of scenario. */
+   endpoints (ga4-accounts, search-console-sites) regardless of scenario.
+
+   v1.3: Search Console evidence is now gathered across EVERY connected
+   Google account, not one — a sibling event's property can legitimately
+   live under a different connection than whichever gets picked for this
+   event. GA4-side evidence gathering isn't built at all yet (Search
+   Console + sibling EventPilot events are the only evidence today) — real
+   gap, but it belongs to the Scenario B/C build itself, not this fix. */
 
 type Scenario = 'new_domain_new_series' | 'not_new_domain'
 
@@ -49,20 +56,24 @@ export async function POST(req: NextRequest) {
     return { eventId: r.event_id, liveUrl: r.live_url, eventName: ev?.public_name || ev?.name || 'Unknown event' }
   })
 
-  let matchingGscSites: string[] = []
-  const accessToken = await getGoogleOrgAccessToken()
-  if (accessToken) {
+  const connections = await listGoogleConnections()
+  const matchingGscSites: { siteUrl: string; connectionId: string; connectionEmail: string | null }[] = []
+
+  for (const conn of connections) {
+    const accessToken = await getGoogleAccessToken(conn.id)
+    if (!accessToken) continue
+
     const res = await fetch('https://www.googleapis.com/webmasters/v3/sites', {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
-    if (res.ok) {
-      const data = await res.json() as { siteEntry?: { siteUrl: string }[] }
-      matchingGscSites = (data.siteEntry ?? [])
-        .map(s => s.siteUrl)
-        .filter(url => {
-          const d = registrableDomain(url.replace(/^sc-domain:/, 'https://'))
-          return d === domain
-        })
+    if (!res.ok) continue
+
+    const data = await res.json() as { siteEntry?: { siteUrl: string }[] }
+    for (const s of data.siteEntry ?? []) {
+      const d = registrableDomain(s.siteUrl.replace(/^sc-domain:/, 'https://'))
+      if (d === domain) {
+        matchingGscSites.push({ siteUrl: s.siteUrl, connectionId: conn.id, connectionEmail: conn.google_account_email })
+      }
     }
   }
 
@@ -76,7 +87,7 @@ export async function POST(req: NextRequest) {
     evidence: {
       siblingEvents,
       matchingGscSites,
-      googleConnected: !!accessToken,
+      googleConnectionsChecked: connections.length,
     },
   })
 }

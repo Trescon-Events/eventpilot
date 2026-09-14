@@ -4,8 +4,11 @@ import { encryptToken } from '@/app/lib/security/token-crypto'
 import { getSession } from '@/app/lib/access/session'
 
 /* GET /api/connect/google-org/callback — exchanges the OAuth code for
-   tokens and stores them on the singleton google_org_connection row.
-   Admin-only, mirroring app/api/connect/google-org/route.ts's gate. */
+   tokens and upserts a row in google_connections, keyed by the Google
+   account's own email (fetched from userinfo, never free-typed). v1.3:
+   multiple accounts can be connected — connecting an identity already on
+   file refreshes its tokens; a new identity adds a new row. Admin-only,
+   mirroring app/api/connect/google-org/route.ts's gate. */
 
 export async function GET(req: NextRequest) {
   const session = getSession(req)
@@ -65,26 +68,24 @@ export async function GET(req: NextRequest) {
   })
   const userinfo = userinfoRes.ok ? await userinfoRes.json().catch(() => null) as { email?: string } | null : null
 
-  const { data: existing } = await supabaseAdmin
-    .from('google_org_connection')
-    .select('id')
-    .limit(1)
-    .single()
-
-  const patch = {
-    access_token_enc: encryptToken(tokens.access_token),
-    refresh_token_enc: encryptToken(tokens.refresh_token),
-    expires_at: new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000).toISOString(),
-    google_account_email: userinfo?.email ?? null,
-    connected_by: session.sid,
-    connected_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+  if (!userinfo?.email) {
+    return NextResponse.redirect(new URL('/admin/settings/google?error=no_email', req.nextUrl.origin))
   }
 
-  if (existing) {
-    await supabaseAdmin.from('google_org_connection').update(patch).eq('id', existing.id)
-  } else {
-    await supabaseAdmin.from('google_org_connection').insert(patch)
+  const { error: upsertError } = await supabaseAdmin
+    .from('google_connections')
+    .upsert({
+      access_token_enc: encryptToken(tokens.access_token),
+      refresh_token_enc: encryptToken(tokens.refresh_token),
+      expires_at: new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000).toISOString(),
+      google_account_email: userinfo.email,
+      connected_by: session.sid,
+      connected_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'google_account_email' })
+
+  if (upsertError) {
+    return NextResponse.redirect(new URL('/admin/settings/google?error=save_failed', req.nextUrl.origin))
   }
 
   const res = NextResponse.redirect(new URL('/admin/settings/google?connected=1', req.nextUrl.origin))
