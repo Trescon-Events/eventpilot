@@ -11,6 +11,14 @@ import { getSession } from '@/app/lib/access/session'
    mirroring app/api/connect/google-org/route.ts's gate. */
 
 export async function GET(req: NextRequest) {
+  // Always prefer NEXT_PUBLIC_SITE_URL over req.nextUrl.origin for every
+  // redirect in this route, error paths included — behind Railway +
+  // the Cloudflare Worker proxy, req.nextUrl.origin does not reliably
+  // reflect the public eventpilot.tresconglobal.com host (observed
+  // resolving to localhost:3000 in production, sending the browser to a
+  // dead address after an otherwise-successful connect).
+  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? req.nextUrl.origin
+
   const session = getSession(req)
   if (!session?.adm) {
     return NextResponse.json({ error: 'Admin access required.' }, { status: 403 })
@@ -21,7 +29,7 @@ export async function GET(req: NextRequest) {
   const storedState = req.cookies.get('connect_google_org_state')?.value
 
   if (!code || !state || !storedState || state !== storedState) {
-    return NextResponse.redirect(new URL('/admin/settings/google?error=state_mismatch', req.nextUrl.origin))
+    return NextResponse.redirect(new URL('/admin/settings/google?error=state_mismatch', origin))
   }
 
   const clientId = process.env.GOOGLE_ORG_CLIENT_ID
@@ -30,7 +38,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Google org connection not configured.' }, { status: 503 })
   }
 
-  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? req.nextUrl.origin
   const redirectUri = `${origin}/api/connect/google-org/callback`
 
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
@@ -46,7 +53,7 @@ export async function GET(req: NextRequest) {
   })
 
   if (!tokenRes.ok) {
-    return NextResponse.redirect(new URL('/admin/settings/google?error=token_exchange_failed', req.nextUrl.origin))
+    return NextResponse.redirect(new URL('/admin/settings/google?error=token_exchange_failed', origin))
   }
 
   const tokens = await tokenRes.json() as {
@@ -60,7 +67,7 @@ export async function GET(req: NextRequest) {
     // without access_type=offline previously for this client+scopes —
     // shouldn't happen since we always pass prompt=consent, but surface
     // clearly rather than silently storing a half-connection.
-    return NextResponse.redirect(new URL('/admin/settings/google?error=no_refresh_token', req.nextUrl.origin))
+    return NextResponse.redirect(new URL('/admin/settings/google?error=no_refresh_token', origin))
   }
 
   const userinfoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
@@ -69,7 +76,7 @@ export async function GET(req: NextRequest) {
   const userinfo = userinfoRes.ok ? await userinfoRes.json().catch(() => null) as { email?: string } | null : null
 
   if (!userinfo?.email) {
-    return NextResponse.redirect(new URL('/admin/settings/google?error=no_email', req.nextUrl.origin))
+    return NextResponse.redirect(new URL('/admin/settings/google?error=no_email', origin))
   }
 
   const { error: upsertError } = await supabaseAdmin
@@ -85,10 +92,10 @@ export async function GET(req: NextRequest) {
     }, { onConflict: 'google_account_email' })
 
   if (upsertError) {
-    return NextResponse.redirect(new URL('/admin/settings/google?error=save_failed', req.nextUrl.origin))
+    return NextResponse.redirect(new URL('/admin/settings/google?error=save_failed', origin))
   }
 
-  const res = NextResponse.redirect(new URL('/admin/settings/google?connected=1', req.nextUrl.origin))
+  const res = NextResponse.redirect(new URL('/admin/settings/google?connected=1', origin))
   res.cookies.delete('connect_google_org_state')
   return res
 }
