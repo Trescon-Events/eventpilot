@@ -6,7 +6,88 @@ Everything required to take an event website from "published" to "fully
 commissioned and competing" — search, analytics, AI discovery, social, off-site
 presence and ongoing health — managed from inside EventPilot.
 
-Version 1.4 · 15 September 2026 (addendum — service account replaces OAuth entirely)
+Version 1.5 · 15 September 2026 (addendum — agency access management, scoped not built)
+
+---
+
+## Changelog — v1.4 → v1.5
+
+New idea, raised while granting the service account access manually: **let
+EventPilot grant third parties (agencies, freelancers) access to an
+event's GA4/Search Console directly**, instead of someone going into
+Google's own consoles every time an agency gets onboarded. Scoped here,
+not built — genuinely new surface, not a fix to anything broken.
+
+### What's actually possible — the two halves are not symmetric
+
+**GA4: buildable.** The Admin API exposes Access Bindings
+(`accounts/*/accessBindings`, `properties/*/accessBindings` —
+create/list/delete a user's role on an account or property). EventPilot
+could fetch the current list of who has access to a property and
+add/remove people through its own UI.
+
+**Search Console: not buildable, permanently.** Google has never
+published an API for managing a Search Console property's user/permission
+list. This is a real ceiling, not a gap that better code closes — the
+"Users and permissions" screen in Search Console's own UI will always be
+the only way to grant someone access there. Anything EventPilot does for
+Search Console here can only be a **checklist/reminder**, never a verified
+or automated action — and it must be presented that way, not with a green
+checkmark implying it's confirmed the way real live-verified connections
+elsewhere in this module are (principle 5: a value being present never
+means it works — doubly true here, since there isn't even an API to check
+it against).
+
+### What changes if this gets built
+
+1. **The service account needs Administrator, not Editor, on any property
+   this feature touches** — only Admins can manage other users' access,
+   same restriction the Google Console UI itself enforces. This is a
+   materially bigger privilege than what v1.4 granted (Editor: "edit all
+   data and settings, cannot manage users"). Recommendation: upgrade a
+   property to Administrator only when this feature is actually used for
+   that property, not as a blanket default across everything the service
+   account can see — keep the privilege minimal until it's needed,
+   consistent with the fetch-and-select/never-auto-run principles this
+   whole module is built on.
+2. **New OAuth scope**: `analytics.manage.users` (access-binding
+   management is not covered by `analytics.edit`), added to
+   `google-service-account-auth.ts`'s `SCOPES`.
+3. **Permission gating needs a real decision, not an assumption.** Every
+   other action gated on `sae.integrations.manage` today is about
+   configuring *your own* connection. Granting a third party access to
+   live analytics data is a higher-stakes action than viewing or
+   configuring settings — worth deciding whether this needs a stricter
+   permission (e.g. global admin only) rather than reusing
+   `sae.integrations.manage` as-is.
+
+### Design sketch (fetch-and-select, same as everywhere else in this module)
+
+- **GA4 side**, on the per-event Integrations page, a new "GA4 Access"
+  subsection under the existing GA4 connection details:
+  - Fetch and list current access bindings for the connected property
+    live — never a locally cached copy, since Google's own state is the
+    only truth here (no local table needed for GA4 at all).
+  - "Add User": email + role picker, defaulting to the lowest reasonable
+    role (Viewer or Analyst, never Administrator by default) — human
+    picks, confirms, then the binding is created.
+  - Remove: per row, with its own confirm step — removing access is a
+    real change and deserves the same "AI proposes, human confirms, never
+    batched" treatment as everything else (principle 4).
+- **Search Console side**: a simple tracked checklist, not a live
+  connection — a small table (`site_search_console_access_requests` or
+  similar: `site_id, email, note, requested_at, requested_by,
+  confirmed_done_at`) where `confirmed_done_at` is set by a human clicking
+  "I've done this in Search Console," never inferred. Rendered distinctly
+  from the GA4 side so nobody mistakes a checked box for a verified
+  connection.
+
+### Build order
+
+Not sequenced into section 8 yet — genuinely new scope, independent of
+everything else in this module (like the KonfHub gaps track), buildable
+whenever it's prioritized. Needs the permission-gating decision above
+settled first, since that shapes who can even see the feature.
 
 ---
 
