@@ -5,7 +5,7 @@ import { hasEventPermission } from '@/app/lib/access/event-access'
 
 /* GET  /api/events/site-registry/connections?event_id=X
    POST /api/events/site-registry/connections?event_id=X
-   Body (POST): { provider: 'ga4' | 'search_console', connectionId, account_ref?, property_ref, stream_ref? }
+   Body (POST): { provider: 'ga4' | 'search_console', account_ref?, property_ref, stream_ref? }
 
    Commissioning Orchestrator's fetch-and-select finalize step: saves
    which already-fetched GA4 property or Search Console site applies to
@@ -15,9 +15,10 @@ import { hasEventPermission } from '@/app/lib/access/event-access'
    every other settings-save route in this app; enforcing "came from a
    real fetch" is the UI's job, not this route's.
 
-   v1.3: connectionId records which named Google connection this property
-   came from — health checks and audit mode re-authenticate against that
-   specific account later, not a shared singleton. */
+   v1.4: no connectionId anymore — one shared service account handles
+   every site's GA4/Search Console access (google_connection_id column
+   stays in the schema but is no longer written; harmless leftover from
+   the v1.3 multi-account model this replaces). */
 
 const PROVIDERS = ['ga4', 'search_console'] as const
 
@@ -50,12 +51,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   }
 
-  const body = await req.json().catch(() => null) as { provider?: string; connectionId?: string; account_ref?: string; property_ref?: string; stream_ref?: string } | null
+  const body = await req.json().catch(() => null) as { provider?: string; account_ref?: string; property_ref?: string; stream_ref?: string } | null
   if (!body?.provider || !PROVIDERS.includes(body.provider as typeof PROVIDERS[number])) {
     return NextResponse.json({ error: 'provider must be ga4 or search_console' }, { status: 400 })
   }
   if (!body.property_ref) return NextResponse.json({ error: 'property_ref required' }, { status: 400 })
-  if (!body.connectionId) return NextResponse.json({ error: 'connectionId required' }, { status: 400 })
 
   const { data: site } = await supabaseAdmin.from('event_sites').select('id').eq('event_id', eventId).maybeSingle()
   if (!site) return NextResponse.json({ error: 'Register the site first.' }, { status: 400 })
@@ -68,7 +68,6 @@ export async function POST(req: NextRequest) {
       account_ref: body.account_ref ?? null,
       property_ref: body.property_ref,
       stream_ref: body.stream_ref ?? null,
-      google_connection_id: body.connectionId,
       status: 'connected_unverified',
       last_error: null,
     }, { onConflict: 'site_id,provider' })

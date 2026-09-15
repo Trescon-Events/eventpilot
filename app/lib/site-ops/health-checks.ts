@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
-import { getGoogleAccessToken } from '@/app/lib/security/google-org-auth'
+import { getGoogleServiceAccountToken } from '@/app/lib/security/google-service-account-auth'
 
 /* Site Operations module, Phase 3 — health check functions. Each one is
    independent and best-effort: a site with no GA4/Search Console
@@ -8,6 +8,9 @@ import { getGoogleAccessToken } from '@/app/lib/security/google-org-auth'
    section 5.6 for the full eventual check list — this covers the four the
    build order calls out first ("highest assurance per line of code"),
    plus site_reachable since it's essentially free.
+
+   v1.4: GA4/Search Console auth is a single shared service account, not
+   a per-account OAuth connection — see google-service-account-auth.ts.
 
    `private_routes_excluded` is intentionally partial: without a per-route
    indexing registry (that's the SEO & Discovery phase, not built yet),
@@ -48,15 +51,14 @@ async function checkSiteReachable(site: SiteRow): Promise<CheckResult> {
 export async function checkGa4Receiving(siteId: string): Promise<CheckResult> {
   const { data: conn } = await supabaseAdmin
     .from('site_connections')
-    .select('property_ref, stream_ref, status, google_connection_id')
+    .select('property_ref, stream_ref, status')
     .eq('site_id', siteId).eq('provider', 'ga4')
     .maybeSingle()
 
   if (!conn?.property_ref) return { checkKey: 'ga4_receiving', status: 'warn', detail: 'GA4 not connected for this site yet.' }
-  if (!conn.google_connection_id) return { checkKey: 'ga4_receiving', status: 'warn', detail: 'No Google connection recorded for this property — reconnect via Site Registry.' }
 
-  const accessToken = await getGoogleAccessToken(conn.google_connection_id)
-  if (!accessToken) return { checkKey: 'ga4_receiving', status: 'warn', detail: 'The Google connection this site uses is not set up.' }
+  const accessToken = await getGoogleServiceAccountToken()
+  if (!accessToken) return { checkKey: 'ga4_receiving', status: 'warn', detail: 'Google service account not configured.' }
 
   const res = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${conn.property_ref}:runReport`, {
     method: 'POST',
@@ -81,15 +83,14 @@ export async function checkGa4Receiving(siteId: string): Promise<CheckResult> {
 export async function checkSearchConsoleVerified(siteId: string): Promise<CheckResult> {
   const { data: conn } = await supabaseAdmin
     .from('site_connections')
-    .select('property_ref, google_connection_id')
+    .select('property_ref')
     .eq('site_id', siteId).eq('provider', 'search_console')
     .maybeSingle()
 
   if (!conn?.property_ref) return { checkKey: 'search_console_verified', status: 'warn', detail: 'Search Console not connected for this site yet.' }
-  if (!conn.google_connection_id) return { checkKey: 'search_console_verified', status: 'warn', detail: 'No Google connection recorded for this property — reconnect via Site Registry.' }
 
-  const accessToken = await getGoogleAccessToken(conn.google_connection_id)
-  if (!accessToken) return { checkKey: 'search_console_verified', status: 'warn', detail: 'The Google connection this site uses is not set up.' }
+  const accessToken = await getGoogleServiceAccountToken()
+  if (!accessToken) return { checkKey: 'search_console_verified', status: 'warn', detail: 'Google service account not configured.' }
 
   const res = await fetch(`https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(conn.property_ref)}`, {
     headers: { Authorization: `Bearer ${accessToken}` },

@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/app/lib/access/session'
-import { getGoogleAccessToken } from '@/app/lib/security/google-org-auth'
+import { getGoogleServiceAccountToken } from '@/app/lib/security/google-service-account-auth'
 
-/* GET /api/connect/google-org/ga4-accounts?connection_id=X — every GA4
-   account and property the given named Google connection can see, via the
-   Admin API's accountSummaries endpoint (one call, nested properties —
-   no need to list accounts then properties separately). v1.3: which
-   connection to query is now explicit, not assumed. Fetch-and-select only,
-   on explicit request from the UI — never auto-run, per this module's
-   design principles (docs/EventPilot-SiteOps-Build-Spec-v1.1.md). */
+/* GET /api/connect/google-org/ga4-accounts — every GA4 account and
+   property the shared service account can see, via the Admin API's
+   accountSummaries endpoint (one call, nested properties — no need to
+   list accounts then properties separately). v1.4: auth is a single
+   service account, not a picked-per-request OAuth connection. Fetch-
+   and-select only, on explicit request from the UI — never auto-run,
+   per this module's design principles
+   (docs/EventPilot-SiteOps-Build-Spec-v1.1.md). */
 
 type GA4PropertySummary = {
   property: string        // "properties/12345"
@@ -28,12 +29,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Admin access required.' }, { status: 403 })
   }
 
-  const connectionId = req.nextUrl.searchParams.get('connection_id')
-  if (!connectionId) return NextResponse.json({ error: 'connection_id required' }, { status: 400 })
-
-  const accessToken = await getGoogleAccessToken(connectionId)
+  const accessToken = await getGoogleServiceAccountToken()
   if (!accessToken) {
-    return NextResponse.json({ error: 'Google account not connected. Connect it first.' }, { status: 400 })
+    return NextResponse.json({ error: 'Google service account not configured.' }, { status: 400 })
   }
 
   const accounts: { id: string; name: string; properties: { id: string; name: string }[] }[] = []

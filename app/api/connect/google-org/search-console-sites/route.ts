@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/app/lib/access/session'
-import { getGoogleAccessToken } from '@/app/lib/security/google-org-auth'
+import { getGoogleServiceAccountToken } from '@/app/lib/security/google-service-account-auth'
 
-/* GET /api/connect/google-org/search-console-sites?connection_id=X — every
-   Search Console property the given named Google connection has access to.
-   v1.3: which connection to query is now explicit. Fetch-and-select only,
-   on explicit request. */
+/* GET /api/connect/google-org/search-console-sites — every Search
+   Console property the shared service account has access to. v1.4:
+   auth is a single service account, not a picked-per-request OAuth
+   connection. Fetch-and-select only, on explicit request. */
 
 type SearchConsoleSite = {
   siteUrl: string
@@ -18,12 +18,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Admin access required.' }, { status: 403 })
   }
 
-  const connectionId = req.nextUrl.searchParams.get('connection_id')
-  if (!connectionId) return NextResponse.json({ error: 'connection_id required' }, { status: 400 })
-
-  const accessToken = await getGoogleAccessToken(connectionId)
+  const accessToken = await getGoogleServiceAccountToken()
   if (!accessToken) {
-    return NextResponse.json({ error: 'Google account not connected. Connect it first.' }, { status: 400 })
+    return NextResponse.json({ error: 'Google service account not configured.' }, { status: 400 })
   }
 
   const res = await fetch('https://www.googleapis.com/webmasters/v3/sites', {

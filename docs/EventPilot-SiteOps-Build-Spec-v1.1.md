@@ -6,7 +6,93 @@ Everything required to take an event website from "published" to "fully
 commissioned and competing" — search, analytics, AI discovery, social, off-site
 presence and ongoing health — managed from inside EventPilot.
 
-Version 1.3 · 14 September 2026 (addendum — multi-account Google connection)
+Version 1.4 · 15 September 2026 (addendum — service account replaces OAuth entirely)
+
+---
+
+## Changelog — v1.3 → v1.4
+
+v1.3's multi-account OAuth model lasted about a day. Two real-world
+constraints made it unworkable as designed:
+
+1. **Testing users don't want to re-authenticate weekly.** External +
+   Testing publishing status (required the moment a non-Workspace account
+   like `tresconsocial@gmail.com` needs to sign in) caps refresh tokens at
+   7 days for unverified apps.
+2. **Madhu explicitly ruled out Google's app verification process** as a
+   fix for (1) — no submission, no review queue, not for this.
+
+**The fix: one shared Google Cloud service account, not a human OAuth
+login at all.** What EventPilot actually needs — a backend reading/writing
+GA4 and Search Console data on the org's behalf — is exactly what service
+accounts are for. Granting the service account access to a property is the
+same "add a user" action as sharing with a person (GA4 Admin →
+Property Access Management; Search Console → Settings → Users and
+permissions), just pointed at `eventpilot-siteops@eventpilot-site-
+operations.iam.gserviceaccount.com` instead of an email address. No
+consent screen, no Internal/External distinction, no token expiry, no
+verification review — the whole v1.3 problem space stops applying.
+
+**One real obstacle hit and cleared**: this GCP organization enforces
+`iam.disableServiceAccountKeyCreation` at the org level, blocking key
+creation outright. Madhu holds full org admin access, so this was resolved
+by overriding the policy scoped to just the `eventpilot-site-operations`
+project (Cloud Console → IAM & Admin → Organization Policies →
+"Disable service account key creation" → Manage policy → Override
+parent's policy → Enforcement: Off), rather than disabling it
+organization-wide. Google's own "Fix access" troubleshooter self-granted
+the `roles/orgpolicy.policyAdmin` role needed to make that change.
+
+**Side finding, unresolved and no longer relevant to this module**: the
+service-account key creation block being real (and requiring a genuine
+Organization Policy Administrator role) means this GCP org **does** have a
+proper Cloud Identity/Organization resource — which undercuts the earlier
+v1.3-era theory that `md@tresconglobal.com`'s "Internal" OAuth consent
+screen failure (`Error 403: org_internal`) was caused by a missing
+Organization link. Since the service account approach sidesteps OAuth
+consent screens entirely, this mystery no longer blocks anything — but if
+Internal-mode OAuth is ever needed again for a different integration, it's
+still an open question why a legitimate Workspace admin account failed it.
+
+### What this removes and adds
+
+**Removed entirely** (dead code, deleted): `google_org_connection` /
+`google_connections` OAuth flow — `/api/connect/google-org/{route,
+callback,disconnect,status}`, `app/lib/security/google-org-auth.ts`, the
+multi-account admin UI, and the per-event "which Google account" picker
+introduced in v1.3. `site_connections.google_connection_id` stays in the
+schema (harmless, unused) rather than triggering another migration purely
+for cleanup.
+
+**Added**: `app/lib/security/google-service-account-auth.ts`
+(`getGoogleServiceAccountToken()`, JWT-based via `google-auth-library`,
+scopes: `analytics.readonly`, `analytics.edit`, `webmasters`).
+`GOOGLE_SERVICE_ACCOUNT_KEY` env var holds the full downloaded JSON key,
+minified to one line — set in both `.env.local` and Railway production.
+`/admin/settings/google` repurposed to show service-account status and
+prove GA4/Search Console access via the same fetch-and-select endpoints
+(`ga4-accounts`, `search-console-sites`), now parameter-free.
+
+**Unaffected**: `classify`, `ga4-property`, `connections`, and both health
+checks (`checkGa4Receiving`, `checkSearchConsoleVerified`) all still work
+exactly as designed — they just call `getGoogleServiceAccountToken()`
+instead of picking a connection first.
+
+### Outstanding manual step
+
+The service account (`eventpilot-siteops@eventpilot-site-operations.iam
+.gserviceaccount.com`) needs to be granted access, property by property, to
+everything currently reachable only through `tresconsocial@gmail.com`:
+
+- GA4: WBS Global - GA4, Trescon - New-Domain, Trescon - GA4, AI Singapore
+  - GA4, AI Dubai - GA4 (all under Trescon Events account `145871382`)
+- Search Console: `futuresustainabilityforum.com`,
+  `worldaishow.com/dubai/`, `worldcxsummit.com/` (unverified even for
+  `tresconsocial` itself — separate pre-existing gap), `aiinfranext.com`
+
+Once granted, `tresconsocial@gmail.com`'s own Google sign-in becomes
+irrelevant to EventPilot entirely — nothing in this module authenticates
+as a human anymore.
 
 ---
 
