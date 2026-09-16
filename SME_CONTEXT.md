@@ -210,6 +210,7 @@ Do not ask Durga to build anything that already exists. Reference this when writ
 | `/timesheets` | Daily time logging + manager approval |
 | `/finance` | Finance Portal — salary, expense claims, vendor payments, payroll |
 | `/admin/commercial` | Commercial P&L — revenue, costs, executive dashboard |
+| `/admin/crm` | CRM Admin (16 Sep 2026) — cross-event Contact/Company identity layer, deduped by email/domain, populated automatically from every speaker/sponsor onboarding submission. `/admin/crm/contacts` and `/admin/crm/companies` are searchable directories with a per-record "Sync to HubSpot" action (also fires automatically now — see §13's HubSpot CRM Sync entry); `/admin/crm/objects` manages the Contact/Company property registry, HubSpot Settings→Properties-style, and flags which properties still need a matching property created in HubSpot (a human creates it there, never auto-provisioned — see §13) |
 | `/pilots` | Pilot Projects — SME/Co-Pilot/Tracker view of active builds (see §17) |
 | `/admin/pilots` | Pilot Projects — admin view, all projects/members/checklists |
 | `/admin/pilots/new` | Create/edit a Pilot Project (members, roles, checklist, tool grants) |
@@ -232,6 +233,9 @@ These tables already exist. Any new tool should use them where relevant, or add 
 | `event_messaging_docs` | event_id/umbrella_id (exactly one set), role, authority_rank, provenance | Reference documents (style guide/messaging/production pack), one live doc per (owner, role) |
 | `event_validation_rules` | event_id/umbrella_id (exactly one set), rule_type, pattern | Deterministic content-validation rules (forbidden_term/forbidden_pattern/required_format/proximity) |
 | `event_agenda_tracks` / `event_agenda_sessions` / `event_agenda_session_speakers` | event_id, name/title, track_id FK, speaker_id FK | New Agenda Builder (16 Sep 2026) — replaces free-text `event_agenda` for opted-in events (`event_websites.agenda_source`). `event_agenda_track_konfhub_links` is a DFFW-only bridge table, dormant for events that originate structure in EventPilot itself |
+| `crm_contacts` / `crm_companies` | email/domain (unique, dedup key), first_name/last_name or name, hubspot_contact_id/hubspot_company_id, hubspot_last_synced_at | CRM Admin (16 Sep 2026) — cross-event Contact/Company identity, deduped by email/domain. Populated automatically by every speaker/sponsor onboarding submission; the `hubspot_*` columns track sync state with HubSpot (see §13) |
+| `crm_contact_event_links` / `crm_company_event_links` | contact_id/company_id, event_id, role | Which events a CRM contact/company is linked to and in what role (speaker/sponsor_contact/sponsor/media_partner/association_partner) — EventPilot's own mirror of HubSpot's Association Label pattern |
+| `crm_properties` / `crm_property_groups` | entity_type (contact/company), property_key, label, field_type, hubspot_property_name | The Contact/Company property registry managed at `/admin/crm/objects`, HubSpot Settings→Properties-style. `hubspot_property_name` is null until a HubSpot CRM admin manually creates the matching property and maps it — never auto-provisioned |
 | `notifications` | staff_id, type, title, body, read | In-app bell notifications |
 | `messages` | from_id, to_id, body, read | Internal DMs |
 | `documents` | title, type, extracted_text, visibility | Knowledge base uploads |
@@ -481,6 +485,8 @@ When describing AI features in your prompt, specify:
 | Million Verifier | Email verification | `MILLION_VERIFIER_API_KEY` in Railway |
 | Firecrawl | Web scraping for leads | `FIRECRAWL_API_KEY` in Railway |
 | KonfHub | Event ticketing/registration platform — Speakers module can push speaker records and register them as attendees (Stakeholder Hub → speaker → Registration tab → "Register on KonfHub") | Per-event `konfhub_client_id`/`konfhub_client_secret` stored on the event's website record, not a global Railway env var |
+| HubSpot Forms | Public onboarding forms managed in HubSpot, not built in-app — connect at `.../stakeholders/hubspot-form/[formType]`, field-map, submissions land in `stakeholder_form_submissions` | `HUBSPOT_API_KEY` in Railway (`forms`/`forms-uploaded-files`/`external_integrations.forms.access` scopes only) |
+| HubSpot CRM Sync (16 Sep 2026) | Pushes `crm_contacts`/`crm_companies` to real HubSpot Contact/Company records with Association Label role-tagging (Speaker/Sponsor Contact/Sponsor/Media Partner/Association Partner), automatically on every new speaker/sponsor submission and via a manual "Sync to HubSpot" button in CRM Admin. Pull direction (HubSpot→EventPilot edits) exists (`GET /api/cron/hubspot-crm-pull-sync`) but isn't wired into an actual cron schedule yet. Forward-only by design — never touches HubSpot's pre-existing ~66k legacy `Attendees` custom-object records or any other historical data; never auto-creates HubSpot properties (a human does, EventPilot only flags which are unmapped in `/admin/crm/objects`) | Separate `HUBSPOT_CRM_SERVICE_KEY` in `.env.local`/Railway (least-privilege: contacts/companies/custom-objects/association-label-schema scopes, no `forms` scope) |
 
 ---
 

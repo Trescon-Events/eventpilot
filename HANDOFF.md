@@ -15,13 +15,51 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — 16 Sep 2026, a separate concurrent session from the Agenda Builder one below. Built and shipped the Content Guidelines API end to end: public bearer-token endpoint, token creation UI, and a fix for a real production bug (messaging-doc upload timeout) found while testing it. |
+| Who | Madhu + Claude Code (Sonnet 5) — 16 Sep 2026, a third concurrent session from the same day (after Agenda Builder and Content Guidelines API below). Started as a resume of a session that crashed mid-Phase-2 (recovered its plan from the dead session's own transcript/job state), then built CRM Phase 2 (manual HubSpot sync) and all of Phase 3 (automatic push, scheduled pull, HubSpot-property flagging UI). |
 | Date | 2026-09-16 |
-| Latest push | `4da8540 fix(content-api): use en dash, not em dash, in guidelines title` (top of `main`, includes `f3e4acd` token UI, `2692507` messaging-doc fix, `6b67cfb` Content Guidelines API — this session's commits, interleaved on `main` with the Agenda Builder session's own `d6d09cb`/`44d6a52`). |
-| DB migrations applied | Via direct psql (session pooler): `supabase/content_guideline_tokens_migration.sql` (new `content_guideline_tokens` table) and `supabase/messaging_doc_extraction_status_migration.sql` (`event_messaging_docs.extraction_status`/`extraction_error`). Both verified live. |
+| Latest push | `435ad13 feat(crm): flag unmapped HubSpot properties in CRM Admin` (top of `main`), on top of `93f66ff` (pull sync), `bb0c271` (automatic push wiring), `6164632` (Phase 2 manual sync), `cedb972`/`67cc61d` (this same day's earlier CRM Phase 1 session, pushed for the first time in this session). |
+| DB migrations applied | None — Phase 2/3 reused the `hubspot_contact_id`/`hubspot_company_id`/`hubspot_property_name` columns Phase 1 already added as stubs. |
 | Handed off to | Durga. |
-| Deployed | Pushed to `main` this sign-off — Railway auto-deploy, confirmed live via `railway status` after each push. |
-| Left alone / known follow-up | See "16 Sep 2026 (cont'd)" section below for full detail. Headline: no known follow-up work outstanding — feature is live-verified end to end from a real external consumer (AI InfraNext's own repo). Also still open from the Agenda Builder session and earlier — see those dated sections. |
+| Deployed | Pushed to `main` this sign-off — Railway auto-deploy triggered, verify current status below/via `railway status` if this note is stale. |
+| Left alone / known follow-up | See "16 Sep 2026 (cont'd 2)" section below for full detail. Headline: automatic push + manual re-sync are fully live; scheduled pull sync works but **isn't wired into an actual cron schedule anywhere yet** (Railway/Vercel Cron dashboard setup, outside the repo); HubSpot property auto-provisioning was deliberately never built (Madhu's call — stays human-controlled, EventPilot only flags). Also still open from the Agenda Builder/Content Guidelines sessions below — see those dated sections. |
+
+## 16 Sep 2026 (cont'd 2) — CRM Phase 2 (manual HubSpot sync) + Phase 3 (automatic push, scheduled pull, property flagging)
+
+### The ask
+
+Continuation of the CRM initiative below (Phase 1 shipped earlier the same day). This session opened mid-crash-recovery: the prior session had died while walking Madhu through HubSpot's UI to set up a Private App for CRM sync — HubSpot had since deprecated Private Apps in favor of a new "Service Keys" feature, so the actual first step here was selecting the right scopes for a new Service Key (`crm.objects.contacts/companies/custom`, `crm.schemas.custom`, `crm.auto.associations.settings.public.api` — all read+write) and getting it tested. From there: build Phase 2 (push EventPilot's CRM contacts/companies to HubSpot as real Contacts/Companies, with Association Label role-tagging), then continue straight into Phase 3.
+
+Along the way, sizing Phase 2's originally-planned "migrate the ~12 legacy Attendees records" step found the real count live: **66,487**, not ~12. Madhu's call: drop that migration entirely — "we just want to setup sync from now onwards.. we dont have to migrate all historical attendees data from Hubspot to Eventpilot.. same with any other data." This became a standing rule for any future sync work, not just Attendees (saved to memory).
+
+For Phase 3, given the choice of automatic push / properties auto-provisioning / pull sync, Madhu picked automatic push first, then explicitly ruled out auto-provisioning HubSpot properties ("let that be with our CRM admin for now. System should flag where a new property needs to be created") before asking for pull sync, then the flagging UI.
+
+### What was built
+
+- **New `HUBSPOT_CRM_SERVICE_KEY`** (`.env.local`) — a separate, least-privilege HubSpot Service Key (portal 2953901, name "EventPilot CRM Sync", service key ID 53403766) from the existing forms-only `HUBSPOT_API_KEY`.
+- **`app/lib/hubspot/crm-client.ts`** — upsert-by-email (Contacts) / upsert-by-domain (Companies), find-or-create for HubSpot's `Events` custom object (`2-16202870`, matched by `event_name` — no `hubspot_event_id` column exists), Association Labels helpers (create/list/associate via the v4 API), and batch-read helpers for the pull direction.
+- **Association Label schema created live** in the Trescon HubSpot portal (`scripts/hubspot-setup-crm-association-labels.ts`, gitignored): Speaker + Sponsor Contact (Contact↔Events), Sponsor + Media Partner + Association Partner (Company↔Events) — replaces the old Attendees-object-as-role-tracker pattern.
+- **`app/lib/hubspot/crm-sync.ts`** — `syncContactToHubSpot`/`syncCompanyToHubSpot`, manually triggered via a new "Sync to HubSpot" button on `/admin/crm/contacts` and `/admin/crm/companies` (`POST /api/crm/{contacts,companies}/[id]/sync-hubspot`).
+- **Automatic push (Phase 3)** — that same sync now also fires automatically at the end of both `.../from-submission/route.ts` routes (speakers, partners), best-effort/non-blocking like every other CRM step there. Every new speaker/sponsor submission pushes to HubSpot the moment it's processed, no manual click required.
+- **Pull sync (Phase 3)** — `app/lib/hubspot/crm-pull-sync.ts` + new `GET /api/cron/hubspot-crm-pull-sync` (CRON_SECRET-gated). Deliberately narrow: only ever batch-reads HubSpot ids already stored on EventPilot's own `crm_contacts`/`crm_companies` rows, never a blanket poll of the object type. Real bug caught live: HubSpot's Contacts object uses the legacy `lastmodifieddate` property for its last-modified timestamp, not `hs_lastmodifieddate` like Companies/custom objects — the latter silently returns `null` for Contacts, which made the first version look like it worked (clean run, no pull) while doing nothing.
+- **HubSpot-property flagging UI** — `/admin/crm/objects` now shows an amber "N properties not yet mapped to HubSpot" banner plus a per-row badge + inline "Map to HubSpot property…" editor (`PATCH /api/crm/properties/[id]` now accepts `hubspot_property_name`). Purely a flag-and-record UI — EventPilot never calls HubSpot's properties API to create anything.
+
+### Verified
+
+`tsc --noEmit` clean throughout. Every piece live-verified against real HubSpot API calls and/or the real local dev server, duplicate-then-delete style (create test data, exercise the real code path, confirm, delete on both sides):
+- Service Key scopes tested directly (contacts/companies read+write, association labels).
+- Manual sync (`scripts/test-crm-hubspot-sync.ts`): pushed a throwaway contact+company through the real sync functions, confirmed HubSpot IDs written back to Supabase, cleaned up both sides.
+- Automatic push (`scripts/test-phase3-auto-sync.ts`): submitted a real speaker and sponsor through the **actual HTTP routes** with a constructed real admin session cookie (not just calling the sync functions directly — the wiring itself was the real risk), confirmed both pushed to HubSpot with no manual step, cleaned up.
+- Pull sync (`scripts/test-crm-pull-sync.ts`): pushed a test record, edited it directly via the HubSpot API (simulating a human editing it in HubSpot's UI), called the real cron route, confirmed the edit landed back in Supabase — this is what caught the `lastmodifieddate` bug (first version silently did nothing).
+- Property flagging UI: tested live in-browser against the real dev server and real seeded Phase 1 data (mapped/unmapped the actual "Email" property, confirmed the banner and badge both update), then reverted to leave production CRM Admin state exactly as found.
+
+Dev server had to be restarted mid-session — it predated `HUBSPOT_CRM_SERVICE_KEY` being added to `.env.local`, so automatic push silently no-op'd (caught, logged) until restarted. Worth remembering for any env var added mid-session.
+
+### What's next
+
+- **Pull sync isn't scheduled anywhere** — `GET /api/cron/hubspot-crm-pull-sync` works but nothing calls it periodically. Needs a Railway Cron (or equivalent) entry, a manual dashboard step outside this repo.
+- **Retire-vs-narrow the legacy `Attendees` HubSpot object** — explicitly deferred both sessions (not Claude's call alone; needs whoever built it, possibly Durga).
+- HubSpot properties stay human-controlled by design — not a gap, a standing decision (see memory `eventpilot_crm_hubspot_properties_manual`).
+- Phase 3's webhook low-latency nudge (the other half of the originally-designed hybrid pull) still isn't built — Service Keys can't register webhook subscriptions via API, only manually per-property in HubSpot's UI, which hasn't been done. Scheduled polling is the only pull path live right now.
 
 ## 16 Sep 2026 (cont'd) — Content Guidelines API (public bearer-token endpoint) + messaging-doc upload timeout fix
 
@@ -72,11 +110,13 @@ Live-tested against real production DFFW KonfHub data end to end, not a mock: bo
 - "DFS Roundtables" has zero real sessions in KonfHub at all — needs building out on KonfHub's side first before there's anything to import.
 - Phase B (explicitly deferred, not designed further): EventPilot-native "+Add Stage → push a new Track to KonfHub" wiring (Track create/update API confirmed to exist, just not wired up), the new direct public API for non-DFFW branding sites, Sponsors/Partners agenda work.
 
-### CRM initiative — scoped in depth, not built, paused mid-review
+### CRM initiative — scoped this day, since fully built (Phase 1 later the same day, Phase 2+3 in a later session — see "16 Sep 2026 (cont'd 2)" above)
+
+**Status update:** everything below was the original scoping pass. Phase 1 (Contact/Company tables + CRM Admin) shipped later the same day; Phase 2 (HubSpot push sync) and Phase 3 (automatic push, scheduled pull, property flagging) shipped in a subsequent same-day session — see "16 Sep 2026 (cont'd 2)" above for what actually got built. One correction to the findings below: **Attendees has 66,487 real records, not ~12** — the ~12 estimate here was wrong (confirmed live while sizing the Phase 2 migration), and as a result that migration was never built at all — forward-only sync only, no historical backfill, for Attendees or anything else.
 
 Full design work happened (HubSpot's real Objects/Properties/Associations model researched, the existing `event_form_schemas`/`custom_fields` mapping layer read in full, SmartData investigated end-to-end, HubSpot's actual CRM Objects API mechanics researched for a real two-way sync) — plan is saved at the Claude Code session's plan file, not yet turned into a to-do list here since it needs a fresh planning pass to resume properly. Headline findings worth knowing before anyone touches this:
 - **SmartData** (separate Supabase project, 12 tables, live Apollo/Lusha/MillionVerifier/Firecrawl integrations) looks like a ready-made Contact/Company system at a glance but isn't — its `sd_properties` dynamic-property table is dead code, never read/written anywhere; the real UI hardcodes property lists.
-- **Trescon's real HubSpot account (portal 2953901) already has 3 custom objects** — Events, Attendees, Prospects — confirmed live via the actual Data Model Builder. `Attendees` duplicates identity fields (Attendee Email/First Name, ~12 real records) instead of linking to real HubSpot Contacts, and neither `Events` nor `Attendees` associates to Contacts at all. Madhu confirmed he knows about these and wants them **restructured as the real foundation**, not replaced with a fourth competing set of objects.
+- **Trescon's real HubSpot account (portal 2953901) already has 3 custom objects** — Events, Attendees, Prospects — confirmed live via the actual Data Model Builder. `Attendees` duplicates identity fields (Attendee Email/First Name, 66,487 real records — see correction above) instead of linking to real HubSpot Contacts, and neither `Events` nor `Attendees` associates to Contacts at all. Madhu confirmed he knows about these and wants them **restructured as the real foundation**, not replaced with a fourth competing set of objects.
 - Decided scope (Madhu's calls): build fresh Contact/Company objects in EventPilot's main DB now (full SmartData convergence is a separate, later project); yes to a genuine two-way HubSpot CRM sync (Private App token, not OAuth — confirmed this is the right auth model for a single-account server-to-server integration); forward-only (no backfill of existing `event_speakers`/`event_sponsors`); leave `market_intel_*` alone.
 - Real technical constraint for the sync's HubSpot→EventPilot direction: Private Apps can only configure CRM webhook subscriptions manually via HubSpot's own UI, one named property at a time — no REST API to manage them. Realistic design is a hybrid (UI-configured webhooks as a low-latency nudge + scheduled polling via the Search API on `hs_lastmodifieddate` as the reliable backstop).
 
