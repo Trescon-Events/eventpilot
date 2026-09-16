@@ -52,6 +52,23 @@ const nextConfig: NextConfig = {
           { key: 'Cache-Control', value: 'no-store, must-revalidate' },
         ],
       },
+      // Content Guidelines API (2026-09-16) — GET /api/public/v1/content-
+      // guidelines sets its own Cache-Control (private, max-age=300; the
+      // spec's "agents call this at the start of every session, the
+      // document changes rarely") and relies on it plus ETag/If-None-Match
+      // for a real external caller to skip a request entirely, not just
+      // get a fast 304. The blanket no-store rule above wins on ties
+      // (later entry overrides for the same key, same path — see
+      // node_modules/next/dist/docs/.../headers.md's "Header Overriding
+      // Behavior"), so this route's own header was silently getting
+      // clobbered app-wide; this entry, matched after, restores it — only
+      // for this versioned path, not the rest of /api/public.
+      {
+        source: '/api/public/v1/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'private, max-age=300' },
+        ],
+      },
     ]
   },
 };

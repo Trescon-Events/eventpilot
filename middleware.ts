@@ -235,6 +235,17 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
+  // Content Guidelines API (2026-09-16): the validate route now also
+  // accepts an external `Authorization: Bearer ep_cg_<token>` call with no
+  // EventPilot session (see app/lib/content/guideline-tokens.ts) — only
+  // skip the session gate when that header is actually present, so the
+  // route's original cookie-based calling convention (Content Check page,
+  // umbrella workspace page) still requires a real session exactly as
+  // before. The route itself rejects a missing/invalid/revoked token.
+  if (pathname === '/api/events/stakeholders/content/validate' && req.headers.get('authorization')?.startsWith('Bearer ')) {
+    return NextResponse.next()
+  }
+
   const session = await decodeSessionCookie(req.cookies.get('tcs_session')?.value)
 
   // No session → redirect to login
