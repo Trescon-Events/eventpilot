@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import PageHeader from '@/app/components/PageHeader'
-import { Card, Input } from '@/app/components/ui'
+import { Card, Input, Button } from '@/app/components/ui'
 
 type CompanyRow = {
   id: string; name: string; domain: string | null; website: string | null; hubspot_company_id: string | null; created_at: string
@@ -19,6 +19,8 @@ export default function CrmCompaniesPage() {
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<CompanyDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncError, setSyncError] = useState<string | null>(null)
 
   const load = useCallback(async (q: string) => {
     setLoading(true)
@@ -35,9 +37,24 @@ export default function CrmCompaniesPage() {
 
   async function openCompany(id: string) {
     setDetailLoading(true)
+    setSyncError(null)
     const res = await fetch(`/api/crm/companies/${id}`).then(r => r.json()).catch(() => null)
     setSelected(res)
     setDetailLoading(false)
+  }
+
+  async function syncToHubSpot(id: string) {
+    setSyncing(true)
+    setSyncError(null)
+    const res = await fetch(`/api/crm/companies/${id}/sync-hubspot`, { method: 'POST' })
+    const data = await res.json().catch(() => ({ error: 'Sync failed' }))
+    if (!res.ok) {
+      setSyncError(data.error ?? 'Sync failed')
+    } else {
+      await openCompany(id)
+      await load(search)
+    }
+    setSyncing(false)
   }
 
   return (
@@ -122,6 +139,17 @@ export default function CrmCompaniesPage() {
                   ))}
                 </div>
               )}
+
+              <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '11px', color: 'var(--ink4)', marginBottom: '8px' }}>
+                  {selected.hubspot_company_id ? `Synced to HubSpot (company ${selected.hubspot_company_id})` : 'Not synced to HubSpot yet.'}
+                </div>
+                <Button variant="ghost" onClick={() => syncToHubSpot(selected.id)} disabled={syncing || !selected.domain}>
+                  {syncing ? 'Syncing…' : selected.hubspot_company_id ? 'Re-sync to HubSpot' : 'Sync to HubSpot'}
+                </Button>
+                {!selected.domain && <div style={{ fontSize: '11px', color: 'var(--ink4)', marginTop: '6px' }}>No domain captured — can&apos;t sync without one.</div>}
+                {syncError && <div style={{ fontSize: '11.5px', color: 'var(--red)', marginTop: '6px' }}>{syncError}</div>}
+              </div>
             </Card>
           ) : (
             <Card padded><div style={{ fontSize: '12px', color: 'var(--ink4)' }}>Select a company to see details.</div></Card>
