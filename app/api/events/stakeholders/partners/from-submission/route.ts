@@ -9,6 +9,7 @@ import { processLogo } from '@/app/lib/media/logo-engine'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { fetchHubSpotUploadedFile } from '@/app/lib/hubspot/client'
 import { extractEmailFromSubmission, extractCrmPropertyValue, upsertCrmCompany, upsertCrmContact, linkCompanyToEvent, linkContactToEvent, setCrmCompanyLogoIfEmpty } from '@/app/lib/crm/upsert'
+import { syncContactToHubSpot, syncCompanyToHubSpot } from '@/app/lib/hubspot/crm-sync'
 
 /* POST /api/events/stakeholders/partners/from-submission
    Body: { submission_id, event_id }
@@ -69,6 +70,7 @@ export async function POST(req: NextRequest) {
   // the submitting contact person as a Contact linked to that Company.
   let crmCompanyId: string | null = null
   let crmCompanyIsNew = false
+  let crmSponsorContactId: string | null = null
   try {
     const companyName = typeof columns.name === 'string' ? columns.name : null
     if (companyName) {
@@ -86,9 +88,23 @@ export async function POST(req: NextRequest) {
     if (contactEmail || contactName) {
       const { id: crmContactId } = await upsertCrmContact({ email: contactEmail, fullName: contactName, companyId: crmCompanyId })
       await linkContactToEvent(crmContactId, body.event_id, 'sponsor_contact')
+      crmSponsorContactId = crmContactId
     }
   } catch (e) {
     console.error('CRM upsert failed for submission', submission.id, e)
+  }
+
+  // Phase 3 — automatic forward push to HubSpot (see the equivalent comment
+  // in the speaker route for why this is best-effort/non-blocking). The
+  // sponsor contact person can sync now — it doesn't depend on
+  // event_sponsors existing yet, unlike the company sync below, which needs
+  // the company<->event role link (set after the insert further down).
+  if (crmSponsorContactId) {
+    try {
+      await syncContactToHubSpot(crmSponsorContactId)
+    } catch (e) {
+      console.error('HubSpot sponsor-contact sync failed for submission', submission.id, e)
+    }
   }
 
   const { data: partner, error: insertErr } = await supabaseAdmin
@@ -113,6 +129,11 @@ export async function POST(req: NextRequest) {
       await linkCompanyToEvent(crmCompanyId, body.event_id, FORM_TYPE_TO_PARTNER_TYPE[submission.form_type])
     } catch (e) {
       console.error('CRM company-event link failed for submission', submission.id, e)
+    }
+    try {
+      await syncCompanyToHubSpot(crmCompanyId)
+    } catch (e) {
+      console.error('HubSpot company sync failed for submission', submission.id, e)
     }
   }
 

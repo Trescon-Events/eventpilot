@@ -11,6 +11,7 @@ import { mapFieldsToRecord } from '@/app/lib/forms/map-to-stakeholder-record'
 import { SubmittedValue } from '@/app/lib/forms/types'
 import { fetchHubSpotUploadedFile } from '@/app/lib/hubspot/client'
 import { extractEmailFromSubmission, extractCrmPropertyValue, upsertCrmContact, linkContactToEvent, setCrmContactPhotoIfEmpty } from '@/app/lib/crm/upsert'
+import { syncContactToHubSpot } from '@/app/lib/hubspot/crm-sync'
 
 /* POST /api/events/stakeholders/speakers/from-submission
    Body: { submission_id, event_id }
@@ -103,6 +104,19 @@ export async function POST(req: NextRequest) {
       await linkContactToEvent(crmContactId, body.event_id, 'speaker')
     } catch (e) {
       console.error('CRM contact-event link failed for submission', submission.id, e)
+    }
+    // Phase 3 — automatic forward push to HubSpot (Phase 2 built this as a
+    // manual-only CRM Admin button; this is that same sync fired
+    // automatically on every new speaker submission). Best-effort, same as
+    // every other CRM step in this route — a HubSpot outage must never
+    // block a speaker's own submission from processing. Requires an email
+    // (syncContactToHubSpot's own dedup key) — throws and gets caught below
+    // if missing, same as the rest of this route already tolerates for
+    // email-less speakers.
+    try {
+      await syncContactToHubSpot(crmContactId)
+    } catch (e) {
+      console.error('HubSpot contact sync failed for submission', submission.id, e)
     }
   }
 
