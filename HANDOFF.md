@@ -15,13 +15,54 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — 12 Sep 2026. Fixed the SAE announcement-copy prompt fighting its own DIFC messaging-doc rules, and converted the Website Photo pipeline (KonfHub-published speaker photos) from PNG to WebP. |
-| Date | 2026-09-12 |
-| Latest push | This session's own commit(s), see dated section below. |
+| Who | Madhu + Claude Code (Sonnet 5) — 16 Sep 2026. Built and shipped a new Agenda Builder (real tracks/sessions/speaker-picker) with live KonfHub sync for DFFW-family events, live-verified against real production data. Also scoped (not built) a top-level "mini CRM" — Contact/Company/Event objects + HubSpot two-way sync — see that section below; paused mid-plan at Madhu's request to avoid clashing with a concurrent session. |
+| Date | 2026-09-16 |
+| Latest push | `d6d09cb feat(agenda): new Agenda Builder with KonfHub track/session sync`. Note: `6b67cfb feat(content-api)` and `2692507 fix(messaging-docs)` landed on `main` between the 12 Sep entry below and this session, from a separate concurrent session — not detailed here since this session didn't do that work; check with whoever ran it. |
+| DB migrations applied | Via direct psql (session pooler): `supabase/agenda_structure_migration.sql` — `event_agenda_tracks`/`event_agenda_sessions`/`event_agenda_session_speakers`/`event_agenda_track_konfhub_links` tables + `event_websites.agenda_source`/`konfhub_agenda_start_date`/`konfhub_agenda_end_date` columns. Verified live. |
+| Handed off to | Durga. |
+| Deployed | Pushed to `main` this sign-off — Railway auto-deploy. |
+| Left alone / known follow-up | See "16 Sep 2026" section below for the full list — headline items: ~162 of 164 real DFFW sessions still not imported into EventPilot (deliberate, per-session Import/Skip is a producer call), zero speakers assigned to any session yet (real content work, not mine to fabricate), and the CRM initiative is scoped but not built (plan saved locally, needs a fresh planning session to resume). Also still open from 12 Sep and earlier — see those dated sections. |
 | DB migrations applied | Via direct psql (session pooler, `aws-1-ap-southeast-1.pooler.supabase.com:6543`): `supabase/reference_documents_fix_standalone_digit_rule.sql` — fixed `difc-standalone-digit` false-flagging valid date ranges. Verified live. |
 | Handed off to | Durga. |
 | Deployed | Pushed to `main` this sign-off — Railway auto-deploy. |
 | Left alone / known follow-up | See "What's next" in the dated section below. Also still open from 11 Sep: decide whether to configure `hrms_role_access_map` for real, review the one stale grant the Stale Access report surfaced (Khalifatur Rahman / Branding / WAIS Malaysia 2026). Still open from 10 Sep: add `STAFF_PORTAL_SYNC_URL`/`STAFF_PORTAL_SYNC_KEY` to Railway env vars, point cron-job.org at the new sync route, retire the Staff Portal admin account. Same long-standing items further down: `sae.sensitive_documents.manage` permission-holder audit, name-split "flag the tricky ones" policy, `checklist`/`feedback` pre-existing bugs, Pixelate's contact roster, Khalifa's "Go Live" protocol exercise, `RealtimeNotifications.tsx` RLS gap. |
+
+## 16 Sep 2026 — New Agenda Builder + KonfHub track/session sync; CRM initiative scoped (not built)
+
+### The ask
+
+Madhu asked to move the Agenda Builder rebuild from design into a real build: replace the old free-text `event_agenda` table with a proper tracks/sessions/speaker-picker model, synced live against DFFW's real KonfHub agenda (164 real sessions across 7 stages for the Nov 2026 event, discovered in an earlier design-discussion session, zero speakers wired in). Separately, later the same day, Madhu raised a new initiative while mapping DFS's HubSpot "Speaker onboarding form" field-by-field: a top-level "mini CRM" with Contact/Company/Event as HubSpot-style Objects/Properties, meant to fix the root cause of a real bug just hit (the Speaker form had been connected under the wrong stakeholder category — Sponsor, not Speaker — because EventPilot has no shared cross-event identity layer and no validation catching the mismatch).
+
+### What was built (Agenda Builder — shipped, live-verified)
+
+- **New tables** (`supabase/agenda_structure_migration.sql`): `event_agenda_tracks` (EventPilot's own curated stage names, e.g. "Plenary 1" — never KonfHub's raw "Dubai FinTech Summit Plenary 1"), `event_agenda_sessions` (adds `content_type` so the Keynote/Panel/Fireside badge never needs a live KonfHub call), `event_agenda_session_speakers`, `event_agenda_track_konfhub_links` (the DFFW-only bridge — KonfHub mints a new `track_id` per date even for the same recurring stage, confirmed live: "Plenary 1" is id 4532 on Nov 2 but 4600 on Nov 3). New `event_websites.agenda_source`/`konfhub_agenda_start_date`/`konfhub_agenda_end_date` columns — the last two exist because `events.event_date`/`end_date` turned out to be unreliable 14-month listing windows, not real KonfHub event dates.
+- **New KonfHub client** (`app/lib/konfhub-agenda.ts`): track/session/filter fetch, and the session `PUT` push-back (title/times/speakers) — confirmed live via the real Postman doc that `session_speakers` is a genuine, working field on that endpoint (this had earlier been mis-recorded as not existing at all; corrected this session).
+- **New KonfHub routes** (`app/api/events/konfhub/{fetch-agenda-structure,map-track,import-session,resolve-session-drift,acknowledge-track-rename}`): the fetch-and-reconcile flow — iterate the event's real date range, diff against what's already mapped, surface new/unmapped tracks with a "which EventPilot event does this belong to" picker (DFFW's shared KonfHub event has no per-track sub-event scoping field, unlike speakers), surface session drift via a real `updated_at` comparison, surface unused KonfHub Filters read-only.
+- **New Agenda Builder CRUD** (`app/api/events/agenda-v2`) and **new page** (`app/admin/events/[id]/agenda`) — stage tabs, content-type badges, a real speaker-picker (promoted `SearchableSelect` from task-manager into the shared `app/components/ui` barrel). `konfhub_authoritative` events show a locked notice instead of "+ Add Stage"; server-enforced, not just UI-hidden.
+- New "Agenda Structure" card on the Integrations page (fetch/reconcile UI). New `sae.agenda.manage` permission key. Old `event_agenda` table, its API route, and the old Agenda tab in `website/page.tsx` are **completely untouched** — still the live data source for any event using EventPilot's own Website Builder's public renderer.
+
+### Verified
+
+Live-tested against real production DFFW KonfHub data end to end, not a mock: bootstrapped Dubai FinTech Summit 2026 (`agenda_source='konfhub_authoritative'`, real Nov 2–5 2026 dates), fetched real structure, mapped all **15 real KonfHub tracks** across all **4 DFFW EventPilot events** (Dubai FinTech Summit 2026 itself plus Future Sustainability Forum / Future Islamic Finance Forum / Future Tokenisation Forum — the latter three needed fresh `event_websites` rows created, since only DFS had one at all), imported 2 real sessions, confirmed correct rendering (real titles, correct local-time conversion, correct content-type badges) in the actual running `/admin/events/[id]/agenda` page, confirmed the speaker-picker lists real DFS speakers. **Two real bugs caught only by live-clicking the UI, not by code/design review**: (1) drift detection flagged every freshly-imported session as "edited in KonfHub" due to a timestamp string-format mismatch (`+00` suffix vs. none) rather than real drift — fixed, verified in Node against real captured values; (2) the "unused filters" callout mislabeled "Session Type" (Keynote/Panel/Fireside — genuinely used everywhere) as unused because the check wasn't actually verifying tag usage — fixed, re-verified live (now correctly flags only "Speaker Type"/"Theme"/"Stage" as unused).
+
+### What's next (Agenda)
+
+- ~162 of 164 real sessions still exist only in KonfHub, not yet imported into EventPilot — deliberate stopping point, per-session Import/Skip is a producer decision (some, like breaks/registration filler, may not need a real EventPilot row at all).
+- Zero real speakers assigned to any session — genuine content work for Producer/Client Success, not something to fabricate.
+- "DFS Roundtables" has zero real sessions in KonfHub at all — needs building out on KonfHub's side first before there's anything to import.
+- Phase B (explicitly deferred, not designed further): EventPilot-native "+Add Stage → push a new Track to KonfHub" wiring (Track create/update API confirmed to exist, just not wired up), the new direct public API for non-DFFW branding sites, Sponsors/Partners agenda work.
+
+### CRM initiative — scoped in depth, not built, paused mid-review
+
+Full design work happened (HubSpot's real Objects/Properties/Associations model researched, the existing `event_form_schemas`/`custom_fields` mapping layer read in full, SmartData investigated end-to-end, HubSpot's actual CRM Objects API mechanics researched for a real two-way sync) — plan is saved at the Claude Code session's plan file, not yet turned into a to-do list here since it needs a fresh planning pass to resume properly. Headline findings worth knowing before anyone touches this:
+- **SmartData** (separate Supabase project, 12 tables, live Apollo/Lusha/MillionVerifier/Firecrawl integrations) looks like a ready-made Contact/Company system at a glance but isn't — its `sd_properties` dynamic-property table is dead code, never read/written anywhere; the real UI hardcodes property lists.
+- **Trescon's real HubSpot account (portal 2953901) already has 3 custom objects** — Events, Attendees, Prospects — confirmed live via the actual Data Model Builder. `Attendees` duplicates identity fields (Attendee Email/First Name, ~12 real records) instead of linking to real HubSpot Contacts, and neither `Events` nor `Attendees` associates to Contacts at all. Madhu confirmed he knows about these and wants them **restructured as the real foundation**, not replaced with a fourth competing set of objects.
+- Decided scope (Madhu's calls): build fresh Contact/Company objects in EventPilot's main DB now (full SmartData convergence is a separate, later project); yes to a genuine two-way HubSpot CRM sync (Private App token, not OAuth — confirmed this is the right auth model for a single-account server-to-server integration); forward-only (no backfill of existing `event_speakers`/`event_sponsors`); leave `market_intel_*` alone.
+- Real technical constraint for the sync's HubSpot→EventPilot direction: Private Apps can only configure CRM webhook subscriptions manually via HubSpot's own UI, one named property at a time — no REST API to manage them. Realistic design is a hybrid (UI-configured webhooks as a low-latency nudge + scheduled polling via the Search API on `hs_lastmodifieddate` as the reliable backstop).
+
+### What's next (CRM)
+
+Resume planning fresh — the saved plan has the full phased design (Phase 1: EventPilot-side Contact/Company tables + CRM Admin UI; Phase 2: HubSpot object restructuring; Phase 3: the two-way sync engine). Nothing has been built yet, so there's no regression risk in taking time to re-review the plan before starting.
 
 ## 12 Sep 2026 — Announcement-copy prompt fix (DIFC rules vs. hardcoded structure), Website Photo → WebP conversion
 
