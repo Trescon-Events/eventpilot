@@ -118,3 +118,31 @@ export async function associateWithLabel(fromObjectType: string, fromId: string,
     body: JSON.stringify([{ associationCategory: 'USER_DEFINED', associationTypeId }]),
   })
 }
+
+// Pull direction (Phase 3) — batch-read is the only pull primitive this
+// portal's Service Key needs: it's used ONLY against ids we already stored
+// on our own crm_contacts/crm_companies rows (records we ourselves pushed),
+// never a blanket poll of the object type — that would reach into the same
+// unrelated/historical HubSpot data this integration deliberately never
+// touches (see HUBSPOT_OBJECT_TYPE's own comment). Silently drops any id
+// HubSpot doesn't recognize (deleted/merged on their side) rather than
+// failing the whole batch — `results` just won't include it.
+export async function batchReadContacts(ids: string[], properties: string[]): Promise<{ id: string; properties: Record<string, string | null> }[]> {
+  if (ids.length === 0) return []
+  const res = await hubspotFetch('/crm/v3/objects/contacts/batch/read', {
+    method: 'POST',
+    body: JSON.stringify({ properties, inputs: ids.map(id => ({ id })) }),
+  })
+  const data = (await res.json()) as { results?: { id: string; properties: Record<string, string | null> }[] }
+  return data.results ?? []
+}
+
+export async function batchReadCompanies(ids: string[], properties: string[]): Promise<{ id: string; properties: Record<string, string | null> }[]> {
+  if (ids.length === 0) return []
+  const res = await hubspotFetch('/crm/v3/objects/companies/batch/read', {
+    method: 'POST',
+    body: JSON.stringify({ properties, inputs: ids.map(id => ({ id })) }),
+  })
+  const data = (await res.json()) as { results?: { id: string; properties: Record<string, string | null> }[] }
+  return data.results ?? []
+}
