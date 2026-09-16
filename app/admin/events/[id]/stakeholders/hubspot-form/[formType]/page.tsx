@@ -40,6 +40,7 @@ function draftFromHubSpotField(f: HubSpotFormField): NewFieldDraft {
 
 const TARGET_TYPE_OPTIONS = [
   { value: 'concept', label: 'EventPilot field' },
+  { value: 'crm_property', label: 'CRM property (cross-event)' },
   { value: 'asset', label: 'Photo / logo asset' },
   { value: 'custom', label: "Store as extra data (don't map)" },
 ]
@@ -50,8 +51,32 @@ const ASSET_ROLE_OPTIONS = [
   { value: 'logo', label: 'Partner Logo' },
 ]
 
+// Loose keyword check used only to warn (never block) when a HubSpot form
+// looks miscategorized — the exact bug that triggered building the CRM
+// layer at all (DFS's Speaker form was once connected under 'sponsor').
+const CATEGORY_KEYWORDS: Record<FormType, string[]> = {
+  speaker: ['speaker'],
+  sponsor: ['sponsor'],
+  media_partner: ['media'],
+  association_partner: ['association'],
+}
+function formNameLooksMismatched(formName: string | null | undefined, formType: FormType): boolean {
+  if (!formName) return false
+  const lower = formName.toLowerCase()
+  const ownKeywords = CATEGORY_KEYWORDS[formType]
+  const otherKeywords = Object.entries(CATEGORY_KEYWORDS).filter(([t]) => t !== formType).flatMap(([, kws]) => kws)
+  const mentionsOwn = ownKeywords.some(k => lower.includes(k))
+  const mentionsOther = otherKeywords.some(k => lower.includes(k))
+  return mentionsOther && !mentionsOwn
+}
+
+type CrmProperty = { id: string; entity_type: 'contact' | 'company'; property_key: string; label: string }
+
 function targetType(m: HubSpotFieldMapping | undefined): string {
   return m?.target?.type ?? 'custom'
+}
+function crmPropertyOptionValue(entityType: 'contact' | 'company', propertyKey: string): string {
+  return `${entityType}:${propertyKey}`
 }
 
 export default function HubSpotFormConnectPage({ params }: { params: Promise<{ id: string; formType: string }> }) {
@@ -67,6 +92,7 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
   const [connection, setConnection] = useState<EventHubSpotForm | null>(null)
   const [allFields, setAllFields] = useState<FieldSchema[]>([])
   const [conceptFields, setConceptFields] = useState<FieldSchema[]>([])
+  const [crmProperties, setCrmProperties] = useState<CrmProperty[]>([])
   const [mapping, setMapping] = useState<HubSpotFieldMapping[]>([])
   const [loading, setLoading] = useState(valid)
   const [saving, setSaving] = useState(false)
@@ -90,15 +116,17 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
   const canManage = can('sae.forms.manage')
 
   async function loadAll() {
-    const [permRes, connRes, schemaRes] = await Promise.all([
+    const [permRes, connRes, schemaRes, crmRes] = await Promise.all([
       fetch(`/api/events/access/me?event_id=${eventId}`).then(r => r.json()).catch(() => ({ permissions: [] })),
       fetch(`/api/events/stakeholders/hubspot/connection?event_id=${eventId}&form_type=${formType}`).then(r => r.json()).catch(() => null),
       fetch(`/api/events/stakeholders/forms/${formType}/schema?event_id=${eventId}`).then(r => r.json()).catch(() => ({ fields: [] })),
+      fetch('/api/crm/properties').then(r => r.json()).catch(() => []),
     ])
     setPermissions(new Set(permRes.permissions ?? []))
     setConnection(connRes?.id ? connRes : null)
     setAllFields(schemaRes.fields ?? [])
     setConceptFields((schemaRes.fields ?? []).filter((f: FieldSchema) => f.type !== 'file'))
+    setCrmProperties(Array.isArray(crmRes) ? crmRes : [])
     setMapping(connRes?.field_mapping ?? [])
     setDirty(false)
   }
@@ -248,6 +276,11 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
           </Card>
         ) : (
           <>
+            {formNameLooksMismatched(connection.hubspot_form_name, formType as FormType) && (
+              <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--amber-light)', border: '1px solid var(--amber-border)', color: 'var(--ink2)', fontSize: '12.5px', marginBottom: '16px' }}>
+                This form&apos;s name (&quot;{connection.hubspot_form_name}&quot;) suggests it may not be a {FORM_TITLES[formType as FormType].toLowerCase()} form — double-check it&apos;s connected under the right category.
+              </div>
+            )}
             <Card padded>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                 <div>
@@ -281,11 +314,30 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
                           const t = e.target.value
                           if (t === 'concept') updateTarget(f.name, f.label, { type: 'concept', key: conceptFields[0]?.key ?? '' })
                           else if (t === 'asset') updateTarget(f.name, f.label, { type: 'asset', role: 'photo' })
+                          else if (t === 'crm_property') {
+                            const first = crmProperties[0]
+                            updateTarget(f.name, f.label, first ? { type: 'crm_property', entity_type: first.entity_type, property_key: first.property_key } : { type: 'custom' })
+                          }
                           else updateTarget(f.name, f.label, { type: 'custom' })
                         }}
                       >
                         {TARGET_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                       </Select>
+                      {type === 'crm_property' && (
+                        <Select disabled={!canManage}
+                          value={m?.target.type === 'crm_property' ? crmPropertyOptionValue(m.target.entity_type, m.target.property_key) : ''}
+                          onChange={e => {
+                            const [entityType, propertyKey] = e.target.value.split(':') as ['contact' | 'company', string]
+                            updateTarget(f.name, f.label, { type: 'crm_property', entity_type: entityType, property_key: propertyKey })
+                          }}>
+                          {crmProperties.length === 0 && <option value="">No CRM properties yet — create one in CRM Admin</option>}
+                          {crmProperties.map(p => (
+                            <option key={p.id} value={crmPropertyOptionValue(p.entity_type, p.property_key)}>
+                              {p.entity_type === 'contact' ? 'Contact' : 'Company'}: {p.label}
+                            </option>
+                          ))}
+                        </Select>
+                      )}
                       {type === 'concept' && (
                         <Select disabled={!canManage} value={m?.target.type === 'concept' ? m.target.key : ''}
                           onChange={e => {

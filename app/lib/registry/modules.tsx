@@ -420,6 +420,15 @@ export function getModuleRegistry(): ModuleDef[] {
       },
       sidebar: { section: 'admin', order: 1, label: 'Overview' },
     },
+    {
+      key: 'crm-admin', label: 'CRM Admin',
+      description: 'Cross-event Contact/Company directory and property registry — the shared identity layer behind HubSpot form mapping',
+      icon: I.people, color: '#009D8D',
+      href: '/admin/crm',
+      access: { kind: 'admin_only' },
+      platformMenu: { section: 'Administration' },
+      sidebar: { section: 'admin', order: 2, label: 'CRM Admin' },
+    },
     // The next three entries exist purely to give the breadcrumb resolver
     // (app/lib/nav/breadcrumbs.ts) an accurate parent chain for the Access
     // & Permissions hub and its pages (2026-08-16, per Madhu: the trail

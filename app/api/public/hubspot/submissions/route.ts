@@ -120,6 +120,13 @@ export async function POST(req: NextRequest) {
       case 'custom':
         submittedData[m.hubspot_field_name] = value
         break
+      case 'crm_property':
+        // Synthetic key, read back by app/lib/crm/upsert.ts's
+        // extractCrmPropertyValue() in the from-submission routes — not a
+        // real schema field, so it also rides along into this event's own
+        // custom_fields (harmless, same as any 'custom'-mapped field).
+        submittedData[`crm__${m.target.entity_type}__${m.target.property_key}`] = value
+        break
     }
   }
 

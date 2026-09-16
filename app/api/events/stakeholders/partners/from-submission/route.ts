@@ -8,6 +8,7 @@ import { FormType, SubmittedValue } from '@/app/lib/forms/types'
 import { processLogo } from '@/app/lib/media/logo-engine'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { fetchHubSpotUploadedFile } from '@/app/lib/hubspot/client'
+import { extractEmailFromSubmission, extractCrmPropertyValue, upsertCrmCompany, upsertCrmContact, linkCompanyToEvent, linkContactToEvent } from '@/app/lib/crm/upsert'
 
 /* POST /api/events/stakeholders/partners/from-submission
    Body: { submission_id, event_id }
@@ -63,6 +64,26 @@ export async function POST(req: NextRequest) {
   const schema = await resolveFormSchema(body.event_id, submission.form_type as FormType)
   const { columns, customFields } = mapFieldsToRecord(submission.form_type as FormType, schema, submitted, fileUrls, { collapsePartnerContactIntoNotes: true })
 
+  // CRM layer (Phase 1) — cross-event Company identity (deduped by domain,
+  // derived from the company website field partners always provide), plus
+  // the submitting contact person as a Contact linked to that Company.
+  let crmCompanyId: string | null = null
+  try {
+    const companyName = typeof columns.name === 'string' ? columns.name : null
+    if (companyName) {
+      const website = extractCrmPropertyValue('company', 'website', submitted) ?? (typeof columns.website_url === 'string' ? columns.website_url : null)
+      crmCompanyId = await upsertCrmCompany({ name: companyName, website })
+    }
+    const contactEmail = extractEmailFromSubmission(schema, submitted)
+    const contactName = typeof submitted.contact_person_name === 'string' ? submitted.contact_person_name : null
+    if (contactEmail || contactName) {
+      const crmContactId = await upsertCrmContact({ email: contactEmail, fullName: contactName, companyId: crmCompanyId })
+      await linkContactToEvent(crmContactId, body.event_id, 'sponsor_contact')
+    }
+  } catch (e) {
+    console.error('CRM upsert failed for submission', submission.id, e)
+  }
+
   const { data: partner, error: insertErr } = await supabaseAdmin
     .from('event_sponsors')
     .insert({
@@ -73,11 +94,20 @@ export async function POST(req: NextRequest) {
       source:              'onboarding_form',
       form_submission_id:  submission.id,
       announcement_status: 'pending_review',
+      crm_company_id:      crmCompanyId,
     })
     .select()
     .single()
 
   if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 })
+
+  if (crmCompanyId) {
+    try {
+      await linkCompanyToEvent(crmCompanyId, body.event_id, FORM_TYPE_TO_PARTNER_TYPE[submission.form_type])
+    } catch (e) {
+      console.error('CRM company-event link failed for submission', submission.id, e)
+    }
+  }
 
   if (submission.source === 'hubspot' && fileUrls.logo) {
     try {

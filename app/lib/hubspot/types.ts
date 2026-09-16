@@ -54,6 +54,7 @@ export type HubSpotFieldMapping = {
     | { type: 'concept'; key: string }                                  // key validated live against resolveFormSchema(event, form_type)
     | { type: 'asset'; role: 'photo' | 'company_logo' | 'logo' }         // fixed 3-value enum — matches exactly what PhotoRoom/processLogo() key off today
     | { type: 'custom' }                                                // passthrough — lands in submitted_data[hubspot_field_name]
+    | { type: 'crm_property'; entity_type: 'contact' | 'company'; property_key: string }  // routes into the cross-event CRM layer (crm_contacts/crm_companies), not just this event's record — see app/lib/crm/upsert.ts
 }
 
 export type EventHubSpotForm = {

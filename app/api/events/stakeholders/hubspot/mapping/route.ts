@@ -6,6 +6,14 @@ import { FormType, FORM_TYPES, RESERVED_FIELD_KEYS } from '@/app/lib/forms/types
 import { resolveFormSchema } from '@/app/lib/forms/resolve-schema'
 import { HubSpotFieldMapping } from '@/app/lib/hubspot/types'
 
+// Live-checked the same way `concept` keys are — a crm_property target must
+// point at a real, currently-existing crm_properties row (CRM Admin manages
+// the registry; this route only enforces it isn't stale/typo'd).
+async function fetchCrmPropertyKeys(): Promise<Set<string>> {
+  const { data } = await supabaseAdmin.from('crm_properties').select('entity_type, property_key')
+  return new Set((data ?? []).map(p => `${p.entity_type}:${p.property_key}`))
+}
+
 /* PUT /api/events/stakeholders/hubspot/mapping
    Body: { event_id, form_type, field_mapping: HubSpotFieldMapping[] }
 
@@ -18,7 +26,7 @@ import { HubSpotFieldMapping } from '@/app/lib/hubspot/types'
 
 const ASSET_ROLES = ['photo', 'company_logo', 'logo']
 
-function validateMapping(mapping: unknown, conceptKeys: Set<string>): string | null {
+function validateMapping(mapping: unknown, conceptKeys: Set<string>, crmPropertyKeys: Set<string>): string | null {
   if (!Array.isArray(mapping)) return 'field_mapping must be an array'
   const seenHubSpotFields = new Set<string>()
   for (const m of mapping as HubSpotFieldMapping[]) {
@@ -35,6 +43,10 @@ function validateMapping(mapping: unknown, conceptKeys: Set<string>): string | n
         if (!ASSET_ROLES.includes(m.target.role)) return `Invalid asset role: ${m.target.role}`
         break
       case 'custom':
+        break
+      case 'crm_property':
+        if (m.target.entity_type !== 'contact' && m.target.entity_type !== 'company') return `Invalid CRM entity type for HubSpot field: ${m.hubspot_field_name}`
+        if (!m.target.property_key || !crmPropertyKeys.has(`${m.target.entity_type}:${m.target.property_key}`)) return `"${m.target.property_key}" isn't a valid CRM property`
         break
       default:
         return `Unknown target type for HubSpot field: ${m.hubspot_field_name}`
@@ -57,8 +69,9 @@ export async function PUT(req: NextRequest) {
 
   const schema = await resolveFormSchema(body.event_id, body.form_type as FormType)
   const conceptKeys = new Set(schema.filter(f => f.type !== 'file').map(f => f.key))
+  const crmPropertyKeys = await fetchCrmPropertyKeys()
 
-  const err = validateMapping(body.field_mapping, conceptKeys)
+  const err = validateMapping(body.field_mapping, conceptKeys, crmPropertyKeys)
   if (err) return NextResponse.json({ error: err }, { status: 400 })
 
   const { data, error } = await supabaseAdmin

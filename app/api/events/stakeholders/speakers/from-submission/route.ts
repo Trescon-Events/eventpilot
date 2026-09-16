@@ -10,6 +10,7 @@ import { resolveFormSchema } from '@/app/lib/forms/resolve-schema'
 import { mapFieldsToRecord } from '@/app/lib/forms/map-to-stakeholder-record'
 import { SubmittedValue } from '@/app/lib/forms/types'
 import { fetchHubSpotUploadedFile } from '@/app/lib/hubspot/client'
+import { extractEmailFromSubmission, extractCrmPropertyValue, upsertCrmContact, linkContactToEvent } from '@/app/lib/crm/upsert'
 
 /* POST /api/events/stakeholders/speakers/from-submission
    Body: { submission_id, event_id }
@@ -56,6 +57,24 @@ export async function POST(req: NextRequest) {
   const schema = await resolveFormSchema(body.event_id, 'speaker')
   const { columns, customFields } = mapFieldsToRecord('speaker', schema, submitted, fileUrls, { defaultSpeakerPublicName: true })
 
+  // CRM layer (Phase 1) — cross-event Contact identity, deduped by email.
+  // No company link attempted here: the speaker schema has no website/
+  // domain field to key a crm_companies match on (company_name alone is
+  // too unreliable to dedupe by), unlike the partner form below.
+  let crmContactId: string | null = null
+  try {
+    const email = extractEmailFromSubmission(schema, submitted)
+    crmContactId = await upsertCrmContact({
+      email,
+      fullName: typeof columns.name === 'string' ? columns.name : null,
+      firstName: typeof submitted.first_name === 'string' ? submitted.first_name : null,
+      lastName: typeof submitted.last_name === 'string' ? submitted.last_name : null,
+      linkedinUrl: extractCrmPropertyValue('contact', 'linkedin_url', submitted) ?? (typeof columns.linkedin_url === 'string' ? columns.linkedin_url : null),
+    })
+  } catch (e) {
+    console.error('CRM contact upsert failed for submission', submission.id, e)
+  }
+
   const { data: speaker, error: insertErr } = await supabaseAdmin
     .from('event_speakers')
     .insert({
@@ -65,11 +84,20 @@ export async function POST(req: NextRequest) {
       source:       'onboarding_form',
       form_submission_id: submission.id,
       announcement_status: 'pending_review',
+      crm_contact_id: crmContactId,
     })
     .select()
     .single()
 
   if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 })
+
+  if (crmContactId) {
+    try {
+      await linkContactToEvent(crmContactId, body.event_id, 'speaker')
+    } catch (e) {
+      console.error('CRM contact-event link failed for submission', submission.id, e)
+    }
+  }
 
   // Re-host the submitted photo to OUR OWN storage immediately, regardless
   // of whether PhotoRoom succeeds below — an external submission-source URL
