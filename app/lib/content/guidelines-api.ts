@@ -137,7 +137,13 @@ function renderSectionMarkdown(s: GuidelineSection): string {
 }
 
 export function renderGuidelinesMarkdown(g: EventGuidelines, includeRoles: CompiledSection['role'][]): string {
-  const out: string[] = [`# Content Guidelines — ${g.event.name ?? 'Untitled event'}`]
+  // En dash, not em dash — some events' own style guides ban the em dash
+  // outright (found live 2026-09-16: running `npm run validate` against
+  // AI InfraNext's own fetched guidelines flagged this exact title line
+  // against its own Section 13 rule). En dash reads as a neutral title-
+  // subtitle separator either way, so it's the safer unconditional default
+  // rather than special-casing per event.
+  const out: string[] = [`# Content Guidelines – ${g.event.name ?? 'Untitled event'}`]
   const approved = g.approved_at ? new Date(g.approved_at).toISOString().slice(0, 10) : 'not yet approved'
   out.push(`Generated ${g.generated_at} · Document version ${g.document_version} · Approved ${approved}`, '')
 
