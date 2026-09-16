@@ -12,6 +12,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const body = await req.json().catch(() => null) as {
     label?: string; field_type?: string; group_id?: string | null; options?: string[]; is_required?: boolean
+    hubspot_property_name?: string | null
   } | null
   if (!body) return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
 
@@ -21,6 +22,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.group_id !== undefined) update.group_id = body.group_id
   if (body.options !== undefined) update.options = body.options
   if (body.is_required !== undefined) update.is_required = body.is_required
+  // Set once a HubSpot CRM admin has manually created the matching property
+  // in HubSpot and reports its internal name back here — this app never
+  // creates HubSpot properties itself (Madhu 2026-09-16: keep that
+  // human-controlled). An empty string clears it back to "not mapped".
+  if (body.hubspot_property_name !== undefined) update.hubspot_property_name = body.hubspot_property_name?.trim() || null
 
   const { data, error } = await supabaseAdmin.from('crm_properties').update(update).eq('id', id).select('*, crm_property_groups(id, key, label, order_index)').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

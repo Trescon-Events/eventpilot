@@ -44,6 +44,11 @@ export default function CrmObjectsPage() {
   const [newGroupLabel, setNewGroupLabel] = useState('')
   const [saving, setSaving] = useState(false)
 
+  // Inline "map to HubSpot property" editor — one row open at a time.
+  const [mappingId, setMappingId] = useState<string | null>(null)
+  const [mappingValue, setMappingValue] = useState('')
+  const [mappingSaving, setMappingSaving] = useState(false)
+
   const load = useCallback(async (type: EntityType) => {
     setLoading(true)
     const [propsRes, groupsRes] = await Promise.all([
@@ -93,6 +98,26 @@ export default function CrmObjectsPage() {
     else setMsg('Could not delete — please try again.')
   }
 
+  function startMapping(p: Property) {
+    setMappingId(p.id)
+    setMappingValue(p.hubspot_property_name ?? '')
+  }
+
+  async function saveMapping(id: string) {
+    setMappingSaving(true)
+    const res = await fetch(`/api/crm/properties/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hubspot_property_name: mappingValue }),
+    })
+    setMappingSaving(false)
+    if (res.ok) {
+      setMappingId(null)
+      load(entityType)
+    } else {
+      setMsg('Could not save the HubSpot property mapping — please try again.'); setMsgIsError(true)
+    }
+  }
+
   const ungroupedLabel = 'Ungrouped'
   const grouped = new Map<string, Property[]>()
   for (const p of properties) {
@@ -100,6 +125,7 @@ export default function CrmObjectsPage() {
     if (!grouped.has(key)) grouped.set(key, [])
     grouped.get(key)!.push(p)
   }
+  const unmappedCount = properties.filter(p => !p.hubspot_property_name).length
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--surface)' }}>
@@ -130,6 +156,15 @@ export default function CrmObjectsPage() {
           ))}
         </div>
 
+        {!loading && unmappedCount > 0 && (
+          <div style={{
+            padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '12.5px',
+            background: 'var(--amber-light)', border: '1px solid var(--amber-border)', color: 'var(--amber)',
+          }}>
+            {unmappedCount} {entityType} {unmappedCount === 1 ? 'property is' : 'properties are'} not yet mapped to a HubSpot property — sync will skip these fields until a HubSpot CRM admin creates the matching property there and maps it below. EventPilot never creates HubSpot properties automatically.
+          </div>
+        )}
+
         {loading ? (
           <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>Loading…</div>
         ) : (
@@ -140,12 +175,42 @@ export default function CrmObjectsPage() {
                   <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink3)', letterSpacing: '0.6px', textTransform: 'uppercase', marginBottom: '10px' }}>{groupLabel}</div>
                   <div style={{ display: 'grid', gap: '6px' }}>
                     {props.map(p => (
-                      <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderTop: '1px solid var(--border-light)' }}>
-                        <div>
-                          <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>{p.label}{p.is_required && <span style={{ color: 'var(--red)' }}> *</span>}</div>
-                          <div style={{ fontSize: '10.5px', color: 'var(--ink4)' }}>{p.property_key} · {p.field_type}</div>
+                      <div key={p.id} style={{ padding: '8px 0', borderTop: '1px solid var(--border-light)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>{p.label}{p.is_required && <span style={{ color: 'var(--red)' }}> *</span>}</div>
+                            <div style={{ fontSize: '10.5px', color: 'var(--ink4)' }}>{p.property_key} · {p.field_type}</div>
+                          </div>
+                          <Button variant="ghost" onClick={() => deleteProperty(p.id, p.label)}>Delete</Button>
                         </div>
-                        <Button variant="ghost" onClick={() => deleteProperty(p.id, p.label)}>Delete</Button>
+
+                        {mappingId === p.id ? (
+                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '8px' }}>
+                            <Input
+                              placeholder="HubSpot internal property name (e.g. jobtitle)"
+                              value={mappingValue}
+                              onChange={e => setMappingValue(e.target.value)}
+                              style={{ flex: 1, fontSize: '12px' }}
+                            />
+                            <Button variant="lime" onClick={() => saveMapping(p.id)} disabled={mappingSaving}>{mappingSaving ? 'Saving…' : 'Save'}</Button>
+                            <Button variant="ghost" onClick={() => setMappingId(null)} disabled={mappingSaving}>Cancel</Button>
+                          </div>
+                        ) : p.hubspot_property_name ? (
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px' }}>
+                            <span style={{ fontSize: '10.5px', color: 'var(--ink4)' }}>HubSpot: <code>{p.hubspot_property_name}</code></span>
+                            <button onClick={() => startMapping(p)} style={{ fontSize: '10.5px', color: 'var(--teal-mid)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Edit mapping</button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px' }}>
+                            <span style={{
+                              fontSize: '10px', fontWeight: 700, color: 'var(--amber)', background: 'var(--amber-light)',
+                              border: '1px solid var(--amber-border)', borderRadius: '5px', padding: '1px 6px',
+                            }}>
+                              Not mapped to HubSpot
+                            </span>
+                            <button onClick={() => startMapping(p)} style={{ fontSize: '10.5px', color: 'var(--teal-mid)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Map to HubSpot property…</button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
