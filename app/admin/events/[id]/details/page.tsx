@@ -50,6 +50,14 @@ export type MessagingDoc = {
   role: DocRole; authority_rank: number; provenance: Provenance
   structured_json: { sections: Section[]; default_fields?: Record<string, string | null> } | null
   source_url: string | null; updated_at: string; created_at: string
+  // Background extraction (2026-09-16) — a freshly-uploaded doc lands as
+  // 'processing' with structured_json still null; the two Gemini calls
+  // that fill it in run after the upload request already returned (see
+  // the route's own comment on why). 'complete' is the column default so
+  // every pre-existing row (extracted synchronously, the old way) reads
+  // correctly with no backfill needed on this field specifically.
+  extraction_status: 'processing' | 'complete' | 'failed'
+  extraction_error: string | null
 }
 
 export type Proposal = {
@@ -542,6 +550,21 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
     } else { setMsg(data.error ?? 'Save failed.'); setMsgIsError(true) }
   }
 
+  // Extraction (2026-09-16) — the upload POST now returns fast, before
+  // Gemini runs, so it can't hang past the Cloudflare proxy's ~100-125s
+  // limit (see the route's own comment). This polls for the background
+  // work finishing instead — up to 4 minutes, generous headroom over the
+  // ~180s a real upload has taken live.
+  async function pollExtraction(docId: string): Promise<MessagingDoc | null> {
+    for (let i = 0; i < 120; i++) {
+      await new Promise(r => setTimeout(r, 2000))
+      const data = await fetch(`/api/events/stakeholders/messaging?event_id=${eventId}&all=true`).then(r => r.json()).catch(() => [])
+      const doc = (Array.isArray(data) ? data : []).find((d: MessagingDoc) => d.id === docId)
+      if (doc && doc.extraction_status !== 'processing') return doc
+    }
+    return null
+  }
+
   async function uploadMessagingDoc(file: File, role: DocRole = 'messaging') {
     setSaving(true); setMsg(null)
     const form = new FormData()
@@ -550,9 +573,17 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
     form.append('role', role)
     if (session?.sid) form.append('uploaded_by', session.sid)
     const res = await fetch('/api/events/stakeholders/messaging', { method: 'POST', body: form })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setSaving(false); setMsg(data.error ?? 'Upload failed.'); setMsgIsError(true); return }
+
+    setMsg('Uploaded — extracting content, this can take a minute or two for a long document…'); setMsgIsError(false)
+    await loadAll()
+    const finalDoc = await pollExtraction(data.id)
     setSaving(false)
-    if (res.ok) { await loadAll(); setMsg('Uploaded — review the draft below before it goes live.'); setMsgIsError(false) }
-    else { const data = await res.json().catch(() => ({})); setMsg(data.error ?? 'Upload failed.'); setMsgIsError(true) }
+    await loadAll()
+    if (finalDoc?.extraction_status === 'failed') { setMsg(finalDoc.extraction_error ?? 'Extraction failed — the PDF is saved; try re-uploading.'); setMsgIsError(true) }
+    else if (finalDoc?.extraction_status === 'complete') { setMsg('Uploaded — review the draft below before it goes live.'); setMsgIsError(false) }
+    else { setMsg('Still extracting in the background — refresh in a bit to see the draft.'); setMsgIsError(false) }
   }
 
   async function checkSync() {
@@ -903,6 +934,27 @@ export function DraftReview({ doc, canManage, session, onApproved }: {
 
   const sections = (doc.structured_json?.sections ?? []).slice().sort((a, b) => a.order - b.order)
   const defaultFields = doc.structured_json?.default_fields ?? {}
+
+  // Background extraction (2026-09-16) — a just-uploaded draft has no
+  // structured_json yet; without this guard the review UI below would
+  // silently render as an empty doc (0 sections, no default fields) while
+  // extraction is still running in the background, which reads as broken
+  // rather than in-progress. See the upload route's own comment for why
+  // this is now a background step instead of blocking the upload request.
+  if (doc.extraction_status === 'processing') {
+    return (
+      <div style={{ padding: '24px', fontSize: '13px', color: 'var(--ink3)' }}>
+        Extracting content — this can take a minute or two for a long document. This updates automatically; you can also leave and come back.
+      </div>
+    )
+  }
+  if (doc.extraction_status === 'failed') {
+    return (
+      <div style={{ padding: '24px', fontSize: '13px', color: 'var(--red)' }}>
+        Extraction failed{doc.extraction_error ? `: ${doc.extraction_error}` : '.'} The PDF itself is saved — re-upload to retry.
+      </div>
+    )
+  }
 
   async function send() {
     const question = input.trim()

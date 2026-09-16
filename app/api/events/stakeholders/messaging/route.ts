@@ -261,12 +261,65 @@ export async function POST(req: NextRequest) {
     'application/pdf'
   )
 
-  // Extract + structure via Gemini
+  // Lands as a draft, not live — a producer reviews/chats through it and
+  // explicitly Approves (see .../[id]/approve/route.ts) before it supersedes
+  // the current live doc or writes default_fields anywhere. Inserted with
+  // extraction_status='processing' and no structured_json yet — see the
+  // comment above runExtraction() below for why the actual Gemini work
+  // happens AFTER this response, not before it.
+  const { data, error } = await supabaseAdmin
+    .from('event_messaging_docs')
+    .insert({
+      event_id:        ownerType === 'event' ? eventId : null,
+      umbrella_id:     ownerType === 'umbrella' ? eventId : null,
+      version:         nextVersion,
+      title:           title ?? `Topline Messaging v${nextVersion}`,
+      raw_text:        null,
+      structured_json: null,
+      source_url:      sourceUrl,
+      status:          'draft',
+      uploaded_by:     uploadedBy,
+      role,
+      authority_rank:  authorityRank,
+      provenance,
+      clarification_rounds_used: 0,
+      extraction_status: 'processing',
+    })
+    .select()
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Fire and forget — see runExtraction()'s own comment for why this is
+  // safe here (same pattern as app/api/kb/intel/run/route.ts). The
+  // frontend polls GET .../messaging?event_id=X&all=true for this doc's
+  // extraction_status flipping to 'complete'/'failed' rather than waiting
+  // on this request.
+  runExtraction(data.id, buffer, file.name).catch(e => console.error(`[messaging-doc ${data.id}] uncaught extraction error:`, e))
+
+  return NextResponse.json(data, { status: 201 })
+}
+
+// Both steps here call Gemini (extractKbText's own PDF-to-text pass, then
+// the structuring pass below) and together can comfortably exceed the
+// ~100-125s the Cloudflare Worker proxy in front of this app (see
+// infra/eventpilot-proxy) allows a single request to hang open — confirmed
+// live 2026-09-16: a real AI InfraNext upload took ~180s end to end, the
+// proxy cut the connection at 125s (HTTP 499 in Railway's logs), the
+// browser showed "Upload failed", but the extraction had actually
+// completed and saved moments later — the exact same class of bug already
+// hit and fixed once for the KB Intel pipeline (see
+// app/api/kb/intel/run/route.ts's own comment on this). Same fix here:
+// the POST handler above already returned with a 'processing' row before
+// this function is even called, so there's no client connection left to
+// time out — this keeps running on the persistent Railway/Node process
+// regardless of how long Gemini takes.
+async function runExtraction(docId: string, buffer: Buffer, fileName: string): Promise<void> {
   let rawText = ''
   let structuredJson: Record<string, unknown> | null = null
   let rawClarifications: unknown = []
   try {
-    rawText = await extractKbText(buffer, file.name)
+    rawText = await extractKbText(buffer, fileName)
     const model  = getGemini().getGenerativeModel({ model: 'gemini-2.5-flash' })
     // 200k chars is comfortably within gemini-2.5-flash's context window and
     // far beyond any realistic messaging doc — the old 30k cap silently
@@ -279,8 +332,14 @@ export async function POST(req: NextRequest) {
     structuredJson = normalizeSections(parsed)
     rawClarifications = (parsed as ParsedExtraction | null)?.clarifications ?? []
   } catch (e) {
-    console.error('Messaging doc extraction failed:', e)
-    // Still save the doc with the PDF stored — extraction can be retried via PATCH later.
+    const message = e instanceof Error ? e.message : String(e)
+    console.error(`[messaging-doc ${docId}] extraction failed:`, e)
+    // Still leaves the doc with the PDF stored (source_url, set before this
+    // function was called) — a producer can re-upload to retry.
+    await supabaseAdmin.from('event_messaging_docs').update({
+      extraction_status: 'failed', extraction_error: message.slice(0, 2000), updated_at: new Date().toISOString(),
+    }).eq('id', docId)
+    return
   }
 
   // Round 1 of the clarification Q&A (2026-09-10) — see
@@ -289,34 +348,16 @@ export async function POST(req: NextRequest) {
   // extraction with nothing to ask stays at 0.
   const clarificationRoundsUsed = rawClarifications && (rawClarifications as unknown[]).length > 0 ? 1 : 0
 
-  // Lands as a draft, not live — a producer reviews/chats through it and
-  // explicitly Approves (see .../[id]/approve/route.ts) before it supersedes
-  // the current live doc or writes default_fields anywhere.
-  const { data, error } = await supabaseAdmin
-    .from('event_messaging_docs')
-    .insert({
-      event_id:        ownerType === 'event' ? eventId : null,
-      umbrella_id:     ownerType === 'umbrella' ? eventId : null,
-      version:         nextVersion,
-      title:           title ?? `Topline Messaging v${nextVersion}`,
-      raw_text:        rawText || null,
-      structured_json: structuredJson,
-      source_url:      sourceUrl,
-      status:          'draft',
-      uploaded_by:     uploadedBy,
-      role,
-      authority_rank:  authorityRank,
-      provenance,
-      clarification_rounds_used: clarificationRoundsUsed,
-    })
-    .select()
-    .single()
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  await supabaseAdmin.from('event_messaging_docs').update({
+    raw_text: rawText || null,
+    structured_json: structuredJson,
+    clarification_rounds_used: clarificationRoundsUsed,
+    extraction_status: structuredJson ? 'complete' : 'failed',
+    extraction_error: structuredJson ? null : 'Extraction produced no usable sections.',
+    updated_at: new Date().toISOString(),
+  }).eq('id', docId)
 
   if (clarificationRoundsUsed > 0) {
-    await insertClarificationRound(data.id, 1, rawClarifications)
+    await insertClarificationRound(docId, 1, rawClarifications)
   }
-
-  return NextResponse.json(data, { status: 201 })
 }
