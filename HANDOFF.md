@@ -15,13 +15,13 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — 16 Sep 2026, a third concurrent session from the same day (after Agenda Builder and Content Guidelines API below). Started as a resume of a session that crashed mid-Phase-2 (recovered its plan from the dead session's own transcript/job state), then built CRM Phase 2 (manual HubSpot sync) and all of Phase 3 (automatic push, scheduled pull, HubSpot-property flagging UI). |
+| Who | Madhu + Claude Code (Sonnet 5) — 16 Sep 2026, a third concurrent session from the same day (after Agenda Builder and Content Guidelines API below). Started as a resume of a session that crashed mid-Phase-2 (recovered its plan from the dead session's own transcript/job state), then built CRM Phase 2 (manual HubSpot sync) and all of Phase 3 (automatic push, scheduled pull + its cron schedule, HubSpot-property flagging UI). |
 | Date | 2026-09-16 |
-| Latest push | `435ad13 feat(crm): flag unmapped HubSpot properties in CRM Admin` (top of `main`), on top of `93f66ff` (pull sync), `bb0c271` (automatic push wiring), `6164632` (Phase 2 manual sync), `cedb972`/`67cc61d` (this same day's earlier CRM Phase 1 session, pushed for the first time in this session). |
+| Latest push | `424f52d ci: schedule HubSpot CRM pull sync every 15 minutes` (top of `main`), on top of `11f4b44` (handoff docs), `435ad13` (property flagging UI), `93f66ff` (pull sync), `bb0c271` (automatic push wiring), `6164632` (Phase 2 manual sync), `cedb972`/`67cc61d` (this same day's earlier CRM Phase 1 session, pushed for the first time in this session). |
 | DB migrations applied | None — Phase 2/3 reused the `hubspot_contact_id`/`hubspot_company_id`/`hubspot_property_name` columns Phase 1 already added as stubs. |
 | Handed off to | Durga. |
-| Deployed | Pushed to `main` this sign-off — Railway auto-deploy triggered, verify current status below/via `railway status` if this note is stale. |
-| Left alone / known follow-up | See "16 Sep 2026 (cont'd 2)" section below for full detail. Headline: automatic push + manual re-sync are fully live; scheduled pull sync works but **isn't wired into an actual cron schedule anywhere yet** (Railway/Vercel Cron dashboard setup, outside the repo); HubSpot property auto-provisioning was deliberately never built (Madhu's call — stays human-controlled, EventPilot only flags). Also still open from the Agenda Builder/Content Guidelines sessions below — see those dated sections. |
+| Deployed | Pushed to `main`, Railway auto-deploy confirmed live (verified via `railway status` + a direct curl to the production URL after each push this session). |
+| Left alone / known follow-up | See "16 Sep 2026 (cont'd 2)" section below for full detail. Headline: **everything's fully live** — automatic push, manual re-sync, and scheduled pull sync (every 15 min via GitHub Actions). No known gaps in the sync itself. Two things deliberately NOT built, not gaps: HubSpot property auto-provisioning (Madhu's call — stays human-controlled, EventPilot only flags) and retiring/narrowing the legacy `Attendees` object (needs whoever built it, not Claude's call). Also still open from the Agenda Builder/Content Guidelines sessions below — see those dated sections. |
 
 ## 16 Sep 2026 (cont'd 2) — CRM Phase 2 (manual HubSpot sync) + Phase 3 (automatic push, scheduled pull, property flagging)
 
@@ -56,7 +56,7 @@ Dev server had to be restarted mid-session — it predated `HUBSPOT_CRM_SERVICE_
 
 ### What's next
 
-- **Pull sync isn't scheduled anywhere** — `GET /api/cron/hubspot-crm-pull-sync` works but nothing calls it periodically. Needs a Railway Cron (or equivalent) entry, a manual dashboard step outside this repo.
+- ~~Pull sync isn't scheduled anywhere~~ — done, same session: `.github/workflows/hubspot-crm-pull-sync.yml`, every 15 minutes, same GitHub Actions convention as `revoke-expired-access`/`weekly-leaderboard` (this repo's real cron pattern — NOT Railway Cron, see `docs/EventPilot-KB-PRD-v2.0.md`). Manually triggered once to confirm it actually calls the live endpoint before trusting the schedule. Frequency picked after checking HubSpot's real API limits, not guessed — see the `crm-pull-sync.ts`/workflow file comments.
 - **Retire-vs-narrow the legacy `Attendees` HubSpot object** — explicitly deferred both sessions (not Claude's call alone; needs whoever built it, possibly Durga).
 - HubSpot properties stay human-controlled by design — not a gap, a standing decision (see memory `eventpilot_crm_hubspot_properties_manual`).
 - Phase 3's webhook low-latency nudge (the other half of the originally-designed hybrid pull) still isn't built — Service Keys can't register webhook subscriptions via API, only manually per-property in HubSpot's UI, which hasn't been done. Scheduled polling is the only pull path live right now.
