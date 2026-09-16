@@ -25,6 +25,7 @@ const NAV_SECTIONS = [
   { id: 'hubspot', label: 'HubSpot Forms' },
   { id: 'postiz', label: 'Postiz' },
   { id: 'client-approval', label: 'Client Approval Contacts' },
+  { id: 'content-guidelines', label: 'Content Guidelines API' },
   { id: 'site-registry', label: 'Site Registry' },
   { id: 'health-checks', label: 'Health Checks' },
 ] as const
@@ -144,6 +145,7 @@ type RegistrationField = { key: string; label: string }
 type PostizGroup = { id: string; name: string }
 type PostizChannel = { id: string; name: string; identifier: string; disabled: boolean }
 type ClientApprovalContact = { id: string; name: string; email: string; is_primary: boolean }
+type GuidelineToken = { id: string; label: string | null; created_at: string; last_used_at: string | null; revoked_at: string | null }
 
 type EventSite = {
   id: string
@@ -240,6 +242,18 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
   const [addingContact, setAddingContact] = useState(false)
   const [contactBusyId, setContactBusyId] = useState<string | null>(null)
 
+  // Content Guidelines API (2026-09-16) — bearer tokens for
+  // GET /api/public/v1/content-guidelines. justCreatedToken holds the
+  // ONE response that ever carries the plaintext — cleared the moment the
+  // producer navigates away or generates another, never persisted anywhere
+  // client-side beyond this render.
+  const [guidelineTokens, setGuidelineTokens] = useState<GuidelineToken[]>([])
+  const [newTokenLabel, setNewTokenLabel] = useState('')
+  const [generatingToken, setGeneratingToken] = useState(false)
+  const [justCreatedToken, setJustCreatedToken] = useState<string | null>(null)
+  const [tokenBusyId, setTokenBusyId] = useState<string | null>(null)
+  const [tokenCopied, setTokenCopied] = useState(false)
+
   // Site Registry
   const [site, setSite] = useState<EventSite | null>(null)
   const [siteFields, setSiteFields] = useState({ live_url: '', repo_url: '', preview_url: '', hosting_provider: '' })
@@ -290,13 +304,14 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
 
   async function load() {
     setLoading(true)
-    const [settingsRes, eventRes, permRes, fieldsRes, postizRes, contactsRes, siteRes, healthRes, connRes] = await Promise.all([
+    const [settingsRes, eventRes, permRes, fieldsRes, postizRes, contactsRes, tokensRes, siteRes, healthRes, connRes] = await Promise.all([
       fetch(`/api/events/konfhub/settings?event_id=${eventId}`),
       fetch(`/api/events?id=${eventId}`),
       fetch(`/api/events/access/me?event_id=${eventId}`),
       fetch(`/api/events/konfhub/registration-fields?event_id=${eventId}`),
       fetch(`/api/events/postiz/settings?event_id=${eventId}`),
       fetch(`/api/events/client-approval-contacts?event_id=${eventId}`),
+      fetch(`/api/events/content-guideline-tokens?event_id=${eventId}`),
       fetch(`/api/events/site-registry?event_id=${eventId}`),
       fetch(`/api/events/site-registry/health-check?event_id=${eventId}`),
       fetch(`/api/events/site-registry/connections?event_id=${eventId}`),
@@ -352,6 +367,9 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
 
     const contactsData = await contactsRes.json().catch(() => ({ contacts: [] }))
     setContacts(contactsData.contacts ?? [])
+
+    const tokensData = await tokensRes.json().catch(() => ({ tokens: [] }))
+    setGuidelineTokens(tokensData.tokens ?? [])
 
     const siteData = await siteRes.json().catch(() => ({ site: null }))
     setSite(siteData.site ?? null)
@@ -605,6 +623,32 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
     setContactBusyId(null)
     if (!res.ok) { const d = await res.json().catch(() => ({})); setMsg({ text: d.error ?? 'Could not remove contact.', ok: false }); return }
     setContacts(prev => prev.filter(c => c.id !== contactId))
+  }
+
+  async function generateToken() {
+    setGeneratingToken(true)
+    setMsg(null)
+    setTokenCopied(false)
+    const res = await fetch(`/api/events/content-guideline-tokens?event_id=${eventId}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: newTokenLabel.trim() || null }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setGeneratingToken(false)
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not generate token.', ok: false }); return }
+    setGuidelineTokens(prev => [{ id: data.id, label: data.label, created_at: data.created_at, last_used_at: null, revoked_at: null }, ...prev])
+    setJustCreatedToken(data.token)
+    setNewTokenLabel('')
+  }
+
+  async function revokeToken(tokenId: string) {
+    if (!window.confirm('Revoke this token? Any external caller using it will immediately lose access.')) return
+    setTokenBusyId(tokenId)
+    setMsg(null)
+    const res = await fetch(`/api/events/content-guideline-tokens/${tokenId}?event_id=${eventId}`, { method: 'DELETE' })
+    setTokenBusyId(null)
+    if (!res.ok) { const d = await res.json().catch(() => ({})); setMsg({ text: d.error ?? 'Could not revoke token.', ok: false }); return }
+    setGuidelineTokens(prev => prev.map(t => t.id === tokenId ? { ...t, revoked_at: new Date().toISOString() } : t))
   }
 
   async function saveSite() {
@@ -1199,6 +1243,71 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
               </div>
               <Button variant="teal" onClick={addContact} disabled={addingContact || !newContactName.trim() || !newContactEmail.trim()}>
                 {addingContact ? 'Adding…' : '+ Add Contact'}
+              </Button>
+            </div>
+          )}
+        </Card></div>
+        </section>
+
+        <section id="content-guidelines" ref={el => { sectionRefs.current['content-guidelines'] = el }} style={{ scrollMarginTop: '20px' }}>
+        <div style={{ marginTop: '16px' }}><Card padded>
+          <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Content Guidelines API</div>
+          <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
+            Bearer tokens for <code>GET /api/public/v1/content-guidelines</code> — lets an external tool (e.g. Antigravity, working in a site repo) fetch this event&apos;s approved messaging/style-guide guidance and call the content validate endpoint, without an EventPilot session. Each token is scoped to this event only. The plaintext is shown exactly once, right after you generate it — only its hash is ever stored, so if you lose it, revoke and generate a new one.
+          </div>
+
+          {justCreatedToken && (
+            <div style={{ padding: '12px 14px', borderRadius: '8px', background: 'var(--card-hi)', border: '1px solid var(--teal-mid)', marginBottom: '14px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--teal-mid)', marginBottom: '6px' }}>New token — copy it now, it won&apos;t be shown again</div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <code style={{ flex: 1, fontSize: '12px', color: 'var(--ink)', wordBreak: 'break-all', padding: '6px 8px', borderRadius: '6px', background: 'var(--card)' }}>{justCreatedToken}</code>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(justCreatedToken); setTokenCopied(true) }}
+                  style={{ padding: '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+                  {tokenCopied ? 'Copied ✓' : 'Copy'}
+                </button>
+              </div>
+              <button
+                onClick={() => { setJustCreatedToken(null); setTokenCopied(false) }}
+                style={{ marginTop: '8px', padding: 0, border: 'none', background: 'none', color: 'var(--ink4)', fontSize: '11.5px', cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline' }}>
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          {guidelineTokens.length === 0 ? (
+            <div style={{ fontSize: '13px', color: 'var(--ink4)', marginBottom: '14px' }}>No tokens yet — external tools can&apos;t reach this event&apos;s guidelines until one is generated.</div>
+          ) : (
+            <div style={{ display: 'grid', gap: '8px', marginBottom: '14px' }}>
+              {guidelineTokens.map(t => (
+                <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: '8px', background: 'var(--card-hi)', opacity: t.revoked_at ? 0.6 : 1 }}>
+                  <div>
+                    <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>
+                      {t.label || 'Untitled token'} {t.revoked_at && <Badge color="red">Revoked</Badge>}
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--ink4)', marginTop: '2px' }}>
+                      Created {new Date(t.created_at).toLocaleDateString()} · {t.last_used_at ? `Last used ${new Date(t.last_used_at).toLocaleDateString()}` : 'Never used'}
+                    </div>
+                  </div>
+                  {canManage && !t.revoked_at && (
+                    <button onClick={() => revokeToken(t.id)} disabled={tokenBusyId === t.id}
+                      style={{ padding: '6px 12px', borderRadius: '7px', border: '1px solid var(--red-border)', background: 'transparent', color: 'var(--red)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      Revoke
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {canManage && (
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div>
+                <label style={labelStyle}>Label (optional)</label>
+                <Input value={newTokenLabel} onChange={e => setNewTokenLabel(e.target.value)} placeholder="e.g. Antigravity" style={{ width: '220px' }} />
+              </div>
+              <Button variant="teal" onClick={generateToken} disabled={generatingToken}>
+                {generatingToken ? 'Generating…' : '+ Generate Token'}
               </Button>
             </div>
           )}
