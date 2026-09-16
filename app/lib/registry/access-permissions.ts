@@ -74,6 +74,12 @@ export const ACCESS_REGISTRY: AccessModule[] = [
       // "KonfHub Integration" card. Delegatable the same way Producer and
       // Sensitive Documents are — admins today, a named person tomorrow.
       { key: 'sae.integrations.manage',    label: 'Manage KonfHub/HubSpot/Postiz integration settings for this event', enforced: true },
+      // Agenda Builder (2026-09-15) — the new track/session editor with a
+      // real speaker-picker, replacing the old free-text event_agenda tab.
+      // Separate key from sae.integrations.manage: that one gates the
+      // KonfHub *structure* fetch/reconcile card on the Integrations page,
+      // this one gates actually authoring session content.
+      { key: 'sae.agenda.manage',          label: 'Edit the event Agenda (tracks, sessions, speaker assignments)', enforced: true },
       // Unifies the Creative Templates Admin Console (layer/variant editor,
       // deliberately narrow — branding team) into this same per-event
       // permission-key system (2026-08-16) — previously gated separately

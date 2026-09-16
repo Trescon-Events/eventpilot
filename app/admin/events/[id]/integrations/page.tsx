@@ -21,6 +21,7 @@ import { FORM_TYPES, FORM_TITLES, type FormType } from '@/app/lib/forms/types'
 // docs/EventPilot-SiteOps-Build-Spec-v1.1.md.
 const NAV_SECTIONS = [
   { id: 'konfhub', label: 'KonfHub' },
+  { id: 'agenda-structure', label: 'Agenda Structure' },
   { id: 'hubspot', label: 'HubSpot Forms' },
   { id: 'postiz', label: 'Postiz' },
   { id: 'client-approval', label: 'Client Approval Contacts' },
@@ -28,14 +29,14 @@ const NAV_SECTIONS = [
   { id: 'health-checks', label: 'Health Checks' },
 ] as const
 
-function IntegrationsSideNav({ active }: { active: string }) {
+function IntegrationsSideNav({ active, sections }: { active: string; sections: readonly { id: string; label: string }[] }) {
   return (
     <nav style={{ width: '188px', flexShrink: 0, position: 'sticky', top: '20px' }}>
       <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.6px', color: 'var(--ink4)', marginBottom: '10px', paddingLeft: '12px' }}>
         Sections
       </div>
       <div style={{ display: 'grid', gap: '2px' }}>
-        {NAV_SECTIONS.map(s => {
+        {sections.map(s => {
           const isActive = active === s.id
           return (
             <a
@@ -120,6 +121,18 @@ type Settings = {
   konfhub_partner_ticket: string | null
   konfhub_api_key: string | null
   konfhub_registration_field_map: Record<string, string>
+  agenda_source: 'konfhub_authoritative' | 'eventpilot_native' | null
+  konfhub_agenda_start_date: string | null
+  konfhub_agenda_end_date: string | null
+}
+
+type AgendaStructureFetchResult = {
+  mapped: { konfhub_track_id: string; eventpilot_track_name: string; session_count: number; title_changed: { was: string; now: string } | null }[]
+  unmapped: { konfhub_track_id: string; konfhub_track_title: string; track_date: string; session_count: number }[]
+  drift: { session_id: string; title: string; last_synced_updated_at: string | null; live_updated_at: string | null }[]
+  unusedFilters: { id: string; name: string; tags: { id: string; name: string }[] }[]
+  candidateEvents: { id: string; name: string }[]
+  existingTracksByEvent: Record<string, { id: string; name: string }[]>
 }
 
 type KonfhubTag = { id: string; name: string }
@@ -176,6 +189,13 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
   const [settings, setSettings] = useState<Settings | null>(null)
   const [manualFields, setManualFields] = useState({ konfhub_event_id: '', konfhub_client_id: '', konfhub_client_secret: '', konfhub_speaker_category_id: '', konfhub_api_key: '', konfhub_partner_ticket: '' })
   const [savingManual, setSavingManual] = useState(false)
+
+  const [agendaSource, setAgendaSource] = useState<'konfhub_authoritative' | 'eventpilot_native'>('eventpilot_native')
+  const [agendaDates, setAgendaDates] = useState({ start: '', end: '' })
+  const [savingAgendaDates, setSavingAgendaDates] = useState(false)
+  const [fetchingAgenda, setFetchingAgenda] = useState(false)
+  const [agendaFetch, setAgendaFetch] = useState<AgendaStructureFetchResult | null>(null)
+  const [trackMapChoice, setTrackMapChoice] = useState<Record<string, { targetEventId: string; mode: 'existing' | 'new'; existingTrackId: string; newName: string }>>({})
 
   const [fetchedTags, setFetchedTags] = useState<KonfhubTag[] | null>(null)
   const [fetchingTags, setFetchingTags] = useState(false)
@@ -296,6 +316,8 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
       setSelectedModeratorTagId(settingsData.konfhub_moderator_tag_id ?? '')
       setSelectedTicketId(settingsData.konfhub_speaker_ticket ?? '')
       setFieldMapSelections(settingsData.konfhub_registration_field_map ?? {})
+      setAgendaSource(settingsData.agenda_source === 'konfhub_authoritative' ? 'konfhub_authoritative' : 'eventpilot_native')
+      setAgendaDates({ start: settingsData.konfhub_agenda_start_date ?? '', end: settingsData.konfhub_agenda_end_date ?? '' })
     }
     const eventData = await eventRes.json().catch(() => null)
     const ev = Array.isArray(eventData) ? eventData[0] : eventData
@@ -416,6 +438,72 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
     if (!res.ok) { setMsg({ text: data.error ?? 'Could not save the ticket.', ok: false }); return }
     setSettings(prev => prev ? { ...prev, konfhub_speaker_ticket: data.konfhub_speaker_ticket } : prev)
     setMsg({ text: 'Registration ticket saved.', ok: true })
+  }
+
+  async function saveAgendaDates() {
+    setSavingAgendaDates(true)
+    setMsg(null)
+    const res = await fetch(`/api/events/konfhub/settings?event_id=${eventId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ konfhub_agenda_start_date: agendaDates.start || null, konfhub_agenda_end_date: agendaDates.end || null }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSavingAgendaDates(false)
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not save dates.', ok: false }); return }
+    setSettings(prev => prev ? { ...prev, konfhub_agenda_start_date: data.konfhub_agenda_start_date, konfhub_agenda_end_date: data.konfhub_agenda_end_date } : prev)
+    setMsg({ text: 'Agenda dates saved.', ok: true })
+  }
+
+  async function fetchAgendaStructure() {
+    setFetchingAgenda(true)
+    setMsg(null)
+    const res = await fetch(`/api/events/konfhub/fetch-agenda-structure?event_id=${eventId}`)
+    const data = await res.json().catch(() => ({}))
+    setFetchingAgenda(false)
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not fetch agenda structure.', ok: false }); return }
+    setAgendaFetch(data)
+  }
+
+  async function mapTrack(t: { konfhub_track_id: string; konfhub_track_title: string; track_date: string }) {
+    const choice = trackMapChoice[t.konfhub_track_id]
+    if (!choice?.targetEventId) { setMsg({ text: 'Pick which EventPilot event this belongs to first.', ok: false }); return }
+    if (choice.mode === 'existing' && !choice.existingTrackId) { setMsg({ text: 'Pick an existing stage to map to.', ok: false }); return }
+    if (choice.mode === 'new' && !choice.newName?.trim()) { setMsg({ text: 'Give the new stage a name.', ok: false }); return }
+
+    const res = await fetch('/api/events/konfhub/map-track', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        target_event_id: choice.targetEventId,
+        konfhub_track_id: t.konfhub_track_id,
+        konfhub_track_title: t.konfhub_track_title,
+        track_date: t.track_date,
+        mode: choice.mode,
+        existing_track_id: choice.mode === 'existing' ? choice.existingTrackId : undefined,
+        new_track_name: choice.mode === 'new' ? choice.newName.trim() : undefined,
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not map track.', ok: false }); return }
+    setMsg({ text: 'Mapped.', ok: true })
+    fetchAgendaStructure()
+  }
+
+  async function acknowledgeTrackRename(konfhubTrackId: string, newTitle: string) {
+    const res = await fetch('/api/events/konfhub/acknowledge-track-rename', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ konfhub_track_id: konfhubTrackId, konfhub_track_title: newTitle }),
+    })
+    if (!res.ok) { const data = await res.json().catch(() => ({})); setMsg({ text: data.error ?? 'Could not acknowledge rename.', ok: false }); return }
+    fetchAgendaStructure()
+  }
+
+  async function resolveSessionDrift(sessionId: string, resolution: 'accept_konfhub' | 'keep_eventpilot') {
+    const res = await fetch('/api/events/konfhub/resolve-session-drift', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId, resolution }),
+    })
+    if (!res.ok) { const data = await res.json().catch(() => ({})); setMsg({ text: data.error ?? 'Could not resolve.', ok: false }); return }
+    fetchAgendaStructure()
   }
 
   async function saveFieldMap() {
@@ -680,7 +768,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
       <PageHeader eyebrow="Event Workspace" title="Integrations" backHref={`/admin/events/${eventId}`} backLabel="Back to Event Overview" />
 
       <div style={{ maxWidth: '1140px', margin: '0 auto', padding: '20px 28px 60px', display: 'flex', gap: '32px', alignItems: 'flex-start' }}>
-        <IntegrationsSideNav active={activeSection} />
+        <IntegrationsSideNav active={activeSection} sections={NAV_SECTIONS.filter(s => s.id !== 'agenda-structure' || agendaSource === 'konfhub_authoritative')} />
 
         <div style={{ flex: 1, minWidth: 0, maxWidth: '900px' }}>
         {msg && (
@@ -838,6 +926,130 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
           )}
         </Card></div>
         </section>
+
+        {agendaSource === 'konfhub_authoritative' && (
+        <section id="agenda-structure" ref={el => { sectionRefs.current['agenda-structure'] = el }} style={{ scrollMarginTop: '20px', marginTop: '16px' }}>
+        <Card padded>
+          <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Agenda Structure</div>
+          <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '16px' }}>
+            This event&apos;s tracks/stages are authoritative on KonfHub — fetch to see what&apos;s there and map it into a clean EventPilot stage. Never invents structure; only KonfHub-side changes ever show up here.
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '14px' }}>
+            <div>
+              <label style={labelStyle}>Agenda Start Date <span style={{ fontWeight: 400, color: 'var(--ink4)' }}>(real event dates, not the listing window)</span></label>
+              <Input type="date" value={agendaDates.start} disabled={!canManage} onChange={e => setAgendaDates(p => ({ ...p, start: e.target.value }))} />
+            </div>
+            <div>
+              <label style={labelStyle}>Agenda End Date</label>
+              <Input type="date" value={agendaDates.end} disabled={!canManage} onChange={e => setAgendaDates(p => ({ ...p, end: e.target.value }))} />
+            </div>
+          </div>
+          {canManage && <Button variant="teal" onClick={saveAgendaDates} disabled={savingAgendaDates}>{savingAgendaDates ? 'Saving…' : 'Save Dates'}</Button>}
+
+          <div style={{ marginTop: '18px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+            {canManage && (
+              <Button variant="ghost" onClick={fetchAgendaStructure} disabled={fetchingAgenda || !settings?.konfhub_agenda_start_date}>
+                {fetchingAgenda ? 'Fetching…' : 'Fetch from KonfHub'}
+              </Button>
+            )}
+            {!settings?.konfhub_agenda_start_date && <div style={{ fontSize: '12px', color: 'var(--ink4)', marginTop: '6px' }}>Save the agenda dates above first.</div>}
+          </div>
+
+          {agendaFetch && (
+            <div style={{ marginTop: '18px', display: 'grid', gap: '18px' }}>
+              {agendaFetch.unmapped.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink3)', marginBottom: '10px' }}>
+                    New in KonfHub <span style={{ fontFamily: 'monospace', fontWeight: 400 }}>({agendaFetch.unmapped.length})</span>
+                  </div>
+                  <div style={{ display: 'grid', gap: '10px' }}>
+                    {agendaFetch.unmapped.map(t => {
+                      const choice = trackMapChoice[t.konfhub_track_id] ?? { targetEventId: '', mode: 'existing' as const, existingTrackId: '', newName: '' }
+                      const setChoice = (patch: Partial<typeof choice>) => setTrackMapChoice(prev => ({ ...prev, [t.konfhub_track_id]: { ...choice, ...patch } }))
+                      const tracksForTarget = choice.targetEventId ? (agendaFetch.existingTracksByEvent[choice.targetEventId] ?? []) : []
+                      return (
+                        <div key={t.konfhub_track_id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', alignItems: 'start', padding: '10px', background: 'var(--surface)', borderRadius: '8px' }}>
+                          <div>
+                            <div style={{ fontSize: '13px', color: 'var(--ink)', fontWeight: 600 }}>{t.konfhub_track_title}</div>
+                            <div style={{ fontSize: '11px', color: 'var(--ink4)', fontFamily: 'monospace' }}>track_id {t.konfhub_track_id} · {t.track_date} · {t.session_count} sessions</div>
+                          </div>
+                          <Select value={choice.targetEventId} disabled={!canManage} onChange={e => setChoice({ targetEventId: e.target.value })}>
+                            <option value="">Which EventPilot event?</option>
+                            {agendaFetch.candidateEvents.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+                          </Select>
+                          <div style={{ display: 'grid', gap: '6px' }}>
+                            <div style={{ display: 'flex', gap: '10px', fontSize: '12px' }}>
+                              <label><input type="radio" checked={choice.mode === 'existing'} onChange={() => setChoice({ mode: 'existing' })} /> Map existing</label>
+                              <label><input type="radio" checked={choice.mode === 'new'} onChange={() => setChoice({ mode: 'new' })} /> Create new</label>
+                            </div>
+                            {choice.mode === 'existing' ? (
+                              <Select value={choice.existingTrackId} disabled={!canManage || !choice.targetEventId} onChange={e => setChoice({ existingTrackId: e.target.value })}>
+                                <option value="">— Select stage —</option>
+                                {tracksForTarget.map(tr => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
+                              </Select>
+                            ) : (
+                              <Input value={choice.newName} disabled={!canManage} onChange={e => setChoice({ newName: e.target.value })} placeholder="e.g. Plenary 1" />
+                            )}
+                            {canManage && <Button variant="teal" onClick={() => mapTrack(t)}>Map this track</Button>}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {agendaFetch.drift.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink3)', marginBottom: '10px' }}>
+                    Edited in KonfHub <span style={{ fontFamily: 'monospace', fontWeight: 400 }}>({agendaFetch.drift.length})</span>
+                  </div>
+                  <div style={{ display: 'grid', gap: '10px' }}>
+                    {agendaFetch.drift.map(d => (
+                      <div key={d.session_id} style={{ padding: '10px', background: 'var(--surface)', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '13px', color: 'var(--ink)', fontWeight: 600, marginBottom: '8px' }}>{d.title}</div>
+                        {canManage && (
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <Button variant="teal" onClick={() => resolveSessionDrift(d.session_id, 'accept_konfhub')}>Accept KonfHub&apos;s change</Button>
+                            <Button variant="ghost" onClick={() => resolveSessionDrift(d.session_id, 'keep_eventpilot')}>Keep EventPilot&apos;s version</Button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink3)', marginBottom: '10px' }}>
+                  Mapped &amp; in sync <span style={{ fontFamily: 'monospace', fontWeight: 400 }}>({agendaFetch.mapped.length})</span>
+                </div>
+                <div style={{ display: 'grid', gap: '8px' }}>
+                  {agendaFetch.mapped.map(m => (
+                    <div key={m.konfhub_track_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', color: 'var(--ink)', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                      <span>{m.eventpilot_track_name} <span style={{ color: 'var(--ink4)', fontFamily: 'monospace', fontSize: '11px' }}>({m.session_count} sessions)</span></span>
+                      {m.title_changed && canManage && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '11px', color: 'var(--amber)' }}>KonfHub renamed to &quot;{m.title_changed.now}&quot;</span>
+                          <Button variant="ghost" onClick={() => acknowledgeTrackRename(m.konfhub_track_id, m.title_changed!.now)}>Acknowledge</Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {agendaFetch.unusedFilters.length > 0 && (
+                <div style={{ fontSize: '12px', color: 'var(--ink4)', padding: '10px', background: 'var(--surface)', borderRadius: '8px' }}>
+                  Also found: {agendaFetch.unusedFilters.map(f => `"${f.name}"`).join(', ')} — not applied to any session, shown for reference only.
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+        </section>
+        )}
 
         <section id="hubspot" ref={el => { sectionRefs.current.hubspot = el }} style={{ scrollMarginTop: '20px' }}>
         <div style={{ marginTop: '16px' }}><Card padded>

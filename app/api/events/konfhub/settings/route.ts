@@ -21,6 +21,13 @@ const KONFHUB_FIELDS = [
   'konfhub_speaker_category_id', 'konfhub_speaker_tag_id', 'konfhub_moderator_tag_id',
   'konfhub_speaker_ticket', 'konfhub_partner_ticket', 'konfhub_registration_field_map',
   'konfhub_api_key',
+  // Agenda Structure (2026-09-15) — agenda_source gates whether the Agenda
+  // Builder shows "+ Add Stage" (eventpilot_native) or the KonfHub-locked
+  // fetch flow (konfhub_authoritative); the two date fields are needed
+  // because events.event_date/end_date are unreliable listing/campaign
+  // windows, not real KonfHub event dates (confirmed live against Dubai
+  // FinTech Summit 2026).
+  'agenda_source', 'konfhub_agenda_start_date', 'konfhub_agenda_end_date',
 ] as const
 
 export async function GET(req: NextRequest) {
