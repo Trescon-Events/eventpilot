@@ -62,7 +62,18 @@ function splitName(fullName: string | undefined): { firstName: string | null; la
   return { firstName: parts[0], lastName: parts.length > 1 ? parts.slice(1).join(' ') : null }
 }
 
-export async function upsertCrmCompany(input: { name: string; website?: string | null; domain?: string | null }): Promise<string> {
+export type UpsertResult = { id: string; isNew: boolean }
+
+// `description`/`logoUrl` (mirroring `bio`/`photoUrl` on the contact side)
+// are seeded ONLY on first create — a stable master/default baseline for
+// future events to prefill from, never overwritten by a later submission's
+// own event-specific values. See setCrmCompanyLogoIfEmpty() for the
+// post-processing companion (the final logo isn't known until after any
+// HubSpot re-hosting/processing completes, same as the contact photo case).
+export async function upsertCrmCompany(input: {
+  name: string; website?: string | null; domain?: string | null
+  description?: string | null; logoUrl?: string | null
+}): Promise<UpsertResult> {
   const domain = input.domain ?? extractDomain(input.website)
 
   if (domain) {
@@ -71,22 +82,33 @@ export async function upsertCrmCompany(input: { name: string; website?: string |
       .select('id')
       .ilike('domain', domain)
       .maybeSingle()
-    if (existing) return existing.id
+    if (existing) return { id: existing.id, isNew: false }
   }
 
   const { data: created, error } = await supabaseAdmin
     .from('crm_companies')
-    .insert({ name: input.name, website: input.website ?? null, domain })
+    .insert({
+      name: input.name, website: input.website ?? null, domain,
+      description: input.description ?? null, logo_url: input.logoUrl ?? null,
+    })
     .select('id')
     .single()
   // A concurrent submission for the same domain can race this check-then-
   // insert — the unique index catches it; fall back to the row it kept.
   if (error?.code === '23505' && domain) {
     const { data: winner } = await supabaseAdmin.from('crm_companies').select('id').ilike('domain', domain).single()
-    if (winner) return winner.id
+    if (winner) return { id: winner.id, isNew: false }
   }
   if (error || !created) throw error ?? new Error('crm_companies insert returned no row')
-  return created.id
+  return { id: created.id, isNew: true }
+}
+
+// Sets the master logo only if it's still unset — never clobbers an
+// existing baseline (e.g. one another event's onboarding already set, or a
+// producer curated by hand in CRM Admin). Safe to call unconditionally;
+// a no-op update when photo_url/logo_url is already non-null.
+export async function setCrmCompanyLogoIfEmpty(companyId: string, logoUrl: string): Promise<void> {
+  await supabaseAdmin.from('crm_companies').update({ logo_url: logoUrl }).eq('id', companyId).is('logo_url', null)
 }
 
 export async function upsertCrmContact(input: {
@@ -96,7 +118,9 @@ export async function upsertCrmContact(input: {
   lastName?: string | null
   linkedinUrl?: string | null
   companyId?: string | null
-}): Promise<string> {
+  bio?: string | null
+  photoUrl?: string | null
+}): Promise<UpsertResult> {
   const email = input.email?.trim().toLowerCase() || null
   const { firstName, lastName } = input.firstName || input.lastName
     ? { firstName: input.firstName ?? null, lastName: input.lastName ?? null }
@@ -108,7 +132,7 @@ export async function upsertCrmContact(input: {
       .select('id')
       .ilike('email', email)
       .maybeSingle()
-    if (existing) return existing.id
+    if (existing) return { id: existing.id, isNew: false }
   }
 
   const { data: created, error } = await supabaseAdmin
@@ -119,15 +143,23 @@ export async function upsertCrmContact(input: {
       last_name: lastName,
       linkedin_url: input.linkedinUrl ?? null,
       company_id: input.companyId ?? null,
+      bio: input.bio ?? null,
+      photo_url: input.photoUrl ?? null,
     })
     .select('id')
     .single()
   if (error?.code === '23505' && email) {
     const { data: winner } = await supabaseAdmin.from('crm_contacts').select('id').ilike('email', email).single()
-    if (winner) return winner.id
+    if (winner) return { id: winner.id, isNew: false }
   }
   if (error || !created) throw error ?? new Error('crm_contacts insert returned no row')
-  return created.id
+  return { id: created.id, isNew: true }
+}
+
+// Sets the master photo only if it's still unset — see
+// setCrmCompanyLogoIfEmpty()'s comment, same reasoning.
+export async function setCrmContactPhotoIfEmpty(contactId: string, photoUrl: string): Promise<void> {
+  await supabaseAdmin.from('crm_contacts').update({ photo_url: photoUrl }).eq('id', contactId).is('photo_url', null)
 }
 
 export async function linkContactToEvent(contactId: string, eventId: string, role: string): Promise<void> {

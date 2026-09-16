@@ -7,6 +7,7 @@ import { Card, Input } from '@/app/components/ui'
 type ContactRow = {
   id: string; email: string | null; first_name: string | null; last_name: string | null
   linkedin_url: string | null; hubspot_contact_id: string | null; created_at: string
+  bio: string | null; photo_url: string | null
   crm_companies: { id: string; name: string; domain: string | null } | null
 }
 type EventLink = { id: string; role: string; created_at: string; events: { id: string; name: string; city: string | null } | null }
@@ -81,10 +82,25 @@ export default function CrmContactsPage() {
             <Card padded><div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>Loading…</div></Card>
           ) : selected ? (
             <Card padded>
-              <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>{[selected.first_name, selected.last_name].filter(Boolean).join(' ') || '(no name)'}</div>
-              <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '2px' }}>{selected.email ?? 'no email captured'}</div>
-              {selected.crm_companies && <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '2px' }}>{selected.crm_companies.name}{selected.crm_companies.domain ? ` (${selected.crm_companies.domain})` : ''}</div>}
-              {selected.linkedin_url && <a href={selected.linkedin_url} target="_blank" rel="noreferrer" style={{ fontSize: '11.5px', color: 'var(--teal-mid)' }}>LinkedIn ↗</a>}
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                {selected.photo_url && (
+                  // eslint-disable-next-line @next/next/no-img-element -- admin-only detail panel, not worth next/image's config for a single thumbnail
+                  <img src={selected.photo_url} alt="" style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                )}
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>{[selected.first_name, selected.last_name].filter(Boolean).join(' ') || '(no name)'}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '2px' }}>{selected.email ?? 'no email captured'}</div>
+                  {selected.crm_companies && <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '2px' }}>{selected.crm_companies.name}{selected.crm_companies.domain ? ` (${selected.crm_companies.domain})` : ''}</div>}
+                  {selected.linkedin_url && <a href={selected.linkedin_url} target="_blank" rel="noreferrer" style={{ fontSize: '11.5px', color: 'var(--teal-mid)' }}>LinkedIn ↗</a>}
+                </div>
+              </div>
+
+              {selected.bio && (
+                <>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink3)', letterSpacing: '0.6px', textTransform: 'uppercase', margin: '16px 0 6px' }}>Master Bio</div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--ink2)', lineHeight: 1.5 }}>{selected.bio}</div>
+                </>
+              )}
 
               <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink3)', letterSpacing: '0.6px', textTransform: 'uppercase', margin: '16px 0 8px' }}>Events</div>
               {selected.event_links.length === 0 ? (

@@ -8,7 +8,7 @@ import { FormType, SubmittedValue } from '@/app/lib/forms/types'
 import { processLogo } from '@/app/lib/media/logo-engine'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { fetchHubSpotUploadedFile } from '@/app/lib/hubspot/client'
-import { extractEmailFromSubmission, extractCrmPropertyValue, upsertCrmCompany, upsertCrmContact, linkCompanyToEvent, linkContactToEvent } from '@/app/lib/crm/upsert'
+import { extractEmailFromSubmission, extractCrmPropertyValue, upsertCrmCompany, upsertCrmContact, linkCompanyToEvent, linkContactToEvent, setCrmCompanyLogoIfEmpty } from '@/app/lib/crm/upsert'
 
 /* POST /api/events/stakeholders/partners/from-submission
    Body: { submission_id, event_id }
@@ -68,16 +68,23 @@ export async function POST(req: NextRequest) {
   // derived from the company website field partners always provide), plus
   // the submitting contact person as a Contact linked to that Company.
   let crmCompanyId: string | null = null
+  let crmCompanyIsNew = false
   try {
     const companyName = typeof columns.name === 'string' ? columns.name : null
     if (companyName) {
       const website = extractCrmPropertyValue('company', 'website', submitted) ?? (typeof columns.website_url === 'string' ? columns.website_url : null)
-      crmCompanyId = await upsertCrmCompany({ name: companyName, website })
+      // Master/default baseline, seeded only on first create — see
+      // upsert.ts's own comment on why this never overwrites an existing
+      // company's description on a later event's submission.
+      const description = typeof columns.company_description === 'string' ? columns.company_description : null
+      const result = await upsertCrmCompany({ name: companyName, website, description })
+      crmCompanyId = result.id
+      crmCompanyIsNew = result.isNew
     }
     const contactEmail = extractEmailFromSubmission(schema, submitted)
     const contactName = typeof submitted.contact_person_name === 'string' ? submitted.contact_person_name : null
     if (contactEmail || contactName) {
-      const crmContactId = await upsertCrmContact({ email: contactEmail, fullName: contactName, companyId: crmCompanyId })
+      const { id: crmContactId } = await upsertCrmContact({ email: contactEmail, fullName: contactName, companyId: crmCompanyId })
       await linkContactToEvent(crmContactId, body.event_id, 'sponsor_contact')
     }
   } catch (e) {
@@ -109,6 +116,14 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Best final logo available at the end of this route, in priority order
+  // (processed > raw as-submitted) — used only to seed the CRM company's
+  // master logo below, once, if it doesn't have one yet. Native submissions
+  // never get further processing (see this file's own header comment), so
+  // columns.logo_url — already permanent, uploaded by the public form route
+  // itself — is the final answer for them from the start.
+  let finalLogoUrl: string | null = typeof columns.logo_url === 'string' ? columns.logo_url : null
+
   if (submission.source === 'hubspot' && fileUrls.logo) {
     try {
       // HubSpot's uploaded-file link needs our Service Key attached or it
@@ -137,9 +152,18 @@ export async function POST(req: NextRequest) {
           'image/png'
         )
         await supabaseAdmin.from('event_sponsors').update({ logo_url: processedUrl, logo_raw_url: rawUrl }).eq('id', partner.id)
+        finalLogoUrl = processedUrl
       }
     } catch (e) {
       console.error('Logo processing failed for HubSpot submission', submission.id, e)
+    }
+  }
+
+  if (crmCompanyId && crmCompanyIsNew && finalLogoUrl) {
+    try {
+      await setCrmCompanyLogoIfEmpty(crmCompanyId, finalLogoUrl)
+    } catch (e) {
+      console.error('CRM company master-logo set failed for submission', submission.id, e)
     }
   }
 

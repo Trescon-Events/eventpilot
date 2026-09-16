@@ -10,7 +10,7 @@ import { resolveFormSchema } from '@/app/lib/forms/resolve-schema'
 import { mapFieldsToRecord } from '@/app/lib/forms/map-to-stakeholder-record'
 import { SubmittedValue } from '@/app/lib/forms/types'
 import { fetchHubSpotUploadedFile } from '@/app/lib/hubspot/client'
-import { extractEmailFromSubmission, extractCrmPropertyValue, upsertCrmContact, linkContactToEvent } from '@/app/lib/crm/upsert'
+import { extractEmailFromSubmission, extractCrmPropertyValue, upsertCrmContact, linkContactToEvent, setCrmContactPhotoIfEmpty } from '@/app/lib/crm/upsert'
 
 /* POST /api/events/stakeholders/speakers/from-submission
    Body: { submission_id, event_id }
@@ -62,15 +62,22 @@ export async function POST(req: NextRequest) {
   // domain field to key a crm_companies match on (company_name alone is
   // too unreliable to dedupe by), unlike the partner form below.
   let crmContactId: string | null = null
+  let crmContactIsNew = false
   try {
     const email = extractEmailFromSubmission(schema, submitted)
-    crmContactId = await upsertCrmContact({
+    const result = await upsertCrmContact({
       email,
       fullName: typeof columns.name === 'string' ? columns.name : null,
       firstName: typeof submitted.first_name === 'string' ? submitted.first_name : null,
       lastName: typeof submitted.last_name === 'string' ? submitted.last_name : null,
       linkedinUrl: extractCrmPropertyValue('contact', 'linkedin_url', submitted) ?? (typeof columns.linkedin_url === 'string' ? columns.linkedin_url : null),
+      // Master/default baseline, seeded only on first create — see
+      // upsert.ts's own comment on why this never overwrites an existing
+      // contact's bio on a later event's submission.
+      bio: typeof columns.bio === 'string' ? columns.bio : null,
     })
+    crmContactId = result.id
+    crmContactIsNew = result.isNew
   } catch (e) {
     console.error('CRM contact upsert failed for submission', submission.id, e)
   }
@@ -115,6 +122,10 @@ export async function POST(req: NextRequest) {
   // background-removal ever succeeds.
   let rawBuffer: Buffer | null = null
   let rawContentType = 'image/jpeg'
+  // Best final photo available at the end of this route, in priority
+  // order (cleaned > re-hosted raw) — used only to seed the CRM contact's
+  // master photo below, once, if it doesn't have one yet.
+  let finalPhotoUrl: string | null = null
   if (fileUrls.photo) {
     try {
       // HubSpot's uploaded-file link needs our Service Key attached or it
@@ -142,6 +153,7 @@ export async function POST(req: NextRequest) {
           rawContentType
         )
         await supabaseAdmin.from('event_speakers').update({ photo_url: rehostedUrl }).eq('id', speaker.id)
+        finalPhotoUrl = rehostedUrl
       } else {
         console.error('Could not fetch submitted photo to re-host for submission', submission.id, imgRes.status)
       }
@@ -202,9 +214,18 @@ export async function POST(req: NextRequest) {
         }
 
         await supabaseAdmin.from('event_speakers').update({ photo_processed_url: processedUrl, photo_head_box: photoHeadBox }).eq('id', speaker.id)
+        finalPhotoUrl = processedUrl
       }
     } catch (e) {
       console.error('PhotoRoom processing failed for submission', submission.id, e)
+    }
+  }
+
+  if (crmContactId && crmContactIsNew && finalPhotoUrl) {
+    try {
+      await setCrmContactPhotoIfEmpty(crmContactId, finalPhotoUrl)
+    } catch (e) {
+      console.error('CRM contact master-photo set failed for submission', submission.id, e)
     }
   }
 

@@ -4,7 +4,10 @@ import { useState, useEffect, useCallback } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import { Card, Input } from '@/app/components/ui'
 
-type CompanyRow = { id: string; name: string; domain: string | null; website: string | null; hubspot_company_id: string | null; created_at: string }
+type CompanyRow = {
+  id: string; name: string; domain: string | null; website: string | null; hubspot_company_id: string | null; created_at: string
+  description: string | null; logo_url: string | null
+}
 type EventLink = { id: string; role: string; created_at: string; events: { id: string; name: string; city: string | null } | null }
 type ContactRow = { id: string; email: string | null; first_name: string | null; last_name: string | null }
 type CompanyDetail = CompanyRow & { event_links: EventLink[]; contacts: ContactRow[] }
@@ -78,8 +81,23 @@ export default function CrmCompaniesPage() {
             <Card padded><div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>Loading…</div></Card>
           ) : selected ? (
             <Card padded>
-              <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>{selected.name}</div>
-              {selected.website && <a href={selected.website} target="_blank" rel="noreferrer" style={{ fontSize: '11.5px', color: 'var(--teal-mid)' }}>{selected.domain ?? selected.website} ↗</a>}
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                {selected.logo_url && (
+                  // eslint-disable-next-line @next/next/no-img-element -- admin-only detail panel, not worth next/image's config for a single thumbnail
+                  <img src={selected.logo_url} alt="" style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'contain', background: 'var(--surface)', flexShrink: 0 }} />
+                )}
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>{selected.name}</div>
+                  {selected.website && <a href={selected.website} target="_blank" rel="noreferrer" style={{ fontSize: '11.5px', color: 'var(--teal-mid)' }}>{selected.domain ?? selected.website} ↗</a>}
+                </div>
+              </div>
+
+              {selected.description && (
+                <>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink3)', letterSpacing: '0.6px', textTransform: 'uppercase', margin: '16px 0 6px' }}>Master Description</div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--ink2)', lineHeight: 1.5 }}>{selected.description}</div>
+                </>
+              )}
 
               <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink3)', letterSpacing: '0.6px', textTransform: 'uppercase', margin: '16px 0 8px' }}>Contacts</div>
               {selected.contacts.length === 0 ? (
