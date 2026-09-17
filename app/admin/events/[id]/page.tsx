@@ -29,6 +29,7 @@ const LIFECYCLE_PHASES = (eventId: string) => [
       { label: 'Website Builder', href: `/admin/events/${eventId}/website` },
       { label: 'Content Campaigns', href: `/content?event_id=${eventId}` },
       { label: 'Stakeholder Hub', href: `/admin/events/${eventId}/stakeholders` },
+      { label: 'Press Release Studio', href: `/admin/events/${eventId}/press-releases` },
     ],
   },
 ]
@@ -1033,7 +1034,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
               <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--teal)' }}>Public-Facing Assets</span>
               <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', paddingLeft: '34px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px', paddingLeft: '34px' }}>
               <Link href={`/admin/events/${eventId}/website`} style={{ textDecoration: 'none', padding: '14px 16px', borderRadius: '10px', background: 'rgba(14,167,157,0.04)', border: '1px solid rgba(14,167,157,0.2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <svg width="18" height="18" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
                 <div><div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>Website Builder</div><div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '2px' }}>Template, sync brand, build, publish</div></div>
@@ -1045,6 +1046,10 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
               <Link href={`/admin/events/${eventId}/stakeholders`} style={{ textDecoration: 'none', padding: '14px 16px', borderRadius: '10px', background: 'rgba(240,171,60,0.05)', border: '1px solid rgba(240,171,60,0.22)', display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <svg width="18" height="18" fill="none" stroke="var(--amber)" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                 <div><div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>Stakeholder Hub</div><div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '2px' }}>Speakers, sponsors, announcements</div></div>
+              </Link>
+              <Link href={`/admin/events/${eventId}/press-releases`} style={{ textDecoration: 'none', padding: '14px 16px', borderRadius: '10px', background: 'rgba(226,98,98,0.05)', border: '1px solid rgba(226,98,98,0.22)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <svg width="18" height="18" fill="none" stroke="var(--red)" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                <div><div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>Press Release Studio</div><div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '2px' }}>Research, generate, and approve releases</div></div>
               </Link>
             </div>
           </div>

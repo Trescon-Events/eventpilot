@@ -48,6 +48,11 @@ export type ValidationFinding = {
   source_clause: string | null
   match: string
   offset: number
+  // Mechanically-derivable replacement, when one exists — currently only
+  // required_format rules carry this (their `allowed` list IS the fix).
+  // Other rule types have no mechanical answer; the UI falls back to
+  // "discuss in chat" for those. See press-release-refine plan, 2026-09-17.
+  suggested_fix?: string
 }
 
 function escapeRegex(s: string): string {
@@ -85,7 +90,8 @@ function checkRequiredFormat(text: string, rule: ValidationRule): ValidationFind
   if (!triggerRe) return []
   const hasAllowedForm = (config.allowed ?? []).length > 0 && config.allowed.some(a => text.includes(a))
   if (hasAllowedForm) return []
-  return collectMatches(triggerRe, text, rule)
+  const suggestedFix = config.allowed?.[0]
+  return collectMatches(triggerRe, text, rule).map(f => suggestedFix ? { ...f, suggested_fix: suggestedFix } : f)
 }
 
 function checkProximity(text: string, rule: ValidationRule): ValidationFinding[] {

@@ -87,6 +87,15 @@ export const ACCESS_REGISTRY: AccessModule[] = [
       // tier (app/lib/access/module-access.ts). See
       // app/admin/events/[id]/creative-templates/admin/layout.tsx.
       { key: 'sae.admin.access',           label: 'Open the Creative Templates Admin Console (layer/variant editing)', enforced: true },
+      // PR Content Studio (2026-09-17) — press release research-chat +
+      // generate + versioned drafts. Mirrors the sae.announcements.* split:
+      // .generate covers research + drafting, .approve gates moving a draft
+      // to 'approved' — deliberately separate so a PR Team role can hold
+      // one without the other. .view gates just opening the workspace,
+      // same base-entry pattern as website-builder.view / market-intel.view.
+      { key: 'sae.content_studio.press_release.view',     label: 'View the Press Release workspace for this event',        enforced: true },
+      { key: 'sae.content_studio.press_release.generate', label: 'Research and generate press release drafts',             enforced: true },
+      { key: 'sae.content_studio.press_release.approve',  label: 'Approve a press release draft',                          enforced: true },
     ],
   },
   {
