@@ -14,7 +14,8 @@ import { hasEventPermission } from '@/app/lib/access/event-access'
    unrelated fields (content/colors/sections); this one only ever touches
    the KonfHub columns and is gated on sae.integrations.manage, matching
    the whole point of this page existing. Upserts on event_id so it works
-   whether or not an event_websites row already exists yet. */
+   whether or not an event_websites row already exists yet — Website
+   Builder is not a prerequisite for KonfHub setup. */
 
 const KONFHUB_FIELDS = [
   'konfhub_event_id', 'konfhub_client_id', 'konfhub_client_secret',
@@ -66,18 +67,28 @@ export async function PATCH(req: NextRequest) {
   }
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'No recognised KonfHub fields in body' }, { status: 400 })
 
-  // update(), not upsert() — event_websites.slug is NOT NULL with no
-  // default, so creating a fresh row here without one would either fail or
-  // (worse) need this route to start inventing slugs, which isn't its
-  // job. Every event reaching this page will already have a row from
-  // Website Builder setup; a missing row means that hasn't happened yet.
-  const { data, error } = await supabaseAdmin
+  const updateResult = await supabaseAdmin
     .from('event_websites')
     .update(patch)
     .eq('event_id', eventId)
     .select(KONFHUB_FIELDS.join(', '))
     .maybeSingle()
+  if (updateResult.error) return NextResponse.json({ error: updateResult.error.message }, { status: 500 })
+  if (updateResult.data) return NextResponse.json(updateResult.data)
+
+  // No event_websites row yet — event_websites.slug is NOT NULL with no
+  // default, so create one here the same way POST /api/events/website
+  // does (slug from event name + year), rather than requiring the user to
+  // visit Website Builder first just to satisfy a column constraint.
+  const { data: ev } = await supabaseAdmin.from('events').select('name, event_date').eq('id', eventId).single()
+  const year = ev?.event_date ? new Date(ev.event_date).getFullYear() : new Date().getFullYear()
+  const slug = `${(ev?.name ?? eventId).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}-${year}`
+
+  const { data, error } = await supabaseAdmin
+    .from('event_websites')
+    .upsert({ event_id: eventId, slug, ...patch }, { onConflict: 'event_id' })
+    .select(KONFHUB_FIELDS.join(', '))
+    .maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  if (!data) return NextResponse.json({ error: 'Set up this event’s website first (Website Builder) before configuring KonfHub.' }, { status: 422 })
   return NextResponse.json(data)
 }
