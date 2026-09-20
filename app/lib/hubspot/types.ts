@@ -12,6 +12,13 @@ export type HubSpotFormField = {
   required: boolean
   hidden: boolean
   options?: HubSpotFormFieldOption[]   // dropdown/checkbox/radio only
+  // Set only for a field nested under another field's `dependentFields` in
+  // HubSpot's own API response (e.g. "Assistant Email" only appears once
+  // "Would you like us to coordinate with your assistant?" = Yes) — see
+  // flattenFields() in client.ts. Purely informational here: EventPilot
+  // still always writes/reads this field's mapping the same as any other;
+  // this just tells the mapping page's producer it isn't always collected.
+  dependsOn?: { parentLabel: string; values: string[] }
 }
 
 // HubSpot's own field-type vocabulary -> ours. Used only to pre-fill the
@@ -38,6 +45,29 @@ export function guessFieldTypeFromHubSpot(hubspotFieldType: string): FieldType {
   return HUBSPOT_FIELD_TYPE_MAP[hubspotFieldType] ?? 'text'
 }
 
+// The CRM Properties API (crm/v3/properties/...) uses a DIFFERENT fieldType
+// vocabulary than the Forms API above — confirmed live 2026-09-19: the same
+// "Country" property reports fieldType 'select' here vs 'dropdown' on a
+// form. Reusing HUBSPOT_FIELD_TYPE_MAP for property-definition sync
+// silently produced wrong types (select/phonenumber both fell through to
+// the 'text' default) — this is the separate map that vocabulary needs.
+const HUBSPOT_PROPERTY_FIELD_TYPE_MAP: Record<string, FieldType> = {
+  text: 'text',
+  textarea: 'textarea',
+  html: 'textarea',
+  select: 'select',
+  radio: 'select',
+  checkbox: 'multiselect',       // multi-select checkbox group (enumeration, several values)
+  booleancheckbox: 'checkbox',   // single yes/no
+  phonenumber: 'phone',
+  date: 'date',
+  file: 'file',
+}
+
+export function guessFieldTypeFromHubSpotProperty(hubspotFieldType: string): FieldType {
+  return HUBSPOT_PROPERTY_FIELD_TYPE_MAP[hubspotFieldType] ?? 'text'
+}
+
 export type HubSpotForm = {
   id: string
   name: string
@@ -52,9 +82,10 @@ export type HubSpotFieldMapping = {
   hubspot_label: string
   target:
     | { type: 'concept'; key: string }                                  // key validated live against resolveFormSchema(event, form_type)
-    | { type: 'asset'; role: 'photo' | 'company_logo' | 'logo' }         // fixed 3-value enum — matches exactly what PhotoRoom/processLogo() key off today
-    | { type: 'custom' }                                                // passthrough — lands in submitted_data[hubspot_field_name]
+    | { type: 'asset'; role: 'photo' | 'company_logo' | 'logo' | 'bio_full' }  // bio_full added 2026-09-19 — see from-submission route's own comment for why it needs the same Word->PDF conversion the native form's upload already gets, not just a raw re-host like company_logo/logo
+    | { type: 'custom' }                                                // passthrough — lands in submitted_data[hubspot_field_name]. Labeled "Consent checkboxes" on the mapping page (2026-09-19) since that's its real usage in practice — still just inert per-speaker storage, no special handling.
     | { type: 'crm_property'; entity_type: 'contact' | 'company'; property_key: string }  // routes into the cross-event CRM layer (crm_contacts/crm_companies), not just this event's record — see app/lib/crm/upsert.ts
+    | { type: 'sensitive_document'; document_type: 'passport' | 'national_id' }  // private-bucket pipeline (app/lib/events/sensitive-storage.ts), NOT the public asset bucket — see speaker from-submission route
 }
 
 export type EventHubSpotForm = {

@@ -6,6 +6,8 @@ import { resolveFormSchema } from '@/app/lib/forms/resolve-schema'
 import { mapFieldsToRecord, recordToFields } from '@/app/lib/forms/map-to-stakeholder-record'
 import { FieldSchema, SubmittedValue } from '@/app/lib/forms/types'
 import { getKonfhubToken, deleteKonfhubSpeaker, KonfhubApiError } from '@/app/lib/konfhub-speakers'
+import { syncSpeakerCrmContact } from '@/app/lib/crm/upsert'
+import { syncContactToHubSpot } from '@/app/lib/hubspot/crm-sync'
 
 /* PATCH  /api/events/stakeholders/speakers/[id] — update any SAE-owned field
    DELETE /api/events/stakeholders/speakers/[id] — soft delete (Hub "Delete")
@@ -96,7 +98,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = await req.json().catch(() => null) as SpeakerPatchBody | null
   if (!body) return NextResponse.json({ error: 'body required' }, { status: 400 })
 
-  const { data: existing } = await supabaseAdmin.from('event_speakers').select('event_id, announcement_status').eq('id', id).single()
+  const { data: existing } = await supabaseAdmin.from('event_speakers').select('event_id, announcement_status, crm_contact_id').eq('id', id).single()
   if (!existing) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
 
   const session = getSession(req)
@@ -127,6 +129,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // partial progress freely, same as any other admin tool.
     const { columns, customFields } = mapFieldsToRecord('speaker', schema, body.fields, {})
     Object.assign(row, columns, { custom_fields: customFields })
+
+    // CRM layer (2026-09-19) — same sync a manual Add Speaker / HubSpot
+    // submission gets, so an edit here (e.g. fixing a typo'd email) keeps
+    // the CRM contact and property_values current too. See
+    // syncSpeakerCrmContact()'s own comment.
+    const crmContactId = await syncSpeakerCrmContact(existing.event_id, existing.crm_contact_id, body.fields, schema, columns)
+    if (crmContactId && crmContactId !== existing.crm_contact_id) row.crm_contact_id = crmContactId
+    if (crmContactId) {
+      try { await syncContactToHubSpot(crmContactId) } catch (e) { console.error('HubSpot contact sync failed for speaker', id, e) }
+    }
   }
   if (body.announcement_status !== undefined) row.announcement_status = body.announcement_status
   if (body.notes !== undefined) row.notes = body.notes || null

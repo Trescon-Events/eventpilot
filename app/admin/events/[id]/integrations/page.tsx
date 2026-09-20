@@ -211,6 +211,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
   const [savingTicket, setSavingTicket] = useState(false)
 
   const [registrationFields, setRegistrationFields] = useState<RegistrationField[]>([])
+  const [autoSentFields, setAutoSentFields] = useState<RegistrationField[]>([])
   const [fieldMapSelections, setFieldMapSelections] = useState<Record<string, string>>({})
   const [savingFieldMap, setSavingFieldMap] = useState(false)
 
@@ -340,8 +341,9 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
     const permData = await permRes.json().catch(() => ({ permissions: [] }))
     const perms: string[] = permData.permissions ?? []
     setCanManage(perms.includes('*') || perms.some(p => p === 'sae.integrations.manage' || p === 'sae.*'))
-    const fieldsData = await fieldsRes.json().catch(() => ({ fields: [] }))
+    const fieldsData = await fieldsRes.json().catch(() => ({ fields: [], autoFields: [] }))
     setRegistrationFields(fieldsData.fields ?? [])
+    setAutoSentFields(fieldsData.autoFields ?? [])
 
     const hubspotResults = await Promise.all(
       FORM_TYPES.map(async formType => {
@@ -857,6 +859,10 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
           {canManage && <Button variant="teal" onClick={saveManualFields} disabled={savingManual}>{savingManual ? 'Saving…' : 'Save Credentials'}</Button>}
         </Card>
 
+        <div style={{ marginTop: '16px', padding: '10px 14px', borderRadius: '8px', background: 'var(--surface2)', border: '1px solid var(--border)', fontSize: '12.5px', color: 'var(--ink3)' }}>
+          <strong style={{ color: 'var(--ink)' }}>Listing vs. Registration are two different KonfHub systems</strong> — <strong>Speaker Listing</strong> (below) only displays a speaker on the event&apos;s public Speakers page on KonfHub. <strong>Speaker Registration</strong> (further down) signs them up as an actual event attendee under a ticket type (e.g. Speaker, Guest Speaker) — this is what check-in, badge printing, and networking at the event depend on. Configure both separately; one doesn&apos;t imply the other.
+        </div>
+
         <div style={{ marginTop: '16px' }}><Card padded>
           <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Speaker Listing Tags</div>
           <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
@@ -933,11 +939,16 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
 
               {selectedTicket && (
                 <div>
+                  {autoSentFields.length > 0 && (
+                    <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
+                      Sent automatically, no mapping needed: {autoSentFields.map(f => f.label).join(', ')}.
+                    </div>
+                  )}
                   <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink3)', marginBottom: '10px' }}>
                     Field Mapping — {selectedTicket.ticket_name}
                   </div>
                   {registrationFields.length === 0 ? (
-                    <div style={{ fontSize: '13px', color: 'var(--ink4)' }}>No registration-specific fields on this event&apos;s speaker form to map.</div>
+                    <div style={{ fontSize: '13px', color: 'var(--ink4)' }}>This event&apos;s speaker form has no custom fields beyond the defaults above — nothing to map.</div>
                   ) : (
                     <div style={{ display: 'grid', gap: '8px' }}>
                       {registrationFields.map(f => (

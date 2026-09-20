@@ -146,3 +146,23 @@ export async function batchReadCompanies(ids: string[], properties: string[]): P
   const data = (await res.json()) as { results?: { id: string; properties: Record<string, string | null> }[] }
   return data.results ?? []
 }
+
+// Property DEFINITION (label, field type, dropdown options) — not a
+// contact/company record. Backs the crm_properties "stay in sync with
+// HubSpot" requirement (2026-09-19, Madhu): if someone edits an option on
+// e.g. Industry Sector directly in HubSpot, this is what re-reads that
+// definition so EventPilot's own copy (crm_properties.options) can mirror
+// it, rather than only ever tracking submitted VALUES like the rest of
+// this file does. Same Service Key works here — confirmed live it already
+// carries read access to standard Contact/Company property schemas, no
+// separate scope needed.
+export type HubSpotPropertyDefinition = {
+  label: string
+  fieldType: string
+  options: { label: string; value: string }[]
+}
+export async function fetchHubSpotPropertyDefinition(entityType: 'contact' | 'company', propertyName: string): Promise<HubSpotPropertyDefinition> {
+  const res = await hubspotFetch(`/crm/v3/properties/${HUBSPOT_OBJECT_TYPE[entityType]}/${propertyName}`)
+  const data = (await res.json()) as { label: string; fieldType: string; options?: { label: string; value: string }[] }
+  return { label: data.label, fieldType: data.fieldType, options: data.options ?? [] }
+}

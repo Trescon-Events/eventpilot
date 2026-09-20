@@ -16,12 +16,32 @@ export type FormType = 'speaker' | 'sponsor' | 'media_partner' | 'association_pa
 export const FORM_TYPES: FormType[] = ['speaker', 'sponsor', 'media_partner', 'association_partner']
 
 // Shared display titles — used by the per-event Form Builder, the global
-// Form Templates tool, and the public onboarding form page.
+// Form Templates tool, and the public onboarding form page. 'speaker' was
+// 'Speaker Registration' until 2026-09-18 — renamed to match the other
+// three's "... Onboarding" pattern and stop colliding with KonfHub's own
+// unrelated "Speaker Registration" (the Attendee ticket system on the
+// Integrations page) — a real speaker filling out this SAE onboarding
+// form has nothing to do with that KonfHub concept.
 export const FORM_TITLES: Record<FormType, string> = {
-  speaker: 'Speaker Registration',
+  speaker: 'Speaker Onboarding',
   sponsor: 'Sponsorship Onboarding',
   media_partner: 'Media Partner Onboarding',
   association_partner: 'Association Partner Onboarding',
+}
+
+// Named per stakeholder type (2026-09-19, Madhu) — deliberately NOT
+// `${FORM_TITLES[type]} — Properties` (e.g. "Sponsorship Onboarding
+// Properties" reads oddly and ties the name to the onboarding-form
+// concept rather than the property-management one). Used by the per-type
+// Properties pages (app/admin/events/[id]/stakeholders/form-builder) and
+// the event workspace sidebar's Settings group — see resolve-schema.ts's
+// own comment for how these differ from the shared, cross-type Event
+// Properties pool.
+export const PROPERTY_TITLES: Record<FormType, string> = {
+  speaker: 'Speaker Properties',
+  sponsor: 'Sponsor Properties',
+  media_partner: 'Media Partner Properties',
+  association_partner: 'Association Partner Properties',
 }
 
 export type FieldSchema = {

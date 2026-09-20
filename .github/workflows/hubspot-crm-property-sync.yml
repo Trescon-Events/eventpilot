@@ -1,0 +1,31 @@
+name: HubSpot CRM property definition sync
+
+# Fires the /api/cron/hubspot-crm-property-sync endpoint once a day.
+# Mirrors HubSpot property DEFINITIONS (label, field type, dropdown option
+# lists — e.g. Industry Sector) into crm_properties, for every property row
+# that has a hubspot_property_name set. Distinct from
+# hubspot-crm-pull-sync.yml, which mirrors contact/company record VALUES on
+# a 15-minute cadence — definitions (someone editing a dropdown's options in
+# HubSpot) change far less often, so daily is enough; see
+# app/lib/hubspot/crm-property-sync.ts for the full design.
+#
+# Uses Railway direct URL — see revoke-expired-access.yml's own note on why
+# (Cloudflare challenges GitHub Actions IPs as bots on the proxied domain).
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # once daily, 03:00 UTC
+  workflow_dispatch:      # manual trigger for testing
+
+jobs:
+  property-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Call HubSpot CRM property-sync endpoint
+        run: |
+          curl --fail-with-body --silent --show-error \
+            -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://eventpilot-production-90c6.up.railway.app/api/cron/hubspot-crm-property-sync"

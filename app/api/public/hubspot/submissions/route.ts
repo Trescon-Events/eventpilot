@@ -117,15 +117,37 @@ export async function POST(req: NextRequest) {
       case 'asset':
         fileUrls[m.target.role] = value
         break
+      case 'sensitive_document':
+        // Reuses the same fileUrls bucket as 'asset' (HubSpot's submitted
+        // value for a file-upload field is a URL either way) — the speaker
+        // from-submission route is what tells 'passport'/'national_id'
+        // apart from 'photo'/'company_logo' and routes each into its own
+        // pipeline (private sensitive-document bucket vs. the public asset
+        // bucket + PhotoRoom).
+        fileUrls[m.target.document_type] = value
+        break
       case 'custom':
         submittedData[m.hubspot_field_name] = value
         break
       case 'crm_property':
         // Synthetic key, read back by app/lib/crm/upsert.ts's
-        // extractCrmPropertyValue() in the from-submission routes — not a
-        // real schema field, so it also rides along into this event's own
-        // custom_fields (harmless, same as any 'custom'-mapped field).
+        // extractCrmPropertyValue() in the from-submission routes, which
+        // now (2026-09-19) also persists it into the CRM contact/company's
+        // property_values via applyCrmPropertyValues().
+        //
+        // ALSO written under the property_key's plain name (like a
+        // 'concept' mapping would) — a single "CRM property" choice on the
+        // mapping page should satisfy both this event's own record AND the
+        // cross-event CRM, not force a pick between them (Madhu, 2026-09-19:
+        // "keep it simple"). Where property_key matches an existing
+        // SPEAKER_KEY_MAP alias (company, country, salutation) this
+        // promotes straight into the real event_speakers column, same as
+        // 'concept' would; where it doesn't (industry_sector, twitter,
+        // phone_number) it still lands in custom_fields, available to
+        // anything that reads it directly (e.g. the KonfHub Registration
+        // push's customFields.phone_number).
         submittedData[`crm__${m.target.entity_type}__${m.target.property_key}`] = value
+        submittedData[m.target.property_key] = value
         break
     }
   }

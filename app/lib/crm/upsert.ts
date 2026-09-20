@@ -1,12 +1,17 @@
-// CRM layer — Phase 1 upsert helpers, shared by both onboarding
-// from-submission routes (speakers, partners). Dedup approach mirrors
-// SmartData's proven sd_contact_records/sd_company_records pattern (unique
-// lower(email) / lower(domain)) rather than inventing a new one — see
-// supabase/crm_objects_migration.sql for the actual unique indexes.
+// CRM layer — Phase 1 upsert helpers, shared by the onboarding
+// from-submission routes (speakers, partners) AND (2026-09-19) the manual
+// Stakeholder Hub Add/Edit routes — a producer typing a speaker's details
+// in by hand needs the same CRM contact creation/property sync a HubSpot
+// submission gets, see syncSpeakerCrmContact() below. Dedup approach
+// mirrors SmartData's proven sd_contact_records/sd_company_records pattern
+// (unique lower(email) / lower(domain)) rather than inventing a new one —
+// see supabase/crm_objects_migration.sql for the actual unique indexes.
 //
-// Forward-only: this module is only ever called from the two onboarding
-// routes on NEW submissions. It never runs against existing event_speakers/
-// event_sponsors rows — no backfill.
+// Forward-only in a different sense than "new submissions only" now: this
+// still never runs as a bulk pass over old, untouched records — it only
+// ever fires when a record is actively being created or saved (a producer
+// editing it right now), never a scheduled backfill sweep. See
+// feedback_no_historical_backfill_sync memory.
 
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { FieldSchema, SubmittedValue } from '@/app/lib/forms/types'
@@ -160,6 +165,81 @@ export async function upsertCrmContact(input: {
 // setCrmCompanyLogoIfEmpty()'s comment, same reasoning.
 export async function setCrmContactPhotoIfEmpty(contactId: string, photoUrl: string): Promise<void> {
   await supabaseAdmin.from('crm_contacts').update({ photo_url: photoUrl }).eq('id', contactId).is('photo_url', null)
+}
+
+// Persists every crm_property-mapped value found in a submission into the
+// matching crm_contacts/crm_companies row's property_values — the step
+// that was missing entirely until 2026-09-19: extractCrmPropertyValue()
+// could read a mapped value back out of `submitted`, but nothing wrote it
+// anywhere durable. Merges rather than replaces (jsonb `||`) so a partial
+// submission never wipes properties a prior event's submission already
+// set. Looks up which properties exist for this entityType from
+// crm_properties itself rather than a hardcoded key list, so this
+// automatically covers whatever fields get marked "sync with CRM" next —
+// speaker-onboarding-specific today, other onboarding forms later.
+export async function applyCrmPropertyValues(
+  entityType: 'contact' | 'company', entityId: string, submitted: Record<string, SubmittedValue>,
+): Promise<void> {
+  const { data: properties } = await supabaseAdmin
+    .from('crm_properties')
+    .select('property_key')
+    .eq('entity_type', entityType)
+  if (!properties?.length) return
+
+  const values: Record<string, string> = {}
+  for (const { property_key } of properties) {
+    const value = extractCrmPropertyValue(entityType, property_key, submitted)
+    if (value) values[property_key] = value
+  }
+  if (Object.keys(values).length === 0) return
+
+  const table = entityType === 'contact' ? 'crm_contacts' : 'crm_companies'
+  const { data: row } = await supabaseAdmin.from(table).select('property_values').eq('id', entityId).single()
+  await supabaseAdmin.from(table).update({ property_values: { ...(row?.property_values ?? {}), ...values } }).eq('id', entityId)
+}
+
+// Shared by the manual Add Speaker (POST) and edit (PATCH) routes — the
+// same create-or-update-plus-property-sync a HubSpot submission gets via
+// from-submission/route.ts, just entered by a staff member instead. Unlike
+// that route, an existing CRM contact here gets its identity fields
+// (email/name/linkedin) UPDATED, not just created-once — a producer fixing
+// a typo'd email on the Details page should actually fix the CRM record
+// too. bio is deliberately excluded from that update path: it's a
+// once-seeded baseline (see upsertCrmContact's own comment) other events'
+// submissions must never silently overwrite, and a producer's own event-
+// scoped edit shouldn't either. Best-effort — never throws, so a CRM outage
+// can't block saving the speaker record itself; returns the id to persist
+// on the speaker row (unchanged from existingCrmContactId on failure).
+export async function syncSpeakerCrmContact(
+  eventId: string, existingCrmContactId: string | null, fields: Record<string, SubmittedValue>, schema: FieldSchema[], columns: Record<string, unknown>,
+): Promise<string | null> {
+  try {
+    const email = extractEmailFromSubmission(schema, fields)
+    const linkedinUrl = extractCrmPropertyValue('contact', 'linkedin_url', fields) ?? (typeof columns.linkedin_url === 'string' ? columns.linkedin_url : null)
+    const firstName = typeof fields.first_name === 'string' ? fields.first_name : null
+    const lastName = typeof fields.last_name === 'string' ? fields.last_name : null
+
+    let crmContactId = existingCrmContactId
+    if (crmContactId) {
+      const patch: Record<string, string> = {}
+      if (email) patch.email = email
+      if (firstName) patch.first_name = firstName
+      if (lastName) patch.last_name = lastName
+      if (linkedinUrl) patch.linkedin_url = linkedinUrl
+      if (Object.keys(patch).length > 0) await supabaseAdmin.from('crm_contacts').update(patch).eq('id', crmContactId)
+    } else {
+      const fullName = typeof columns.name === 'string' ? columns.name : null
+      const bio = typeof columns.bio === 'string' ? columns.bio : null
+      const result = await upsertCrmContact({ email, fullName, firstName, lastName, linkedinUrl, bio })
+      crmContactId = result.id
+    }
+    await linkContactToEvent(crmContactId, eventId, 'speaker')
+    await applyCrmPropertyValues('contact', crmContactId, fields)
+    return crmContactId
+  } catch (e) {
+    console.error('CRM contact sync (manual speaker save) failed:', e)
+    return existingCrmContactId
+  }
 }
 
 export async function linkContactToEvent(contactId: string, eventId: string, role: string): Promise<void> {

@@ -4,8 +4,8 @@ import { useState, useEffect, use } from 'react'
 import { useSearchParams } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
-import { Button, Card, Input, Select } from '@/app/components/ui'
-import { FormType, FORM_TYPES, FORM_TITLES, FieldSchema } from '@/app/lib/forms/types'
+import { Button, Card, Input, Select, SearchableSelect } from '@/app/components/ui'
+import { FormType, FORM_TYPES, FORM_TITLES, PROPERTY_TITLES, FieldSchema } from '@/app/lib/forms/types'
 import { HubSpotFieldMapping, HubSpotFormField, EventHubSpotForm, guessFieldTypeFromHubSpot } from '@/app/lib/hubspot/types'
 import { AddFieldForm, NewFieldDraft, EMPTY_FIELD_DRAFT, FIELD_TYPE_OPTIONS, buildFieldFromDraft } from '@/app/components/forms/AddFieldForm'
 
@@ -41,14 +41,21 @@ function draftFromHubSpotField(f: HubSpotFormField): NewFieldDraft {
 const TARGET_TYPE_OPTIONS = [
   { value: 'concept', label: 'EventPilot field' },
   { value: 'crm_property', label: 'CRM property (cross-event)' },
-  { value: 'asset', label: 'Photo / logo asset' },
-  { value: 'custom', label: "Store as extra data (don't map)" },
+  { value: 'asset', label: 'File asset' },
+  { value: 'sensitive_document', label: 'Sensitive document (Passport / National ID)' },
+  { value: 'custom', label: 'Consent checkbox' },
 ]
 
 const ASSET_ROLE_OPTIONS = [
   { value: 'photo', label: 'Speaker Photo' },
   { value: 'company_logo', label: 'Company Logo (speaker)' },
   { value: 'logo', label: 'Partner Logo' },
+  { value: 'bio_full', label: 'Full Bio (PDF/Word document)' },
+]
+
+const SENSITIVE_DOCUMENT_TYPE_OPTIONS = [
+  { value: 'passport', label: 'Passport' },
+  { value: 'national_id', label: 'National ID' },
 ]
 
 // Loose keyword check used only to warn (never block) when a HubSpot form
@@ -92,6 +99,7 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
   const [connection, setConnection] = useState<EventHubSpotForm | null>(null)
   const [allFields, setAllFields] = useState<FieldSchema[]>([])
   const [conceptFields, setConceptFields] = useState<FieldSchema[]>([])
+  const [sharedKeys, setSharedKeys] = useState<Set<string>>(new Set())
   const [crmProperties, setCrmProperties] = useState<CrmProperty[]>([])
   const [mapping, setMapping] = useState<HubSpotFieldMapping[]>([])
   const [loading, setLoading] = useState(valid)
@@ -100,6 +108,9 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
   const [msgIsError, setMsgIsError] = useState(false)
   const [newFormId, setNewFormId] = useState('')
   const [connecting, setConnecting] = useState(false)
+  const [availableForms, setAvailableForms] = useState<{ id: string; name: string }[] | null>(null)
+  const [formsLoading, setFormsLoading] = useState(false)
+  const [formsError, setFormsError] = useState<string | null>(null)
   const [creatingFor, setCreatingFor] = useState<string | null>(null)
   const [fieldDraft, setFieldDraft] = useState<NewFieldDraft>(EMPTY_FIELD_DRAFT)
   const [creatingField, setCreatingField] = useState(false)
@@ -126,6 +137,7 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
     setConnection(connRes?.id ? connRes : null)
     setAllFields(schemaRes.fields ?? [])
     setConceptFields((schemaRes.fields ?? []).filter((f: FieldSchema) => f.type !== 'file'))
+    setSharedKeys(new Set(schemaRes.sharedKeys ?? []))
     setCrmProperties(Array.isArray(crmRes) ? crmRes : [])
     setMapping(connRes?.field_mapping ?? [])
     setDirty(false)
@@ -167,6 +179,24 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
     loadAll().finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadAll is stable for this effect's purpose (mount + eventId/formType change only)
   }, [eventId, formType, valid])
+
+  // Only fetched once, lazily, once we know there's actually a "pick a
+  // form" screen to show (not yet connected, and permitted to manage) —
+  // no reason to hit HubSpot's forms-list API for an event that's already
+  // connected.
+  useEffect(() => {
+    if (loading || connection || !canManage || availableForms !== null || formsLoading) return
+    setFormsLoading(true)
+    fetch(`/api/events/stakeholders/hubspot/forms?event_id=${eventId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.forms) setAvailableForms(data.forms)
+        else setFormsError(data.error ?? 'Could not load HubSpot forms.')
+      })
+      .catch(() => setFormsError('Could not load HubSpot forms.'))
+      .finally(() => setFormsLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- guarded by availableForms/formsLoading above; deliberately runs once per mount
+  }, [loading, connection, canManage, eventId])
 
   function updateTarget(fieldName: string, fieldLabel: string, target: HubSpotFieldMapping['target']) {
     setMapping(prev => {
@@ -229,6 +259,8 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
     else setMsg('Could not disconnect — please try again.')
   }
 
+  const crmPropertyKeySet = new Set(crmProperties.map(p => p.property_key))
+
   if (!valid) {
     return <div style={{ padding: '32px', fontSize: '13px', color: 'var(--red)' }}>Unknown form type.</div>
   }
@@ -263,15 +295,38 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
         {loading ? (
           <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>Loading…</div>
         ) : !connection ? (
-          <Card padded>
+          <Card padded style={{ overflow: 'visible' }}>
             <div style={{ fontSize: '13px', color: 'var(--ink3)', marginBottom: '14px' }}>
-              No HubSpot form is connected for this event yet. Find the Form ID from the form&apos;s Share tab in HubSpot (or the URL when editing it), and paste it below.
+              No HubSpot form is connected for this event yet. Pick the form your team already built from the list below.
             </div>
             {canManage && (
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <Input value={newFormId} onChange={e => setNewFormId(e.target.value)} placeholder="HubSpot Form ID" style={{ flex: 1 }} />
-                <Button variant="lime" onClick={connect} disabled={connecting}>{connecting ? 'Connecting…' : 'Fetch & Connect'}</Button>
-              </div>
+              <>
+                {formsError ? (
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ flex: 1, fontSize: '12.5px', color: 'var(--red)', alignSelf: 'center' }}>{formsError} You can still paste a Form ID directly below.</div>
+                  </div>
+                ) : formsLoading || availableForms === null ? (
+                  <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>Loading forms from HubSpot…</div>
+                ) : (
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ flex: 1 }}>
+                      <SearchableSelect
+                        options={availableForms.map(f => ({ id: f.id, label: f.name }))}
+                        value={newFormId}
+                        onChange={setNewFormId}
+                        placeholder={`Type to search ${availableForms.length} forms…`}
+                      />
+                    </div>
+                    <Button variant="lime" onClick={connect} disabled={connecting || !newFormId}>{connecting ? 'Connecting…' : 'Connect'}</Button>
+                  </div>
+                )}
+                {(formsError || (availableForms !== null && availableForms.length === 0)) && (
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <Input value={newFormId} onChange={e => setNewFormId(e.target.value)} placeholder="HubSpot Form ID" style={{ flex: 1 }} />
+                    <Button variant="lime" onClick={connect} disabled={connecting || !newFormId.trim()}>{connecting ? 'Connecting…' : 'Fetch & Connect'}</Button>
+                  </div>
+                )}
+              </>
             )}
           </Card>
         ) : (
@@ -306,6 +361,11 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
                       <div>
                         <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>{f.label || f.name}</div>
                         <div style={{ fontSize: '10.5px', color: 'var(--ink4)' }}>{f.name} · {f.fieldType}{f.required ? ' · required' : ''}</div>
+                        {f.dependsOn && (
+                          <div style={{ fontSize: '10.5px', color: 'var(--amber)', marginTop: '2px' }}>
+                            Only shown if &quot;{f.dependsOn.parentLabel}&quot; = {f.dependsOn.values.join(' or ')} — not always collected
+                          </div>
+                        )}
                       </div>
                       <Select
                         disabled={!canManage}
@@ -314,6 +374,7 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
                           const t = e.target.value
                           if (t === 'concept') updateTarget(f.name, f.label, { type: 'concept', key: conceptFields[0]?.key ?? '' })
                           else if (t === 'asset') updateTarget(f.name, f.label, { type: 'asset', role: 'photo' })
+                          else if (t === 'sensitive_document') updateTarget(f.name, f.label, { type: 'sensitive_document', document_type: 'passport' })
                           else if (t === 'crm_property') {
                             const first = crmProperties[0]
                             updateTarget(f.name, f.label, first ? { type: 'crm_property', entity_type: first.entity_type, property_key: first.property_key } : { type: 'custom' })
@@ -338,21 +399,49 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
                           ))}
                         </Select>
                       )}
-                      {type === 'concept' && (
-                        <Select disabled={!canManage} value={m?.target.type === 'concept' ? m.target.key : ''}
-                          onChange={e => {
-                            const v = e.target.value
-                            if (v === CREATE_NEW_FIELD) { setFieldDraft(draftFromHubSpotField(f)); setCreatingFor(f.name) }
-                            else updateTarget(f.name, f.label, { type: 'concept', key: v })
-                          }}>
-                          {conceptFields.map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
-                          {canManage && <option value={CREATE_NEW_FIELD}>+ Create new field…</option>}
-                        </Select>
-                      )}
+                      {type === 'concept' && (() => {
+                        const selectedKey = m?.target.type === 'concept' ? m.target.key : ''
+                        // Excludes any key that already has a matching CRM
+                        // property (2026-09-19, Madhu: "shouldn't show other
+                        // fields... which clearly belong to CRM Properties").
+                        // Once a key is reachable via "CRM property" (which
+                        // also dual-writes the plain key — see the webhook
+                        // route's own comment), offering it here too just
+                        // invites a second, unrelated HubSpot field silently
+                        // colliding with it. The currently-selected key is
+                        // always kept visible even if it'd otherwise be
+                        // filtered, so an existing valid mapping never
+                        // disappears out from under a producer.
+                        const available = conceptFields.filter(cf => cf.key === selectedKey || !crmPropertyKeySet.has(cf.key))
+                        return (
+                          <Select disabled={!canManage} value={selectedKey}
+                            onChange={e => {
+                              const v = e.target.value
+                              if (v === CREATE_NEW_FIELD) { setFieldDraft(draftFromHubSpotField(f)); setCreatingFor(f.name) }
+                              else updateTarget(f.name, f.label, { type: 'concept', key: v })
+                            }}>
+                            <optgroup label={PROPERTY_TITLES[formType as FormType]}>
+                              {available.filter(cf => !sharedKeys.has(cf.key)).map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
+                            </optgroup>
+                            {available.some(cf => sharedKeys.has(cf.key)) && (
+                              <optgroup label="Event Properties (shared)">
+                                {available.filter(cf => sharedKeys.has(cf.key)).map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
+                              </optgroup>
+                            )}
+                            {canManage && <option value={CREATE_NEW_FIELD}>+ Create new field…</option>}
+                          </Select>
+                        )
+                      })()}
                       {type === 'asset' && (
                         <Select disabled={!canManage} value={m?.target.type === 'asset' ? m.target.role : 'photo'}
-                          onChange={e => updateTarget(f.name, f.label, { type: 'asset', role: e.target.value as 'photo' | 'company_logo' | 'logo' })}>
+                          onChange={e => updateTarget(f.name, f.label, { type: 'asset', role: e.target.value as 'photo' | 'company_logo' | 'logo' | 'bio_full' })}>
                           {ASSET_ROLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </Select>
+                      )}
+                      {type === 'sensitive_document' && (
+                        <Select disabled={!canManage} value={m?.target.type === 'sensitive_document' ? m.target.document_type : 'passport'}
+                          onChange={e => updateTarget(f.name, f.label, { type: 'sensitive_document', document_type: e.target.value as 'passport' | 'national_id' })}>
+                          {SENSITIVE_DOCUMENT_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </Select>
                       )}
                     </div>

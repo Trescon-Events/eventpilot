@@ -95,25 +95,28 @@ const CATEGORIES: Category[] = [
 const DELETED_KEY = 'deleted'
 const INVITES_KEY = 'invites'
 
-// "Add Speaker" quick-add panel (2026-08-24, per Madhu) — deliberately
-// shows only the bare minimum needed to create a placeholder record:
-// salutation, first/last name (full_name is dropped entirely here —
-// mapFieldsToRecord's own fallback derives it from first_name/last_name
+// "Add Speaker" quick-add panel (rebuilt 2026-09-19, per Madhu) —
+// deliberately shows only the bare minimum needed to create a placeholder
+// record: salutation, first/last name (full_name is dropped entirely here
+// — mapFieldsToRecord's own fallback derives it from first_name/last_name
 // when full_name itself isn't submitted, so it's still populated), job
-// title, company, country, and a short bio. Everything else the full
-// speaker schema asks for (email, phone, industry sector, socials,
-// assistant contacts, the public-form consent checkboxes) is meant to be
-// filled in on the speaker's own Details page afterward — save() below
-// already redirects there on success. This is a RENDER-ONLY filter on top
-// of the fetched schema (formSchema itself, and therefore the public
-// onboarding form and the Details page's own full editor, are untouched —
-// see resolveFormSchema's own doc comment on why those three consumers
-// share one schema). Matches on `key`, not `label` — this event's own
-// Form Builder override is what defines these exact keys; a differently-
-// keyed schema (a different event, or a future re-key) would just show
-// fewer fields here rather than break, since anything not in this list
-// simply isn't rendered.
-const QUICK_ADD_SPEAKER_KEYS = ['salutation', 'first_name', 'last_name', 'job_title', 'company', 'country', 'short_bio_professional_profile']
+// title, and company. Public Name is handled separately, NOT via this
+// key-driven schema render at all — see the dedicated publicName state
+// above. Everything else the full speaker schema asks for (country, bio,
+// email, phone, industry sector, socials, assistant contacts, the
+// public-form consent checkboxes) is meant to be filled in on the
+// speaker's own Details page afterward — save() below already redirects
+// there on success.
+//
+// Previous key list here (salutation/first_name/last_name/job_title/
+// company/country/short_bio_professional_profile) was already stale
+// before today — 'company'/'short_bio_professional_profile' never matched
+// this event's actual canonical keys (company_name/bio), a real bug that
+// silently rendered fewer fields than intended, not just this session's
+// active-fields filtering on top of it. Matches on `key`, not `label` —
+// same "shows fewer fields rather than breaking" safety as before if a
+// future event ever re-keys these.
+const QUICK_ADD_SPEAKER_KEYS = ['salutation', 'first_name', 'last_name', 'job_title', 'company_name']
 
 const STATUS_BADGE: Record<string, { label: string; color: 'amber' | 'red' | 'teal' | 'grey' }> = {
   pending_review: { label: 'Pending Review', color: 'amber' },
@@ -190,6 +193,15 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   const [panelOpen, setPanelOpen] = useState(false)
   const [values, setValues] = useState<Record<string, SubmittedValue>>({})
   const [partnerType, setPartnerType] = useState('sponsor')
+  // Public Name (2026-09-19) — auto-follows "First Last" as the producer
+  // types, same "keep following until manually diverged" pattern as e.g. a
+  // slug field tracking a title. publicNameTouched flips true the instant
+  // the producer edits it directly, permanently stopping the auto-follow
+  // for the rest of this panel session (reset on next openAdd()) — so
+  // typing "Dr. Jane Smith" over the plain default never gets clobbered by
+  // a later first/last name keystroke.
+  const [publicName, setPublicName] = useState('')
+  const [publicNameTouched, setPublicNameTouched] = useState(false)
   const [formSchema, setFormSchema] = useState<FieldSchema[]>([])
   const [saving, setSaving] = useState(false)
 
@@ -260,7 +272,12 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   }
 
   async function fetchFormSchema(formType: string) {
-    const res = await fetch(`/api/events/stakeholders/forms/${formType}/schema?event_id=${eventId}`)
+    // active_only=1 (2026-09-19) — once this form_type is HubSpot-connected,
+    // the manual Add/Edit panel should ask for exactly the same fields the
+    // connected form actually collects, not the full declared superset —
+    // see resolveActiveFormSchema()'s own comment. No-op for any
+    // unconnected event/type, which keeps getting the full list as before.
+    const res = await fetch(`/api/events/stakeholders/forms/${formType}/schema?event_id=${eventId}&active_only=1`)
     const data = await res.json().catch(() => ({ fields: [] }))
     setFormSchema(data.fields ?? [])
   }
@@ -284,11 +301,36 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
 
   const visiblePartners = category ? partners.filter(p => !category.partnerTypes || category.partnerTypes.includes(p.partner_type)) : []
 
+  // Quick-add panel field groups — split so Public Name (a dedicated,
+  // non-schema field, see its own state above) can render between name and
+  // job title/company, matching the order a producer actually thinks in.
+  // Partners have no such split (QUICK_ADD_SPEAKER_KEYS/Public Name are
+  // both speaker-only) — identityFields is simply every quick-add field for
+  // them, restFields stays empty, so nothing renders twice.
+  const quickAddFields = category
+    ? formSchema.filter(f => f.type !== 'file' && (category.kind !== 'speaker' || QUICK_ADD_SPEAKER_KEYS.includes(f.key)))
+    : []
+  const NAME_KEYS = ['salutation', 'first_name', 'last_name']
+  const quickAddIdentityFields = category?.kind === 'speaker' ? quickAddFields.filter(f => NAME_KEYS.includes(f.key)) : quickAddFields
+  const quickAddRestFields = category?.kind === 'speaker' ? quickAddFields.filter(f => !NAME_KEYS.includes(f.key)) : []
+
   function openAdd() {
     setValues({})
     setPartnerType('sponsor')
+    setPublicName('')
+    setPublicNameTouched(false)
     setPanelOpen(true)
   }
+
+  // Keeps Public Name following First/Last Name until the producer edits
+  // it directly — see publicNameTouched's own comment above.
+  useEffect(() => {
+    if (publicNameTouched) return
+    const first = asText(values.first_name).trim()
+    const last = asText(values.last_name).trim()
+    setPublicName([first, last].filter(Boolean).join(' '))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately excludes publicNameTouched from deps; it's read, not reacted to, here
+  }, [values.first_name, values.last_name])
 
   function reviewUrl(item: Speaker | Partner) {
     if (!category) return '#'
@@ -301,7 +343,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     setSaving(true)
     const base = category.kind === 'speaker' ? '/api/events/stakeholders/speakers' : '/api/events/stakeholders/partners'
     const body = category.kind === 'speaker'
-      ? { event_id: eventId, fields: values }
+      ? { event_id: eventId, fields: values, public_name: publicName }
       : { event_id: eventId, fields: values, partner_type: partnerType, form_type: category.formType ?? 'sponsor' }
 
     const res = await fetch(base, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -955,10 +997,24 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
               </div>
             )}
             <div style={{ display: 'grid', gap: '12px' }}>
-              {formSchema
-                .filter(f => f.type !== 'file')
-                .filter(f => category.kind !== 'speaker' || QUICK_ADD_SPEAKER_KEYS.includes(f.key))
-                .map(field => (
+              {quickAddIdentityFields.map(field => (
+                <FormFieldInput
+                  key={field.id}
+                  field={field}
+                  value={values[field.key] ?? (field.type === 'multiselect' ? [] : '')}
+                  onChange={v => setValues(prev => ({ ...prev, [field.key]: v }))}
+                />
+              ))}
+              {category.kind === 'speaker' && (
+                <Field label="Public Name">
+                  <Input
+                    value={publicName}
+                    onChange={e => { setPublicName(e.target.value); setPublicNameTouched(true) }}
+                    placeholder="Auto-fills from First + Last Name"
+                  />
+                </Field>
+              )}
+              {quickAddRestFields.map(field => (
                 <FormFieldInput
                   key={field.id}
                   field={field}

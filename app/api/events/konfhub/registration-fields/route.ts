@@ -2,17 +2,39 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { resolveFormSchema } from '@/app/lib/forms/resolve-schema'
-import { SPEAKER_KEY_MAP } from '@/app/lib/forms/map-to-stakeholder-record'
 
 /* GET /api/events/konfhub/registration-fields?event_id=X
 
-   The set of this event's own speaker-form fields eligible for KonfHub
-   Registration field mapping — i.e. the "Registration" bucket the speaker
-   Details page itself computes (any resolved schema field NOT in
-   SPEAKER_KEY_MAP — those already have a real event_speakers column and
-   flow to KonfHub's Speakers-listing push directly, not through this
-   mapping). Kept server-side so this logic has exactly one definition,
-   not a second copy duplicated into the Integrations page's client code. */
+   Splits this event's resolved speaker-form fields into two buckets for
+   the Integrations page's KonfHub Field Mapping card:
+
+   - autoFields: already sent to KonfHub automatically by
+     konfhub-registration-push/route.ts's hardcoded commonFields/attendee
+     object (name, designation, organisation, country, linkedin_url,
+     phone_number) — full_name/first_name/last_name included since
+     map-to-stakeholder-record.ts synthesizes full_name from first/last
+     before either ever reaches a column. These need no mapping, ever.
+   - fields: everything else genuinely eligible for Registration mapping.
+
+   bio/short_bio_professional_profile are deliberately excluded from BOTH
+   buckets (2026-09-18, Madhu): bio is Speaker LISTING content (the public
+   KonfHub speaker profile), not a Registration/attendee-ticket field —
+   registration doesn't need it as a rule. World AI Show Malaysia has a
+   real, working short_bio_professional_profile mapping saved in its
+   konfhub_registration_field_map from before this distinction was this
+   clear; that data is untouched and keeps working, it's just no longer
+   surfaced here as something new events should configure.
+
+   Kept server-side so this logic has exactly one definition, not a
+   second copy duplicated into the Integrations page's client code. */
+
+const AUTO_SENT_FIELDS = new Set([
+  'full_name', 'first_name', 'last_name',
+  'job_title', 'company_name', 'company',
+  'country', 'linkedin_url', 'phone_number',
+])
+
+const NOT_APPLICABLE_TO_REGISTRATION = new Set(['bio', 'short_bio_professional_profile'])
 
 export async function GET(req: NextRequest) {
   const eventId = req.nextUrl.searchParams.get('event_id')
@@ -24,10 +46,9 @@ export async function GET(req: NextRequest) {
   }
 
   const schema = await resolveFormSchema(eventId, 'speaker')
-  const publicKeys = new Set(Object.keys(SPEAKER_KEY_MAP))
-  const fields = schema
-    .filter(f => f.type !== 'file' && !publicKeys.has(f.key))
-    .map(f => ({ key: f.key, label: f.label }))
+  const textFields = schema.filter(f => f.type !== 'file' && !NOT_APPLICABLE_TO_REGISTRATION.has(f.key))
+  const autoFields = textFields.filter(f => AUTO_SENT_FIELDS.has(f.key)).map(f => ({ key: f.key, label: f.label }))
+  const fields = textFields.filter(f => !AUTO_SENT_FIELDS.has(f.key)).map(f => ({ key: f.key, label: f.label }))
 
-  return NextResponse.json({ fields })
+  return NextResponse.json({ fields, autoFields })
 }

@@ -73,7 +73,8 @@ Railway internal URL: eventpilot-production-90c6.up.railway.app
 4. Never change environment variables in Railway without explicit instruction
 5. Never add default passwords or hardcoded credentials to code without asking first
 6. Never deploy to production without user saying so explicitly in that message
-7. Always tell Durga what you are going to do BEFORE doing it
-8. Only do exactly what is asked — nothing extra
+7. Only do exactly what is asked — nothing extra
 
-Note (14 Sep 2026): Madhu's sign-off is sufficient authorization project-wide going forward — rules above are no longer gated on Durga specifically unless a rule says otherwise. Rule 7 (keeping Durga informed) is a separate communication expectation, not an authorization gate, and still stands.
+Note (14 Sep 2026): Madhu's sign-off is sufficient authorization project-wide going forward — rules above are no longer gated on Durga specifically unless a rule says otherwise.
+
+Note (18 Sep 2026): the old rule requiring Durga to be informed before every action has been removed at Madhu's request — no informing-Durga step is required anymore.

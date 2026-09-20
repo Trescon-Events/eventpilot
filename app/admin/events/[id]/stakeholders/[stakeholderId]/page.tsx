@@ -1145,6 +1145,67 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
             </div>
           )}
 
+          {/* Producer / Reference / Confirmation Status (2026-09-03) —
+              internal-only tracking fields, deliberately separate from any
+              public-facing box: nothing here is ever shown to a speaker or
+              published anywhere. Producer is a plain select (options =
+              whoever holds the "Producer" access-role on this event, see
+              role-holders/route.ts) since exactly one owner is expected;
+              Reference and Confirmation Status are free text — Reference
+              because the source is often an external party (a client-side
+              contact) with no staff_members row at all, Confirmation
+              Status because DFS's own tracker uses producer shorthand
+              ("Reconfirmed", "New Confirmed") rather than a fixed set
+              worth validating against.
+              Moved to its own card at the very top of Overview (2026-09-20,
+              per Madhu) — was previously folded into the bottom of the
+              Details card below; forced to a fixed 3-column grid (not
+              auto-fit) so all three fields always sit on a single row,
+              matching Madhu's screenshot. */}
+          {kind === 'speaker' && (
+            <Card padded color="purple">
+              <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--purple)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '14px' }}>
+                Internal Tracking — Never Public
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
+                <div>
+                  <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Producer</label>
+                  <Select
+                    className="tfield-lg" value={producerStaffId} disabled={!canEdit} onBlur={flushSave}
+                    onChange={e => { setProducerStaffId(e.target.value); scheduleSave() }}
+                  >
+                    <option value="">Not assigned</option>
+                    {producerOptions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </Select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Reference</label>
+                  <Input
+                    className="tfield-lg" value={reference} disabled={!canEdit} onBlur={flushSave}
+                    placeholder="Who sourced/introduced this speaker — informational only"
+                    onChange={e => { setReference(e.target.value); scheduleSave() }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Confirmation Status</label>
+                  {/* Was free text until 2026-09-08 — a real typo-risk
+                      (e.g. "Re-Confirmed") that also blocked reliable
+                      color-coding on the Status Board. CONFIRMATION_
+                      STATUS_OPTIONS matches the DB CHECK constraint
+                      exactly (event_speakers_confirmation_status_check) —
+                      keep both in sync if this ever changes. */}
+                  <Select
+                    className="tfield-lg" value={confirmationStatus} disabled={!canEdit}
+                    onChange={e => { setConfirmationStatus(e.target.value); scheduleSave() }}
+                  >
+                    <option value="">Not set</option>
+                    {CONFIRMATION_STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                  </Select>
+                </div>
+              </div>
+            </Card>
+          )}
+
           {/* Photo / Logo (2026-08-22 rework, per Madhu — full "proper SaaS"
               pass, replacing the 2026-08-21 two-column layout below) — Photo
               and Company Logo are now full-width STACKED sections (a
@@ -1376,67 +1437,6 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                       rows={3}
                       onChange={e => { setKeyTalkingPoints(e.target.value); scheduleSave() }}
                     />
-                  </div>
-                </div>
-              </div>
-            )}
-            {/* Producer / Reference / Confirmation Status (2026-09-03) —
-                internal-only tracking fields, deliberately separate from
-                the teal "public-facing" box above: nothing here is ever
-                shown to a speaker or published anywhere. Producer is a
-                plain select (options = whoever holds the "Producer"
-                access-role on this event, see role-holders/route.ts) since
-                exactly one owner is expected; Reference and Confirmation
-                Status are free text — Reference because the source is
-                often an external party (a client-side contact) with no
-                staff_members row at all, Confirmation Status because DFS's
-                own tracker uses producer shorthand ("Reconfirmed", "New
-                Confirmed") rather than a fixed set worth validating against. */}
-            {kind === 'speaker' && (
-              <div style={{
-                marginTop: '18px',
-                padding: '16px 18px',
-                borderRadius: '12px',
-                background: 'color-mix(in srgb, var(--purple) 7%, transparent)',
-                border: '1px solid color-mix(in srgb, var(--purple) 22%, transparent)',
-              }}>
-                <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--purple)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '14px' }}>
-                  Internal Tracking — Never Public
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px' }}>
-                  <div>
-                    <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Producer</label>
-                    <Select
-                      className="tfield-lg" value={producerStaffId} disabled={!canEdit} onBlur={flushSave}
-                      onChange={e => { setProducerStaffId(e.target.value); scheduleSave() }}
-                    >
-                      <option value="">Not assigned</option>
-                      {producerOptions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </Select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Reference</label>
-                    <Input
-                      className="tfield-lg" value={reference} disabled={!canEdit} onBlur={flushSave}
-                      placeholder="Who sourced/introduced this speaker — informational only"
-                      onChange={e => { setReference(e.target.value); scheduleSave() }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Confirmation Status</label>
-                    {/* Was free text until 2026-09-08 — a real typo-risk
-                        (e.g. "Re-Confirmed") that also blocked reliable
-                        color-coding on the Status Board. CONFIRMATION_
-                        STATUS_OPTIONS matches the DB CHECK constraint
-                        exactly (event_speakers_confirmation_status_check) —
-                        keep both in sync if this ever changes. */}
-                    <Select
-                      className="tfield-lg" value={confirmationStatus} disabled={!canEdit}
-                      onChange={e => { setConfirmationStatus(e.target.value); scheduleSave() }}
-                    >
-                      <option value="">Not set</option>
-                      {CONFIRMATION_STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                    </Select>
                   </div>
                 </div>
               </div>

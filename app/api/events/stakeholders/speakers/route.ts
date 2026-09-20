@@ -6,6 +6,8 @@ import { resolveFormSchema } from '@/app/lib/forms/resolve-schema'
 import { mapFieldsToRecord, recordToFields } from '@/app/lib/forms/map-to-stakeholder-record'
 import { SubmittedValue } from '@/app/lib/forms/types'
 import { websiteStatus, fetchAnnouncementStatus } from '@/app/lib/events/speaker-status'
+import { syncSpeakerCrmContact } from '@/app/lib/crm/upsert'
+import { syncContactToHubSpot } from '@/app/lib/hubspot/crm-sync'
 
 /* GET  /api/events/stakeholders/speakers?event_id=X&status=Y
    POST /api/events/stakeholders/speakers
@@ -31,6 +33,13 @@ type SpeakerBody = {
   fields: Record<string, SubmittedValue>
   source?: 'onboarding_form' | 'manual'
   created_by?: string
+  // Explicit override for the Add Speaker quick-add panel's own Public
+  // Name field (2026-09-19) — takes precedence over
+  // defaultSpeakerPublicName's "First Last" auto-derivation below, so a
+  // producer who already typed a salutation/preferred form into it (e.g.
+  // "Dr. Jane Smith") doesn't have it silently discarded in favor of the
+  // plain first+last default.
+  public_name?: string
 }
 
 function fromRow(row: Record<string, unknown>) {
@@ -94,13 +103,23 @@ export async function POST(req: NextRequest) {
   // file) synthesizes it from first_name/last_name when full_name itself
   // isn't submitted, so the insert below still can't produce a nameless row.
   const { columns, customFields } = mapFieldsToRecord('speaker', schema, body.fields, {}, { defaultSpeakerPublicName: true })
+  if (body.public_name?.trim()) columns.public_name = body.public_name.trim()
+
+  // CRM layer (2026-09-19) — a manually-added speaker gets the same CRM
+  // contact creation + property sync as one submitted via HubSpot. See
+  // syncSpeakerCrmContact()'s own comment for why identity fields update
+  // in place rather than only-on-create.
+  const crmContactId = await syncSpeakerCrmContact(body.event_id, null, body.fields, schema, columns)
 
   const { data, error } = await supabaseAdmin
     .from('event_speakers')
-    .insert({ ...columns, event_id: body.event_id, custom_fields: customFields, source: body.source ?? 'manual', created_by: body.created_by || null })
+    .insert({ ...columns, event_id: body.event_id, custom_fields: customFields, source: body.source ?? 'manual', created_by: body.created_by || null, crm_contact_id: crmContactId })
     .select()
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (crmContactId) {
+    try { await syncContactToHubSpot(crmContactId) } catch (e) { console.error('HubSpot contact sync failed for manually-added speaker', data.id, e) }
+  }
   return NextResponse.json({ ...fromRow(data), fields: recordToFields('speaker', schema, data) }, { status: 201 })
 }

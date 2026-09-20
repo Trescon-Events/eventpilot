@@ -49,13 +49,25 @@ function navLinkStyle(active: boolean): React.CSSProperties {
   }
 }
 
+const SETTINGS_LINKS = (eventId: string) => [
+  { label: 'Integrations', href: `/admin/events/${eventId}/integrations` },
+  { label: 'Access', href: `/admin/events/${eventId}/access` },
+  { label: 'Event Properties', href: `/admin/events/${eventId}/settings/event-properties` },
+  { label: 'Speaker Properties', href: `/admin/events/${eventId}/stakeholders/form-builder/speaker` },
+  { label: 'Sponsor Properties', href: `/admin/events/${eventId}/stakeholders/form-builder/sponsor` },
+  { label: 'Media Partner Properties', href: `/admin/events/${eventId}/stakeholders/form-builder/media_partner` },
+  { label: 'Association Partner Properties', href: `/admin/events/${eventId}/stakeholders/form-builder/association_partner` },
+]
+
 function WorkspaceLeftNav({
-  eventId, active, lifecycleOpen, setLifecycleOpen, onAnchorClick,
+  eventId, active, lifecycleOpen, setLifecycleOpen, settingsOpen, setSettingsOpen, onAnchorClick,
 }: {
   eventId: string
   active: string
   lifecycleOpen: boolean
   setLifecycleOpen: (fn: (v: boolean) => boolean) => void
+  settingsOpen: boolean
+  setSettingsOpen: (fn: (v: boolean) => boolean) => void
   onAnchorClick: (id: string) => void
 }) {
   return (
@@ -100,8 +112,24 @@ function WorkspaceLeftNav({
           </a>
         ))}
 
-        <Link href={`/admin/events/${eventId}/integrations`} style={navLinkStyle(false)}>Integrations</Link>
-        <Link href={`/admin/events/${eventId}/access`} style={navLinkStyle(false)}>Access</Link>
+        <div>
+          <a href="#settings" onClick={e => { e.preventDefault(); setSettingsOpen(v => !v) }}
+            style={{ ...navLinkStyle(false), display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            Settings
+            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ transform: settingsOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }}>
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </a>
+          {settingsOpen && (
+            <div style={{ paddingLeft: '14px', marginTop: '2px', display: 'grid', gap: '1px' }}>
+              {SETTINGS_LINKS(eventId).map(l => (
+                <Link key={l.label} href={l.href} style={{ display: 'block', padding: '6px 10px', borderRadius: '6px', fontSize: '12.5px', fontWeight: 600, color: 'var(--ink3)', textDecoration: 'none' }}>
+                  {l.label}
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </nav>
   )
@@ -273,6 +301,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
 
   const [navActive, setNavActive] = useState<string>('event-lifecycle')
   const [lifecycleOpen, setLifecycleOpen] = useState(true)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -770,7 +799,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: 'var(--surface)', minHeight: '100vh', color: 'var(--ink)' }}>
 
       <div style={{ maxWidth: '1460px', margin: '0 auto', padding: '40px 32px', display: 'flex', gap: '32px', alignItems: 'flex-start' }}>
-        <WorkspaceLeftNav eventId={eventId} active={navActive} lifecycleOpen={lifecycleOpen} setLifecycleOpen={setLifecycleOpen} onAnchorClick={scrollToAnchor} />
+        <WorkspaceLeftNav eventId={eventId} active={navActive} lifecycleOpen={lifecycleOpen} setLifecycleOpen={setLifecycleOpen} settingsOpen={settingsOpen} setSettingsOpen={setSettingsOpen} onAnchorClick={scrollToAnchor} />
 
       <div style={{ flex: 1, minWidth: 0, maxWidth: '1200px' }}>
 

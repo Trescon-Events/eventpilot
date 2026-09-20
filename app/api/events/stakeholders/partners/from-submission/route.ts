@@ -8,7 +8,7 @@ import { FormType, SubmittedValue } from '@/app/lib/forms/types'
 import { processLogo } from '@/app/lib/media/logo-engine'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { fetchHubSpotUploadedFile } from '@/app/lib/hubspot/client'
-import { extractEmailFromSubmission, extractCrmPropertyValue, upsertCrmCompany, upsertCrmContact, linkCompanyToEvent, linkContactToEvent, setCrmCompanyLogoIfEmpty } from '@/app/lib/crm/upsert'
+import { extractEmailFromSubmission, extractCrmPropertyValue, upsertCrmCompany, upsertCrmContact, linkCompanyToEvent, linkContactToEvent, setCrmCompanyLogoIfEmpty, applyCrmPropertyValues } from '@/app/lib/crm/upsert'
 import { syncContactToHubSpot, syncCompanyToHubSpot } from '@/app/lib/hubspot/crm-sync'
 
 /* POST /api/events/stakeholders/partners/from-submission
@@ -82,12 +82,14 @@ export async function POST(req: NextRequest) {
       const result = await upsertCrmCompany({ name: companyName, website, description })
       crmCompanyId = result.id
       crmCompanyIsNew = result.isNew
+      await applyCrmPropertyValues('company', crmCompanyId, submitted)
     }
     const contactEmail = extractEmailFromSubmission(schema, submitted)
     const contactName = typeof submitted.contact_person_name === 'string' ? submitted.contact_person_name : null
     if (contactEmail || contactName) {
       const { id: crmContactId } = await upsertCrmContact({ email: contactEmail, fullName: contactName, companyId: crmCompanyId })
       await linkContactToEvent(crmContactId, body.event_id, 'sponsor_contact')
+      await applyCrmPropertyValues('contact', crmContactId, submitted)
       crmSponsorContactId = crmContactId
     }
   } catch (e) {

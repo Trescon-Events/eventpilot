@@ -17,20 +17,41 @@ type HubSpotFormFieldGroup = { fields?: RawHubSpotField[] }
 type RawHubSpotField = {
   name: string; label: string; fieldType: string; required?: boolean; hidden?: boolean
   options?: { label: string; value: string }[]
+  // Conditional-logic fields (HubSpot's "Logic" tab, e.g. "only show
+  // Assistant Email if the Yes/No question above is answered Yes") — these
+  // never appear as their own top-level fieldGroups entry, only nested
+  // here under the field that gates them. A dependent can itself gate
+  // further dependents, so this recurses.
+  dependentFields?: { dependentCondition: { values: string[] }; dependentField: RawHubSpotField }[]
 }
 type RawHubSpotForm = { id: string; name: string; fieldGroups?: HubSpotFormFieldGroup[] }
 
-function flattenFields(data: RawHubSpotForm): HubSpotFormField[] {
-  return (data.fieldGroups ?? []).flatMap(g =>
-    (g.fields ?? []).map(f => ({
-      name: f.name,
-      label: f.label,
-      fieldType: f.fieldType,
-      required: !!f.required,
-      hidden: !!f.hidden,
-      options: f.options?.length ? f.options.map(o => ({ label: o.label, value: o.value })) : undefined,
-    }))
+function toFlatField(f: RawHubSpotField, dependsOn?: { parentLabel: string; values: string[] }): HubSpotFormField[] {
+  const flat: HubSpotFormField = {
+    name: f.name,
+    label: f.label,
+    fieldType: f.fieldType,
+    required: !!f.required,
+    hidden: !!f.hidden,
+    options: f.options?.length ? f.options.map(o => ({ label: o.label, value: o.value })) : undefined,
+    ...(dependsOn ? { dependsOn } : {}),
+  }
+  const children = (f.dependentFields ?? []).flatMap(d =>
+    toFlatField(d.dependentField, { parentLabel: f.label, values: d.dependentCondition.values })
   )
+  return [flat, ...children]
+}
+
+// Every top-level field, PLUS every field nested under another field's
+// "Logic" conditional-display rules (dependentFields) — those are real,
+// mappable fields on the live form (HubSpot just doesn't list them at the
+// top level since they only appear to a submitter conditionally). See
+// this event's own "Assistant Email/Mobile/Full name" fields, only shown
+// when "Would you like us to coordinate with your assistant?" = Yes,
+// confirmed live 2026-09-18 to be missing from this flattening entirely
+// before this fix — a re-sync would have silently dropped their mapping.
+function flattenFields(data: RawHubSpotForm): HubSpotFormField[] {
+  return (data.fieldGroups ?? []).flatMap(g => (g.fields ?? []).flatMap(f => toFlatField(f)))
 }
 
 export async function fetchHubSpotForm(formId: string): Promise<HubSpotForm> {

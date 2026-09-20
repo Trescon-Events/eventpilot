@@ -24,7 +24,8 @@ async function fetchCrmPropertyKeys(): Promise<Set<string>> {
    concept key that doesn't actually exist for this event's resolved
    schema (event override > global default > hardcoded fallback). */
 
-const ASSET_ROLES = ['photo', 'company_logo', 'logo']
+const ASSET_ROLES = ['photo', 'company_logo', 'logo', 'bio_full']
+const SENSITIVE_DOCUMENT_TYPES = ['passport', 'national_id']
 
 function validateMapping(mapping: unknown, conceptKeys: Set<string>, crmPropertyKeys: Set<string>): string | null {
   if (!Array.isArray(mapping)) return 'field_mapping must be an array'
@@ -41,6 +42,9 @@ function validateMapping(mapping: unknown, conceptKeys: Set<string>, crmProperty
         break
       case 'asset':
         if (!ASSET_ROLES.includes(m.target.role)) return `Invalid asset role: ${m.target.role}`
+        break
+      case 'sensitive_document':
+        if (!SENSITIVE_DOCUMENT_TYPES.includes(m.target.document_type)) return `Invalid sensitive document type: ${m.target.document_type}`
         break
       case 'custom':
         break

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import sharp from 'sharp'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
+import { uploadSensitiveDocument } from '@/app/lib/events/sensitive-storage'
+import { toStoredBioPdf } from '@/app/lib/events/full-bio-upload'
 import { detectHeadBox } from '@/app/lib/media/face-alignment'
 import { MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine'
 import { getSession } from '@/app/lib/access/session'
@@ -10,7 +12,7 @@ import { resolveFormSchema } from '@/app/lib/forms/resolve-schema'
 import { mapFieldsToRecord } from '@/app/lib/forms/map-to-stakeholder-record'
 import { SubmittedValue } from '@/app/lib/forms/types'
 import { fetchHubSpotUploadedFile } from '@/app/lib/hubspot/client'
-import { extractEmailFromSubmission, extractCrmPropertyValue, upsertCrmContact, linkContactToEvent, setCrmContactPhotoIfEmpty } from '@/app/lib/crm/upsert'
+import { extractEmailFromSubmission, extractCrmPropertyValue, upsertCrmContact, linkContactToEvent, setCrmContactPhotoIfEmpty, applyCrmPropertyValues } from '@/app/lib/crm/upsert'
 import { syncContactToHubSpot } from '@/app/lib/hubspot/crm-sync'
 
 /* POST /api/events/stakeholders/speakers/from-submission
@@ -53,7 +55,7 @@ export async function POST(req: NextRequest) {
   const submitted = (submission.submitted_data ?? {}) as Record<string, SubmittedValue>
   // bio_full_source isn't a real file — see map-to-stakeholder-record.ts's
   // own comment on why it rides along in this same map.
-  const fileUrls  = (submission.file_urls ?? {}) as { photo?: string; company_logo?: string; bio_full?: string; bio_full_source?: string }
+  const fileUrls  = (submission.file_urls ?? {}) as { photo?: string; company_logo?: string; bio_full?: string; bio_full_source?: string; passport?: string; national_id?: string }
 
   const schema = await resolveFormSchema(body.event_id, 'speaker')
   const { columns, customFields } = mapFieldsToRecord('speaker', schema, submitted, fileUrls, { defaultSpeakerPublicName: true })
@@ -79,6 +81,7 @@ export async function POST(req: NextRequest) {
     })
     crmContactId = result.id
     crmContactIsNew = result.isNew
+    await applyCrmPropertyValues('contact', crmContactId, submitted)
   } catch (e) {
     console.error('CRM contact upsert failed for submission', submission.id, e)
   }
@@ -240,6 +243,79 @@ export async function POST(req: NextRequest) {
       await setCrmContactPhotoIfEmpty(crmContactId, finalPhotoUrl)
     } catch (e) {
       console.error('CRM contact master-photo set failed for submission', submission.id, e)
+    }
+  }
+
+  // Full Bio (2026-09-19) — a HubSpot 'asset'-mapped bio_full field landed
+  // in event_speakers.bio_full_url as a raw pass-through via
+  // mapFieldsToRecord() above, same unconverted, likely-temporary URL
+  // fetchHubSpotUploadedFile() reads elsewhere in this route. The native
+  // public form (app/api/public/forms/.../route.ts) never allows that —
+  // it always runs the upload through toStoredBioPdf() (Word->PDF
+  // conversion when needed) and re-hosts to permanent storage before this
+  // route ever sees it. This is that same conversion+re-host step, applied
+  // here so a HubSpot-sourced Full Bio gets identical treatment instead of
+  // silently inheriting a link that can expire.
+  if (fileUrls.bio_full) {
+    try {
+      const fileRes = submission.source === 'hubspot'
+        ? await fetchHubSpotUploadedFile(fileUrls.bio_full)
+        : await fetch(fileUrls.bio_full, { signal: AbortSignal.timeout(30_000) })
+      if (fileRes.ok) {
+        const buffer = Buffer.from(await fileRes.arrayBuffer())
+        const contentType = fileRes.headers.get('content-type') || 'application/octet-stream'
+        const filename = fileUrls.bio_full.split('/').pop() || 'bio.pdf'
+        const { pdfBuffer, source } = await toStoredBioPdf(buffer, filename, contentType)
+        const bioFullUrl = await uploadPublicAsset(`events/${body.event_id}/speakers/${speaker.id}/bio-full-${Date.now()}.pdf`, pdfBuffer, 'application/pdf')
+        await supabaseAdmin.from('event_speakers').update({ bio_full_url: bioFullUrl, bio_full_source: source }).eq('id', speaker.id)
+      } else {
+        console.error('Could not fetch submitted Full Bio for submission', submission.id, fileRes.status)
+      }
+    } catch (e) {
+      console.error('Full Bio processing failed for submission', submission.id, e)
+    }
+  }
+
+  // Passport / National ID (2026-09-19) — same private-bucket pipeline as
+  // the authenticated Sensitive Documents tab and the token-based speaker-
+  // submission route, just reached via a 'sensitive_document'-mapped
+  // HubSpot field instead. Deliberately NOT the public asset bucket/
+  // PhotoRoom path above — these need signed-URL-only access, never a
+  // permanent public link. Best-effort per doc: one doc type failing to
+  // fetch/store must never block the speaker record itself from being
+  // created, same reasoning as the photo re-host above.
+  const docTypes: ('passport' | 'national_id')[] = ['passport', 'national_id']
+  const submittedDocTypes = docTypes.filter(t => fileUrls[t])
+  if (submittedDocTypes.length > 0) {
+    const { data: event } = await supabaseAdmin.from('events').select('end_date, sensitive_document_retention_days').eq('id', body.event_id).single()
+    const retentionDays = event?.sensitive_document_retention_days ?? 30
+    const baseDate = event?.end_date ? new Date(event.end_date) : new Date()
+    const retentionExpiresAt = new Date(baseDate.getTime() + retentionDays * 24 * 60 * 60 * 1000).toISOString()
+
+    for (const docType of submittedDocTypes) {
+      try {
+        const url = fileUrls[docType]
+        if (!url) continue
+        const fileRes = submission.source === 'hubspot'
+          ? await fetchHubSpotUploadedFile(url)
+          : await fetch(url, { signal: AbortSignal.timeout(30_000) })
+        if (!fileRes.ok) {
+          console.error(`Could not fetch submitted ${docType} for submission`, submission.id, fileRes.status)
+          continue
+        }
+        const buffer = Buffer.from(await fileRes.arrayBuffer())
+        const contentType = fileRes.headers.get('content-type') || 'application/octet-stream'
+        const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : contentType.includes('pdf') ? 'pdf' : 'jpg'
+        const storagePath = `${body.event_id}/${speaker.id}/${docType}-${Date.now()}.${ext}`
+        await uploadSensitiveDocument(storagePath, buffer, contentType)
+        await supabaseAdmin.from('speaker_sensitive_documents').insert({
+          speaker_id: speaker.id, event_id: body.event_id, document_type: docType,
+          storage_path: storagePath, file_name: `${docType}.${ext}`, mime_type: contentType, file_size: buffer.length,
+          uploaded_by: null, retention_expires_at: retentionExpiresAt,
+        })
+      } catch (e) {
+        console.error(`Sensitive document (${docType}) processing failed for submission`, submission.id, e)
+      }
     }
   }
 
