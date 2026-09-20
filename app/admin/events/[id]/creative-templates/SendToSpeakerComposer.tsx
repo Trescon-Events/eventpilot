@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
@@ -23,11 +23,22 @@ import RichTextToolbar from '@/app/components/RichTextToolbar'
    SendForExternalApprovalComposer.tsx's quick-pick toggle for the
    speaker's own email vs typing a different recipient (an assistant,
    their office): same useOwnEmail/chooseOwnEmail/chooseManual shape,
-   copied verbatim from that composer rather than re-derived. */
+   copied verbatim from that composer rather than re-derived.
+
+   Additional Contacts (2026-09-20, Madhu) — same treatment as
+   SendForExternalApprovalComposer.tsx: the speaker's saved Additional
+   Contacts (an assistant, their office — AdditionalContactsCard.tsx) get
+   their own quick-pick "To" option each, and CC defaults to all of them
+   the moment they load. See that file's own comment for the full
+   reasoning; copied verbatim here rather than re-derived, same precedent
+   as the rest of this composer. */
+
+type AdditionalContact = { id: string; first_name: string | null; last_name: string | null; email: string }
 
 type Props = {
   announcementId: string
   speakerName: string
+  speakerId?: string
   onClose: () => void
   onSent: () => void
   initialRecipientName?: string
@@ -35,16 +46,30 @@ type Props = {
 }
 
 export default function SendToSpeakerComposer({
-  announcementId, speakerName, onClose, onSent,
+  announcementId, speakerName, speakerId, onClose, onSent,
   initialRecipientName = '', initialRecipientEmail = '',
 }: Props) {
-  const [useOwnEmail, setUseOwnEmail] = useState(!!initialRecipientEmail)
+  const [recipientMode, setRecipientMode] = useState<'own' | 'manual' | string>(initialRecipientEmail ? 'own' : 'manual')
   const [step, setStep] = useState<'pick' | 'edit' | 'sending' | 'error'>('pick')
   const [recipientName, setRecipientName] = useState(initialRecipientName)
   const [recipientEmail, setRecipientEmail] = useState(initialRecipientEmail)
   const [ccInput, setCcInput] = useState('')
+  const [additionalContacts, setAdditionalContacts] = useState<AdditionalContact[]>([])
   const [pickError, setPickError] = useState<string | null>(null)
   const [composing, setComposing] = useState(false)
+
+  useEffect(() => {
+    if (!speakerId) return
+    fetch(`/api/events/stakeholders/speakers/${speakerId}/additional-contacts`)
+      .then(res => res.json())
+      .then(data => {
+        const contacts = (data.contacts ?? []) as AdditionalContact[]
+        setAdditionalContacts(contacts)
+        setCcInput(prev => prev || contacts.map(c => c.email).join(', '))
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetch once per composer open, keyed on the speaker
+  }, [speakerId])
 
   const [templateId, setTemplateId] = useState('')
   const [subject, setSubject] = useState('')
@@ -64,14 +89,19 @@ export default function SendToSpeakerComposer({
   }
 
   function chooseOwnEmail() {
-    setUseOwnEmail(true)
+    setRecipientMode('own')
     setRecipientName(initialRecipientName)
     setRecipientEmail(initialRecipientEmail)
   }
   function chooseManual() {
-    setUseOwnEmail(false)
+    setRecipientMode('manual')
     setRecipientName('')
     setRecipientEmail('')
+  }
+  function chooseContact(c: AdditionalContact) {
+    setRecipientMode(c.id)
+    setRecipientName([c.first_name, c.last_name].filter(Boolean).join(' ') || c.email)
+    setRecipientEmail(c.email)
   }
 
   async function startCompose() {
@@ -148,17 +178,24 @@ export default function SendToSpeakerComposer({
 
         {step === 'pick' && (
           <div style={{ display: 'grid', gap: '14px' }}>
-            {initialRecipientEmail && (
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <Button variant={useOwnEmail ? 'teal' : 'ghost'} onClick={chooseOwnEmail}>
-                  Use {speakerName}&apos;s email ({initialRecipientEmail})
-                </Button>
-                <Button variant={!useOwnEmail ? 'teal' : 'ghost'} onClick={chooseManual}>
+            {(initialRecipientEmail || additionalContacts.length > 0) && (
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {initialRecipientEmail && (
+                  <Button variant={recipientMode === 'own' ? 'teal' : 'ghost'} onClick={chooseOwnEmail}>
+                    Use {speakerName}&apos;s email ({initialRecipientEmail})
+                  </Button>
+                )}
+                {additionalContacts.map(c => (
+                  <Button key={c.id} variant={recipientMode === c.id ? 'teal' : 'ghost'} onClick={() => chooseContact(c)}>
+                    Send to {[c.first_name, c.last_name].filter(Boolean).join(' ') || c.email}
+                  </Button>
+                ))}
+                <Button variant={recipientMode === 'manual' ? 'teal' : 'ghost'} onClick={chooseManual}>
                   Send to someone else
                 </Button>
               </div>
             )}
-            {!useOwnEmail && (
+            {recipientMode === 'manual' && (
               <>
                 <div>
                   <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Recipient Name</span>

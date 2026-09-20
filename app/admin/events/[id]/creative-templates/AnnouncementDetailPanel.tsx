@@ -1270,6 +1270,7 @@ export default function AnnouncementDetailPanel({
         <SendToSpeakerComposer
           announcementId={announcement.id}
           speakerName={displayName(stakeholderKind, stakeholder)}
+          speakerId={(stakeholder as Speaker).id}
           initialRecipientName={(stakeholder as Speaker).public_name || displayName(stakeholderKind, stakeholder)}
           initialRecipientEmail={speakerEmail(stakeholder as Speaker)}
           onClose={() => setSendToSpeakerOpen(false)}
@@ -1281,6 +1282,7 @@ export default function AnnouncementDetailPanel({
         <SendForExternalApprovalComposer
           announcementId={announcement.id}
           stakeholderName={displayName(stakeholderKind, stakeholder)}
+          speakerId={stakeholderKind === 'speaker' ? (stakeholder as Speaker).id : undefined}
           initialRecipientName={stakeholderKind === 'speaker' ? ((stakeholder as Speaker).public_name || displayName(stakeholderKind, stakeholder)) : displayName(stakeholderKind, stakeholder)}
           initialRecipientEmail={stakeholderKind === 'speaker' ? speakerEmail(stakeholder as Speaker) : ''}
           onClose={() => setSendForExternalApprovalOpen(false)}
@@ -1326,6 +1328,7 @@ export default function AnnouncementDetailPanel({
         <NotifyExternalComposer
           announcementId={announcement.id}
           stakeholderName={displayName(stakeholderKind, stakeholder)}
+          speakerId={stakeholderKind === 'speaker' ? (stakeholder as Speaker).id : undefined}
           initialRecipientName={stakeholderKind === 'speaker' ? ((stakeholder as Speaker).public_name || displayName(stakeholderKind, stakeholder)) : displayName(stakeholderKind, stakeholder)}
           initialRecipientEmail={stakeholderKind === 'speaker' ? speakerEmail(stakeholder as Speaker) : ''}
           onClose={() => setNotifyExternalOpen(false)}

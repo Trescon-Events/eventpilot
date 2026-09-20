@@ -166,3 +166,74 @@ export async function fetchHubSpotPropertyDefinition(entityType: 'contact' | 'co
   const data = (await res.json()) as { label: string; fieldType: string; options?: { label: string; value: string }[] }
   return { label: data.label, fieldType: data.fieldType, options: data.options ?? [] }
 }
+
+// Automates the one remaining manual step per connected form (2026-09-20,
+// Madhu: "can we setup something in EventPilot where this can be
+// automated... they simply provide the form ID... another button or
+// section there itself which creates the workflow"). Before this, a
+// producer had to hand-build a HubSpot Workflow (Form submission trigger →
+// Send a webhook action) by clicking through HubSpot's own UI for every
+// single connected form — the AI InfraNext Indonesia 2026 speaker form sat
+// fully mapped in EventPilot for a day with zero submissions arriving
+// because this step was never done and there was no way to tell short of
+// noticing the silence.
+//
+// Shape below is copied VERBATIM (not reverse-engineered from docs) from
+// the real, live "EventPilot Integration" workflow (id 1866457258, portal
+// 2953901) Madhu already built by hand for WAIS Malaysia's speaker form —
+// fetched via GET /automation/v4/flows/:id and diffed field-for-field, so
+// there's no guessing at HubSpot's actual JSON shape for the webhook
+// action or the FORM_SUBMISSION enrollment filter (the public docs for
+// this don't fully spell either out).
+//
+// Requires two scopes beyond this Service Key's original CRM-only set,
+// added 2026-09-20 specifically for this: `automation` (POST /automation/
+// v4/flows at all) and `crm.objects.contacts.sensitive.write` (creating a
+// CONTACT_FLOW workflow specifically, per HubSpot's own scope docs — a
+// form submission enrolls a Contact).
+//
+// The webhook action's Authorization header is NOT the raw secret —
+// HubSpot's own "Secrets" feature holds it under the name
+// EVENTPILOT_WEBHOOK_TOKEN (portal-wide, already created for WAIS
+// Malaysia, already holding the literal "Bearer <HUBSPOT_WEBHOOK_SECRET
+// value>" string that route's verifyAuth() expects) — referenced by name
+// here, never re-entered or duplicated per form.
+export type HubSpotWorkflow = { id: string; name: string }
+
+export async function createFormSubmissionWebhookWorkflow(formId: string, workflowName: string): Promise<HubSpotWorkflow> {
+  const formSubmissionFilterBranch = {
+    filterBranchType: 'AND',
+    filterBranchOperator: 'AND',
+    filters: [{ filterType: 'FORM_SUBMISSION', operator: 'FILLED_OUT', formId }],
+    filterBranches: [] as unknown[],
+  }
+  const res = await hubspotFetch('/automation/v4/flows', {
+    method: 'POST',
+    body: JSON.stringify({
+      isEnabled: true,
+      flowType: 'WORKFLOW',
+      name: workflowName,
+      type: 'CONTACT_FLOW',
+      objectTypeId: '0-1',
+      startActionId: '1',
+      nextAvailableActionId: '2',
+      actions: [{
+        actionId: '1',
+        type: 'WEBHOOK',
+        method: 'POST',
+        webhookUrl: `https://eventpilot.tresconglobal.com/api/public/hubspot/submissions?hubspot_form_id=${formId}`,
+        queryParams: [],
+        authSettings: { secretName: 'EVENTPILOT_WEBHOOK_TOKEN', name: 'Authorization', location: 'HEADER', type: 'AUTH_KEY' },
+      }],
+      enrollmentCriteria: {
+        type: 'LIST_BASED',
+        shouldReEnroll: true,
+        unEnrollObjectsNotMeetingCriteria: false,
+        listFilterBranch: { filterBranchType: 'OR', filterBranchOperator: 'OR', filters: [], filterBranches: [formSubmissionFilterBranch] },
+        reEnrollmentTriggersFilterBranches: [formSubmissionFilterBranch],
+      },
+    }),
+  })
+  const data = (await res.json()) as { id: string; name: string }
+  return { id: data.id, name: data.name }
+}

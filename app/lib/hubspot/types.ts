@@ -100,4 +100,6 @@ export type EventHubSpotForm = {
   connected_by: string | null
   connected_at: string
   updated_at: string
+  hubspot_workflow_id: string | null
+  hubspot_workflow_created_at: string | null
 }

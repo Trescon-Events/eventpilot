@@ -112,6 +112,7 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
   const [formsLoading, setFormsLoading] = useState(false)
   const [formsError, setFormsError] = useState<string | null>(null)
   const [creatingFor, setCreatingFor] = useState<string | null>(null)
+  const [creatingWorkflow, setCreatingWorkflow] = useState(false)
   const [fieldDraft, setFieldDraft] = useState<NewFieldDraft>(EMPTY_FIELD_DRAFT)
   const [creatingField, setCreatingField] = useState(false)
   // True only while `mapping` has changes not yet persisted via Save
@@ -259,6 +260,21 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
     else setMsg('Could not disconnect — please try again.')
   }
 
+  async function createWorkflow() {
+    setCreatingWorkflow(true); setMsg(null)
+    const res = await fetch('/api/events/stakeholders/hubspot/workflow', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_id: eventId, form_type: formType }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setCreatingWorkflow(false)
+    if (res.ok) {
+      setConnection(prev => prev ? { ...prev, hubspot_workflow_id: data.hubspot_workflow_id, hubspot_workflow_created_at: new Date().toISOString() } : prev)
+      setMsg('Automatic sync is on — submissions to this form will now flow into EventPilot on their own.')
+      setMsgIsError(false)
+    } else { setMsg(data.error ?? 'Could not set up automatic sync.'); setMsgIsError(true) }
+  }
+
   const crmPropertyKeySet = new Set(crmProperties.map(p => p.property_key))
 
   if (!valid) {
@@ -347,6 +363,38 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
                     <Button variant="ghost" onClick={resync} disabled={saving}>Re-sync from HubSpot</Button>
                     <Button variant="red" onClick={disconnect} disabled={saving}>Disconnect</Button>
                   </div>
+                )}
+              </div>
+            </Card>
+
+            {/* Automatic Sync (2026-09-20, Madhu) — the HubSpot Workflow
+                (Form submission trigger -> Send a webhook action) that
+                actually delivers submissions to EventPilot used to be a
+                manual, click-through-HubSpot's-own-UI step per connected
+                form, done outside this app entirely and easy to forget
+                (exactly what happened live for AI InfraNext Indonesia
+                2026's speaker form: fully mapped, zero submissions
+                arriving, no way to tell short of noticing the silence).
+                hubspot_workflow_id null covers both "never set up" and
+                "built by hand in HubSpot before this button existed" —
+                either way there's nothing here for EventPilot to manage,
+                so the copy stays neutral rather than claiming "off." */}
+            <Card padded color={connection.hubspot_workflow_id ? 'teal' : 'amber'} style={{ marginTop: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)' }}>
+                    {connection.hubspot_workflow_id ? 'Automatic sync is on' : 'Automatic sync'}
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '4px', maxWidth: '520px' }}>
+                    {connection.hubspot_workflow_id
+                      ? `Submissions to this form flow into EventPilot on their own — no manual HubSpot setup step. Workflow ID ${connection.hubspot_workflow_id}.`
+                      : 'Creates the HubSpot Workflow that delivers submissions from this form to EventPilot — otherwise nothing arrives here even though the field mapping above is saved. One click, per form, done once.'}
+                  </div>
+                </div>
+                {canManage && !connection.hubspot_workflow_id && (
+                  <Button variant="teal" onClick={createWorkflow} disabled={creatingWorkflow}>
+                    {creatingWorkflow ? 'Setting up…' : 'Set Up Automatic Sync'}
+                  </Button>
                 )}
               </div>
             </Card>

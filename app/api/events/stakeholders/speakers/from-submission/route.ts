@@ -102,6 +102,46 @@ export async function POST(req: NextRequest) {
 
   if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 })
 
+  // Additional Contacts — assistant (2026-09-20, Madhu) — the onboarding
+  // form's "coordinate with your assistant" fields used to only ever land
+  // in custom_fields, informational and unusable for anything beyond
+  // reading them on the Registration tab. Auto-capturing the assistant
+  // as this speaker's first Additional Contact (see supabase/
+  // speaker_additional_contacts_migration.sql) means every subsequent
+  // producer communication with this speaker defaults to CC'ing them,
+  // with zero manual data entry. Gated on the actual consent checkbox —
+  // assistant details submitted without that opt-in are left exactly
+  // where they were, in custom_fields only, never promoted here without
+  // the speaker's explicit yes.
+  //
+  // Not a plain === 'true' check: this field is HubSpot-mapped as a
+  // 'concept' target, so its value is whatever raw string HubSpot's own
+  // checkbox property returns, not the native form's own 'true'/'false'
+  // convention (SubmittedValue's doc comment) — confirmed live
+  // (2026-09-20, AI InfraNext Indonesia 2026's real form submission) it
+  // comes through as the literal string "Yes".
+  const assistantConsent = (Array.isArray(submitted.would_you_like_us_to_coordinate_with_your_assistant_regarding_your_participation)
+    ? submitted.would_you_like_us_to_coordinate_with_your_assistant_regarding_your_participation[0]
+    : submitted.would_you_like_us_to_coordinate_with_your_assistant_regarding_your_participation
+  )?.trim().toLowerCase()
+  const assistantOptedIn = assistantConsent === 'true' || assistantConsent === 'yes' || assistantConsent === 'on' || assistantConsent === '1'
+  const assistantEmail = (Array.isArray(submitted.assistant_email) ? submitted.assistant_email[0] : submitted.assistant_email)?.trim()
+  if (assistantOptedIn && assistantEmail) {
+    const fullName = ((Array.isArray(submitted.assistant_full_name) ? submitted.assistant_full_name[0] : submitted.assistant_full_name) ?? '').trim()
+    const [firstName, ...rest] = fullName.split(/\s+/).filter(Boolean)
+    try {
+      await supabaseAdmin.from('speaker_additional_contacts').insert({
+        speaker_id: speaker.id,
+        first_name: firstName || null,
+        last_name: rest.join(' ') || null,
+        email: assistantEmail,
+        source: 'form',
+      })
+    } catch (e) {
+      console.error('Additional contact (assistant) capture failed for submission', submission.id, e)
+    }
+  }
+
   if (crmContactId) {
     try {
       await linkContactToEvent(crmContactId, body.event_id, 'speaker')

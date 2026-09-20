@@ -1132,7 +1132,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       )}
 
       {activeTab === 'communications' && kind === 'speaker' && (
-        <CommunicationsTab speakerId={stakeholderId} stakeholderName={name || 'this speaker'} />
+        <CommunicationsTab speakerId={stakeholderId} stakeholderName={name || 'this speaker'} canEdit={canEdit} />
       )}
 
       {activeTab === 'overview' && (

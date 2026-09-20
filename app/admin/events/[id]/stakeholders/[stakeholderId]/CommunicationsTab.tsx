@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Card, Button, Badge, Input } from '@/app/components/ui'
+import AdditionalContactsCard from './AdditionalContactsCard'
 
 /* Speaker Communications (2026-09-10) — a per-speaker "request outstanding
    items" flow: producers see exactly what's still missing (reusing the
@@ -37,7 +38,7 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-export default function CommunicationsTab({ speakerId, stakeholderName }: { speakerId: string; stakeholderName: string }) {
+export default function CommunicationsTab({ speakerId, stakeholderName, canEdit }: { speakerId: string; stakeholderName: string; canEdit: boolean }) {
   const [missingItems, setMissingItems] = useState<MissingItem[]>([])
   const [requests, setRequests] = useState<RequestRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -108,6 +109,8 @@ export default function CommunicationsTab({ speakerId, stakeholderName }: { spea
             {error} <button onClick={() => setError(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>
           </div>
         )}
+
+        <AdditionalContactsCard speakerId={speakerId} canEdit={canEdit} />
 
         <Card padded>
           <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Outstanding Items</div>
