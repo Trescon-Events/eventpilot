@@ -49,7 +49,16 @@ async function searchByProperty(objectType: string, propertyName: string, value:
 // manual "Sync to HubSpot" click can take. Never deletes/archives anything.
 export async function upsertHubSpotContact(email: string, properties: Record<string, string | null>): Promise<{ id: string; isNew: boolean }> {
   const existing = await searchByProperty(HUBSPOT_OBJECT_TYPE.contact, 'email', email, ['email'])
-  const cleanProps = Object.fromEntries(Object.entries({ email, ...properties }).filter(([, v]) => v != null))
+  // `email` spread LAST (2026-09-21, real bug found live) — this is the
+  // dedup identity key this whole function searched by; a caller's
+  // `properties` bag must never be able to override it to a DIFFERENT
+  // address. Confirmed live: a stale/wrong email sitting in a contact's
+  // own property_values (crm-sync.ts's resolveHubSpotPropertyValues)
+  // silently won the old `{ email, ...properties }` order, and HubSpot
+  // rejected the whole PATCH because that stale address already belonged
+  // to a different real contact — a hard validation error, not a quiet
+  // no-op, so the fix has to hold even if a caller passes email in error.
+  const cleanProps = Object.fromEntries(Object.entries({ ...properties, email }).filter(([, v]) => v != null))
   if (existing) {
     await hubspotFetch(`/crm/v3/objects/contacts/${existing.id}`, { method: 'PATCH', body: JSON.stringify({ properties: cleanProps }) })
     return { id: existing.id, isNew: false }
@@ -61,7 +70,9 @@ export async function upsertHubSpotContact(email: string, properties: Record<str
 
 export async function upsertHubSpotCompany(domain: string, properties: Record<string, string | null>): Promise<{ id: string; isNew: boolean }> {
   const existing = await searchByProperty(HUBSPOT_OBJECT_TYPE.company, 'domain', domain, ['domain'])
-  const cleanProps = Object.fromEntries(Object.entries({ domain, ...properties }).filter(([, v]) => v != null))
+  // `domain` spread LAST — same identity-key-must-win fix as
+  // upsertHubSpotContact's own `email`, for the same reason.
+  const cleanProps = Object.fromEntries(Object.entries({ ...properties, domain }).filter(([, v]) => v != null))
   if (existing) {
     await hubspotFetch(`/crm/v3/objects/companies/${existing.id}`, { method: 'PATCH', body: JSON.stringify({ properties: cleanProps }) })
     return { id: existing.id, isNew: false }

@@ -21,6 +21,29 @@ export type SyncResult = {
   eventsSkipped: { eventName: string; role: string }[]
 }
 
+// Maps a crm_contacts/crm_companies row's own property_values (populated by
+// applyCrmPropertyValues() — app/lib/crm/upsert.ts — every time a form
+// submission carries a crm_property-mapped field) to HubSpot's real
+// property names, via the same crm_properties.hubspot_property_name column
+// that mapping already relies on elsewhere. Added 2026-09-21 (Madhu,
+// checking a real synced speaker on HubSpot directly): syncContactToHubSpot
+// only ever pushed firstname/lastname — property_values was captured
+// correctly locally the whole time but never actually reached HubSpot, so
+// every speaker/sponsor-contact/company synced since that feature shipped
+// has company/country/job title/salutation/industry/LinkedIn/etc. sitting
+// null on the real HubSpot record despite EventPilot having the values.
+async function resolveHubSpotPropertyValues(entityType: 'contact' | 'company', propertyValues: Record<string, string> | null): Promise<Record<string, string>> {
+  if (!propertyValues || Object.keys(propertyValues).length === 0) return {}
+  const { data: properties } = await supabaseAdmin.from('crm_properties').select('property_key, hubspot_property_name').eq('entity_type', entityType)
+  const hubspotNameByKey = new Map((properties ?? []).map(p => [p.property_key, p.hubspot_property_name]))
+  const out: Record<string, string> = {}
+  for (const [key, value] of Object.entries(propertyValues)) {
+    const hubspotName = hubspotNameByKey.get(key)
+    if (hubspotName && value) out[hubspotName] = value
+  }
+  return out
+}
+
 export async function syncContactToHubSpot(contactId: string): Promise<SyncResult> {
   const { data: contact, error } = await supabaseAdmin.from('crm_contacts').select('*').eq('id', contactId).single()
   if (error || !contact) throw new Error('Contact not found')
@@ -31,7 +54,21 @@ export async function syncContactToHubSpot(contactId: string): Promise<SyncResul
     .select('role, events(name)')
     .eq('contact_id', contactId)
 
+  const mappedProperties = await resolveHubSpotPropertyValues('contact', contact.property_values as Record<string, string> | null)
+  // Never let property_values carry email through — it's this contact's
+  // own dedup identity key, contact.email (the crm_contacts row's real
+  // column) is the only authoritative source for it. Belt-and-suspenders
+  // alongside upsertHubSpotContact's own email-spreads-last fix: this
+  // stops a stale/wrong value from even being attempted, rather than
+  // relying solely on the callee to override it.
+  delete mappedProperties.email
   const { id: hubspotId, isNew } = await upsertHubSpotContact(contact.email, {
+    ...mappedProperties,
+    // Explicit identity fields win over property_values on any key
+    // collision (first_name/last_name map to the same firstname/lastname
+    // HubSpot properties) — crm_contacts.first_name/last_name are this
+    // row's own authoritative identity columns, property_values is a
+    // secondary bag keyed the same way only incidentally.
     firstname: contact.first_name,
     lastname: contact.last_name,
   })
@@ -63,7 +100,9 @@ export async function syncCompanyToHubSpot(companyId: string): Promise<SyncResul
     .select('role, events(name)')
     .eq('company_id', companyId)
 
+  const mappedProperties = await resolveHubSpotPropertyValues('company', company.property_values as Record<string, string> | null)
   const { id: hubspotId, isNew } = await upsertHubSpotCompany(company.domain, {
+    ...mappedProperties,
     name: company.name,
     website: company.website,
   })
