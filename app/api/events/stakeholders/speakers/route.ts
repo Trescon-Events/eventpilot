@@ -113,7 +113,16 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from('event_speakers')
-    .insert({ ...columns, event_id: body.event_id, custom_fields: customFields, source: body.source ?? 'manual', created_by: body.created_by || null, crm_contact_id: crmContactId })
+    .insert({
+      ...columns, event_id: body.event_id, custom_fields: customFields, source: body.source ?? 'manual',
+      created_by: body.created_by || null, crm_contact_id: crmContactId,
+      // Short Bio "Revert to Original" (2026-09-21) — see supabase/
+      // speaker_bio_original_migration.sql's own comment. Rarely populated
+      // here in practice (the quick-add panel doesn't collect a bio at
+      // all), but if a future caller of this route ever does supply one,
+      // it's captured as the original the same way a form submission's is.
+      bio_original: typeof columns.bio === 'string' ? columns.bio : null,
+    })
     .select()
     .single()
 

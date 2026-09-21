@@ -228,3 +228,33 @@ export async function listPostizPostsInRange(startDate: string, endDate: string,
   const data = await res.json() as { posts?: PostizPostSummary[] }
   return data.posts ?? []
 }
+
+// DELETE /posts/:id ("Clear This Post" feature, 2026-09-21) — per Postiz's
+// own docs (docs.postiz.com/public-api/posts/delete): "looks up the post
+// and deletes all posts in the same group," i.e. every channel targeted by
+// one schedulePostizPost() call. That means clearing a multi-channel
+// announcement only ever needs ONE delete call (any one of its channels'
+// postIds) — worth being deliberate about given the public API's 30
+// requests/hour limit, shared with every other Postiz call this app makes
+// (the sync-status cron, the live publish-progress poll, this).
+//
+// CONFIRMED LIVE (2026-09-21): this call succeeds and removes Postiz's own
+// record for an already-PUBLISHED post — but per the same docs page,
+// "You cannot delete posts that have already been published to social
+// media platforms. The API only manages scheduled and draft posts." A
+// live test against a real published LinkedIn post confirmed exactly
+// that: this call returned success and the post vanished from Postiz's
+// own list, but the LinkedIn share itself stayed fully live at its real
+// URL afterward. There is no public-API path to retract already-live
+// platform content — this only ever clears OUR/Postiz's own bookkeeping.
+// The caller (remove-post/route.ts) and its UI are written to say exactly
+// that; don't let either drift back into implying a real takedown.
+//
+// Synchronous, single-call — deletion is not documented as async the way
+// publishing genuinely is, and this matches that.
+export async function deletePostizPost(postId: string): Promise<{ id: string }> {
+  const { apiUrl, apiKey } = requireEnv()
+  const res = await fetch(`${apiUrl}/posts/${postId}`, { method: 'DELETE', headers: authHeaders(apiKey) })
+  if (!res.ok) throw new PostizError(`Postiz post delete failed: ${res.status} ${await res.text().catch(() => '')}`)
+  return await res.json() as { id: string }
+}

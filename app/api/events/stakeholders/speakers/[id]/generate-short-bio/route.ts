@@ -5,23 +5,49 @@ import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { extractPdfText } from '@/app/lib/pdf-text'
 import { isQuotaError, QUOTA_ERROR_MESSAGE } from '@/app/lib/gemini-error'
+import { getLatestCompiledReference } from '@/app/lib/content/compile-reference'
 
 /* POST /api/events/stakeholders/speakers/[id]/generate-short-bio
 
    Downloads the speaker's stored Full Bio PDF (bio_full_url — always a
    PDF by the time it's stored, see app/lib/events/full-bio-upload.ts),
-   extracts its text, and asks Gemini to condense it into a ~150-300 word
-   short bio matching the onboarding form's own Short Bio guidance.
+   extracts its text, and asks Gemini to condense it into a short bio
+   under SHORT_BIO_MAX_CHARS characters (2026-09-21, Madhu — was "150-300
+   words" until now, a length no longer used anywhere else; see the
+   default-schemas.ts / form_schema_defaults update in the same change for
+   the matching field-hint text).
+
+   Grounded in the event's messaging doc (2026-09-21) — same
+   getLatestCompiledReference()-then-raw-doc-fallback pattern and the same
+   rules/facts authority model announcements/generate/route.ts already
+   uses for social post copy, so a bio and a LinkedIn post for the same
+   event never drift into two different voices. Falls back to a neutral
+   professional Trescon voice when no doc has been uploaded/approved yet,
+   same as that route.
 
    Propose-only, same as every other AI-assist route in this app — never
    writes to the DB itself. The Details page applies the returned text to
    the live Short Bio field (with an Undo snapshot), which only persists
    through that page's normal autosave, same as any other manual edit. */
 
+const SHORT_BIO_MAX_CHARS = 500
+
 let _gemini: GoogleGenerativeAI | null = null
 function getGemini() {
   if (!_gemini) _gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
   return _gemini
+}
+
+// Server-side safety net — an LLM instruction to stay under a character
+// count is a strong steer, not a guarantee. Trims to the last whitespace
+// at or before the limit (never mid-word) and drops a trailing orphan
+// comma/dash, so a rare overshoot degrades to a clean cut instead of an
+// enforced-but-ugly hard chop.
+function enforceMaxChars(text: string, max: number): string {
+  if (text.length <= max) return text
+  const cut = text.slice(0, max)
+  const lastSpace = cut.lastIndexOf(' ')
+  return (lastSpace > 0 ? cut.slice(0, lastSpace) : cut).replace(/[,;:\-–—\s]+$/, '')
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -57,11 +83,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'The Full Bio PDF has no extractable text (it may be a scanned image) — write the Short Bio by hand instead.' }, { status: 422 })
   }
 
+  // Same compiled-reference-then-raw-doc-fallback as announcements/
+  // generate/route.ts — see this route's own top comment for why.
+  const compiledRef = await getLatestCompiledReference(speaker.event_id)
+  let messagingSections = compiledRef?.sections ?? null
+  if (!messagingSections) {
+    const { data: rawDoc } = await supabaseAdmin
+      .from('event_messaging_docs').select('structured_json')
+      .eq('event_id', speaker.event_id).eq('status', 'live')
+      .order('version', { ascending: false }).limit(1).maybeSingle()
+    messagingSections = (rawDoc?.structured_json as { sections?: unknown } | null)?.sections as typeof messagingSections ?? null
+  }
+  const messagingContext = messagingSections
+    ? `Messaging doc context (use for voice/tone/style — do not invent facts beyond this). Any section with "kind":"rules" is a hard constraint (naming/style rules, verbatim lines, things that must never appear) — never violate it. Any section with "kind":"facts" is the ONLY permitted source for a statistic, figure, or scale claim — never state a number that isn't grounded there:\n${JSON.stringify(messagingSections)}`
+    : 'No topline messaging doc uploaded for this event yet — write in a neutral, professional Trescon voice.'
+
   const prompt = `You are writing a short professional speaker bio for an event website and speaker listing, based on a longer source bio below.
 
+${messagingContext}
+
 Rules:
-- 150-300 words, third person, professional tone.
-- Cover current role, organisation, and the most relevant career highlights/achievements for a conference audience — drop anything not relevant to why they're speaking.
+- HARD LIMIT: under ${SHORT_BIO_MAX_CHARS} characters total, including spaces. This is a strict ceiling, not a target — stay comfortably under it rather than writing right up to the edge.
+- Third person, professional tone (the messaging doc's own voice/style rules above always win over this default if the two conflict).
+- Cover current role, organisation, and the single most relevant career highlight/achievement for a conference audience — drop anything not relevant to why they're speaking. At this length, one sharp detail beats a list.
 - No markdown, no bullet points, no headings — plain prose paragraphs only.
 - Output ONLY the short bio text, nothing else (no preamble, no "Here is the bio:", no quotes around it).
 
@@ -77,7 +121,7 @@ ${fullBioText.slice(0, 20000)}
     const result = await model.generateContent([{ text: prompt }])
     const shortBio = result.response.text().trim()
     if (!shortBio) throw new Error('Empty response from Gemini')
-    return NextResponse.json({ short_bio: shortBio })
+    return NextResponse.json({ short_bio: enforceMaxChars(shortBio, SHORT_BIO_MAX_CHARS) })
   } catch (e) {
     if (isQuotaError(e)) return NextResponse.json({ error: QUOTA_ERROR_MESSAGE }, { status: 429 })
     console.error('generate-short-bio failed:', e)

@@ -22,9 +22,15 @@ export type FormFieldInputProps = {
   // consumers (public onboarding form, Form Builder preview, old Hub
   // side-panel). Defaults to 'default' so those are unaffected.
   size?: 'default' | 'large'
+  // textarea only (2026-09-21) — lets one specific field render shorter
+  // than the shared default of 4 (the Details page's Short Bio, sized
+  // down to make room for the Generate/Revert buttons beside it — see
+  // that page's own comment). Every other textarea consumer is
+  // unaffected since this defaults to the same 4 rows as before.
+  rows?: number
 }
 
-export function FormFieldInput({ field, value, onChange, file, onFileChange, disabled, onBlur, size = 'default' }: FormFieldInputProps) {
+export function FormFieldInput({ field, value, onChange, file, onFileChange, disabled, onBlur, size = 'default', rows = 4 }: FormFieldInputProps) {
   const fieldClass = size === 'large' ? 'tfield tfield-lg' : 'tfield'
 
   // Single yes/no consent box — the field's own label IS the checkbox's
@@ -56,7 +62,7 @@ export function FormFieldInput({ field, value, onChange, file, onFileChange, dis
 
       {field.type === 'textarea' ? (
         <textarea
-          required={field.required} rows={4} disabled={disabled}
+          required={field.required} rows={rows} disabled={disabled}
           value={typeof value === 'string' ? value : ''}
           onChange={e => onChange(e.target.value)}
           onBlur={onBlur}

@@ -20,6 +20,7 @@ import {
 import PublishProgressModal from './PublishProgressModal'
 import ScheduleConfirmModal from './ScheduleConfirmModal'
 import NotifyExternalComposer from './NotifyExternalComposer'
+import RemovePostModal from './RemovePostModal'
 
 // The four (org_promo) / two (self_promo) steps of the left-hand workflow
 // stepper — see its own comment further down for how "current" is derived.
@@ -104,6 +105,7 @@ export default function AnnouncementDetailPanel({
   const [sendForClientApprovalOpen, setSendForClientApprovalOpen] = useState(false)
   const [bypassing, setBypassing] = useState<'internal' | 'external' | 'client' | null>(null)
   const [publishModalMode, setPublishModalMode] = useState<'now' | 'retry' | null>(null)
+  const [removePostOpen, setRemovePostOpen] = useState(false)
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false)
   const [confirmingTagging, setConfirmingTagging] = useState(false)
   const [notifyingInternal, setNotifyingInternal] = useState(false)
@@ -954,8 +956,25 @@ export default function AnnouncementDetailPanel({
               keeps the compact badge, since only "published" needs to read
               as a clear, confident confirmation rather than a passing note. */}
           {announcement.status === 'published' ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 12px', borderRadius: '999px', background: 'var(--teal-mid)', color: 'white', fontSize: '12.5px', fontWeight: 800 }}>
-              <span style={{ fontSize: '14px' }}>✓</span> PUBLISHED
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 12px', borderRadius: '999px', background: 'var(--teal-mid)', color: 'white', fontSize: '12.5px', fontWeight: 800 }}>
+                <span style={{ fontSize: '14px' }}>✓</span> PUBLISHED
+              </div>
+              {/* "Just in case if user decides to remove a post after it's
+                  posted for whatever reason" (2026-09-21, Madhu) — same
+                  permission as the Schedule/Post Now buttons below, since
+                  it's the same publishing authority in reverse. Labeled
+                  "Clear This Post" rather than "Remove Post" (renamed same
+                  day, after a live test) — Postiz's own API cannot
+                  actually retract already-published content from the
+                  platform (confirmed via their docs + a live LinkedIn
+                  test: the post stayed fully visible after this ran), so
+                  a label implying a live takedown would be actively
+                  misleading. See RemovePostModal.tsx's top comment for
+                  the full finding and the confirm-then-act flow. */}
+              {can('sae.announcements.publish') && (
+                <Button variant="red" onClick={() => setRemovePostOpen(true)}>Clear This Post</Button>
+              )}
             </div>
           ) : (
             <Badge color={statusColor(announcement.status)}>{announcement.status.replace(/_/g, ' ')}</Badge>
@@ -1308,6 +1327,14 @@ export default function AnnouncementDetailPanel({
           postizChannels={postizChannels}
           mode={publishModalMode}
           onClose={() => setPublishModalMode(null)}
+          onDone={onUpdate}
+        />
+      )}
+
+      {removePostOpen && (
+        <RemovePostModal
+          announcementId={announcement.id}
+          onClose={() => setRemovePostOpen(false)}
           onDone={onUpdate}
         />
       )}

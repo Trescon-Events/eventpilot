@@ -125,7 +125,22 @@ export default function PublishProgressModal({ announcementId, channelIds, posti
         )}
 
         {phase === 'starting' && !startError && (
-          <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '12px' }}>Sending to Postiz…</div>
+          <div style={{ marginTop: '12px' }}>
+            <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>Sending to Postiz…</div>
+            {/* 2026-09-21, Madhu — confirming a publish can occasionally
+                take several minutes (Postiz itself, or the platform on the
+                other end, can be slow to confirm) with nothing in this
+                modal explaining that was normal, so a slow one read as
+                "stuck." It's genuinely safe to close at this point: the
+                request has already been sent, and whoever clicked Post Now
+                gets an email the moment the 15-minute background check
+                confirms it either way (notifySchedulerOfPublish, see
+                app/api/cron/announcements/sync-status/route.ts) — closing
+                doesn't lose that, it only stops watching live. */}
+            <div style={{ fontSize: '12.5px', color: 'var(--ink4)', marginTop: '8px', lineHeight: 1.5 }}>
+              This can take a few minutes to confirm. It&apos;s safe to close this now — you&apos;ll get an email once it&apos;s live, and the status here updates on its own.
+            </div>
+          </div>
         )}
 
         {startError && (

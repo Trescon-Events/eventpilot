@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { listPostizPostsInRange, type PostizPostSummary } from '@/app/lib/postiz'
-import { resolveChannelResults } from '@/app/lib/events/postiz-publish'
+import { resolveChannelResults, buildPlatformLinksHtml } from '@/app/lib/events/postiz-publish'
 
 /* GET /api/cron/announcements/sync-status
    cron-job.org, every 15 minutes, Authorization: Bearer CRON_SECRET.
@@ -54,9 +54,23 @@ export async function GET(req: NextRequest) {
 
   for (const { profileKey, id: eventId, name, rows } of byEvent.values()) {
     const earliestScheduled = rows.reduce((min, r) => (r.scheduled_for! < min ? r.scheduled_for! : min), rows[0].scheduled_for!)
+    // 5-minute lookback buffer past earliestScheduled (2026-09-21, real bug
+    // found live — a Postiz post's actual publishDate can land a few
+    // seconds BEFORE the scheduled_for we requested, e.g. an immediate
+    // "Post Now" stamps scheduled_for at the moment schedulePostizPost was
+    // called but Postiz's own publishDate rounds to the second/minute
+    // slightly earlier. Postiz's date-range filter excludes anything
+    // before startDate, so without this buffer a post landing even 1
+    // second early NEVER appears in this query, ever, on any future run —
+    // the row is stuck in 'scheduled' permanently, confirmed live
+    // (AI InfraNext Indonesia 2026, announcement c2bec2ce...) by querying
+    // Postiz directly with and without this exact buffer. Matches the
+    // buffer checkAnnouncementPublishStatus already had — this cron just
+    // never got it applied when that fix was made.
+    const rangeStart = new Date(new Date(earliestScheduled).getTime() - 5 * 60 * 1000).toISOString()
     let posts: PostizPostSummary[]
     try {
-      posts = await listPostizPostsInRange(earliestScheduled, new Date().toISOString(), profileKey)
+      posts = await listPostizPostsInRange(rangeStart, new Date().toISOString(), profileKey)
     } catch (e) {
       console.error(`Postiz posts list failed for event "${name}":`, e)
       continue
@@ -88,7 +102,7 @@ export async function GET(req: NextRequest) {
           .update({ status: 'published', published_at: new Date().toISOString(), publish_results: updatedResults, updated_at: new Date().toISOString() })
           .eq('id', row.id)
         publishedCount++
-        await notifySchedulerOfPublish(row, { id: eventId, name }).catch(e => console.error('Publish notification failed:', e))
+        await notifySchedulerOfPublish(row, { id: eventId, name }, updatedResults, profileKey).catch(e => console.error('Publish notification failed:', e))
       }
     }
   }
@@ -115,7 +129,11 @@ type EventInfo = { id: string; name: string }
 // `kind` for a partner announcement (Queue's own link omits it, which is
 // actually a pre-existing gap for partner rows there — not touching that
 // here, just not repeating it in this new link).
-async function notifySchedulerOfPublish(row: DueRow, event: EventInfo) {
+async function notifySchedulerOfPublish(
+  row: DueRow, event: EventInfo,
+  publishResults: Record<string, { success: boolean; postId: string; state?: string; url?: string }>,
+  profileKey: string,
+) {
   if (!process.env.RESEND_API_KEY) return
   const scheduler = Array.isArray(row.scheduler) ? row.scheduler[0] : row.scheduler
   if (!scheduler?.email) return
@@ -128,14 +146,23 @@ async function notifySchedulerOfPublish(row: DueRow, event: EventInfo) {
   const kindParam = row.partner_id && !row.speaker_id ? '&kind=partner' : ''
   const publishedUrl = `${siteUrl}/admin/events/${event.id}/stakeholders/${stakeholderId}?tab=announcements&announcement=${row.id}${kindParam}`
 
+  // Direct platform links + tagging reminder (2026-09-21, Madhu) — this
+  // email used to only link back into EventPilot, leaving the producer to
+  // dig up each platform's own post separately before they could even
+  // start tagging companies/people on it. buildPlatformLinksHtml is the
+  // same helper the notify-internal/notify-external templates already
+  // use for exactly this list, just never wired into THIS email before.
+  const platformLinksHtml = await buildPlatformLinksHtml(publishResults, profileKey).catch(() => '')
+
   await resend.emails.send({
     from,
     to: scheduler.email,
     subject: `Now live: your scheduled announcement for ${event.name}`,
     /* eslint-disable no-restricted-syntax -- email HTML; clients can't render CSS custom properties, literal colors required (matches this file's existing failure-notification convention) */
     html: `<p style="font-family:sans-serif;font-size:14px;color:#2D3E50">
-             The announcement you scheduled for ${event.name} is now live on every selected channel.
+             Your post for ${event.name} is live! Don&apos;t forget to tag the companies and people it mentions on each platform.
            </p>
+           ${platformLinksHtml ? `<p style="font-family:sans-serif;font-size:14px;color:#2D3E50">${platformLinksHtml}</p>` : ''}
            <p><a href="${publishedUrl}" style="color:#00695C">Open it in EventPilot →</a> to confirm tagging and notify internal/external stakeholders.</p>`,
     /* eslint-enable no-restricted-syntax */
   })

@@ -29,7 +29,7 @@ export const DEFAULT_SPEAKER_FIELDS: FieldSchema[] = [
   // display; Full Bio is a source document producers can generate a short
   // bio FROM (see the Details page's "Generate Short Bio" action), not
   // itself shown anywhere public.
-  { id: 'speaker-bio', key: 'bio', label: 'Short Bio', type: 'textarea', required: true, locked: false, help: '150–300 words' },
+  { id: 'speaker-bio', key: 'bio', label: 'Short Bio', type: 'textarea', required: true, locked: false, help: 'Under 500 characters, including spaces' },
   {
     id: 'speaker-bio_full', key: 'bio_full', label: 'Full Bio (PDF or Word document)', type: 'file', required: false, locked: false,
     accept: 'application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document',

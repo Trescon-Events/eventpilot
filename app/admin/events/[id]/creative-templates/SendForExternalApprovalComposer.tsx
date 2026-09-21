@@ -236,6 +236,17 @@ export default function SendForExternalApprovalComposer({
                 <EditorContent editor={editor} />
               </div>
             </div>
+            {/* 2026-09-21, Madhu — the review link above is real, clickable
+                HTML the moment this draft renders, but its token isn't
+                written to the database until Send actually runs (crash-
+                safety: the row is created right before the email goes out,
+                never before). Clicking it from here 404s with "Approval
+                request not found," confirmed live against a real test —
+                nothing was broken, the link just isn't live yet at this
+                step. */}
+            <div style={{ fontSize: '12px', color: 'var(--amber)', background: 'var(--amber-light)', border: '1px solid var(--amber-border)', borderRadius: '8px', padding: '8px 12px' }}>
+              Heads up: the review link above won&apos;t work yet — it only goes live once you click Send below.
+            </div>
             {sendError && <div style={{ fontSize: '14.5px', color: 'var(--red)' }}>{sendError}</div>}
             <div style={{ display: 'flex', gap: '8px' }}>
               <Button variant="teal" onClick={send}>{step === 'sending' ? 'Sending…' : step === 'error' ? 'Retry Send' : 'Send'}</Button>

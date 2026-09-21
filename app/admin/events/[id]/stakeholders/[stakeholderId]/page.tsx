@@ -15,6 +15,7 @@ import LogoApprovalModal from '../LogoApprovalModal'
 import PhotoCleaningWizard from '../PhotoCleaningWizard'
 import KonfhubPushConfirmModal from '../KonfhubPushConfirmModal'
 import KonfhubRegistrationPushConfirmModal from '../KonfhubRegistrationPushConfirmModal'
+import RemoveFromKonfhubListingModal from '../RemoveFromKonfhubListingModal'
 import { SPEAKER_KEY_MAP } from '@/app/lib/forms/map-to-stakeholder-record'
 import AnnouncementsTab from './AnnouncementsTab'
 import SensitiveDocumentsTab from './SensitiveDocumentsTab'
@@ -100,6 +101,10 @@ type StakeholderRecord = {
   // below) stays the only thing KonfHub/the public site ever read.
   bio_full_url?: string | null
   bio_full_source?: 'pdf' | 'docx_converted' | null
+  // Short Bio "Revert to Original" (2026-09-21) — the as-first-recorded
+  // value, set once at speaker creation and never touched again — see
+  // supabase/speaker_bio_original_migration.sql's own doc comment.
+  bio_original?: string | null
   producer_staff_id?: string | null
   reference?: string | null
   confirmation_status?: string | null
@@ -279,6 +284,15 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   // wording, so no extra "was this the first push" state is needed here.
   const [konfhubConfirm, setKonfhubConfirm] = useState(false)
   const [pushingKonfhub, setPushingKonfhub] = useState(false)
+  // "Remove from KonfHub Listing" (2026-09-21) — for a producer who pushed
+  // too early and wants the public listing back down without touching
+  // this record's own EventPilot state at all (see konfhub-remove-listing/
+  // route.ts's own doc comment). Own confirm modal (not the lighter inline
+  // pattern Second Role uses below) since this one runs a real live
+  // session-assignment check first, same as the Delete Speaker flow's own
+  // KonfHub checkbox.
+  const [removeListingConfirm, setRemoveListingConfirm] = useState(false)
+  const [removingListing, setRemovingListing] = useState(false)
   // "Second Role" (2026-08-31) — a second, independent KonfHub speaker
   // record for this same speaker, role-agnostic (see konfhub-push-
   // secondary/route.ts's own doc comment for why). Mirrors konfhubConfirm/
@@ -539,6 +553,29 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     }
   }
 
+  // "Remove from KonfHub Listing" (2026-09-21) — see konfhub-remove-listing/
+  // route.ts's own doc comment. Deliberately only ever clears the primary
+  // konfhub_speaker_id/konfhub_synced_at pair on `record` — never touches
+  // status/announcement_status/active, so nothing else about this speaker
+  // changes in EventPilot.
+  async function removeKonfhubListing() {
+    setRemovingListing(true)
+    setProcessing({ label: 'Removing from KonfHub listing…', estimatedMs: 2000 })
+    try {
+      const res = await fetch(`/api/events/stakeholders/speakers/${stakeholderId}/konfhub-remove-listing`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setMsg(data.error || `Could not remove from KonfHub (error ${res.status}) — please try again.`); setRemoveListingConfirm(false); return }
+      setRecord(prev => prev ? { ...prev, konfhub_speaker_id: null, konfhub_synced_at: null } : prev)
+      setRemoveListingConfirm(false)
+    } catch {
+      setMsg('Could not remove from KonfHub — check your connection and try again.')
+      setRemoveListingConfirm(false)
+    } finally {
+      setRemovingListing(false)
+      setProcessing(null)
+    }
+  }
+
   // Second Role push/remove (2026-08-31) — same shape as pushToKonfhub
   // above, targeting the separate konfhub-push-secondary/konfhub-remove-
   // secondary routes and the second record's own id/synced_at pair on
@@ -762,8 +799,23 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   // real "did you mean to keep this" gate: nothing persists until the
   // producer stops editing, same as any other manual field change.
   async function generateShortBio() {
+    // Confirmation (2026-09-21, Madhu) — Generate silently overwrites
+    // whatever's currently in Short Bio, which is a real risk when that
+    // text is the speaker's own as-submitted bio, not a placeholder. The
+    // in-session Undo below and the persistent Revert to Original button
+    // (sourced from bio_original, set once at creation — see supabase/
+    // speaker_bio_original_migration.sql) are the actual safety nets;
+    // this confirm is the first line of defense, catching the click
+    // before it happens at all.
+    if (!window.confirm('This will overwrite the current Short Bio text with an AI-generated version. Continue?')) return
     setGeneratingShortBio(true)
     setMsg(null)
+    // Blocking overlay (2026-09-21, Madhu) — same shared ProcessingOverlay/
+    // `processing` state every other async action on this page already
+    // uses (Approve, Push to KonfHub, Generate Website Photo, etc.), not a
+    // one-off. estimatedMs matches the comparable Gemini text-generation
+    // call elsewhere in the app ("Regenerating the post copy…").
+    setProcessing({ label: 'Generating short bio…', estimatedMs: 5000 })
     try {
       const res = await fetch(`${base}/${stakeholderId}/generate-short-bio`, { method: 'POST' })
       const data = await res.json().catch(() => ({}))
@@ -774,6 +826,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       setMsg(`Could not generate a short bio: ${(e as Error).message}`)
     } finally {
       setGeneratingShortBio(false)
+      setProcessing(null)
     }
   }
 
@@ -782,6 +835,25 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       updateValue('bio', shortBioUndoSnapshot)
       setShortBioUndoSnapshot(null)
     }
+  }
+
+  // Distinct from Undo above (2026-09-21, Madhu) — Undo only covers "I
+  // just clicked Generate a moment ago" and is lost on reload (plain
+  // React state, never persisted). This restores the speaker's true
+  // as-first-recorded bio (event_speakers.bio_original, set once at
+  // creation, never touched again) at any point, covering both the
+  // scenario Undo already handled AND a producer noticing days later
+  // that Short Bio was accidentally overwritten or emptied out.
+  function revertBioToOriginal() {
+    if (!record?.bio_original) return
+    if (!window.confirm('Replace the current Short Bio with the speaker\'s originally submitted bio? This can\'t be undone.')) return
+    // updateValue() already schedules the debounced autosave itself (same
+    // as every other manual edit on this page) — no separate flushSave()
+    // call here, which would race valuesRef's own post-render sync and
+    // send the PATCH with the pre-revert value. See undoGenerateShortBio's
+    // identical shape just above.
+    updateValue('bio', record.bio_original)
+    setShortBioUndoSnapshot(null)
   }
 
   function setTab(tab: 'overview' | 'registration' | 'secondary' | 'documents' | 'communications' | 'announcements') {
@@ -1446,27 +1518,53 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                 <div key={field.id} style={(field.type === 'textarea' || field.type === 'checkbox') ? { gridColumn: '1 / -1' } : undefined}>
                   {/* Bio is relabeled "Short Bio" here (display-only — key
                       stays 'bio', unchanged everywhere else) now that Full
-                      Bio exists as its own upload above. The Generate
-                      button is speaker-only and only makes sense once a
-                      Full Bio source document is on file. */}
-                  {field.key === 'bio' && kind === 'speaker' && (
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginBottom: '6px' }}>
-                      <Button variant="ghost" onClick={generateShortBio} disabled={generatingShortBio || !record.bio_full_url || !canEdit}>
-                        {generatingShortBio ? 'Generating…' : '✨ Generate from Full Bio'}
-                      </Button>
-                      {shortBioUndoSnapshot !== null && (
-                        <Button variant="ghost" onClick={undoGenerateShortBio}>Undo</Button>
-                      )}
+                      Bio exists as its own upload above. Sized to 3 rows /
+                      ~75% width (2026-09-21, per Madhu — was full-width/4
+                      rows) with Generate/Revert/Undo stacked in the
+                      freed-up column to its right, rather than sitting in
+                      their own row above the field. */}
+                  {field.key === 'bio' && kind === 'speaker' ? (
+                    <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
+                      <div style={{ flex: '0 1 75%', minWidth: 0 }}>
+                        <FormFieldInput
+                          field={{ ...field, label: 'Short Bio' }}
+                          value={values[field.key] ?? ''}
+                          onChange={v => updateValue(field.key, v)}
+                          onBlur={flushSave}
+                          disabled={!canEdit}
+                          size="large"
+                          rows={3}
+                        />
+                      </div>
+                      <div style={{ display: 'grid', gap: '8px', flex: '0 0 auto', marginTop: '29px' }}>
+                        <Button variant="ghost" onClick={generateShortBio} disabled={generatingShortBio || !record.bio_full_url || !canEdit}>
+                          {generatingShortBio ? 'Generating…' : '✨ Generate from Full Bio'}
+                        </Button>
+                        {shortBioUndoSnapshot !== null && (
+                          <Button variant="ghost" onClick={undoGenerateShortBio}>Undo</Button>
+                        )}
+                        {/* Persistent safety net, distinct from Undo above
+                            (2026-09-21, Madhu) — Undo only covers the last
+                            edit this session; this restores the speaker's
+                            true as-submitted bio (bio_original, set once
+                            at creation) at any point, including after a
+                            reload. Hidden once current text already
+                            matches it — nothing to revert to. */}
+                        {!!record.bio_original && values.bio !== record.bio_original && (
+                          <Button variant="ghost" onClick={revertBioToOriginal} disabled={!canEdit}>Revert to Original</Button>
+                        )}
+                      </div>
                     </div>
+                  ) : (
+                    <FormFieldInput
+                      field={field}
+                      value={values[field.key] ?? (field.type === 'multiselect' ? [] : '')}
+                      onChange={v => updateValue(field.key, v)}
+                      onBlur={flushSave}
+                      disabled={!canEdit}
+                      size="large"
+                    />
                   )}
-                  <FormFieldInput
-                    field={field.key === 'bio' ? { ...field, label: 'Short Bio' } : field}
-                    value={values[field.key] ?? (field.type === 'multiselect' ? [] : '')}
-                    onChange={v => updateValue(field.key, v)}
-                    onBlur={flushSave}
-                    disabled={!canEdit}
-                    size="large"
-                  />
                 </div>
               ))}
               {kind === 'partner' && (
@@ -1568,6 +1666,17 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                 {pushToKonfhubBlockedReason && !pushingKonfhub && (
                   <div style={{ fontSize: '11.5px', color: 'var(--amber)', marginTop: '8px' }}>{pushToKonfhubBlockedReason}</div>
                 )}
+                {/* "Pushed too early, not time yet" (2026-09-21, Madhu) —
+                    only ever shown once actually published, and only pulls
+                    the KonfHub listing back down; this record's own
+                    EventPilot state is untouched either way. */}
+                {record.konfhub_speaker_id && (
+                  <div style={{ marginTop: '8px' }}>
+                    <Button variant="ghost" onClick={() => setRemoveListingConfirm(true)} disabled={removingListing} className="tbtn-full">
+                      Remove from KonfHub Listing
+                    </Button>
+                  </div>
+                )}
               </div>
             </Card>
           )}
@@ -1583,6 +1692,17 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
           pushing={pushingKonfhub}
           onConfirm={pushToKonfhub}
           onClose={() => setKonfhubConfirm(false)}
+        />
+      )}
+
+      {removeListingConfirm && record && (
+        <RemoveFromKonfhubListingModal
+          eventId={eventId}
+          speakerId={stakeholderId}
+          speakerName={publicName || record.full_name || 'this speaker'}
+          removing={removingListing}
+          onConfirm={removeKonfhubListing}
+          onClose={() => setRemoveListingConfirm(false)}
         />
       )}
 

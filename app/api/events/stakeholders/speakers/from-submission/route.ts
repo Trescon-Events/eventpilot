@@ -96,6 +96,11 @@ export async function POST(req: NextRequest) {
       form_submission_id: submission.id,
       announcement_status: 'pending_review',
       crm_contact_id: crmContactId,
+      // Short Bio "Revert to Original" (2026-09-21) — the as-submitted
+      // value, set once here and never touched again. See supabase/
+      // speaker_bio_original_migration.sql's own comment for the full
+      // reasoning.
+      bio_original: typeof columns.bio === 'string' ? columns.bio : null,
     })
     .select()
     .single()
