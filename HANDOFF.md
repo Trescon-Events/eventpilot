@@ -15,13 +15,13 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — 17 Sep 2026. Built Press Release Studio, the first module of a planned "AI Content Studio" (research → generate → iterate → approve), scoped to the PR/Media team first. Iterated live through several rounds of real usage feedback into refine-chat, an AI-assisted compliance check, and a Lovable-style UI. |
-| Date | 2026-09-17 |
-| Latest push | See commit(s) below this table once pushed — press-release-studio work, not yet on `main` as of this table's last edit. |
-| DB migrations applied | `supabase/content_studio_press_release.sql` (4 new tables: `press_releases`, `press_release_versions`, `content_research_sessions`, `content_research_messages`) and `supabase/content_studio_press_release_role_mapping.sql` (auto-grant Media/Media Lead access via `hrms_role_access_map`) — both already run against production Supabase this session, ahead of this push. |
+| Who | Madhu + Claude Code (Sonnet 5) — 20-22 Sep 2026. Speaker Onboarding Engine (SAE) readiness pass end-to-end: HubSpot CRM property sync (+ a real identity-collision bug found while verifying it), automated HubSpot Workflow setup, speaker Additional Contacts, Short Bio grounding/limit/UX, Postiz publish/remove-post UX, KonfHub unpublish, and a new Global Integrations page for the HubSpot CRM sync key. |
+| Date | 2026-09-22 |
+| Latest push | `f29e726` — pushed to `main`, Railway deployment `93a8f6e1` confirmed live. |
+| DB migrations applied | `supabase/hubspot_form_workflow_migration.sql`, `supabase/speaker_additional_contacts_migration.sql`, `supabase/speaker_bio_original_migration.sql`, `supabase/global_integration_secrets_migration.sql` — all already run against production Supabase. |
 | Handed off to | Durga. |
-| Deployed | Will be pushed to `main` at the end of this session; Railway auto-deploys, verified live below. |
-| Left alone / known follow-up | See "17 Sep 2026" section below for full detail. Headline: **Phase 1 + live-iterated refinements are all shipped**, verified in-browser against real Dubai FinTech Summit data. Marketing's Email Campaign / Video Script tools are explicitly deferred (PR was sequenced first). The Gemini 2.5 family retires 16 Oct 2026 — this tool is the only one already on the 3.x lineup; the other ~50 call sites across the app still need migrating (not started). |
+| Deployed | Live — verified via `curl` against `eventpilot.tresconglobal.com` after the Railway deploy completed. |
+| Left alone / known follow-up | See "20-22 Sep 2026" section below for full detail. Headline: **speaker pipeline (form to EventPilot to clean to KonfHub listing plus registration to promo to external approval to publish) is fully wired and live-verified**, including two real production bugs found only by live-testing (Postiz cron date-range exclusion, CRM property values never reaching HubSpot). `HUBSPOT_CRM_SERVICE_KEY` was found missing on Railway production - not added directly (CLAUDE.md hard rule), instead solved with the new Global Integrations page so the key lives in the DB, encrypted, with a real "configured" status instead of silently failing. |
 
 ## 17 Sep 2026 — Press Release Studio (AI Content Studio, Phase 1) + live-iterated refine/compliance UX
 
@@ -50,6 +50,33 @@ Madhu wanted an internal LLM tool for content teams to research and generate cop
 - **Marketing's Email Campaign / Video Script generators** — explicitly deferred, PR sequenced first (see memory `eventpilot-deferred-backlog`). Natural next build once this is proven in real use, reusing the same chat/version/compliance shape.
 - **Gemini 2.5 → 3.x migration for the rest of the app** — ~50 other call sites still hardcode `gemini-2.5-flash`, retiring 16 Oct 2026. Not started, not yet scoped as its own piece of work.
 - Nothing else known-broken as of this handoff — every round of live feedback this session was addressed and re-verified in the same session.
+
+## 20-22 Sep 2026 - SAE readiness pass: HubSpot CRM property sync fix, HubSpot Workflow automation, Additional Contacts, Short Bio grounding, Postiz/KonfHub publish UX, Global Integrations page
+
+### The ask
+
+Madhu asked for a comprehensive readiness audit of the full speaker pipeline: "Fill hubspot speaker onboarding form, find it showing up in eventpilot, process it, clean photo, push to konfhub for speaker listing and also as a speaker attendee registration, create a speaker promo, get only external (speaker's) approval, publish it" - tested live rather than just reviewed in code. That audit surfaced a chain of real gaps and bugs, each fixed and re-verified live before moving to the next: the HubSpot webhook for new-submission notification was never configured (led to building automated HubSpot Workflow creation), speakers had no way to loop in an assistant/office contact for communications (led to Additional Contacts), Short Bio generation had no style/length constraints, Postiz publish/remove-post messaging was unclear and had a real backend bug, and - while verifying a "did this speaker actually sync to HubSpot" question - CRM property values turned out to never have been pushed to HubSpot at all, which in turn surfaced an identity-key spread-order bug.
+
+### What was built
+
+- **HubSpot Workflow automation** (`app/lib/hubspot/crm-client.ts` `createFormSubmissionWebhookWorkflow`, new "Set Up Automatic Sync" button on the HubSpot form config page) - creates the real form-submission-trigger + webhook-action HubSpot Workflow via the Automation API, reverse-engineered from an existing real workflow rather than guessed from docs.
+- **Speaker Additional Contacts** (`speaker_additional_contacts` table, CRUD routes, `AdditionalContactsCard.tsx`) - assistant/office contacts captured from the HubSpot form (consent-gated) or added manually, default-selected as CC on every producer-to-speaker communication (Send to Speaker, External Approval, Notify External composers).
+- **Short Bio generation fixes** (`generate-short-bio/route.ts`) - grounded against the event's compiled messaging-doc reference (same pattern as Announcements), hard 500-character cap with a truncation safety net, plus UI redo: resized field, Generate/Undo/Revert-to-Original buttons, a confirmation prompt before generating, and a blocking `ProcessingOverlay` while it runs.
+- **Postiz publish/remove-post UX** - `PublishProgressModal` now sets expectations ("can take a few minutes... safe to close, you'll be notified"). Built a "Clear This Post" feature (`RemovePostModal.tsx`, `remove-post/route.ts`) - discovered live that Postiz's API cannot retract already-published posts (confirmed via docs + a live test), so this was renamed from "Remove Post" and now only clears EventPilot's own bookkeeping, with an explicit warning to that effect (see memory `eventpilot_postiz_cannot_delete_published_posts`). Also fixed a real bug in the sync-status cron: `scheduled_for` was used verbatim as the Postiz date-range query bound, but Postiz's actual `publishDate` can land a few seconds earlier, permanently excluding the post from the query - fixed with a 5-minute lookback buffer.
+- **Remove from KonfHub Listing** (`RemoveFromKonfhubListingModal.tsx`, `konfhub-remove-listing/route.ts`) - standalone unpublish-from-KonfHub action that keeps the speaker active in EventPilot, for the "published too early" scenario.
+- **CRM property sync fix** (`app/lib/hubspot/crm-sync.ts`) - `syncContactToHubSpot`/`syncCompanyToHubSpot` only ever pushed name/email/domain to HubSpot, never the actual `property_values`; added `resolveHubSpotPropertyValues()` mapping via `crm_properties.hubspot_property_name`. Verifying this against a real test speaker (John Travis) surfaced a second, more serious bug: `upsertHubSpotContact`/`upsertHubSpotCompany` spread `{ email, ...properties }`, so a stale `property_values.email` could silently override the real dedup identity - fixed by reversing the spread order (`{ ...properties, email }`) plus stripping `email` from the mapped properties at the call site as defense-in-depth.
+- **Global Integrations page** (`app/admin/settings/integrations/page.tsx`, `app/api/admin/integrations/hubspot-crm-key/route.ts`, `app/lib/integrations/global-secrets.ts`, `global_integration_secrets` table) - found live that `HUBSPOT_CRM_SERVICE_KEY` had simply never been added to Railway's production environment, so CRM-to-HubSpot sync had been silently failing there. Per CLAUDE.md hard rule (never touch Railway env vars without explicit instruction), did not add it directly - instead built a DB-backed, AES-256-GCM-encrypted key store (same helper as OAuth tokens) with a real Configured/Not-configured status, which now takes precedence over the env var. `crm-client.ts`'s `authHeaders()` resolves the DB key first, env var as fallback.
+
+### Verified
+
+`tsc --noEmit` clean throughout. Every piece live-verified, not just reviewed: HubSpot Workflow tested against the real portal; Additional Contacts tested through a real form submission with consent; Short Bio's blocker overlay and 500-char cap tested live; Postiz's inability to delete published posts confirmed by actually trying it and watching the post stay live; the cron date-range fix verified with/without the buffer against real Postiz API calls (0 posts found vs. 1); CRM property sync verified end-to-end for a real test speaker, including reproducing and fixing the identity-collision bug live; the Global Integrations key save/load round-tripped live (paste real key, status flips to Configured, a real sync succeeds).
+
+### What's next
+
+- **HubSpot legacy API deprecation** (March/Sept 2027) - `crm-client.ts` (`/crm/v3/...`) and the new Workflow automation (`/automation/v4/...`) are both affected. No urgency, ~18 months out.
+- **Postiz workflow `reEnrollmentTriggersFilterBranches` gap** - a workflow created via our API doesn't get this populated even though sent; same-contact resubmissions may not re-fire the webhook. Not investigated further.
+- **Old stuck Postiz announcement** (id `62f5f28f-175f-45a8-8bdd-96bc3460be8f`) - found stuck in `status='scheduled'` while fixing the cron bug, over a month old, likely expired on Postiz's side. Deliberately left alone, flagged only.
+- Everything else from this pass is shipped and live - no other known-broken items.
 
 ## 16 Sep 2026 (cont'd 2) — CRM Phase 2 (manual HubSpot sync) + Phase 3 (automatic push, scheduled pull, property flagging)
 
