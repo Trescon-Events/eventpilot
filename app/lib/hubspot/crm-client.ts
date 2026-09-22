@@ -1,3 +1,5 @@
+import { getGlobalSecret, GLOBAL_SECRET_IDS } from '@/app/lib/integrations/global-secrets'
+
 // HubSpot CRM Sync client — Phase 2. Separate Service Key from
 // app/lib/hubspot/client.ts's forms-only HUBSPOT_API_KEY (least-privilege:
 // this one only carries CRM scopes — contacts/companies/custom
@@ -20,14 +22,27 @@ export const HUBSPOT_OBJECT_TYPE = {
 
 const HUBSPOT_API_BASE = 'https://api.hubapi.com'
 
-function authHeaders(): Record<string, string> {
-  const key = process.env.HUBSPOT_CRM_SERVICE_KEY
-  if (!key) throw new Error('HUBSPOT_CRM_SERVICE_KEY not configured')
+// DB-stored key wins over the env var when both exist (2026-09-21) — see
+// app/lib/integrations/global-secrets.ts and the Global Integrations
+// settings page (/admin/settings/integrations) it backs. Built after
+// finding live that HUBSPOT_CRM_SERVICE_KEY had simply never been added to
+// Railway's production environment — this whole CRM sync had been silently
+// failing there with no visible trace. .env.local still works untouched for
+// local dev with nothing configured in the DB.
+async function resolveApiKey(): Promise<string> {
+  const dbKey = await getGlobalSecret(GLOBAL_SECRET_IDS.hubspotCrmServiceKey)
+  const key = dbKey || process.env.HUBSPOT_CRM_SERVICE_KEY
+  if (!key) throw new Error('HUBSPOT_CRM_SERVICE_KEY not configured (checked Global Integrations settings and the environment)')
+  return key
+}
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const key = await resolveApiKey()
   return { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }
 }
 
 async function hubspotFetch(path: string, init?: RequestInit): Promise<Response> {
-  const res = await fetch(`${HUBSPOT_API_BASE}${path}`, { ...init, headers: { ...authHeaders(), ...(init?.headers ?? {}) } })
+  const res = await fetch(`${HUBSPOT_API_BASE}${path}`, { ...init, headers: { ...(await authHeaders()), ...(init?.headers ?? {}) } })
   if (!res.ok) throw new Error(`HubSpot API ${init?.method ?? 'GET'} ${path} failed (${res.status}): ${await res.text()}`)
   return res
 }

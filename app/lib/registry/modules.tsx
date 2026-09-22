@@ -493,6 +493,15 @@ export function getModuleRegistry(): ModuleDef[] {
       sidebar: { section: 'admin', parent: 'admin', order: 7 },
     },
     {
+      key: 'admin-global-integrations', label: 'Global Integrations',
+      description: 'Credentials shared across every event, not scoped to one of them — e.g. the HubSpot CRM Sync Service Key. Paste-once here instead of a Railway env var, with a visible configured/not-configured status.',
+      icon: I.gear, color: '#12C9BD',
+      href: '/admin/settings/integrations',
+      access: { kind: 'admin_only' },
+      breadcrumbParent: 'admin',
+      sidebar: { section: 'admin', parent: 'admin', order: 8 },
+    },
+    {
       key: 'dev-approvals', label: 'PR Approvals',
       description: 'Review and approve Khalifa\'s Task Manager pull requests from inside EventPilot — friendly summary, live CI status, one-click approve & ship or send back.',
       icon: I.check, color: '#166534',
