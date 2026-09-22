@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import sharp from 'sharp'
-import { compositeAnnouncement, analyzeTextLayers, type Variant, type ImageLayer, type PhotoSlotLayer, type ResolvedAssets, type CreativeTemplateConfig, type GlobalPlaceholderDefault } from '@/app/lib/announcements/composite'
+import { compositeAnnouncement, compositeExtraLayersOnto, analyzeTextLayers, type Variant, type ImageLayer, type PhotoSlotLayer, type ResolvedAssets, type CreativeTemplateConfig, type GlobalPlaceholderDefault } from '@/app/lib/announcements/composite'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 import { alignAndCropPhoto, type HeadBox } from '@/app/lib/media/face-alignment'
 import { compositeOnBackground } from '@/app/lib/media/composite-on-background'
@@ -49,12 +49,15 @@ import { compositeOnBackground } from '@/app/lib/media/composite-on-background'
    or, with no speaker selected, the layer's own reference_head_box from
    "Upload Reference Layer") — deterministic, no AI, always exact, then
    composited onto the variant's real background (composite-on-
-   background.ts). This route's own output IS the final image for this
-   category — the usual compositeAnnouncement() background step is
-   SKIPPED. No alignment set on the layer yet, or no background Image layer
-   configured yet: falls back to compositeAnnouncement() placing the plain
-   (still correctly cropped, when alignment exists) cutout onto the
-   background locally, with a `website_photo_error` explaining why. */
+   background.ts). For just that required Image+Photo/Logo Slot pair, the
+   usual compositeAnnouncement() background step is SKIPPED, in favor of
+   this pixel-exact path. Any OTHER layers on the variant (extra Text/Image/
+   Photo-Logo-Slot, 2026-09-22) still render on top via compositeAnnouncement
+   through compositeExtraLayersOnto — see that function's own comment. No
+   alignment set on the layer yet, or no background Image layer configured
+   yet: falls back to compositeAnnouncement() placing the plain (still
+   correctly cropped, when alignment exists) cutout onto the background
+   locally, with a `website_photo_error` explaining why. */
 
 const PLACEHOLDER_TEXT = { name: 'Jane Doe', title: 'Chief Officer', company: 'Acme Corp', country: 'United Arab Emirates', tier: 'LEAD SPONSOR' }
 const PLACEHOLDER_COLOR = { r: 140, g: 140, b: 150, alpha: 1 }
@@ -221,6 +224,20 @@ export async function POST(req: NextRequest) {
     company: (speaker?.company as string | undefined) || textSource?.company_name || PLACEHOLDER_TEXT.company,
     country: (speaker?.country as string | undefined) || textSource?.country || PLACEHOLDER_TEXT.country,
     tier: PLACEHOLDER_TEXT.tier,
+  }
+
+  // Any layers beyond the required Image + speaker-photo Photo/Logo Slot
+  // pair (2026-09-22) — those two already rendered into
+  // websitePhotoFinalBuffer above via the untouched deterministic path;
+  // everything else (extra Text/Image/Photo-Logo-Slot layers) composites on
+  // top through the same generic pipeline Promo/Self Promo layers use. See
+  // compositeExtraLayersOnto's own comment.
+  if (websitePhotoFinalBuffer && photoLayer) {
+    const backgroundLayer = body.variant.layers.find((l): l is ImageLayer => l.type === 'image')
+    const extraLayers = body.variant.layers.filter(l => l.id !== photoLayer.id && l.id !== backgroundLayer?.id)
+    if (extraLayers.length > 0) {
+      websitePhotoFinalBuffer = await compositeExtraLayersOnto(websitePhotoFinalBuffer, extraLayers, body.variant, assets, texts)
+    }
   }
 
   try {

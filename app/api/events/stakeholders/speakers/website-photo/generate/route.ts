@@ -4,7 +4,8 @@ import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
-import { type CreativeTemplateConfig, type ImageLayer, type PhotoSlotLayer } from '@/app/lib/announcements/composite'
+import sharp from 'sharp'
+import { compositeExtraLayersOnto, type CreativeTemplateConfig, type ImageLayer, type PhotoSlotLayer, type ResolvedAssets } from '@/app/lib/announcements/composite'
 import { alignAndCropPhoto, type HeadBox } from '@/app/lib/media/face-alignment'
 import { compositeOnBackground } from '@/app/lib/media/composite-on-background'
 
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
 
   const [eventRes, speakerRes] = await Promise.all([
     supabaseAdmin.from('events').select('creative_template_config').eq('id', body.event_id).single(),
-    supabaseAdmin.from('event_speakers').select('id, photo_processed_url, photo_url, photo_head_box').eq('id', body.speaker_id).single(),
+    supabaseAdmin.from('event_speakers').select('id, name, role, company, country, company_logo_url, photo_processed_url, photo_url, photo_head_box').eq('id', body.speaker_id).single(),
   ])
 
   const event = eventRes.data
@@ -93,12 +94,40 @@ export async function POST(req: NextRequest) {
     const { buffer: cropped, padding } = await alignAndCropPhoto(cutoutBuffer, target, headBox)
     const PADDING_WARNING_THRESHOLD_PX = 3
     const cropWarning = Math.max(padding.left, padding.top, padding.right, padding.bottom) > PADDING_WARNING_THRESHOLD_PX ? padding : null
+    // PNG here (no `format` — see compositeOnBackground's default), not the
+    // final webp yet: any extra layers below (2026-09-22) still need to
+    // composite on top losslessly first; the real webp encode moved to the
+    // very end, after that.
+    let composedBuffer = await compositeOnBackground(cropped, backgroundBuffer, { canvasWidth: variant.canvas_width, canvasHeight: variant.canvas_height })
+
+    // Any layers beyond the required Image + speaker-photo Photo/Logo Slot
+    // pair — see compositeExtraLayersOnto's own comment in composite.ts.
+    const extraLayers = variant.layers.filter(l => l.id !== photoLayer.id && l.id !== backgroundLayer.id)
+    if (extraLayers.length > 0) {
+      const extraSources = new Set(extraLayers.filter((l): l is PhotoSlotLayer => l.type === 'photo_slot').map(l => l.source))
+      const assetEntries = await Promise.all(Array.from(extraSources).map(async (source): Promise<[PhotoSlotLayer['source'], ResolvedAssets[PhotoSlotLayer['source']]] | null> => {
+        if (source === 'speaker_photo') return [source, { buffer: cropped, url: cleanPhotoUrl, head_box: headBox }]
+        const url = source === 'speaker_logo' ? (speaker.company_logo_url as string | null) : null // partner_logo: N/A, this route is speaker-only
+        if (!url) return null
+        const buffer = await fetchAssetBuffer(url)
+        return buffer ? [source, { buffer, url, is_svg: url.toLowerCase().endsWith('.svg') }] : null
+      }))
+      const assets: ResolvedAssets = Object.fromEntries(assetEntries.filter((e): e is [PhotoSlotLayer['source'], NonNullable<ResolvedAssets[PhotoSlotLayer['source']]>] => e !== null))
+      const texts = {
+        name: (speaker.name as string | null) ?? undefined,
+        title: (speaker.role as string | null) ?? undefined,
+        company: (speaker.company as string | null) ?? undefined,
+        country: (speaker.country as string | null) ?? undefined,
+      }
+      composedBuffer = await compositeExtraLayersOnto(composedBuffer, extraLayers, variant, assets, texts)
+    }
+
     // WebP output (2026-09-12, per Madhu) — this is the file KonfHub
     // publishes straight to the public event website; a lossless PNG here
     // was making that page heavier than it needed to be for no visible
     // quality gain, since the composite is fully opaque (see
     // compositeOnBackground's own comment for why lossy is safe here).
-    const finalBuffer = await compositeOnBackground(cropped, backgroundBuffer, { canvasWidth: variant.canvas_width, canvasHeight: variant.canvas_height, format: 'webp' })
+    const finalBuffer = await sharp(composedBuffer).webp({ quality: 85 }).toBuffer()
 
     const websiteCardUrl = await uploadPublicAsset(`events/${body.event_id}/speakers/${body.speaker_id}/website-photo/${Date.now()}.webp`, finalBuffer, 'image/webp')
     const { error: updateErr } = await supabaseAdmin.from('event_speakers').update({ website_card_url: websiteCardUrl, website_photo_crop_warning: cropWarning }).eq('id', body.speaker_id)

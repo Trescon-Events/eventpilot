@@ -381,6 +381,37 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     setSaving(false)
   }
 
+  // "Copy this" (2026-09-22, per Madhu — building several variants that only
+  // differ subtly, e.g. a handful of near-identical Website Photo looks, was
+  // otherwise rebuilding every layer from scratch each time). Staged as a
+  // normal dirty edit like addVariant(), NOT persisted immediately like
+  // deleteVariant() — it's not destructive, and the point is to immediately
+  // keep tweaking the copy before saving. Layer ids are freshly minted (not
+  // reused from the source) since they're the join key `snap_below_layer_id`
+  // uses within a variant — reusing them verbatim would leave the copy's
+  // snap references pointing at the ORIGINAL variant's now-foreign layer ids
+  // once those diverge, so every layer gets a new id and any snap_below
+  // reference is rewritten through the same old-id -> new-id map.
+  function duplicateVariant(id: string) {
+    const variant = variants.find(v => v.id === id)
+    if (!variant) return
+    pushUndo()
+    const idMap = new Map(variant.layers.map(l => [l.id, crypto.randomUUID()]))
+    const layers = variant.layers.map(l => ({
+      ...l,
+      id: idMap.get(l.id)!,
+      ...(l.type === 'text' && l.snap_below_layer_id ? { snap_below_layer_id: idMap.get(l.snap_below_layer_id) } : {}),
+    }))
+    const duplicate: Variant = { ...variant, id: crypto.randomUUID(), name: `${variant.name || 'Untitled Variant'} copy`, layers }
+    mutate(vs => {
+      const index = vs.findIndex(v => v.id === id)
+      const next = [...vs]
+      next.splice(index + 1, 0, duplicate)
+      return next
+    })
+    setActiveVariantId(duplicate.id)
+  }
+
   function addLayer(type: Layer['type']) {
     if (!activeVariant) return
     pushUndo()
@@ -612,17 +643,33 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                 {/* Variant list */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   {variants.map(v => (
-                    <button key={v.id} onClick={() => setActiveVariantId(v.id)}
+                    // A <div role="button">, not a real <button> (was one
+                    // until the per-variant "Copy this" icon below needed its
+                    // own separately-clickable <button> — two nested <button>
+                    // elements are invalid HTML/a11y) — onKeyDown mirrors a
+                    // real button's Enter/Space activation so keyboard nav
+                    // still works.
+                    <div key={v.id} role="button" tabIndex={0}
+                      onClick={() => setActiveVariantId(v.id)}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveVariantId(v.id) } }}
                       style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px',
-                        padding: '9px 12px', borderRadius: '8px', border: 'none', textAlign: 'left', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px',
+                        padding: '9px 8px 9px 12px', borderRadius: '8px', textAlign: 'left', cursor: 'pointer',
                         fontFamily: 'inherit', fontSize: '13px', fontWeight: 700,
                         background: activeVariantId === v.id ? 'var(--card)' : 'transparent',
                         color: activeVariantId === v.id ? 'var(--ink)' : 'var(--ink3)',
                       }}>
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.name || 'Untitled Variant'}</span>
-                      <span style={{ fontSize: '11px', color: 'var(--ink4)', flexShrink: 0 }}>{v.layers.length}</span>
-                    </button>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                        <span style={{ fontSize: '11px', color: 'var(--ink4)' }}>{v.layers.length}</span>
+                        <button
+                          onClick={e => { e.stopPropagation(); duplicateVariant(v.id) }}
+                          title="Copy this variant — duplicates it with all its layers intact"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink4)', fontSize: '13px', padding: '2px 4px', lineHeight: 1 }}>
+                          ⧉
+                        </button>
+                      </span>
+                    </div>
                   ))}
                   <Button variant="ghost" onClick={() => setNewVariantPickerOpen(true)}>+ New Variant</Button>
                 </div>
@@ -674,7 +721,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       {activeVariant.category === 'website_photo' && (
                         <div style={{ marginBottom: '14px' }}>
                           <div style={{ fontSize: '11px', color: 'var(--ink3)', marginBottom: '10px' }}>
-                            This variant should have exactly two layers: an <strong>Image</strong> layer for the background, and a <strong>Photo/Logo Slot</strong> (source: speaker photo) sized to the full canvas — set the slot up exactly like a Promo variant&apos;s: click <strong>Upload Reference Layer (auto-position)</strong> and adjust the head position. That known position, the crop, and the background composite always happen exactly the same way, every time.
+                            Add an <strong>Image</strong> layer for the background and a <strong>Photo/Logo Slot</strong> (source: speaker photo) sized to the full canvas — set the slot up exactly like a Promo variant&apos;s: click <strong>Upload Reference Layer (auto-position)</strong> and adjust the head position. That known position, the crop, and the background composite always happen exactly the same way, every time. Any extra layers (Text, another Image, another Photo/Logo Slot) render on top of that, same as a Promo variant.
                           </div>
                         </div>
                       )}
@@ -715,6 +762,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                         <Button variant="ghost" title="Static art, identical on every announcement — backgrounds, decorative overlays, branding blocks. Not this speaker/partner's own photo or logo." onClick={() => addLayer('image')}>+ Image Layer</Button>
                         <Button variant="ghost" title="A slot that fills in with each real speaker/partner's own photo or logo at generation time. Not static art." onClick={() => addLayer('photo_slot')}>+ Photo/Logo Slot</Button>
                         <Button variant="ghost" title="A field of text (name, title, company, a static caption, etc.) rendered live at generation time." onClick={() => addLayer('text')}>+ Text Layer</Button>
+                        <Button variant="ghost" title="Duplicates this variant with all its layers intact, ready to tweak — for building several near-identical variants faster." onClick={() => duplicateVariant(activeVariant.id)}>Copy this</Button>
                         <Button variant="red" onClick={() => deleteVariant(activeVariant.id)}>Delete Variant</Button>
                       </div>
                       {/* Inline, not just hover tooltips (2026-08-01) — the

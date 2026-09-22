@@ -172,9 +172,13 @@ export type Variant = {
   // across every input structure tried, the tool changed the subject's
   // scale/position despite explicit instructions not to, and automated
   // re-detection on its output wasn't accurate enough to correct for that.
-  // Generation for this category is just the deterministic crop +
-  // background composite (composite-on-background.ts) — always exact,
-  // always the same, no AI call at all. AI DOES now exist in the broader
+  // Generation for this category's required Image+Photo/Logo Slot pair is
+  // just the deterministic crop + background composite
+  // (composite-on-background.ts) — always exact, always the same, no AI
+  // call at all. Any OTHER layers on the variant (extra Text/Image/Photo
+  // Logo Slot layers, 2026-09-22) render on top of that through the normal
+  // compositeAnnouncement() pipeline below — see compositeExtraLayersOnto.
+  // AI DOES now exist in the broader
   // pipeline, but moved upstream (2026-08-21) into the Cleaning Cycle — see
   // CleaningCycleTemplate below and app/lib/media/photo-cleaning-
   // pipeline.ts — which runs once per speaker, standardizes
@@ -433,6 +437,33 @@ export async function compositeAnnouncement(
     .composite(compositeOps)
     .png()
     .toBuffer()
+}
+
+// Composites any layers BEYOND a website_photo variant's required Image +
+// speaker-photo Photo/Logo Slot pair (2026-09-22) — those two still go
+// through the deterministic composite-on-background.ts path untouched (same
+// exact pixels as before, zero regression risk for existing 2-layer
+// variants), but a variant is no longer capped at exactly those two: extra
+// Text/Image/Photo-Logo-Slot layers are rendered through the same generic
+// pipeline every Promo/Self Promo layer already uses (compositeAnnouncement
+// above, called with just the extra layers against a transparent canvas)
+// and flattened on top. Callers pass the already-resolved ResolvedAssets for
+// the whole variant (any extra photo_slot source, e.g. speaker_logo, needs
+// an entry there) and the same texts object used elsewhere in the render.
+export async function compositeExtraLayersOnto(
+  baseBuffer: Buffer,
+  extraLayers: Layer[],
+  canvas: { canvas_width: number; canvas_height: number },
+  assets: ResolvedAssets,
+  texts: { name?: string; title?: string; company?: string; tier?: string; country?: string }
+): Promise<Buffer> {
+  if (extraLayers.length === 0) return baseBuffer
+  const overlay = await compositeAnnouncement(
+    { id: '', name: '', canvas_width: canvas.canvas_width, canvas_height: canvas.canvas_height, layers: extraLayers },
+    assets,
+    texts
+  )
+  return sharp(baseBuffer).composite([{ input: overlay, left: 0, top: 0 }]).toBuffer()
 }
 
 function resolveTextValue(layer: TextLayer, texts: { name?: string; title?: string; company?: string; tier?: string; country?: string }): string | undefined {
