@@ -1210,7 +1210,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
         <div style={{ marginTop: '16px' }}><Card padded>
           <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Client Approval Contacts</div>
           <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
-            For events managed on behalf of another client — adds a third approval round to announcements. Exactly one contact is <strong>Primary</strong>: only their decision actually clears an announcement for publishing. Everyone else is CC&apos;d — each gets their own link and their own tracked status, but it&apos;s informational only.
+            For events managed on behalf of another client — adds a third approval round to announcements. Exactly one contact is <strong>Primary</strong> (the default &quot;To&quot; recipient) — everyone else configured here defaults to CC, each with their own link and their own tracked status. Whoever responds first — Primary or any CC — clears the announcement for publishing; everyone else&apos;s link then shows it&apos;s already been handled.
           </div>
           {contacts.length === 0 ? (
             <div style={{ fontSize: '13px', color: 'var(--ink4)', marginBottom: '14px' }}>No contacts yet — announcements skip the Client Approval layer entirely until one is added.</div>

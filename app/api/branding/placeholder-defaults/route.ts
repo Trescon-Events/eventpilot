@@ -51,6 +51,7 @@ export async function GET() {
 export async function PUT(req: NextRequest) {
   const body = await req.json().catch(() => null) as {
     stakeholder_type?: 'speaker' | 'partner'; name?: string; job_title?: string; company_name?: string; country?: string
+    headline_lead?: string; headline_emphasis?: string; headline_trail?: string
     photo_head_box?: { centerXRatio: number; centerYRatio: number; heightRatio: number }
   } | null
   if (body?.stakeholder_type !== 'speaker' && body?.stakeholder_type !== 'partner') {
@@ -66,6 +67,9 @@ export async function PUT(req: NextRequest) {
   if ('job_title' in body) fields.job_title = body.job_title ?? null
   if ('company_name' in body) fields.company_name = body.company_name ?? null
   if ('country' in body) fields.country = body.country ?? null
+  if ('headline_lead' in body) fields.headline_lead = body.headline_lead ?? null
+  if ('headline_emphasis' in body) fields.headline_emphasis = body.headline_emphasis ?? null
+  if ('headline_trail' in body) fields.headline_trail = body.headline_trail ?? null
   if ('photo_head_box' in body) fields.photo_head_box = body.photo_head_box ?? null
 
   const { data, error } = await supabaseAdmin

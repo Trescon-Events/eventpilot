@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { resolveFormSchema } from '@/app/lib/forms/resolve-schema'
+import { KONFHUB_AUTO_SENT_FIELD_KEYS } from '@/app/lib/konfhub/registration-fields'
 
 /* GET /api/events/konfhub/registration-fields?event_id=X
 
@@ -11,9 +12,11 @@ import { resolveFormSchema } from '@/app/lib/forms/resolve-schema'
    - autoFields: already sent to KonfHub automatically by
      konfhub-registration-push/route.ts's hardcoded commonFields/attendee
      object (name, designation, organisation, country, linkedin_url,
-     phone_number) — full_name/first_name/last_name included since
+     email, phone_number) — full_name/first_name/last_name included since
      map-to-stakeholder-record.ts synthesizes full_name from first/last
      before either ever reaches a column. These need no mapping, ever.
+     See app/lib/konfhub/registration-fields.ts for the shared list (also
+     used by the Stakeholder Hub's Registration tab).
    - fields: everything else genuinely eligible for Registration mapping.
 
    bio/short_bio_professional_profile are deliberately excluded from BOTH
@@ -28,12 +31,6 @@ import { resolveFormSchema } from '@/app/lib/forms/resolve-schema'
    Kept server-side so this logic has exactly one definition, not a
    second copy duplicated into the Integrations page's client code. */
 
-const AUTO_SENT_FIELDS = new Set([
-  'full_name', 'first_name', 'last_name',
-  'job_title', 'company_name', 'company',
-  'country', 'linkedin_url', 'phone_number',
-])
-
 const NOT_APPLICABLE_TO_REGISTRATION = new Set(['bio', 'short_bio_professional_profile'])
 
 export async function GET(req: NextRequest) {
@@ -47,8 +44,8 @@ export async function GET(req: NextRequest) {
 
   const schema = await resolveFormSchema(eventId, 'speaker')
   const textFields = schema.filter(f => f.type !== 'file' && !NOT_APPLICABLE_TO_REGISTRATION.has(f.key))
-  const autoFields = textFields.filter(f => AUTO_SENT_FIELDS.has(f.key)).map(f => ({ key: f.key, label: f.label }))
-  const fields = textFields.filter(f => !AUTO_SENT_FIELDS.has(f.key)).map(f => ({ key: f.key, label: f.label }))
+  const autoFields = textFields.filter(f => KONFHUB_AUTO_SENT_FIELD_KEYS.has(f.key)).map(f => ({ key: f.key, label: f.label }))
+  const fields = textFields.filter(f => !KONFHUB_AUTO_SENT_FIELD_KEYS.has(f.key)).map(f => ({ key: f.key, label: f.label }))
 
   return NextResponse.json({ fields, autoFields })
 }

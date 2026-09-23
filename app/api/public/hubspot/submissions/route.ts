@@ -3,6 +3,7 @@ import crypto from 'crypto'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { HubSpotFieldMapping } from '@/app/lib/hubspot/types'
 import { SubmittedValue } from '@/app/lib/forms/types'
+import { fetchCommunicationConsentStatuses, LEGAL_CONSENT_FIELD_PREFIX } from '@/app/lib/hubspot/client'
 
 /* POST /api/public/hubspot/submissions — the HubSpot Workflow webhook
    receiver. Public (under the /api/public prefix middleware.ts already
@@ -103,10 +104,26 @@ export async function POST(req: NextRequest) {
     .maybeSingle()
   if (dupe) return NextResponse.json({ success: true, duplicate: true })
 
+  const mapping = (connection.field_mapping ?? []) as HubSpotFieldMapping[]
+
+  // Legal-consent checkboxes (see client.ts's LEGAL_CONSENT_FIELD_PREFIX
+  // doc comment) never arrive in `properties` — HubSpot tracks them as a
+  // subscription record, not a contact property. For any field mapped this
+  // way, fetch live consent status by email (the only key that endpoint
+  // takes) and inject it into `properties` under the same synthetic field
+  // name, so the mapping loop below needs no special case for it — every
+  // target type already just reads properties[m.hubspot_field_name].
+  const consentFieldNames = mapping.map(m => m.hubspot_field_name).filter(n => n.startsWith(LEGAL_CONSENT_FIELD_PREFIX))
+  if (consentFieldNames.length > 0 && properties.email) {
+    const statuses = await fetchCommunicationConsentStatuses(properties.email)
+    for (const fieldName of consentFieldNames) {
+      const subscriptionTypeId = fieldName.slice(LEGAL_CONSENT_FIELD_PREFIX.length)
+      if (statuses.has(subscriptionTypeId)) properties[fieldName] = statuses.get(subscriptionTypeId) ? 'true' : 'false'
+    }
+  }
+
   const submittedData: Record<string, SubmittedValue> = {}
   const fileUrls: Record<string, string> = {}
-
-  const mapping = (connection.field_mapping ?? []) as HubSpotFieldMapping[]
   for (const m of mapping) {
     const value = properties[m.hubspot_field_name]
     if (value === undefined || value === null || value === '') continue

@@ -24,7 +24,39 @@ type RawHubSpotField = {
   // further dependents, so this recurses.
   dependentFields?: { dependentCondition: { values: string[] }; dependentField: RawHubSpotField }[]
 }
-type RawHubSpotForm = { id: string; name: string; fieldGroups?: HubSpotFormFieldGroup[] }
+type RawHubSpotForm = {
+  id: string
+  name: string
+  fieldGroups?: HubSpotFormFieldGroup[]
+  // HubSpot's native "Legal consent" block (GDPR communications-subscription
+  // checkboxes) — a genuinely separate structure from fieldGroups, not a
+  // regular field. Confirmed live 2026-09-22: DFS's speaker form uses this
+  // (type "implicit_consent_to_process") while AI InfraNext's equivalent
+  // "consent" checkboxes are plain single_checkbox fields built directly
+  // into fieldGroups (legalConsentOptions.type "none" there) — same visual
+  // checkbox to a submitter, two unrelated HubSpot data shapes.
+  legalConsentOptions?: { type: string; communicationsCheckboxes?: { required?: boolean; subscriptionTypeId: number; label: string }[] }
+}
+
+// Synthesizes a normal-looking HubSpotFormField for each legal-consent
+// checkbox so it shows up on the mapping page like any other field. The
+// name is a stable, parseable key (LEGAL_CONSENT_FIELD_PREFIX + the
+// subscriptionTypeId) — the submissions webhook route greps for this
+// prefix to know which mapped fields need a live Communication
+// Preferences lookup, since (unlike every other field) HubSpot never
+// includes this value in "include all triggered contact properties";
+// it's tracked as a subscription record, not a contact property.
+export const LEGAL_CONSENT_FIELD_PREFIX = 'hs_legal_consent_'
+
+function legalConsentFields(data: RawHubSpotForm): HubSpotFormField[] {
+  return (data.legalConsentOptions?.communicationsCheckboxes ?? []).map(c => ({
+    name: `${LEGAL_CONSENT_FIELD_PREFIX}${c.subscriptionTypeId}`,
+    label: c.label,
+    fieldType: 'single_checkbox',
+    required: !!c.required,
+    hidden: false,
+  }))
+}
 
 function toFlatField(f: RawHubSpotField, dependsOn?: { parentLabel: string; values: string[] }): HubSpotFormField[] {
   const flat: HubSpotFormField = {
@@ -58,7 +90,27 @@ export async function fetchHubSpotForm(formId: string): Promise<HubSpotForm> {
   const res = await fetch(`${HUBSPOT_API_BASE}/marketing/v3/forms/${formId}`, { headers: authHeaders() })
   if (!res.ok) throw new Error(`HubSpot form fetch failed (${res.status}): ${await res.text()}`)
   const data = (await res.json()) as RawHubSpotForm
-  return { id: data.id, name: data.name, fields: flattenFields(data) }
+  return { id: data.id, name: data.name, fields: [...flattenFields(data), ...legalConsentFields(data)] }
+}
+
+// Per-contact status for every legal-consent subscription on a form —
+// GET /communication-preferences/v3/status/email/{email}, HubSpot's real
+// source of truth for "did this person opt in," since a legal-consent
+// checkbox never lands in a contact's regular properties. Best-effort:
+// returns an empty map (never throws) on any failure — a submission with
+// no readable consent status should still land in the Submissions Inbox
+// with everything else filled in rather than being dropped entirely.
+export async function fetchCommunicationConsentStatuses(email: string): Promise<Map<string, boolean>> {
+  const statuses = new Map<string, boolean>()
+  try {
+    const res = await fetch(`${HUBSPOT_API_BASE}/communication-preferences/v3/status/email/${encodeURIComponent(email)}`, { headers: authHeaders() })
+    if (!res.ok) return statuses
+    const data = (await res.json()) as { subscriptionStatuses?: { id: string; status: string }[] }
+    for (const s of data.subscriptionStatuses ?? []) statuses.set(String(s.id), s.status === 'SUBSCRIBED')
+  } catch {
+    // network/timeout — same best-effort contract as above
+  }
+  return statuses
 }
 
 export async function listHubSpotForms(): Promise<{ id: string; name: string }[]> {

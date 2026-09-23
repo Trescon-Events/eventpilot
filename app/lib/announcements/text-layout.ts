@@ -23,6 +23,12 @@ export type WrapAndFitOptions = {
   fontSize: number          // ceiling — actual returned fontSize may be smaller
   fontWeight?: number // 100-900, 2026-08-04 (was 'normal'|'bold') — see composite.ts's resolveFontWeight()
   fontFamily?: string       // must already be registered with GlobalFonts if custom
+  // 2026-09-22 — when false, skip the shrink loop entirely: font_size is
+  // pinned at the ceiling and text only ever wraps to more lines, never
+  // gets visually smaller. Text that still doesn't fit maxLines/height at
+  // that pinned size falls straight to ellipsis-truncation. Default true
+  // (every existing caller keeps today's shrink-then-truncate behavior).
+  allowShrink?: boolean
 }
 
 export type WrapAndFitResult = {
@@ -85,11 +91,11 @@ function truncateToWidth(text: string, boxWidth: number, size: number, weight: n
 }
 
 export function wrapAndFit(text: string, opts: WrapAndFitOptions): WrapAndFitResult {
-  const { width, height, maxLines, fontSize, fontWeight = 400, fontFamily = 'sans-serif' } = opts
+  const { width, height, maxLines, fontSize, fontWeight = 400, fontFamily = 'sans-serif', allowShrink = true } = opts
   const trimmed = text.trim()
   if (!trimmed) return { lines: [], fontSize, lineHeight: fontSize * LINE_HEIGHT_RATIO, didShrink: false, didTruncate: false }
 
-  const floor = Math.max(1, Math.round(fontSize * SHRINK_FLOOR_RATIO))
+  const floor = allowShrink ? Math.max(1, Math.round(fontSize * SHRINK_FLOOR_RATIO)) : fontSize
   let size = fontSize
 
   while (size >= floor) {

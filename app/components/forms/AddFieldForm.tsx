@@ -58,6 +58,32 @@ export function buildFieldFromDraft(draft: NewFieldDraft, existingFields: FieldS
   }
 }
 
+// Same shape as buildFieldFromDraft, for EDITING an already-existing field
+// in place instead of creating a new one — keeps id/key/locked, applies the
+// draft's label/type/required/help/options/file settings on top. Used by
+// the HubSpot mapping page's inline "Edit field" affordance (a concept
+// field's type otherwise has no editor once it's been created and mapped —
+// the per-event Properties page goes read-only for a HubSpot-connected
+// form, per its own doc comment, precisely to keep this mapping page the
+// one place fields get defined for a connected form).
+export function applyDraftToField(draft: NewFieldDraft, existing: FieldSchema): FieldSchema | string {
+  const label = draft.label.trim()
+  if (!label) return 'Give the field a label.'
+  if ((draft.type === 'select' || draft.type === 'multiselect') && draft.options.filter(o => o.trim()).length === 0) {
+    return 'Add at least one option.'
+  }
+  return {
+    ...existing,
+    label,
+    type: draft.type,
+    required: draft.required,
+    help: draft.help.trim() || undefined,
+    options: (draft.type === 'select' || draft.type === 'multiselect') ? draft.options.map(o => o.trim()).filter(Boolean) : undefined,
+    max_size_mb: draft.type === 'file' ? draft.max_size_mb : undefined,
+    accept: draft.type === 'file' ? draft.accept : undefined,
+  }
+}
+
 export function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>

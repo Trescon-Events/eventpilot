@@ -45,7 +45,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = await req.json().catch(() => null) as PartnerPatchBody | null
   if (!body) return NextResponse.json({ error: 'body required' }, { status: 400 })
 
-  const { data: existing } = await supabaseAdmin.from('event_sponsors').select('event_id, announcement_status').eq('id', id).single()
+  const { data: existing } = await supabaseAdmin.from('event_sponsors').select('event_id, announcement_status, custom_fields').eq('id', id).single()
   if (!existing) return NextResponse.json({ error: 'Partner not found' }, { status: 404 })
 
   const session = getSession(req)
@@ -68,7 +68,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // ANY edit, blocking even unrelated changes on any manually-created
     // partner that never went through that form).
     const { columns, customFields } = mapFieldsToRecord(formType, schema, body.fields, {})
-    Object.assign(row, columns, { custom_fields: customFields })
+    // Merge onto the EXISTING custom_fields rather than replacing it
+    // wholesale — same fix as speakers/[id]/route.ts's PATCH (2026-09-23,
+    // real bug: any custom_fields key that predates the current schema,
+    // e.g. a HubSpot crm_property mapping, was silently wiped by every
+    // save on this route since body.fields (the client's `values` state)
+    // only ever contains schema-declared keys).
+    const existingCustomFields = (existing.custom_fields ?? {}) as Record<string, SubmittedValue>
+    Object.assign(row, columns, { custom_fields: { ...existingCustomFields, ...customFields } })
   }
   if (body.partner_type !== undefined) row.partner_type = body.partner_type
   if (body.announcement_status !== undefined) row.announcement_status = body.announcement_status

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Button, Card, Input } from '@/app/components/ui'
 import { FormFieldInput } from '@/app/components/forms/FormFieldInput'
-import { AddFieldForm, NewFieldDraft, EMPTY_FIELD_DRAFT, buildFieldFromDraft, FieldRow } from '@/app/components/forms/AddFieldForm'
+import { AddFieldForm, NewFieldDraft, EMPTY_FIELD_DRAFT, buildFieldFromDraft, FieldRow, FIELD_TYPE_OPTIONS } from '@/app/components/forms/AddFieldForm'
 import { FieldSchema, FIELD_USAGE_HINTS } from '@/app/lib/forms/types'
 import { DndContext, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
@@ -241,6 +241,33 @@ function SortableField({ field, canManage, expanded, onToggle, onChange, onDelet
                 {hint}
               </div>
             )}
+            <FieldRow label="Field Type">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {FIELD_TYPE_OPTIONS.map(o => (
+                  <button
+                    key={o.type}
+                    disabled={field.locked}
+                    title={field.locked ? 'Required internally — cannot change type' : undefined}
+                    onClick={() => {
+                      if (field.type === o.type) return
+                      const patch: Partial<FieldSchema> = { type: o.type }
+                      if ((o.type === 'select' || o.type === 'multiselect') && !(field.options ?? []).some(v => v.trim())) patch.options = ['']
+                      if (o.type === 'file') { patch.max_size_mb = field.max_size_mb ?? 10; patch.accept = field.accept ?? 'image/png,image/jpeg' }
+                      onChange(patch)
+                    }}
+                    style={{
+                      padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'inherit',
+                      cursor: field.locked ? 'default' : 'pointer', opacity: field.locked && field.type !== o.type ? 0.4 : 1,
+                      border: field.type === o.type ? '1.5px solid var(--teal-mid)' : '1px solid var(--border)',
+                      background: field.type === o.type ? 'var(--teal-light)' : 'transparent',
+                      color: field.type === o.type ? 'var(--teal-mid)' : 'var(--ink2)',
+                    }}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </FieldRow>
             <FieldRow label="Label">
               <Input value={field.label} onChange={e => onChange({ label: e.target.value })} />
             </FieldRow>

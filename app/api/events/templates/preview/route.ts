@@ -59,7 +59,10 @@ import { compositeOnBackground } from '@/app/lib/media/composite-on-background'
    correctly cropped, when alignment exists) cutout onto the background
    locally, with a `website_photo_error` explaining why. */
 
-const PLACEHOLDER_TEXT = { name: 'Jane Doe', title: 'Chief Officer', company: 'Acme Corp', country: 'United Arab Emirates', tier: 'LEAD SPONSOR' }
+const PLACEHOLDER_TEXT = {
+  name: 'Jane Doe', title: 'Chief Officer', company: 'Acme Corp', country: 'United Arab Emirates', tier: 'LEAD SPONSOR',
+  headline_lead: 'THE', headline_emphasis: 'TECHNOLOGY BEHIND', headline_trail: 'MODERN BANKING',
+}
 const PLACEHOLDER_COLOR = { r: 140, g: 140, b: 150, alpha: 1 }
 const DRAFT_SCALE = 0.5
 
@@ -224,6 +227,15 @@ export async function POST(req: NextRequest) {
     company: (speaker?.company as string | undefined) || textSource?.company_name || PLACEHOLDER_TEXT.company,
     country: (speaker?.country as string | undefined) || textSource?.country || PLACEHOLDER_TEXT.country,
     tier: PLACEHOLDER_TEXT.tier,
+    // No real per-speaker source here — an actual headline only exists
+    // once a producer generates/picks one on a real announcement (see
+    // generate-headlines route), so this always falls through to the
+    // configured placeholder (per-event override, else global default)
+    // and finally the hardcoded sample — same 3-step chain as every other
+    // field above.
+    headline_lead: textSource?.headline_lead || PLACEHOLDER_TEXT.headline_lead,
+    headline_emphasis: textSource?.headline_emphasis || PLACEHOLDER_TEXT.headline_emphasis,
+    headline_trail: textSource?.headline_trail || PLACEHOLDER_TEXT.headline_trail,
   }
 
   // Any layers beyond the required Image + speaker-photo Photo/Logo Slot

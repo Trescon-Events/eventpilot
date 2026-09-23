@@ -16,17 +16,23 @@ import RichTextToolbar from '@/app/components/RichTextToolbar'
    managed for DIFC). Same two-step stateless-compose/write-on-send shape
    as SendForExternalApprovalComposer.tsx.
 
-   Primary vs CC, per Madhu (2026-09-06): the PRIMARY contact (configured
-   on the event's Integrations page) is the recipient whose decision
-   actually gates publishing — unchanged from the original single-contact
-   design, still the exact same announcement_approvals layer='client' row
-   and public review portal. Everyone else configured for this event is
-   offered as a CC, pre-checked (the producer narrows down, doesn't build
-   up from nothing — same pattern as this session's other fetch-and-select
-   features). Each checked CC gets their OWN unique review link and their
-   OWN independently-tracked (but non-gating) status — never a shared
-   email cc: header, which would give every CC'd person the SAME link and
-   make it impossible to know who actually responded. See the compose/send
+   Primary vs CC, per Madhu (2026-09-06, gating rule changed 2026-09-22):
+   the PRIMARY contact (configured on the event's Integrations page) is
+   just the default "To" recipient — still the exact same
+   announcement_approvals layer='client' row and public review portal.
+   Everyone else configured for this event is offered as a CC, pre-checked
+   (the producer narrows down, doesn't build up from nothing — same
+   pattern as this session's other fetch-and-select features). Each
+   checked CC gets their OWN unique review link and their OWN
+   independently-tracked status — never a shared email cc: header, which
+   would give every CC'd person the SAME link and make it impossible to
+   know who actually responded.
+
+   First-responder-wins (2026-09-22, per Madhu — high-profile clients
+   often have an assistant/office who actually reads and acts on these
+   emails first): whichever person, Primary or any CC, responds FIRST is
+   now the decision that gates publishing — not the Primary exclusively
+   anymore. See app/lib/events/approval-round.ts and the compose/send
    routes' own doc comments for the full mechanics.
 
    Note: CC emails are rendered once at compose time (personalized with
@@ -160,7 +166,7 @@ export default function SendForClientApprovalComposer({
           <div style={{ display: 'grid', gap: '14px' }}>
             <div>
               <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>
-                Primary Recipient {primaryContact && <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(only their decision gates publishing)</span>}
+                Primary Recipient {primaryContact && <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(whoever responds first — this or a CC below — decides)</span>}
               </span>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <Input value={recipientName} onChange={e => setRecipientName(e.target.value)} placeholder="Recipient name" style={{ flex: 1 }} />
@@ -174,7 +180,7 @@ export default function SendForClientApprovalComposer({
             {ccContacts.length > 0 && (
               <div>
                 <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>
-                  CC (each gets their own link, tracked individually — informational only)
+                  CC (each gets their own link, can act independently)
                 </span>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                   {ccContacts.map(c => {

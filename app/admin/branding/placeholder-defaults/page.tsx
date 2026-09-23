@@ -164,6 +164,7 @@ function FieldsForm({ activeType, value, onSave }: {
 }) {
   const [draft, setDraft] = useState<PlaceholderProfile>({
     name: value?.name ?? undefined, job_title: value?.job_title ?? undefined, company_name: value?.company_name ?? undefined, country: value?.country ?? undefined,
+    headline_lead: value?.headline_lead ?? undefined, headline_emphasis: value?.headline_emphasis ?? undefined, headline_trail: value?.headline_trail ?? undefined,
   })
   const [saving, setSaving] = useState(false)
 
@@ -183,6 +184,13 @@ function FieldsForm({ activeType, value, onSave }: {
           <label style={fieldStyle}>Job Title<Input value={draft.job_title ?? ''} onChange={e => setDraft(d => ({ ...d, job_title: e.target.value }))} style={{ width: '100%', marginTop: '4px' }} /></label>
           <label style={fieldStyle}>Company<Input value={draft.company_name ?? ''} onChange={e => setDraft(d => ({ ...d, company_name: e.target.value }))} style={{ width: '100%', marginTop: '4px' }} /></label>
           <label style={fieldStyle}>Country<Input value={draft.country ?? ''} onChange={e => setDraft(d => ({ ...d, country: e.target.value }))} style={{ width: '100%', marginTop: '4px' }} /></label>
+          {/* Creative headline (2026-09-22) — sample text for the
+              headline_lead/headline_emphasis/headline_trail layers (see
+              composite.ts's PlaceholderProfile comment); no partner
+              equivalent, headline is speaker-only. */}
+          <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Headline — Lead (optional, white)<Input value={draft.headline_lead ?? ''} onChange={e => setDraft(d => ({ ...d, headline_lead: e.target.value }))} style={{ width: '100%', marginTop: '4px' }} /></label>
+          <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Headline — Emphasis (accent color)<Input value={draft.headline_emphasis ?? ''} onChange={e => setDraft(d => ({ ...d, headline_emphasis: e.target.value }))} style={{ width: '100%', marginTop: '4px' }} /></label>
+          <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Headline — Trail (optional, white)<Input value={draft.headline_trail ?? ''} onChange={e => setDraft(d => ({ ...d, headline_trail: e.target.value }))} style={{ width: '100%', marginTop: '4px' }} /></label>
         </>
       ) : (
         <>

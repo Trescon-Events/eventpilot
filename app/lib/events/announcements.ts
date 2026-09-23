@@ -2,8 +2,11 @@
 // announcements/generate and both regenerate-* routes, so the copy/creative
 // pipeline is defined once rather than duplicated across three route files.
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import type { Variant, PhotoSlotLayer, CreativeTemplateConfig } from '@/app/lib/announcements/composite'
+import type { Variant, PhotoSlotLayer, CreativeTemplateConfig, ResolvedTexts } from '@/app/lib/announcements/composite'
 import type { HeadBox } from '@/app/lib/media/face-alignment'
+import { FLASH_MODEL } from '@/app/lib/content/press-release-access'
+import { enforceMaxChars } from '@/app/lib/content/text-limits'
+import type { ValidationFinding } from '@/app/lib/content/validate'
 
 let _gemini: GoogleGenerativeAI | null = null
 function getGemini() {
@@ -184,7 +187,7 @@ export function describeGeminiError(e: unknown): string {
 // machine and escape control chars only while inside a string literal
 // (never inside object/array structural whitespace, which would corrupt
 // the JSON the other way) before parsing.
-function sanitizeJsonControlChars(s: string): string {
+export function sanitizeJsonControlChars(s: string): string {
   let out = ''
   let inString = false
   let escaped = false
@@ -354,6 +357,158 @@ Return JSON only, no markdown fences: { "copy": "...", "hashtags": ["#...", "...
   return parseGeminiCopyResponse(result.response.text().trim())
 }
 
+// Speaker announcement HEADLINE (2026-09-22) — the bold on-image phrase
+// shown on a creative (e.g. "THE TECHNOLOGY BEHIND MODERN BANKING"),
+// distinct from post_copy/post_copy_x. Fixed 3-role shape, matching every
+// real reference sample studied: an optional white "lead" clause, a
+// required accent-color "emphasis" clause (the core claim), and an
+// optional white "trail" clause. Maps directly onto the composite.ts
+// TextLayer.field values 'headline_lead'/'headline_emphasis'/
+// 'headline_trail' — see buildCompositeInputs' callers for how a selected
+// variant's segments get merged into a composite's `texts`.
+export type HeadlineSegments = {
+  lead?: string
+  emphasis: string
+  trail?: string
+}
+
+// A stored, pickable option — the route wraps each of generateHeadlines()'s
+// raw segments into one of these with a fresh id, edited:false, and
+// deterministic compliance findings (see generate-headlines/route.ts).
+export type HeadlineVariant = {
+  id: string
+  segments: HeadlineSegments
+  edited: boolean
+  compliance: ValidationFinding[]
+}
+
+// Per-segment character ceiling — server-side safety net (enforceMaxChars),
+// same philosophy as SHORT_BIO_MAX_CHARS: a prompt instruction is a strong
+// steer, not a guarantee. Tuned loosely against the real DFS samples
+// (30-60 characters total across all clauses) rather than any one
+// template's exact box metrics — a specific Variant's own box width/
+// max_lines is what actually bounds wrapping at render time (see
+// composite.ts's allow_shrink); this ceiling only guards against a wildly
+// oversized Gemini response before it ever reaches the compositor.
+const HEADLINE_LEAD_TRAIL_MAX_CHARS = 25
+const HEADLINE_EMPHASIS_MAX_CHARS = 40
+
+// Style reference only — from 3 real Dubai FinTech Summit speaker
+// creatives studied directly (not this codebase's own output). Given to
+// the model as few-shot STYLE examples, explicitly instructed never to
+// reuse their words/topics, so this generalizes to any event/industry.
+const HEADLINE_EXAMPLES = [
+  { lead: 'THE', emphasis: 'TECHNOLOGY BEHIND', trail: 'MODERN BANKING' },
+  { lead: 'FOUR DECADES AT', emphasis: 'THE HIGHEST LEVEL OF GLOBAL BANKING', trail: '' },
+  { lead: 'TURNING', emphasis: 'A GLOBAL BANK INTO', trail: 'A VENTURE BUILDER' },
+]
+
+function parseHeadlineResponse(text: string): HeadlineSegments[] {
+  const match = text.match(/\{[\s\S]*\}/)
+  if (!match) return []
+  let parsed: { headlines?: { lead?: string; emphasis?: string; trail?: string }[] }
+  try {
+    parsed = JSON.parse(sanitizeJsonControlChars(match[0]))
+  } catch {
+    return []
+  }
+  return (parsed.headlines ?? [])
+    .filter(h => h && typeof h.emphasis === 'string' && h.emphasis.trim())
+    .map(h => ({
+      lead: h.lead?.trim() ? enforceMaxChars(h.lead.trim(), HEADLINE_LEAD_TRAIL_MAX_CHARS) : undefined,
+      emphasis: enforceMaxChars(h.emphasis!.trim(), HEADLINE_EMPHASIS_MAX_CHARS),
+      trail: h.trail?.trim() ? enforceMaxChars(h.trail.trim(), HEADLINE_LEAD_TRAIL_MAX_CHARS) : undefined,
+    }))
+}
+
+// Propose-only — returns raw segment candidates (expect 5, tolerates fewer
+// if Gemini under-delivers rather than hard-failing). The caller
+// (generate-headlines/route.ts) wraps each into a full HeadlineVariant
+// (id, edited, compliance) — this function stays pure generation logic,
+// same division of responsibility as generatePostCopy/parseGeminiCopyResponse
+// above (compliance validation lives in the route, not here).
+export async function generateHeadlines(
+  event: EventContext,
+  speaker: Record<string, unknown>,
+  messagingJson: Record<string, unknown> | null
+): Promise<HeadlineSegments[]> {
+  const dates = event.public_dates_display ?? ''
+  const venueLine = event.public_venue_display || (event.venue ? `${event.venue}${event.city ? `, ${event.city}` : ''}` : null)
+  const eventContext = [
+    `Event: ${event.public_name || event.name}`,
+    dates && `Dates: ${dates}`,
+    venueLine && `Venue: ${venueLine}`,
+  ].filter(Boolean).join('\n')
+
+  const speakerName = speaker.public_name || speaker.name
+  const talkingPoints = speaker.key_talking_points
+    ? `\nKey talking points (ground the headline in these specifically when relevant): ${speaker.key_talking_points}`
+    : ''
+  // Full Bio text (2026-09-22) — precomputed at upload time (see
+  // toStoredBioPdf, full-bio-upload.ts), so this is a cheap column read,
+  // not a PDF download/parse. Included alongside Short Bio, not instead
+  // of it: Short Bio is often the more carefully producer-edited text,
+  // Full Bio has more raw material (career history, past talks, specific
+  // achievements) to actually ground a punchy, specific headline in when
+  // Short Bio alone is thin or generic.
+  const fullBioText = (speaker.bio_full_text as string | null | undefined)?.trim()
+  const fullBioContext = fullBioText ? `\nFull bio (richer source material — mine this for specific, concrete details a punchy headline can use):\n${fullBioText.slice(0, 20000)}` : ''
+  const stakeholderContext = `Speaker: ${speakerName}, ${normalizeTitle(speaker.role)} at ${speaker.company}${speaker.country ? `, ${speaker.country}` : ''}.\nBio: ${speaker.bio ?? '(not provided)'}${talkingPoints}${fullBioContext}`
+
+  const messagingContext = messagingJson
+    ? `Messaging doc context (use for positioning/tone/themes — do not invent facts beyond this). Any section with "kind":"rules" is a hard constraint, never violate it. Any section with "kind":"facts" is the ONLY permitted source for a statistic, figure, or scale claim — never state a number that isn't grounded there:\n${JSON.stringify(messagingJson)}`
+    : 'No topline messaging doc uploaded for this event yet — write in a neutral, professional Trescon voice.'
+
+  const examplesText = HEADLINE_EXAMPLES
+    .map((e, i) => `  ${i + 1}. lead: "${e.lead}"; emphasis: "${e.emphasis}"; trail: "${e.trail}"`)
+    .join('\n')
+
+  const prompt = `You are writing a short, bold on-image HEADLINE for a speaker
+announcement social media creative — the large graphic phrase overlaid on
+the image itself (completely separate from any caption/post text). It
+must read like a punchy editorial pull-quote, not a sentence.
+
+Structure: 2 or 3 short clauses:
+- "lead" (optional, rendered in white) — a short lead-in, 1-4 words. May
+  be omitted (empty string) — some headlines correctly open straight with
+  "emphasis" instead.
+- "emphasis" (REQUIRED, rendered in the brand accent color) — the core
+  claim, the phrase doing the actual work. Never empty.
+- "trail" (optional, rendered in white) — a closing clause continuing the
+  thought. May be omitted (empty string) — some headlines correctly END on
+  "emphasis" instead.
+
+Study these 3 real examples for STYLE ONLY — do not reuse their words,
+topics, or facts, and do not assume they relate to this event:
+${examplesText}
+
+Total length across all clauses: roughly 30-60 characters (aim for the
+low-to-mid end — a shorter phrase reads bolder on a creative than a longer
+one). Write every clause in natural sentence case — a separate render step
+uppercases it later; do not write in all caps yourself.
+
+Grounded only in the data below — never invent a statistic, achievement,
+or scale claim not present in it.
+
+${eventContext}
+
+${stakeholderContext}
+
+${messagingContext}
+
+Generate 5 DISTINCT options — vary the structure (mix 2-segment and
+3-segment, vary which clause carries the core claim) and vary the angle
+(don't make all 5 restate the same fact).
+
+Return JSON only, no markdown fences:
+{ "headlines": [ { "lead": "...", "emphasis": "...", "trail": "..." }, ... exactly 5 items ] }
+Use an empty string "" for lead/trail when a given option omits it.`
+
+  const model = getGemini().getGenerativeModel({ model: FLASH_MODEL, generationConfig: { responseMimeType: 'application/json' } })
+  const result = await model.generateContent([{ text: prompt }], { timeout: 60_000 })
+  return parseHeadlineResponse(result.response.text().trim())
+}
+
 export type { CreativeTemplateConfig }
 
 export type NeededAsset = { source: PhotoSlotLayer['source']; url: string; isSvg: boolean; headBox?: HeadBox | null }
@@ -361,7 +516,7 @@ export type NeededAsset = { source: PhotoSlotLayer['source']; url: string; isSvg
 export type CompositeInputs = {
   variant: Variant
   assetsNeeded: NeededAsset[]
-  texts: { name?: string; title?: string; company?: string; tier?: string; country?: string }
+  texts: ResolvedTexts
 }
 
 // Resolves a real asset URL for a photo_slot layer's `source` from the
@@ -420,8 +575,29 @@ export function buildCompositeInputs(
     assetsNeeded.push({ source, url, isSvg: url.toLowerCase().endsWith('.svg'), headBox })
   }
 
-  const texts = stakeholderType === 'speaker'
-    ? { name: String(speaker?.public_name || speaker?.name || ''), title: String(speaker?.role ?? ''), company: String(speaker?.company ?? ''), country: String(speaker?.country ?? '') }
+  // Creative Headline (2026-09-22, speaker record, not per-announcement) —
+  // generated once on the speaker's own page and reused by every
+  // announcement for them, same as name/title/company already are. A
+  // variant with a headline_emphasis layer is unusable for a speaker who
+  // hasn't generated/selected one yet — same "requires X" gate as the
+  // missing-photo/logo checks above, not a silent blank render.
+  const usesHeadline = stakeholderType === 'speaker' && variant.layers.some(l => l.type === 'text' && l.field === 'headline_emphasis')
+  const selectedHeadline = usesHeadline
+    ? (speaker?.headline_variants as HeadlineVariant[] | null)?.find(v => v.id === speaker?.selected_headline_variant_id)
+    : undefined
+  if (usesHeadline && !selectedHeadline) {
+    return { templateError: `This speaker needs a Creative Headline generated first (on their record page) — required by variant "${variant.name}"` }
+  }
+
+  const texts: ResolvedTexts = stakeholderType === 'speaker'
+    ? {
+        name: String(speaker?.public_name || speaker?.name || ''), title: String(speaker?.role ?? ''), company: String(speaker?.company ?? ''), country: String(speaker?.country ?? ''),
+        ...(selectedHeadline ? {
+          headline_lead: selectedHeadline.segments.lead || undefined,
+          headline_emphasis: selectedHeadline.segments.emphasis || undefined,
+          headline_trail: selectedHeadline.segments.trail || undefined,
+        } : {}),
+      }
     : {}
 
   return { variant, assetsNeeded, texts }

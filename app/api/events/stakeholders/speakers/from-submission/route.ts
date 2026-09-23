@@ -310,9 +310,9 @@ export async function POST(req: NextRequest) {
         const buffer = Buffer.from(await fileRes.arrayBuffer())
         const contentType = fileRes.headers.get('content-type') || 'application/octet-stream'
         const filename = fileUrls.bio_full.split('/').pop() || 'bio.pdf'
-        const { pdfBuffer, source } = await toStoredBioPdf(buffer, filename, contentType)
+        const { pdfBuffer, source, bioText } = await toStoredBioPdf(buffer, filename, contentType)
         const bioFullUrl = await uploadPublicAsset(`events/${body.event_id}/speakers/${speaker.id}/bio-full-${Date.now()}.pdf`, pdfBuffer, 'application/pdf')
-        await supabaseAdmin.from('event_speakers').update({ bio_full_url: bioFullUrl, bio_full_source: source }).eq('id', speaker.id)
+        await supabaseAdmin.from('event_speakers').update({ bio_full_url: bioFullUrl, bio_full_source: source, bio_full_text: bioText || null }).eq('id', speaker.id)
       } else {
         console.error('Could not fetch submitted Full Bio for submission', submission.id, fileRes.status)
       }

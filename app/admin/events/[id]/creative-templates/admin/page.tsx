@@ -41,7 +41,10 @@ const LAYER_TYPE_LABEL: Record<Layer['type'], string> = { image: 'Image', photo_
 // Mirrors composite.ts's DEFAULT_MAX_LINES — kept here too (not imported)
 // since it's just the starting value for a freshly-added layer, not a
 // runtime fallback; the two are allowed to diverge without breaking anything.
-const DEFAULT_MAX_LINES_BY_FIELD: Record<TextLayer['field'], number> = { name: 3, title: 2, company: 2, country: 1, tier: 2, custom: 2 }
+const DEFAULT_MAX_LINES_BY_FIELD: Record<TextLayer['field'], number> = {
+  name: 3, title: 2, company: 2, country: 1, tier: 2, custom: 2,
+  headline_lead: 2, headline_emphasis: 3, headline_trail: 2,
+}
 
 // Editor-local — maps a text layer's `field` to the content-type slug the
 // brand-rules resolver understands (app/lib/branding/brand-rules.ts). This
@@ -50,6 +53,7 @@ const DEFAULT_MAX_LINES_BY_FIELD: Record<TextLayer['field'], number> = { name: 3
 // than in the shared library.
 const FIELD_TO_CONTENT_TYPE: Record<TextLayer['field'], string> = {
   name: 'heading', title: 'subheading', company: 'body', country: 'body', tier: 'body', custom: 'body',
+  headline_lead: 'heading', headline_emphasis: 'heading', headline_trail: 'heading',
 }
 
 function newLayer(type: Layer['type'], activeType: StakeholderKind, canvasWidth: number, canvasHeight: number, fontSuggestion?: ResolvedFont | null, category?: Variant['category']): Layer {
@@ -1048,6 +1052,9 @@ function PlaceholderOverrideFields({ activeType, profile, onSave }: {
           <label style={fieldStyle}>Job Title<Input value={draft.job_title ?? ''} onChange={e => setDraft(d => ({ ...d, job_title: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
           <label style={fieldStyle}>Company<Input value={draft.company_name ?? ''} onChange={e => setDraft(d => ({ ...d, company_name: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
           <label style={fieldStyle}>Country<Input value={draft.country ?? ''} onChange={e => setDraft(d => ({ ...d, country: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
+          <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Headline — Lead (optional, white)<Input value={draft.headline_lead ?? ''} onChange={e => setDraft(d => ({ ...d, headline_lead: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
+          <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Headline — Emphasis (accent color)<Input value={draft.headline_emphasis ?? ''} onChange={e => setDraft(d => ({ ...d, headline_emphasis: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
+          <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Headline — Trail (optional, white)<Input value={draft.headline_trail ?? ''} onChange={e => setDraft(d => ({ ...d, headline_trail: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
         </>
       ) : (
         <>
@@ -1390,7 +1397,9 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
   allLayers: Layer[]
 }) {
   const snapCandidates = allLayers.filter((l): l is TextLayer => l.type === 'text' && l.id !== layer.id)
-  const fieldOptions: TextLayer['field'][] = activeType === 'speaker' ? ['name', 'title', 'company', 'country', 'tier', 'custom'] : ['tier', 'custom']
+  const fieldOptions: TextLayer['field'][] = activeType === 'speaker'
+    ? ['name', 'title', 'company', 'country', 'tier', 'headline_lead', 'headline_emphasis', 'headline_trail', 'custom']
+    : ['tier', 'custom']
   const [analyzing, setAnalyzing] = useState(false)
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
   const [styleDetected, setStyleDetected] = useState(false)
@@ -1496,8 +1505,14 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
             // Default the gap to 20px the moment a target is first picked
             // (2026-08-02, per Madhu) so there's always a sane starting
             // value rather than an empty/zero gap — still fully editable
-            // in the field below.
-            onChange({ snap_below_layer_id: id, ...(id && layer.snap_gap === undefined ? { snap_gap: 20 } : {}) })
+            // in the field below. headline_* layers default much tighter
+            // (2026-09-22): they're meant to read as ONE continuous
+            // paragraph with a color change, not visually distinct fields
+            // like Name/Title/Company — confirmed against the 3 real
+            // reference samples, which have essentially zero extra space
+            // between the lead/emphasis/trail lines.
+            const defaultGap = layer.field.startsWith('headline_') ? 2 : 20
+            onChange({ snap_below_layer_id: id, ...(id && layer.snap_gap === undefined ? { snap_gap: defaultGap } : {}) })
           }}
           style={{ width: '100%', marginTop: '3px' }}
         >
@@ -1572,6 +1587,15 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
       <label style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
         <input type="checkbox" checked={layer.uppercase ?? false} onChange={e => onChange({ uppercase: e.target.checked })} />
         Uppercase (renders as ALL CAPS regardless of how it's typed in the source data)
+      </label>
+      {/* Never-shrink toggle (2026-09-22) — a longer value wraps to MORE
+          LINES at the pinned font_size instead of getting visually smaller.
+          Generic (any text layer can use it), not headline-specific —
+          headline layers are the first to turn it on, paired with a
+          generous Max lines. */}
+      <label style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+        <input type="checkbox" checked={layer.allow_shrink === false} onChange={e => onChange({ allow_shrink: !e.target.checked })} />
+        Never shrink (fixed font size — wraps to more lines instead, only truncates as a last resort)
       </label>
     </>
   )

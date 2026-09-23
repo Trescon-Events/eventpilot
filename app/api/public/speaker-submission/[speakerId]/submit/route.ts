@@ -66,10 +66,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
     if (bioFile.size > MAX_BIO_SIZE) return NextResponse.json({ error: `Full Bio file too large (max ${MAX_BIO_SIZE / (1024 * 1024)} MB)` }, { status: 413 })
     const buffer = Buffer.from(await bioFile.arrayBuffer())
     try {
-      const { pdfBuffer, source } = await toStoredBioPdf(buffer, bioFile.name, bioFile.type)
+      const { pdfBuffer, source, bioText } = await toStoredBioPdf(buffer, bioFile.name, bioFile.type)
       const url = await uploadPublicAsset(`events/${speaker.event_id}/speakers/${speakerId}/bio-full-${Date.now()}.pdf`, pdfBuffer, 'application/pdf')
       speakerPatch.bio_full_url = url
       speakerPatch.bio_full_source = source
+      speakerPatch.bio_full_text = bioText || null
       submitted.push('bio_full')
     } catch (e) {
       return NextResponse.json({ error: e instanceof Error ? e.message : 'Full Bio upload failed' }, { status: 400 })

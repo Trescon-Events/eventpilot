@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getStakeholderEmailHeaderHtml } from '@/app/lib/branding/email-header'
+import { locateApprovalToken, resolveRoundForLocated } from '@/app/lib/events/approval-round'
 
 /* POST /api/events/stakeholders/announcements/[id]/approve
    Body: { token?, approver_id?, status: 'approved'|'approved_with_comments'|
@@ -16,12 +17,16 @@ import { getStakeholderEmailHeaderHtml } from '@/app/lib/branding/email-header'
    rows' statuses (.every()) and write the result onto
    stakeholder_announcements.status, same as before this column existed.
    'external' and 'client' never touch stakeholder_announcements.status at
-   all — that column is internal's own domain. Each of those rounds'
-   current state is instead read directly off its own approval row
-   wherever it's needed (e.g. the Publishing panel's readiness check), so
-   there's nothing here to keep in sync. Both are handled by the exact same
-   branch below — they only ever differ in which email tells the producer
-   about the outcome (see notifyMM's own layer-label logic). */
+   all — that column is internal's own domain.
+
+   First-responder-wins (2026-09-22, per Madhu) — external/client rounds
+   now have a main row PLUS zero or more per-person CC rows, each with
+   their own token (see approval-round.ts). Whichever one is actioned
+   FIRST is the round's decision. Before writing, this re-checks the whole
+   round (not just the row this token happens to be) and refuses a second
+   decision once one already exists — the defensive, server-side half of
+   what the review page already shows client-side via review-data's
+   round-wide resolution. */
 
 type ApproveBody = {
   token?: string; approver_id?: string
@@ -39,54 +44,82 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'comments required when requesting changes' }, { status: 400 })
   }
 
-  let approvalQuery = supabaseAdmin.from('announcement_approvals').select('*').eq('announcement_id', id)
-  approvalQuery = body.token ? approvalQuery.eq('approval_token', body.token) : approvalQuery.eq('approver_id', body.approver_id!)
-  const { data: approval, error: findErr } = await approvalQuery.single()
-
-  // Client Approval CC recipient (2026-09-06) — see review-data/route.ts's
-  // own comment. Their decision only ever updates their own row: it never
-  // touches stakeholder_announcements, never triggers notifyMM (the
-  // primary's decision already does that), and never affects the
-  // primary's own status — this is purely their individually-tracked
-  // record, per Madhu's ask for a per-person audit trail.
-  if ((findErr || !approval) && body.token) {
-    const { data: ccRow } = await supabaseAdmin
-      .from('announcement_client_approval_cc')
-      .select('id, token_expires_at, parent:parent_approval_id(announcement_id)')
-      .eq('approval_token', body.token)
-      .maybeSingle()
-    const parent = ccRow ? (Array.isArray(ccRow.parent) ? ccRow.parent[0] : ccRow.parent) : null
-    if (ccRow && parent?.announcement_id === id) {
-      if (!ccRow.token_expires_at || new Date(ccRow.token_expires_at) < new Date()) {
-        return NextResponse.json({ error: 'This approval link has expired.' }, { status: 410 })
-      }
-      const { error: ccUpdateErr } = await supabaseAdmin
-        .from('announcement_client_approval_cc')
-        .update({ status: body.status, comments: body.comments ?? null, actioned_at: new Date().toISOString() })
-        .eq('id', ccRow.id)
-      if (ccUpdateErr) return NextResponse.json({ error: ccUpdateErr.message }, { status: 500 })
-      return NextResponse.json({ ok: true, announcement_status: null, client_approval_status: body.status })
-    }
+  // approver_id (authenticated staff, internal layer only) keeps the
+  // original direct lookup — no round/CC concept applies to internal.
+  if (body.approver_id) {
+    const { data: approval, error: findErr } = await supabaseAdmin
+      .from('announcement_approvals').select('*').eq('announcement_id', id).eq('approver_id', body.approver_id).single()
+    if (findErr || !approval) return NextResponse.json({ error: 'Approval request not found' }, { status: 404 })
+    return finishInternal(id, approval.id, body.status, body.comments)
   }
 
-  if (findErr || !approval) return NextResponse.json({ error: 'Approval request not found' }, { status: 404 })
-  if (body.token && (!approval.token_expires_at || new Date(approval.token_expires_at) < new Date())) {
+  const located = await locateApprovalToken(id, body.token!)
+  if (!located) return NextResponse.json({ error: 'Approval request not found' }, { status: 404 })
+  if (!located.token_expires_at || new Date(located.token_expires_at) < new Date()) {
     return NextResponse.json({ error: 'This approval link has expired.' }, { status: 410 })
   }
 
+  if (located.layer === 'internal') {
+    return finishInternal(id, located.id, body.status, body.comments)
+  }
+
+  const parentId = located.kind === 'main' ? located.id : located.parent_approval_id
+
+  // Round-lock: someone else (main or a sibling CC) may have already
+  // resolved this round between when the reviewer's page loaded and when
+  // they clicked Submit — re-check fresh, right before writing.
+  const already = await resolveRoundForLocated(parentId, located.layer)
+  if (already.status !== 'none' && already.status !== 'pending') {
+    return NextResponse.json({
+      error: `This request has already been handled${already.resolved_by_name ? ` by ${already.resolved_by_name}` : ''} — no further action is needed.`,
+    }, { status: 409 })
+  }
+
+  const actionedAt = new Date().toISOString()
+  let sentByEmail: string | null
+  let resolverName: string | null
+
+  if (located.kind === 'main') {
+    const { data: mainRow, error: updateErr } = await supabaseAdmin
+      .from('announcement_approvals')
+      .update({ status: body.status, comments: body.comments ?? null, actioned_at: actionedAt })
+      .eq('id', located.id)
+      .select('sent_by_email, external_name')
+      .single()
+    if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
+    sentByEmail = mainRow.sent_by_email
+    resolverName = mainRow.external_name
+  } else {
+    const ccTable = located.layer === 'client' ? 'announcement_client_approval_cc' : 'announcement_external_approval_cc'
+    const [{ data: ccRow, error: updateErr }, { data: mainRow }] = await Promise.all([
+      supabaseAdmin.from(ccTable)
+        .update({ status: body.status, comments: body.comments ?? null, actioned_at: actionedAt })
+        .eq('id', located.id)
+        .select('name')
+        .single(),
+      // sent_by_email lives on the main row regardless of who actually
+      // resolved it (a CC's own row has no sent_by_email of its own) —
+      // the producer notification always goes to whoever sent this round.
+      supabaseAdmin.from('announcement_approvals').select('sent_by_email').eq('id', parentId).single(),
+    ])
+    if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
+    sentByEmail = mainRow?.sent_by_email ?? null
+    resolverName = ccRow?.name ?? null
+  }
+
+  await notifyMM(id, body.status, located.layer, sentByEmail, body.comments ?? null, resolverName).catch(e => console.error('MM notification failed (approval still recorded):', e))
+  return NextResponse.json({
+    ok: true, announcement_status: null,
+    ...(located.layer === 'external' ? { external_approval_status: body.status } : { client_approval_status: body.status }),
+  })
+}
+
+async function finishInternal(id: string, approvalRowId: string, status: ApproveBody['status'], comments: string | undefined) {
   const { error: updateErr } = await supabaseAdmin
     .from('announcement_approvals')
-    .update({ status: body.status, comments: body.comments ?? null, actioned_at: new Date().toISOString() })
-    .eq('id', approval.id)
+    .update({ status, comments: comments ?? null, actioned_at: new Date().toISOString() })
+    .eq('id', approvalRowId)
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
-
-  if (approval.layer === 'external' || approval.layer === 'client') {
-    await notifyMM(id, body.status, approval.layer, approval.sent_by_email, body.comments ?? null).catch(e => console.error('MM notification failed (approval still recorded):', e))
-    return NextResponse.json({
-      ok: true, announcement_status: null,
-      ...(approval.layer === 'external' ? { external_approval_status: body.status } : { client_approval_status: body.status }),
-    })
-  }
 
   const { data: allApprovals } = await supabaseAdmin
     .from('announcement_approvals')
@@ -111,13 +144,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .update({ status: newAnnouncementStatus, updated_at: new Date().toISOString() })
       .eq('id', id)
 
-    await notifyMM(id, newAnnouncementStatus, 'internal', internalSentByEmail, body.comments ?? null).catch(e => console.error('MM notification failed (approval still recorded):', e))
+    await notifyMM(id, newAnnouncementStatus, 'internal', internalSentByEmail, comments ?? null, null).catch(e => console.error('MM notification failed (approval still recorded):', e))
   }
 
   return NextResponse.json({ ok: true, announcement_status: newAnnouncementStatus ?? 'pending_approval' })
 }
 
-async function notifyMM(announcementId: string, newStatus: string, layer: 'internal' | 'external' | 'client', sentByEmail: string | null, comments: string | null) {
+async function notifyMM(announcementId: string, newStatus: string, layer: 'internal' | 'external' | 'client', sentByEmail: string | null, comments: string | null, resolverName: string | null) {
   if (!process.env.RESEND_API_KEY) return
 
   const { data: announcement } = await supabaseAdmin
@@ -161,8 +194,22 @@ async function notifyMM(announcementId: string, newStatus: string, layer: 'inter
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com'
   const headerHtml = await getStakeholderEmailHeaderHtml()
 
+  // Escaped before going into raw HTML — comments (and, since
+  // 2026-09-22, resolverName — whoever holds a review link, no
+  // EventPilot login needed) are free-text supplied by an external
+  // party, never trusted input.
+  const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
   const isApproved = newStatus === 'approved' || newStatus === 'approved_with_comments'
-  const layerLabel = layer === 'external' ? 'The speaker/office has' : layer === 'client' ? 'The client has' : 'All internal approvers have'
+  // Names the actual person who resolved it when known (2026-09-22, first-
+  // responder-wins) — could be the speaker/client themselves OR whichever
+  // CC'd assistant/office contact got there first; falls back to the
+  // generic layer label for 'internal' (aggregate, no single resolver) or
+  // a pre-2026-09-22 row that predates per-CC identity tracking.
+  const layerLabel = resolverName ? `${escapeHtml(resolverName)} has`
+    : layer === 'external' ? 'The speaker/office has' : layer === 'client' ? 'The client has' : 'All internal approvers have'
+  const layerReviewerNoun = resolverName ? escapeHtml(resolverName)
+    : layer === 'external' ? 'The external reviewer' : layer === 'client' ? 'The client' : 'An approver'
   const layerSubjectPrefix = layer === 'external' ? 'Externally approved' : layer === 'client' ? 'Client-approved' : 'Approved'
   const subjectContext = stakeholderName ? `${stakeholderName} (${kindLabel})` : `${kindLabel} announcement`
   const subject = isApproved
@@ -177,10 +224,6 @@ async function notifyMM(announcementId: string, newStatus: string, layer: 'inter
     ? `${siteUrl}/admin/events/${event?.id}/stakeholders/${stakeholderId}?tab=announcements&announcement=${announcementId}`
     : `${siteUrl}/admin/events/${event?.id}/stakeholders`
 
-  // Escaped before going into raw HTML — comments are free-text supplied
-  // by whoever holds the review link (an external/client reviewer, no
-  // EventPilot login needed), not trusted input.
-  const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   const stakeholderLine = stakeholderName ? `<strong>${escapeHtml(stakeholderName)}</strong> (${kindLabel}, ${event?.name ?? 'your event'})` : `a ${kindLabel} announcement for ${event?.name ?? 'your event'}`
 
   await resend.emails.send({
@@ -190,7 +233,7 @@ async function notifyMM(announcementId: string, newStatus: string, layer: 'inter
     /* eslint-disable no-restricted-syntax -- email HTML; clients can't render CSS custom properties, literal colors required (matches app/api/content/posts/[id]/approve/route.ts's existing convention) */
     html: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto">${headerHtml}
            <p style="font-size:14px;color:#2D3E50">
-             ${isApproved ? `${layerLabel} signed off on ${stakeholderLine}.` : `${layer === 'external' ? 'The external reviewer' : layer === 'client' ? 'The client' : 'An approver'} requested changes to ${stakeholderLine}.`}
+             ${isApproved ? `${layerLabel} signed off on ${stakeholderLine}.` : `${layerReviewerNoun} requested changes to ${stakeholderLine}.`}
            </p>
            ${comments?.trim() ? `<p style="font-size:13px;color:#0F1923;white-space:pre-wrap;background:#F5F7FA;padding:12px;border-radius:8px;font-style:italic">&quot;${escapeHtml(comments.trim())}&quot;</p>` : ''}
            <p><a href="${reviewUrl}" style="color:#00695C">Review in EventPilot →</a></p></div>`,

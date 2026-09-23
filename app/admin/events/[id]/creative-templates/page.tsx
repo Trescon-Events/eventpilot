@@ -49,6 +49,12 @@ export type Speaker = {
   // trusts; prefer it wherever a speaker's email is quick-picked.
   email: string | null; public_name: string | null
   custom_fields: Record<string, string | string[]> | null
+  // Creative headline (2026-09-22, speaker record, not per-announcement) —
+  // whether this speaker has a selected headline is what CreateAnnouncement
+  // Modal/ForStakeholder's missingAssetLabels() checks to grey out a
+  // headline-requiring Variant, same "requires X" UX as a missing company
+  // logo — see event_speakers.headline_variants/selected_headline_variant_id.
+  selected_headline_variant_id: string | null
 }
 export type Partner = {
   id: string; company_name: string; partner_type: string
@@ -101,10 +107,15 @@ export type AnnouncementListItem = {
   external_approval_comments: string | null
   external_approval_actioned_at: string | null
   external_approval_recipient: string | null
+  // Who actually resolved it (2026-09-22, first-responder-wins) — may
+  // differ from _recipient (who it was addressed to) when a CC'd
+  // assistant/office contact responded first. Null while still pending.
+  external_approval_resolved_by: string | null
   external_approval_notified_at: string | null
   client_approval_comments: string | null
   client_approval_actioned_at: string | null
   client_approval_recipient: string | null
+  client_approval_resolved_by: string | null
   client_approval_notified_at: string | null
   internal_approval_bypassed_at: string | null
   external_approval_bypassed_at: string | null

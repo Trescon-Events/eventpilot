@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { resolveApprovalRound } from '@/app/lib/events/approval-round'
 
 /* GET /api/events/stakeholders/announcements?event_id=X&status=Y&month=YYYY-MM&speaker_id=Z&partner_id=Z
    Lists announcements for the social calendar (PRD SS6.11/9.7), Queue, and
@@ -55,50 +56,67 @@ export async function GET(req: NextRequest) {
   // doesn't block anything (existing internal-only announcements, or
   // events with no Client Approval contact configured, are unaffected).
   //
-  // 2026-08-29 addition, per Madhu, live: the Approval section's per-layer
-  // status area needs to show the actual reviewer's comment inline (not
-  // just a bare status word) — the exact thing that was invisible before
-  // ("I added a comment and said rejected... no status update in
-  // EventPilot"). Returns the full latest row per layer now, not just its
-  // status string.
+  // First-responder-wins (2026-09-22) — each layer's status/comments/
+  // actioned_at/recipient now reflect the whole ROUND's resolution (the
+  // main row OR any CC's — see approval-round.ts's own doc comment for
+  // why), not just the main row read in isolation. Batched here (one
+  // query per table across every announcement on the page) rather than
+  // calling fetchAndResolveApprovalRound() per row, which would be N+1.
   const announcementIds = (data ?? []).map(a => a.id)
-  type LayerDetail = { status: string; comments: string | null; actioned_at: string | null; recipient_name: string | null; notified_at: string | null }
-  const externalById = new Map<string, LayerDetail>()
-  const clientById = new Map<string, LayerDetail>()
+  type MainDetail = { id: string; status: string; comments: string | null; actioned_at: string | null; notified_at: string | null; external_name: string | null; external_email: string | null }
+  const externalMainById = new Map<string, MainDetail>()
+  const clientMainById = new Map<string, MainDetail>()
   if (announcementIds.length > 0) {
     const { data: layeredApprovals } = await supabaseAdmin
       .from('announcement_approvals')
-      .select('announcement_id, layer, status, comments, actioned_at, notified_at, external_name')
+      .select('id, announcement_id, layer, status, comments, actioned_at, notified_at, external_name, external_email')
       .in('announcement_id', announcementIds)
       .in('layer', ['external', 'client'])
       .order('created_at', { ascending: false })
     for (const row of layeredApprovals ?? []) {
-      const byId = row.layer === 'external' ? externalById : clientById
-      if (!byId.has(row.announcement_id)) {
-        byId.set(row.announcement_id, {
-          status: row.status, comments: row.comments, actioned_at: row.actioned_at,
-          recipient_name: row.external_name, notified_at: row.notified_at,
-        })
-      }
+      const byId = row.layer === 'external' ? externalMainById : clientMainById
+      if (!byId.has(row.announcement_id)) byId.set(row.announcement_id, row)
     }
   }
-  const NONE_DETAIL: LayerDetail = { status: 'none', comments: null, actioned_at: null, recipient_name: null, notified_at: null }
+
+  const externalMainIds = [...externalMainById.values()].map(r => r.id)
+  const clientMainIds = [...clientMainById.values()].map(r => r.id)
+  type CcDetail = { parent_approval_id: string; status: string; comments: string | null; actioned_at: string | null; name: string | null; email: string | null }
+  const [{ data: externalCc }, { data: clientCc }] = await Promise.all([
+    externalMainIds.length
+      ? supabaseAdmin.from('announcement_external_approval_cc').select('parent_approval_id, status, comments, actioned_at, name, email').in('parent_approval_id', externalMainIds)
+      : Promise.resolve({ data: [] as CcDetail[] }),
+    clientMainIds.length
+      ? supabaseAdmin.from('announcement_client_approval_cc').select('parent_approval_id, status, comments, actioned_at, name, email').in('parent_approval_id', clientMainIds)
+      : Promise.resolve({ data: [] as CcDetail[] }),
+  ])
+  const ccByParent = (rows: CcDetail[] | null) => {
+    const m = new Map<string, CcDetail[]>()
+    for (const row of rows ?? []) m.set(row.parent_approval_id, [...(m.get(row.parent_approval_id) ?? []), row])
+    return m
+  }
+  const externalCcByParent = ccByParent(externalCc)
+  const clientCcByParent = ccByParent(clientCc)
 
   const enriched = (data ?? []).map(a => {
-    const external = externalById.get(a.id) ?? NONE_DETAIL
-    const client = clientById.get(a.id) ?? NONE_DETAIL
+    const externalMain = externalMainById.get(a.id) ?? null
+    const clientMain = clientMainById.get(a.id) ?? null
+    const external = resolveApprovalRound(externalMain, externalMain ? (externalCcByParent.get(externalMain.id) ?? []) : [])
+    const client = resolveApprovalRound(clientMain, clientMain ? (clientCcByParent.get(clientMain.id) ?? []) : [])
     return {
       ...a,
       stakeholder_name: a.speaker_id ? speakerNames.get(a.speaker_id) : a.partner_id ? partnerNames.get(a.partner_id) : null,
       external_approval_status: external.status,
       external_approval_comments: external.comments,
       external_approval_actioned_at: external.actioned_at,
-      external_approval_recipient: external.recipient_name,
+      external_approval_recipient: externalMain?.external_name ?? null,
+      external_approval_resolved_by: external.resolved_by_name,
       external_approval_notified_at: external.notified_at,
       client_approval_status: client.status,
       client_approval_comments: client.comments,
       client_approval_actioned_at: client.actioned_at,
-      client_approval_recipient: client.recipient_name,
+      client_approval_recipient: clientMain?.external_name ?? null,
+      client_approval_resolved_by: client.resolved_by_name,
       client_approval_notified_at: client.notified_at,
     }
   })

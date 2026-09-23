@@ -6,16 +6,20 @@ import { hasEventPermission } from '@/app/lib/access/event-access'
 import { extractPdfText } from '@/app/lib/pdf-text'
 import { isQuotaError, QUOTA_ERROR_MESSAGE } from '@/app/lib/gemini-error'
 import { getLatestCompiledReference } from '@/app/lib/content/compile-reference'
+import { enforceMaxChars } from '@/app/lib/content/text-limits'
 
 /* POST /api/events/stakeholders/speakers/[id]/generate-short-bio
 
-   Downloads the speaker's stored Full Bio PDF (bio_full_url — always a
-   PDF by the time it's stored, see app/lib/events/full-bio-upload.ts),
-   extracts its text, and asks Gemini to condense it into a short bio
-   under SHORT_BIO_MAX_CHARS characters (2026-09-21, Madhu — was "150-300
-   words" until now, a length no longer used anywhere else; see the
+   Reads the speaker's Full Bio text (bio_full_text — extracted once at
+   upload time by toStoredBioPdf(), see app/lib/events/full-bio-upload.ts)
+   and asks Gemini to condense it into a short bio under
+   SHORT_BIO_MAX_CHARS characters (2026-09-21, Madhu — was "150-300 words"
+   until now, a length no longer used anywhere else; see the
    default-schemas.ts / form_schema_defaults update in the same change for
-   the matching field-hint text).
+   the matching field-hint text). Falls back to downloading+extracting the
+   PDF live (2026-09-22) only for a speaker whose Full Bio predates
+   bio_full_text existing — every new upload has it precomputed, so this
+   route no longer needs to download and re-parse the PDF on every call.
 
    Grounded in the event's messaging doc (2026-09-21) — same
    getLatestCompiledReference()-then-raw-doc-fallback pattern and the same
@@ -38,24 +42,12 @@ function getGemini() {
   return _gemini
 }
 
-// Server-side safety net — an LLM instruction to stay under a character
-// count is a strong steer, not a guarantee. Trims to the last whitespace
-// at or before the limit (never mid-word) and drops a trailing orphan
-// comma/dash, so a rare overshoot degrades to a clean cut instead of an
-// enforced-but-ugly hard chop.
-function enforceMaxChars(text: string, max: number): string {
-  if (text.length <= max) return text
-  const cut = text.slice(0, max)
-  const lastSpace = cut.lastIndexOf(' ')
-  return (lastSpace > 0 ? cut.slice(0, lastSpace) : cut).replace(/[,;:\-–—\s]+$/, '')
-}
-
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: speakerId } = await params
 
   const { data: speaker } = await supabaseAdmin
     .from('event_speakers')
-    .select('event_id, name, bio_full_url')
+    .select('event_id, name, bio_full_url, bio_full_text')
     .eq('id', speakerId)
     .single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
@@ -70,14 +62,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Gemini API key not configured' }, { status: 500 })
   }
 
-  let fullBioText: string
-  try {
-    const fileRes = await fetch(speaker.bio_full_url)
-    if (!fileRes.ok) throw new Error(`Failed to download Full Bio PDF: ${fileRes.status}`)
-    const buffer = Buffer.from(await fileRes.arrayBuffer())
-    fullBioText = await extractPdfText(buffer)
-  } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'Could not read the Full Bio PDF' }, { status: 500 })
+  let fullBioText = speaker.bio_full_text ?? ''
+  if (!fullBioText.trim()) {
+    // Pre-dates bio_full_text (uploaded before 2026-09-22) — fall back to
+    // the old live download+extract path rather than failing outright.
+    try {
+      const fileRes = await fetch(speaker.bio_full_url)
+      if (!fileRes.ok) throw new Error(`Failed to download Full Bio PDF: ${fileRes.status}`)
+      const buffer = Buffer.from(await fileRes.arrayBuffer())
+      fullBioText = await extractPdfText(buffer)
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : 'Could not read the Full Bio PDF' }, { status: 500 })
+    }
   }
   if (!fullBioText.trim()) {
     return NextResponse.json({ error: 'The Full Bio PDF has no extractable text (it may be a scanned image) — write the Short Bio by hand instead.' }, { status: 422 })

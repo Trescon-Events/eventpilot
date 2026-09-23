@@ -9,6 +9,7 @@ import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { schedulePostizPost, listPostizIntegrations, listPostizPostsInRange, type PostizPostSummary } from '@/app/lib/postiz'
 import { resolveRequiresClientApproval } from '@/app/lib/events/client-approval-gate'
+import { fetchAndResolveApprovalRound } from '@/app/lib/events/approval-round'
 
 type ChannelResult = { success: boolean; postId: string; state?: string; url?: string }
 
@@ -42,14 +43,14 @@ export async function checkCanPublish(req: NextRequest, eventId: string, announc
   const authorized = session?.adm || await hasEventPermission(session?.sid, eventId, 'sae.announcements.publish')
   if (!authorized) return { ok: false, message: 'Not authorized.' }
 
-  const [{ data: bypasses }, { data: layered }] = await Promise.all([
+  const [{ data: bypasses }, externalResolution, clientResolution] = await Promise.all([
     supabaseAdmin.from('stakeholder_announcements')
       .select('internal_approval_bypassed_at, external_approval_bypassed_at, client_approval_bypassed_at')
       .eq('id', announcementId).single(),
-    supabaseAdmin.from('announcement_approvals')
-      .select('layer, status, created_at')
-      .eq('announcement_id', announcementId).in('layer', ['external', 'client'])
-      .order('created_at', { ascending: false }),
+    // First-responder-wins (2026-09-22) — the round's overall resolution
+    // (primary OR any CC — see approval-round.ts), not just the main row.
+    fetchAndResolveApprovalRound(announcementId, 'external'),
+    fetchAndResolveApprovalRound(announcementId, 'client'),
   ])
 
   const internalOk = currentStatus === 'approved' || currentStatus === 'approved_with_comments' || !!bypasses?.internal_approval_bypassed_at
@@ -57,16 +58,15 @@ export async function checkCanPublish(req: NextRequest, eventId: string, announc
     return { ok: false, message: `Cannot publish — internal approval is still '${currentStatus}'` }
   }
 
-  const latestStatus = (layer: 'external' | 'client') => (layered ?? []).find(r => r.layer === layer)?.status ?? 'none'
   const layerOk = (status: string, bypassedAt: string | null | undefined) =>
     status === 'none' || status === 'approved' || status === 'approved_with_comments' || !!bypassedAt
 
-  const externalStatus = latestStatus('external')
+  const externalStatus = externalResolution.status
   if (!layerOk(externalStatus, bypasses?.external_approval_bypassed_at)) {
     return { ok: false, message: `Cannot publish — external approval is ${externalStatus === 'changes_requested' ? 'requesting changes' : 'pending'}` }
   }
 
-  const clientStatus = latestStatus('client')
+  const clientStatus = clientResolution.status
   // Reference Documents spec, Stage 4 (2026-09-10) — client approval is
   // opt-in per announcement by default (status 'none' = never requested =
   // fine, same as always). Where the event's requires_client_approval is

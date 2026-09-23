@@ -139,14 +139,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ eve
     // toStoredBioPdf's own doc comment). Every other file field (photo,
     // company_logo, partner logo) keeps the existing raw-upload behavior.
     if (field.key === 'bio_full') {
-      let pdfBuffer: Buffer, source: 'pdf' | 'docx_converted'
+      let pdfBuffer: Buffer, source: 'pdf' | 'docx_converted', bioText: string
       try {
-        ;({ pdfBuffer, source } = await toStoredBioPdf(buffer, file.name, file.type))
+        ;({ pdfBuffer, source, bioText } = await toStoredBioPdf(buffer, file.name, file.type))
       } catch (e) {
         return NextResponse.json({ error: e instanceof Error ? e.message : 'Full Bio upload failed' }, { status: 400 })
       }
       fileUrls[field.key] = await uploadPublicAsset(`events/${event_id}/form-submissions/${Date.now()}-bio-full.pdf`, pdfBuffer, 'application/pdf')
       fileUrls.bio_full_source = source
+      if (bioText) fileUrls.bio_full_text = bioText
       continue
     }
 

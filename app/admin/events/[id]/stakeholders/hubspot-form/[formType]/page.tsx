@@ -7,7 +7,7 @@ import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
 import { Button, Card, Input, Select, SearchableSelect } from '@/app/components/ui'
 import { FormType, FORM_TYPES, FORM_TITLES, PROPERTY_TITLES, FieldSchema } from '@/app/lib/forms/types'
 import { HubSpotFieldMapping, HubSpotFormField, EventHubSpotForm, guessFieldTypeFromHubSpot } from '@/app/lib/hubspot/types'
-import { AddFieldForm, NewFieldDraft, EMPTY_FIELD_DRAFT, FIELD_TYPE_OPTIONS, buildFieldFromDraft } from '@/app/components/forms/AddFieldForm'
+import { AddFieldForm, NewFieldDraft, EMPTY_FIELD_DRAFT, FIELD_TYPE_OPTIONS, buildFieldFromDraft, applyDraftToField } from '@/app/components/forms/AddFieldForm'
 
 const CONCEPT_TYPE_OPTIONS = FIELD_TYPE_OPTIONS.filter(o => o.type !== 'file')
 const CREATE_NEW_FIELD = '__create_new_field__'
@@ -27,6 +27,23 @@ function draftFromHubSpotField(f: HubSpotFormField): NewFieldDraft {
     type,
     required: f.required,
     options: hasOptions ? f.options!.map(o => o.value) : [''],
+  }
+}
+
+// Pre-fills the edit draft from an already-existing EventPilot concept
+// field, so "Edit field" opens on its current values rather than blank
+// ones — mirrors draftFromHubSpotField above, just sourced from our own
+// FieldSchema instead of HubSpot's field shape.
+function draftFromField(f: FieldSchema): NewFieldDraft {
+  return {
+    ...EMPTY_FIELD_DRAFT,
+    label: f.label,
+    type: f.type,
+    required: f.required,
+    help: f.help ?? '',
+    options: f.options?.length ? f.options : [''],
+    max_size_mb: f.max_size_mb ?? 10,
+    accept: f.accept ?? 'image/png,image/jpeg',
   }
 }
 
@@ -115,6 +132,13 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
   const [creatingWorkflow, setCreatingWorkflow] = useState(false)
   const [fieldDraft, setFieldDraft] = useState<NewFieldDraft>(EMPTY_FIELD_DRAFT)
   const [creatingField, setCreatingField] = useState(false)
+  // Keyed by the concept FIELD's key (not the HubSpot field name — the same
+  // EventPilot field could in principle be targeted from more than one
+  // row), distinct from creatingFor/fieldDraft above which is keyed by
+  // HubSpot field name for the "+ Create new field" flow.
+  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState<NewFieldDraft>(EMPTY_FIELD_DRAFT)
+  const [savingEdit, setSavingEdit] = useState(false)
   // True only while `mapping` has changes not yet persisted via Save
   // Mapping — set on every updateTarget() call, cleared whenever `mapping`
   // is freshly loaded from the server (initial load, connect, resync — all
@@ -170,6 +194,33 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
       setMsg(`Field "${result.label}" created.`); setMsgIsError(false)
     } else {
       setMsg(data.error ?? 'Could not create field.'); setMsgIsError(true)
+    }
+  }
+
+  // Edits an already-existing EventPilot concept field in place (type,
+  // label, help, required, options) — the field-mapping-page counterpart
+  // to createField() above, for the case a field was created with the
+  // wrong settings and needs fixing rather than a fresh one.
+  async function saveFieldEdit(key: string) {
+    const existing = allFields.find(f => f.key === key)
+    if (!existing) return
+    const result = applyDraftToField(editDraft, existing)
+    if (typeof result === 'string') { setMsg(result); setMsgIsError(true); return }
+    setSavingEdit(true); setMsg(null)
+    const nextFields = allFields.map(f => (f.key === key ? result : f))
+    const res = await fetch(`/api/events/stakeholders/forms/${formType}/schema?event_id=${eventId}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: nextFields }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSavingEdit(false)
+    if (res.ok) {
+      const savedFields = data.fields as FieldSchema[]
+      setAllFields(savedFields)
+      setConceptFields(savedFields.filter(x => x.type !== 'file'))
+      setEditingKey(null)
+      setMsg(`Field "${result.label}" updated.`); setMsgIsError(false)
+    } else {
+      setMsg(data.error ?? 'Could not update field.'); setMsgIsError(true)
     }
   }
 
@@ -403,6 +454,7 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
               {(connection.cached_fields ?? []).map((f: HubSpotFormField) => {
                 const m = mapping.find(x => x.hubspot_field_name === f.name)
                 const type = targetType(m)
+                const conceptEditKey = m?.target.type === 'concept' ? m.target.key : null
                 return (
                   <Card key={f.name} padded>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px 200px', gap: '10px', alignItems: 'center' }}>
@@ -461,23 +513,34 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
                         // filtered, so an existing valid mapping never
                         // disappears out from under a producer.
                         const available = conceptFields.filter(cf => cf.key === selectedKey || !crmPropertyKeySet.has(cf.key))
+                        const selectedField = conceptFields.find(cf => cf.key === selectedKey)
                         return (
-                          <Select disabled={!canManage} value={selectedKey}
-                            onChange={e => {
-                              const v = e.target.value
-                              if (v === CREATE_NEW_FIELD) { setFieldDraft(draftFromHubSpotField(f)); setCreatingFor(f.name) }
-                              else updateTarget(f.name, f.label, { type: 'concept', key: v })
-                            }}>
-                            <optgroup label={PROPERTY_TITLES[formType as FormType]}>
-                              {available.filter(cf => !sharedKeys.has(cf.key)).map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
-                            </optgroup>
-                            {available.some(cf => sharedKeys.has(cf.key)) && (
-                              <optgroup label="Event Properties (shared)">
-                                {available.filter(cf => sharedKeys.has(cf.key)).map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
+                          <div>
+                            <Select disabled={!canManage} value={selectedKey}
+                              onChange={e => {
+                                const v = e.target.value
+                                if (v === CREATE_NEW_FIELD) { setFieldDraft(draftFromHubSpotField(f)); setCreatingFor(f.name) }
+                                else updateTarget(f.name, f.label, { type: 'concept', key: v })
+                              }}>
+                              <optgroup label={PROPERTY_TITLES[formType as FormType]}>
+                                {available.filter(cf => !sharedKeys.has(cf.key)).map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
                               </optgroup>
+                              {available.some(cf => sharedKeys.has(cf.key)) && (
+                                <optgroup label="Event Properties (shared)">
+                                  {available.filter(cf => sharedKeys.has(cf.key)).map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
+                                </optgroup>
+                              )}
+                              {canManage && <option value={CREATE_NEW_FIELD}>+ Create new field…</option>}
+                            </Select>
+                            {canManage && selectedField && !selectedField.locked && (
+                              <button
+                                onClick={() => { setEditDraft(draftFromField(selectedField)); setEditingKey(selectedField.key) }}
+                                style={{ marginTop: '4px', background: 'none', border: 'none', padding: 0, fontSize: '11px', fontWeight: 700, color: 'var(--teal-mid)', cursor: 'pointer' }}
+                              >
+                                Edit field
+                              </button>
                             )}
-                            {canManage && <option value={CREATE_NEW_FIELD}>+ Create new field…</option>}
-                          </Select>
+                          </div>
                         )
                       })()}
                       {type === 'asset' && (
@@ -502,6 +565,18 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
                           confirmLabel={creatingField ? 'Creating…' : 'Create Field'}
                           onCancel={() => { setCreatingFor(null); setFieldDraft(EMPTY_FIELD_DRAFT) }}
                           onConfirm={() => createField(f)}
+                        />
+                      </div>
+                    )}
+                    {conceptEditKey && editingKey === conceptEditKey && (
+                      <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-light)' }}>
+                        <AddFieldForm
+                          draft={editDraft}
+                          setDraft={setEditDraft}
+                          typeOptions={CONCEPT_TYPE_OPTIONS}
+                          confirmLabel={savingEdit ? 'Saving…' : 'Save Field'}
+                          onCancel={() => { setEditingKey(null); setEditDraft(EMPTY_FIELD_DRAFT) }}
+                          onConfirm={() => saveFieldEdit(conceptEditKey)}
                         />
                       </div>
                     )}

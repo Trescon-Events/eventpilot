@@ -8,6 +8,9 @@ import { FieldSchema, SubmittedValue } from '@/app/lib/forms/types'
 import { getKonfhubToken, deleteKonfhubSpeaker, KonfhubApiError } from '@/app/lib/konfhub-speakers'
 import { syncSpeakerCrmContact } from '@/app/lib/crm/upsert'
 import { syncContactToHubSpot } from '@/app/lib/hubspot/crm-sync'
+import { resolveEffectiveRules } from '@/app/lib/content/resolve-validation-rules'
+import { validateText } from '@/app/lib/content/validate'
+import type { HeadlineVariant } from '@/app/lib/events/announcements'
 
 /* PATCH  /api/events/stakeholders/speakers/[id] — update any SAE-owned field
    DELETE /api/events/stakeholders/speakers/[id] — soft delete (Hub "Delete")
@@ -79,6 +82,15 @@ type SpeakerPatchBody = {
   // API for this — see the DELETE handler below). Independent of Restore,
   // which also clears this same column (see also_restore_to_website below).
   also_mark_konfhub_registration_cancelled?: boolean
+  // Creative Headline (2026-09-22) — generated once on this page (see
+  // generate-headlines/route.ts), reused by every announcement/creative
+  // for this speaker afterward. headline_variants' `compliance` is
+  // RECOMPUTED here server-side against the submitted segments on every
+  // save, never trusted as sent by the client. selected_headline_variant_id
+  // is a plain string (not a foreign key — it points inside the JSONB
+  // array, not a table row); null/undefined clears the selection.
+  headline_variants?: HeadlineVariant[]
+  selected_headline_variant_id?: string | null
 }
 
 function fromRow(row: Record<string, unknown>) {
@@ -98,7 +110,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = await req.json().catch(() => null) as SpeakerPatchBody | null
   if (!body) return NextResponse.json({ error: 'body required' }, { status: 400 })
 
-  const { data: existing } = await supabaseAdmin.from('event_speakers').select('event_id, announcement_status, crm_contact_id').eq('id', id).single()
+  const { data: existing } = await supabaseAdmin.from('event_speakers').select('event_id, announcement_status, crm_contact_id, custom_fields').eq('id', id).single()
   if (!existing) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
 
   const session = getSession(req)
@@ -128,7 +140,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // Staff editing an existing internal record should be able to save
     // partial progress freely, same as any other admin tool.
     const { columns, customFields } = mapFieldsToRecord('speaker', schema, body.fields, {})
-    Object.assign(row, columns, { custom_fields: customFields })
+    // Merge onto the EXISTING custom_fields rather than replacing it
+    // wholesale (real bug found live, 2026-09-23 — a test speaker's
+    // custom_fields.email, set via a HubSpot crm_property mapping, was
+    // silently wiped the next time this route ran from an unrelated Hub
+    // page edit). body.fields is the client's `values` state, which only
+    // ever contains SCHEMA-DECLARED keys (see recordToFields's own doc
+    // comment) — any custom_fields key that predates the current schema
+    // (crm_property-mapped HubSpot fields never get a schema entry at
+    // all) was never in body.fields to begin with, so a wholesale replace
+    // dropped it on every single save, not just ones that touched it.
+    const existingCustomFields = (existing.custom_fields ?? {}) as Record<string, SubmittedValue>
+    Object.assign(row, columns, { custom_fields: { ...existingCustomFields, ...customFields } })
 
     // CRM layer (2026-09-19) — same sync a manual Add Speaker / HubSpot
     // submission gets, so an edit here (e.g. fixing a typo'd email) keeps
@@ -161,6 +184,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.reference !== undefined) row.reference = body.reference || null
   if (body.confirmation_status !== undefined) row.confirmation_status = body.confirmation_status || null
   if (body.is_uae_resident !== undefined) row.is_uae_resident = body.is_uae_resident
+  if ('selected_headline_variant_id' in body) row.selected_headline_variant_id = body.selected_headline_variant_id ?? null
+  if (body.headline_variants !== undefined) {
+    const effectiveRules = await resolveEffectiveRules(existing.event_id).catch(() => [])
+    row.headline_variants = body.headline_variants.map(v => ({
+      ...v,
+      compliance: validateText([v.segments.lead, v.segments.emphasis, v.segments.trail].filter(Boolean).join(' '), effectiveRules),
+    }))
+  }
 
   if (Object.keys(row).length === 0) return NextResponse.json({ error: 'no valid fields' }, { status: 400 })
 

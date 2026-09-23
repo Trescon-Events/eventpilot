@@ -40,10 +40,12 @@ type ReviewData = {
   decision_comments: string | null; decision_actioned_at: string | null
   post_copy: string | null; creative_url: string | null
   platforms: string[] | null; scheduled_for: string | null; announcement_status: string
-  // 2026-09-06 — true for a CC'd Client Approval recipient (see
-  // review-data/route.ts's own comment): their decision is recorded for
-  // the record but never gates publishing, unlike the primary contact's.
-  is_client_cc?: boolean
+  // Renamed from is_client_cc (2026-09-22, first-responder-wins) — true
+  // for a CC'd External/Client Approval recipient (see review-data/
+  // route.ts's own comment). No longer implies "informational only":
+  // whoever responds first — this person or another recipient — is what
+  // actually resolves the request.
+  is_secondary_recipient?: boolean
 }
 
 const DECISION_VERBS: Record<string, { verb: string; suffix: string }> = {
@@ -178,8 +180,8 @@ export default function AnnouncementReviewPage({ params }: { params: Promise<{ i
           <div className="rv-meta">
             Sent by {data.sent_by ?? 'the team'}{data.sent_at ? ` on ${new Date(data.sent_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}` : ''}
           </div>
-          {data.is_client_cc && (
-            <div className="rv-sub" style={{ marginTop: '8px' }}>You&apos;re copied on this request — your response is recorded for the team&apos;s records, but the primary contact&apos;s decision is what actually clears this for publishing.</div>
+          {data.is_secondary_recipient && (
+            <div className="rv-sub" style={{ marginTop: '8px' }}>You&apos;re one of several people who can act on this request — whoever responds first, decides. If someone else gets there before you, this page will show that instead.</div>
           )}
         </div>
 

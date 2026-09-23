@@ -7,24 +7,28 @@ import { renderEmailTemplate } from '@/app/lib/email/render-template'
 import { resolveSenderIdentity, getSpeakerProducerId } from '@/app/lib/email/sender-identity'
 
 /* POST /api/events/stakeholders/announcements/[id]/send-for-external-approval/compose
-   Body: { recipient_name, recipient_email, cc_emails?: string[] }
-   Stateless — no DB write, same shape as send-to-speaker/compose. Unlike
-   send-to-speaker, NOT restricted to self_promo — the external approval
-   layer applies to any announcement tied to a speaker (or partner).
+   Body: { recipient_name, recipient_email, cc_recipients?: {name, email}[] }
+   Stateless — no DB write, same shape as send-to-speaker/compose.
+
+   CC recipients (2026-09-22, per Madhu — "first responder wins," see
+   approval-round.ts) — each gets their OWN review_token and their OWN
+   fully-rendered email here, not a shared cc: header (which used to give
+   every CC'd person the SAME link, making it impossible for anyone but
+   the main recipient to actually act). Exact twin of
+   send-for-client-approval/compose's own CC handling — see that route's
+   doc comment for the full reasoning.
 
    The rendered {{review_url}} needs a real approval_token, but this step
    must stay stateless (no announcement_approvals row exists yet — that's
-   only created on actual send, same as internal approval's own
-   send-for-approval route creates rows at send time, not compose time).
-   Resolved by generating the token HERE and returning it to the client
-   alongside the rendered preview; send/route.ts receives that exact same
-   token back and is what actually persists the announcement_approvals row
-   with it — so the link a producer previews is the exact link that ends
-   up in the sent email, never regenerated in between. */
+   only created on actual send). Resolved by generating the token(s) HERE
+   and returning them to the client alongside the rendered preview;
+   send/route.ts receives the exact same tokens back and is what actually
+   persists the rows — so the links a producer previews are the exact
+   links that end up in the sent emails, never regenerated in between. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json().catch(() => null) as {
-    recipient_name?: string; recipient_email?: string; cc_emails?: string[]
+    recipient_name?: string; recipient_email?: string; cc_recipients?: { name: string; email: string }[]
   } | null
   if (!body?.recipient_name?.trim() || !body.recipient_email?.trim()) {
     return NextResponse.json({ error: 'recipient_name, recipient_email required' }, { status: 400 })
@@ -55,26 +59,34 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const sender = await resolveSenderIdentity(session, template, await getSpeakerProducerId(announcement.speaker_id))
-  const reviewToken = randomBytes(32).toString('hex')
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com'
-  const reviewUrl = `${siteUrl}/public/announcement-review/${announcement.event_id}/${id}?token=${reviewToken}`
+  const eventName = event.public_name || event.name
 
-  const { subject, html } = renderEmailTemplate(template, {
-    recipient_name: body.recipient_name,
-    speaker_name: stakeholderName,
-    event_name: event.public_name || event.name,
-    review_url: reviewUrl,
-    sender_name: sender.name,
-  })
+  function renderFor(recipientName: string) {
+    const reviewToken = randomBytes(32).toString('hex')
+    const reviewUrl = `${siteUrl}/public/announcement-review/${announcement.event_id}/${id}?token=${reviewToken}`
+    const { subject, html } = renderEmailTemplate(template, {
+      recipient_name: recipientName,
+      speaker_name: stakeholderName,
+      event_name: eventName,
+      review_url: reviewUrl,
+      sender_name: sender.name,
+    })
+    return { review_token: reviewToken, subject, html }
+  }
+
+  const primary = renderFor(body.recipient_name)
+  const ccRecipients = (body.cc_recipients ?? []).filter(r => r.name?.trim() && r.email?.trim())
+  const ccComposed = ccRecipients.map(r => ({ name: r.name.trim(), email: r.email.trim(), ...renderFor(r.name.trim()) }))
 
   return NextResponse.json({
     announcement_id: id,
     template_id: template.id,
-    review_token: reviewToken,
+    review_token: primary.review_token,
     recipient_name: body.recipient_name,
     recipient_email: body.recipient_email,
-    cc_emails: body.cc_emails ?? [],
-    subject, html,
+    subject: primary.subject, html: primary.html,
+    cc_recipients: ccComposed,
     sender_name: sender.name, sender_email: sender.email,
   })
 }

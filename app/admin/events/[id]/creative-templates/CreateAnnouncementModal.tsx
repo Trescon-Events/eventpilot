@@ -29,6 +29,12 @@ export function missingAssetLabels(v: Variant, stakeholderType: StakeholderKind,
     const sp = s as Speaker
     if (sources.has('speaker_photo') && !(sp.photo_processed_url || sp.photo_url)) missing.push(SOURCE_LABEL.speaker_photo)
     if (sources.has('speaker_logo') && !sp.company_logo_url) missing.push(SOURCE_LABEL.speaker_logo)
+    // Creative Headline (2026-09-22) — generated once on the speaker's own
+    // record page (a "Requires headline" gate mirrors buildCompositeInputs'
+    // own server-side check in announcements.ts), not something a producer
+    // can supply at announcement-creation time.
+    const usesHeadline = v.layers.some(l => l.type === 'text' && l.field === 'headline_emphasis')
+    if (usesHeadline && !sp.selected_headline_variant_id) missing.push('headline')
   } else {
     const p = s as Partner
     if (sources.has('partner_logo') && !p.logo_url) missing.push(SOURCE_LABEL.partner_logo)

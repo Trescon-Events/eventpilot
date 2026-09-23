@@ -246,6 +246,13 @@ function resolveGhostTextRaw(layer: TextLayer, activeType: StakeholderKind, reco
   if (layer.field === 'title') return record?.job_title || textSource?.job_title || 'Chief Officer'
   if (layer.field === 'company') return record?.company_name || textSource?.company_name || 'Acme Corp'
   if (layer.field === 'country') return textSource?.country || 'United Arab Emirates'
+  // Falls back to real sample-1 headline text (see announcements.ts's
+  // HEADLINE_EXAMPLES) when no placeholder override is configured either
+  // — doubles as a live demonstration of the intended 3-segment style to
+  // whoever is authoring the layer for the first time.
+  if (layer.field === 'headline_lead') return textSource?.headline_lead || 'THE'
+  if (layer.field === 'headline_emphasis') return textSource?.headline_emphasis || 'TECHNOLOGY BEHIND'
+  if (layer.field === 'headline_trail') return textSource?.headline_trail || 'MODERN BANKING'
   return ''
 }
 

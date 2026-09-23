@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { fetchAndResolveApprovalRound } from '@/app/lib/events/approval-round'
 
 /* Reference Documents spec, Stage 4 (2026-09-10) — release gate. Rewritten
    2026-09-11 for the umbrella/event structural separation — an umbrella's
@@ -29,6 +30,10 @@ export async function resolveRequiresClientApproval(eventId: string): Promise<bo
 // announcement_approvals/send-for-client-approval machinery unchanged,
 // this only re-sequences WHEN it's allowed to run. Does not rebuild any
 // of the approval flow itself, per the spec's explicit instruction.
+//
+// First-responder-wins (2026-09-22) — "resolved" now means the whole
+// round (the primary contact's row OR any CC's — see approval-round.ts),
+// not just the primary's row in isolation.
 export async function checkClientApprovalPrerequisite(announcementId: string, eventId: string): Promise<{ ok: true } | { ok: false; message: string }> {
   const requires = await resolveRequiresClientApproval(eventId)
   if (!requires) return { ok: true }
@@ -37,18 +42,12 @@ export async function checkClientApprovalPrerequisite(announcementId: string, ev
     .from('stakeholder_announcements').select('client_approval_bypassed_at').eq('id', announcementId).single()
   if (announcement?.client_approval_bypassed_at) return { ok: true }
 
-  const { data: clientApprovals } = await supabaseAdmin
-    .from('announcement_approvals')
-    .select('status, created_at')
-    .eq('announcement_id', announcementId).eq('layer', 'client')
-    .order('created_at', { ascending: false })
-
-  const latest = clientApprovals?.[0]
-  if (latest && (latest.status === 'approved' || latest.status === 'approved_with_comments')) return { ok: true }
+  const resolution = await fetchAndResolveApprovalRound(announcementId, 'client')
+  if (resolution.status === 'approved' || resolution.status === 'approved_with_comments') return { ok: true }
 
   return {
     ok: false,
-    message: latest?.status === 'changes_requested'
+    message: resolution.status === 'changes_requested'
       ? 'Client has requested changes — resolve that before requesting internal approval.'
       : 'This event requires client approval before internal approval — send for client approval first.',
   }

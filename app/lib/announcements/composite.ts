@@ -76,7 +76,7 @@ export type TextLayerFont = {
 export type TextLayer = {
   id: string
   type: 'text'
-  field: 'name' | 'title' | 'company' | 'tier' | 'country' | 'custom'
+  field: 'name' | 'title' | 'company' | 'tier' | 'country' | 'custom' | 'headline_lead' | 'headline_emphasis' | 'headline_trail'
   value?: string             // static text for 'custom', or a fallback for 'tier'
   x: number                  // box top-left (SAE Phase C v5, 2026-07-29) — was a single SVG baseline
   y: number                  // point before this; see withTextLayerDefaults() for the migration from that shape
@@ -128,9 +128,35 @@ export type TextLayer = {
   // TextLayerFields) when a snap target is picked but no explicit value is
   // set yet.
   snap_gap?: number
+  // Opt out of wrapAndFit()'s shrink-then-truncate behavior (2026-09-22) —
+  // when false, font_size is pinned exactly and the box only ever wraps to
+  // more lines, never gets visually smaller; text that still can't fit at
+  // max_lines/height falls straight to ellipsis-truncation at the pinned
+  // size. Generic, not tied to any one field — the headline_* fields (see
+  // above) are the first user, authored with this off AND a generous
+  // max_lines/height so truncation in practice never fires for a realistic
+  // AI-generated headline length. Default true (every existing layer keeps
+  // shrinking, zero behavior change).
+  allow_shrink?: boolean
 }
 
 export type TextLayerDiagnostics = { did_shrink: boolean; did_truncate: boolean }
+
+// The subset of a speaker/partner record (plus AI-generated headline
+// segments) a TextLayer.field can resolve to. One shared type instead of
+// four near-duplicate inline object-type literals that had drifted apart
+// (two of the four previously omitted `country` silently) — see
+// resolveTextValue() and every caller below.
+export type ResolvedTexts = {
+  name?: string
+  title?: string
+  company?: string
+  tier?: string
+  country?: string
+  headline_lead?: string
+  headline_emphasis?: string
+  headline_trail?: string
+}
 
 export type Layer = ImageLayer | PhotoSlotLayer | TextLayer
 
@@ -252,6 +278,18 @@ export type PlaceholderProfile = {
   job_title?: string
   company_name?: string
   country?: string
+  // Speaker creative headline placeholder (2026-09-22) — sample text for
+  // the headline_lead/headline_emphasis/headline_trail layers (see
+  // TextLayer.field above) shown by the ghost overlay and Generate
+  // Preview whenever no real announcement has a generated/selected
+  // headline yet (which is always true here — a headline only exists on
+  // a real stakeholder_announcements row, never on the speaker record
+  // itself). Same `use_override`/fallback-to-global-default rules as
+  // name/job_title/company_name/country below; speaker-only, no partner
+  // equivalent (headline is a speaker-only concept).
+  headline_lead?: string
+  headline_emphasis?: string
+  headline_trail?: string
   // Explicit source switch (2026-08-29) — real bug, caught live: the old
   // implicit rule ("blank field falls back to the global default") used
   // `??`, which only skips null/undefined, not an EMPTY STRING — clearing
@@ -279,6 +317,11 @@ export type GlobalPlaceholderDefault = {
   job_title: string | null
   company_name: string | null
   country: string | null
+  // Speaker-only (2026-09-22) — see PlaceholderProfile's identical fields
+  // above for why these exist (no real per-speaker headline source, ever).
+  headline_lead: string | null
+  headline_emphasis: string | null
+  headline_trail: string | null
   photo_url: string | null
   // Detected once, at photo upload time (2026-08-29 — real bug: without
   // this, alignAndCropPhoto had no idea where the head sits in this
@@ -332,7 +375,7 @@ async function getOrRenderLayer(key: string, render: () => Promise<OverlayOption
 export async function compositeAnnouncement(
   variant: Variant,
   assets: ResolvedAssets,
-  texts: { name?: string; title?: string; company?: string; tier?: string; country?: string }
+  texts: ResolvedTexts
 ): Promise<Buffer> {
   // "Snap below" resolution — see TextLayer.snap_below_layer_id's doc
   // comment. Cheap (just wrapAndFit measurement, no Sharp/canvas render) and
@@ -455,7 +498,7 @@ export async function compositeExtraLayersOnto(
   extraLayers: Layer[],
   canvas: { canvas_width: number; canvas_height: number },
   assets: ResolvedAssets,
-  texts: { name?: string; title?: string; company?: string; tier?: string; country?: string }
+  texts: ResolvedTexts
 ): Promise<Buffer> {
   if (extraLayers.length === 0) return baseBuffer
   const overlay = await compositeAnnouncement(
@@ -466,12 +509,15 @@ export async function compositeExtraLayersOnto(
   return sharp(baseBuffer).composite([{ input: overlay, left: 0, top: 0 }]).toBuffer()
 }
 
-function resolveTextValue(layer: TextLayer, texts: { name?: string; title?: string; company?: string; tier?: string; country?: string }): string | undefined {
+function resolveTextValue(layer: TextLayer, texts: ResolvedTexts): string | undefined {
   const raw = layer.field === 'custom' ? layer.value
     : layer.field === 'name' ? texts.name
     : layer.field === 'title' ? texts.title
     : layer.field === 'company' ? texts.company
     : layer.field === 'country' ? texts.country
+    : layer.field === 'headline_lead' ? texts.headline_lead
+    : layer.field === 'headline_emphasis' ? texts.headline_emphasis
+    : layer.field === 'headline_trail' ? texts.headline_trail
     : (texts.tier ?? layer.value) // 'tier' — runtime value wins, falls back to the layer's own hardcoded label
   return layer.uppercase && raw ? raw.toUpperCase() : raw
 }
@@ -496,6 +542,7 @@ async function measureTextLayerHeight(layer: TextLayer, value: string, canvasWid
     fontSize: normalized.font_size,
     fontWeight: actualWeight,
     fontFamily: registered?.family ?? 'sans-serif',
+    allowShrink: normalized.allow_shrink ?? true,
   })
   return lines.length * lineHeight
 }
@@ -510,7 +557,7 @@ async function measureTextLayerHeight(layer: TextLayer, value: string, canvasWid
 // layer's own authored y rather than looping forever.
 async function resolveTextLayerYPositions(
   variant: Variant,
-  texts: { name?: string; title?: string; company?: string; tier?: string }
+  texts: ResolvedTexts
 ): Promise<Map<string, number>> {
   const textLayers = new Map<string, TextLayer>()
   for (const l of variant.layers) if (l.type === 'text') textLayers.set(l.id, l)
@@ -674,6 +721,7 @@ async function renderTextLayerPng(
     fontSize: layer.font_size,
     fontWeight: actualWeight,
     fontFamily,
+    allowShrink: layer.allow_shrink ?? true,
   })
 
   const canvas = createCanvas(canvasWidth, canvasHeight)
@@ -717,7 +765,7 @@ async function renderTextLayerPng(
 // (which stays a plain Buffer-returning function for the real generation
 // path) rather than threading a richer return type through it.
 export async function analyzeTextLayers(
-  variant: Variant, texts: { name?: string; title?: string; company?: string; tier?: string; country?: string }
+  variant: Variant, texts: ResolvedTexts
 ): Promise<Record<string, TextLayerDiagnostics>> {
   const result: Record<string, TextLayerDiagnostics> = {}
   for (const layer of variant.layers) {
@@ -733,6 +781,7 @@ export async function analyzeTextLayers(
       fontSize: normalized.font_size,
       fontWeight: actualWeight,
       fontFamily: registered?.family ?? 'sans-serif',
+      allowShrink: normalized.allow_shrink ?? true,
     })
     result[layer.id] = { did_shrink: didShrink, did_truncate: didTruncate }
   }

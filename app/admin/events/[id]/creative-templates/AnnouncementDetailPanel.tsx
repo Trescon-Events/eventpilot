@@ -113,11 +113,14 @@ export default function AnnouncementDetailPanel({
   const [remindingExternal, setRemindingExternal] = useState(false)
   const [notifyError, setNotifyError] = useState<string | null>(null)
   const [selectedChannelIds, setSelectedChannelIds] = useState<string[]>([])
-  // Client Approval CC statuses (2026-09-06) — see client-approval-cc/
-  // route.ts's own doc comment. Purely informational, refetched on mount
-  // and folded into the same poll tick as the primary's status below.
-  type ClientApprovalCcStatus = { id: string; name: string; email: string; status: string; comments: string | null; actioned_at: string | null }
-  const [clientCcStatuses, setClientCcStatuses] = useState<ClientApprovalCcStatus[]>([])
+  // Approval CC statuses (2026-09-06, external added 2026-09-22) — see
+  // client-approval-cc/external-approval-cc route.ts's own doc comments.
+  // First-responder-wins: any of these CAN be the round's actual
+  // resolution now, not purely informational. Refetched on mount and
+  // folded into the same poll tick as the primary's status below.
+  type ApprovalCcStatus = { id: string; name: string; email: string; status: string; comments: string | null; actioned_at: string | null }
+  const [clientCcStatuses, setClientCcStatuses] = useState<ApprovalCcStatus[]>([])
+  const [externalCcStatuses, setExternalCcStatuses] = useState<ApprovalCcStatus[]>([])
   // These announcement creatives are always a static image — YouTube's API
   // rejects image-only content ("Item must be a video"), and since Postiz
   // batches every selected channel into one publish request, leaving
@@ -240,10 +243,12 @@ export default function AnnouncementDetailPanel({
             external_approval_comments: fresh.external_approval_comments,
             external_approval_actioned_at: fresh.external_approval_actioned_at,
             external_approval_recipient: fresh.external_approval_recipient,
+            external_approval_resolved_by: fresh.external_approval_resolved_by,
             client_approval_status: fresh.client_approval_status,
             client_approval_comments: fresh.client_approval_comments,
             client_approval_actioned_at: fresh.client_approval_actioned_at,
             client_approval_recipient: fresh.client_approval_recipient,
+            client_approval_resolved_by: fresh.client_approval_resolved_by,
           })
         })
         .catch(() => { /* silent — next tick tries again */ })
@@ -251,22 +256,35 @@ export default function AnnouncementDetailPanel({
     return () => clearInterval(poll)
   }, [externalPendingNow, clientPendingNow, eventId, stakeholderKind, announcement.id, announcement.speaker_id, announcement.partner_id, onUpdate])
 
-  // Client Approval CC statuses — fetched once on mount (cheap even when
-  // there's no client round at all, the route just returns an empty list),
-  // then refetched on the same tick as the primary's poll above while a
-  // client round is pending.
+  // Approval CC statuses — fetched once on mount (cheap even when there's
+  // no round at all, the route just returns an empty list), then
+  // refetched on the same tick as the primary's poll above while that
+  // layer's round is pending.
   useEffect(() => {
     function fetchCc() {
       fetch(`/api/events/stakeholders/announcements/${announcement.id}/client-approval-cc`)
         .then(r => r.json())
         .then(data => setClientCcStatuses(data.cc ?? []))
-        .catch(() => { /* silent — informational only */ })
+        .catch(() => { /* silent — best-effort display only */ })
     }
     fetchCc()
     if (!clientPendingNow) return
     const poll = setInterval(fetchCc, 20_000)
     return () => clearInterval(poll)
   }, [announcement.id, clientPendingNow])
+
+  useEffect(() => {
+    function fetchCc() {
+      fetch(`/api/events/stakeholders/announcements/${announcement.id}/external-approval-cc`)
+        .then(r => r.json())
+        .then(data => setExternalCcStatuses(data.cc ?? []))
+        .catch(() => { /* silent — best-effort display only */ })
+    }
+    fetchCc()
+    if (!externalPendingNow) return
+    const poll = setInterval(fetchCc, 20_000)
+    return () => clearInterval(poll)
+  }, [announcement.id, externalPendingNow])
 
   // Backstop for the live "Post Now"/Schedule progress modal's own polling
   // (PublishProgressModal, gives up after ~88s) and the 15-min sync-status
@@ -613,10 +631,16 @@ export default function AnnouncementDetailPanel({
     comments: string | null
     actionedAt: string | null
     recipientName: string | null
+    // Who actually resolved it (2026-09-22, first-responder-wins) — may
+    // differ from recipientName when a CC'd assistant/office contact
+    // responded first. Falls back to recipientName when null (a pending
+    // round, or a pre-2026-09-22 row that predates per-CC identity).
+    resolvedByName: string | null
     notifiedAt: string | null
     reviewerNoun: string
   }) {
-    const { status, bypassedAt, comments, actionedAt, recipientName, notifiedAt, reviewerNoun } = opts
+    const { status, bypassedAt, comments, actionedAt, recipientName, resolvedByName, notifiedAt, reviewerNoun } = opts
+    const actorName = resolvedByName || recipientName
     const approved = status === 'approved' || status === 'approved_with_comments'
     let tone: ApprovalPillTone
     let headline: string
@@ -637,7 +661,7 @@ export default function AnnouncementDetailPanel({
         )}
         {actionedAt && (approved || status === 'changes_requested') && (
           <div style={{ fontSize: '12.5px', color: 'var(--ink4)', marginTop: '7px' }}>
-            {recipientName ? `${recipientName} · ` : ''}{new Date(actionedAt).toLocaleString()}
+            {actorName ? `${actorName}${resolvedByName && recipientName && resolvedByName !== recipientName ? ' (CC)' : ''} · ` : ''}{new Date(actionedAt).toLocaleString()}
           </div>
         )}
       </div>
@@ -851,7 +875,7 @@ export default function AnnouncementDetailPanel({
                 : announcement.status === 'changes_requested' ? 'changes_requested'
                 : announcement.status === 'pending_approval' ? 'pending' : 'none',
               bypassedAt: announcement.internal_approval_bypassed_at,
-              comments: null, actionedAt: null, recipientName: null, notifiedAt: null,
+              comments: null, actionedAt: null, recipientName: null, resolvedByName: null, notifiedAt: null,
               reviewerNoun: 'approvers',
             })}
           </div>
@@ -884,15 +908,18 @@ export default function AnnouncementDetailPanel({
               comments: announcement.client_approval_comments,
               actionedAt: announcement.client_approval_actioned_at,
               recipientName: announcement.client_approval_recipient,
+              resolvedByName: announcement.client_approval_resolved_by,
               notifiedAt: announcement.client_approval_notified_at,
               reviewerNoun: 'client',
             })}
-            {/* CC'd reviewers (2026-09-06) — each independently tracked,
-                never gating (only the primary above does). "Alice approved,
-                Bob pending" style list, per Madhu's ask. */}
+            {/* CC'd reviewers (2026-09-06, first-responder-wins fixed
+                2026-09-22) — each has their own link/status; whichever one
+                (this list or the primary above) responds FIRST is what
+                actually resolves the request — see approvalStatusArea's
+                own "(CC)" tag above when a CC beat the primary to it. */}
             {clientCcStatuses.length > 0 && (
               <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-light)', display: 'grid', gap: '6px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink4)' }}>CC&apos;d (informational)</div>
+                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink4)' }}>CC&apos;d — first response wins</div>
                 {clientCcStatuses.map(cc => {
                   const tone = cc.status === 'approved' || cc.status === 'approved_with_comments' ? 'var(--success)'
                     : cc.status === 'changes_requested' ? 'var(--red)' : 'var(--ink4)'
@@ -934,9 +961,33 @@ export default function AnnouncementDetailPanel({
               comments: announcement.external_approval_comments,
               actionedAt: announcement.external_approval_actioned_at,
               recipientName: announcement.external_approval_recipient,
+              resolvedByName: announcement.external_approval_resolved_by,
               notifiedAt: announcement.external_approval_notified_at,
               reviewerNoun: 'external reviewer',
             })}
+            {/* CC'd reviewers (2026-09-22) — an assistant/office contact
+                now gets their own link too (previously a plain email cc:
+                header with no way to act independently — see
+                SendForExternalApprovalComposer.tsx's own comment).
+                Whichever one (this list or the speaker's own link above)
+                responds FIRST resolves the whole request. */}
+            {externalCcStatuses.length > 0 && (
+              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-light)', display: 'grid', gap: '6px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink4)' }}>CC&apos;d — first response wins</div>
+                {externalCcStatuses.map(cc => {
+                  const tone = cc.status === 'approved' || cc.status === 'approved_with_comments' ? 'var(--success)'
+                    : cc.status === 'changes_requested' ? 'var(--red)' : 'var(--ink4)'
+                  const label = cc.status === 'approved' ? 'Approved' : cc.status === 'approved_with_comments' ? 'Approved (comments)'
+                    : cc.status === 'changes_requested' ? 'Changes requested' : 'Pending'
+                  return (
+                    <div key={cc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
+                      <span style={{ color: 'var(--ink2)' }}>{cc.name}</span>
+                      <span style={{ color: tone, fontWeight: 700, fontSize: '12px' }}>{label}{cc.actioned_at ? ` · ${new Date(cc.actioned_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>

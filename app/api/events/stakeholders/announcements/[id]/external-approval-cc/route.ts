@@ -3,17 +3,12 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 
-/* GET /api/events/stakeholders/announcements/[id]/client-approval-cc
+/* GET /api/events/stakeholders/announcements/[id]/external-approval-cc
 
-   Per-person status for the CURRENT (most recent) Client Approval round's
-   CC'd recipients — see announcement_client_approval_cc's migration doc
-   comment. First-responder-wins (2026-09-22, see approval-round.ts) —
-   any one of these CAN be the row that actually resolves/gates the round,
-   not purely informational anymore; the combined round-wide resolution
-   itself is computed by resolveApprovalRound() elsewhere (the
-   announcements list route, checkClientApprovalPrerequisite,
-   checkCanPublish), this route is just the per-person breakdown for
-   display. */
+   Per-person status for the CURRENT (most recent) External Approval
+   round's CC'd recipients (an assistant, office, etc. — each with their
+   own review link since 2026-09-22, see announcement_external_approval_cc's
+   migration doc comment). Exact twin of client-approval-cc/route.ts. */
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -30,7 +25,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .from('announcement_approvals')
     .select('id')
     .eq('announcement_id', id)
-    .eq('layer', 'client')
+    .eq('layer', 'external')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -38,7 +33,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!latestRound) return NextResponse.json({ cc: [] })
 
   const { data: cc, error } = await supabaseAdmin
-    .from('announcement_client_approval_cc')
+    .from('announcement_external_approval_cc')
     .select('id, name, email, status, comments, actioned_at, notified_at')
     .eq('parent_approval_id', latestRound.id)
     .order('created_at', { ascending: true })

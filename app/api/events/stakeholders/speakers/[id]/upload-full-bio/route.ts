@@ -32,9 +32,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (file.size > MAX_SIZE) return NextResponse.json({ error: `File too large (max ${MAX_SIZE / (1024 * 1024)} MB)` }, { status: 413 })
 
   const buffer = Buffer.from(await file.arrayBuffer())
-  let pdfBuffer: Buffer, source: 'pdf' | 'docx_converted'
+  let pdfBuffer: Buffer, source: 'pdf' | 'docx_converted', bioText: string
   try {
-    ;({ pdfBuffer, source } = await toStoredBioPdf(buffer, file.name, file.type))
+    ;({ pdfBuffer, source, bioText } = await toStoredBioPdf(buffer, file.name, file.type))
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Full Bio upload failed' }, { status: 400 })
   }
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data, error } = await supabaseAdmin
     .from('event_speakers')
-    .update({ bio_full_url: url, bio_full_source: source, updated_at: new Date().toISOString(), ...reapprovalReset })
+    .update({ bio_full_url: url, bio_full_source: source, bio_full_text: bioText || null, updated_at: new Date().toISOString(), ...reapprovalReset })
     .eq('id', speakerId)
     .select('bio_full_url, bio_full_source')
     .single()

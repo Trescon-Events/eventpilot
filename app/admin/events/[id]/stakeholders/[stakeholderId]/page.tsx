@@ -17,10 +17,13 @@ import KonfhubPushConfirmModal from '../KonfhubPushConfirmModal'
 import KonfhubRegistrationPushConfirmModal from '../KonfhubRegistrationPushConfirmModal'
 import RemoveFromKonfhubListingModal from '../RemoveFromKonfhubListingModal'
 import { SPEAKER_KEY_MAP } from '@/app/lib/forms/map-to-stakeholder-record'
+import { KONFHUB_AUTO_SENT_FIELD_KEYS } from '@/app/lib/konfhub/registration-fields'
 import AnnouncementsTab from './AnnouncementsTab'
 import SensitiveDocumentsTab from './SensitiveDocumentsTab'
 import CommunicationsTab from './CommunicationsTab'
 import type { Speaker as SaeSpeaker, Partner as SaePartner } from '../../creative-templates/page'
+import type { HeadlineVariant } from '@/app/lib/events/announcements'
+import HeadlinePicker from './HeadlinePicker'
 
 /* The generic, canonical full-page review/edit screen for a single
    stakeholder (Speaker or any Partner category) — replaces the old 440px
@@ -111,6 +114,13 @@ type StakeholderRecord = {
   // UAE Resident (2026-09-08) — see SensitiveDocumentsTab's own comment;
   // null = not yet determined.
   is_uae_resident?: boolean | null
+  // Creative Headline (2026-09-22, speaker-only) — a batch of up to 5
+  // AI-generated on-image headline options + which one (if any) is
+  // selected. Reused by every announcement/creative generated for this
+  // speaker afterward (see buildCompositeInputs in announcements.ts) —
+  // not a per-announcement thing, generated once here and left set.
+  headline_variants?: HeadlineVariant[] | null
+  selected_headline_variant_id?: string | null
 }
 
 // One preview tile — raw or cleaned photo/logo — with a download icon and a
@@ -218,6 +228,17 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   const [eventName, setEventName] = useState<string | null>(null)
   const [schema, setSchema] = useState<FieldSchema[]>([])
   const [values, setValues] = useState<Record<string, SubmittedValue>>({})
+  // Registration tab curation (2026-09-23, per Madhu — see registrationFields
+  // below) — the keys of this event's konfhub_registration_field_map,
+  // fetched read-only just to know which extra schema fields (beyond the
+  // universal email/phone_number) this event has actually wired to the
+  // KonfHub Attendee Registration push. Silently stays empty for a
+  // producer without sae.integrations.manage (the same permission the
+  // Integrations page's own mapping config requires) — that's a strict
+  // subset of what a full-access viewer would see, never wrong, and
+  // matches this page's existing graceful-degradation pattern for
+  // permission-gated side fetches (see the role-holders fetch below).
+  const [konfhubFieldMapKeys, setKonfhubFieldMapKeys] = useState<Set<string>>(new Set())
   const [partnerType, setPartnerType] = useState('sponsor')
   // Speaker-only, producer-editable, NOT part of the onboarding form
   // (2026-08-18) — public_name overrides `full_name` everywhere
@@ -330,6 +351,12 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   const [fullBioUploading, setFullBioUploading] = useState(false)
   const [generatingShortBio, setGeneratingShortBio] = useState(false)
   const [shortBioUndoSnapshot, setShortBioUndoSnapshot] = useState<string | null>(null)
+
+  // Creative Headline (2026-09-22)
+  const [headlineVariants, setHeadlineVariants] = useState<HeadlineVariant[]>([])
+  const [selectedHeadlineId, setSelectedHeadlineId] = useState<string | null>(null)
+  const [generatingHeadlines, setGeneratingHeadlines] = useState(false)
+  const [savingHeadline, setSavingHeadline] = useState(false)
   // estimatedMs per action, from real observed timings (dev log) — a plain
   // PATCH (approve/remove-logo) resolves in well under a second; logo
   // upload+processing (rasterize/background-removal) ran 0.5-3.1s for a
@@ -379,7 +406,22 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     if (recRes.ok) {
       const data = await recRes.json()
       setRecord(data)
-      setValues(data.fields ?? {})
+      // email/phone_number (2026-09-23) — seeded straight from
+      // custom_fields when data.fields doesn't already have them. They
+      // won't for a crm_property-mapped event like DFS (recordToFields
+      // only ever populates schema-DECLARED keys, and a crm_property
+      // mapping deliberately never creates a schema field — see
+      // SPEAKER_KEY_MAP's own doc comment), which is exactly why these
+      // two were invisible AND uneditable everywhere on this page before.
+      // Harmless no-op when they ARE schema-declared (data.fields already
+      // has them, so the fallback below never fires).
+      const fields = { ...(data.fields ?? {}) } as Record<string, SubmittedValue>
+      const customFields = (data.custom_fields ?? {}) as Record<string, SubmittedValue>
+      if (kind === 'speaker') {
+        if (!('email' in fields) && typeof customFields.email === 'string') fields.email = customFields.email
+        if (!('phone_number' in fields) && typeof customFields.phone_number === 'string') fields.phone_number = customFields.phone_number
+      }
+      setValues(fields)
       setStatus(data.announcement_status)
       if (kind === 'partner') setPartnerType(data.partner_type ?? 'sponsor')
       if (kind === 'speaker') {
@@ -391,6 +433,8 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
         setProducerStaffId(data.producer_staff_id ?? '')
         setReference(data.reference ?? '')
         setConfirmationStatus(data.confirmation_status ?? '')
+        setHeadlineVariants(data.headline_variants ?? [])
+        setSelectedHeadlineId(data.selected_headline_variant_id ?? null)
       }
     } else {
       setMsg('Could not load this record.')
@@ -405,6 +449,12 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       const roleRes = await fetch(`/api/events/access/role-holders?event_id=${eventId}&role=producer`).catch(() => null)
       const roleData = await roleRes?.json().catch(() => ({ staff: [] }))
       setProducerOptions(roleData?.staff ?? [])
+      // sae.integrations.manage-gated (same as the Integrations page's own
+      // KonfHub card) — silently defaults to empty on a 403, per this
+      // field's own state comment above.
+      const settingsRes = await fetch(`/api/events/konfhub/settings?event_id=${eventId}`).catch(() => null)
+      const settingsData = await settingsRes?.json().catch(() => null) as { konfhub_registration_field_map?: Record<string, string> } | null
+      setKonfhubFieldMapKeys(new Set(Object.keys(settingsData?.konfhub_registration_field_map ?? {})))
     }
     setLoading(false)
   }, [base, stakeholderId, kind, formType, eventId])
@@ -856,6 +906,73 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     setShortBioUndoSnapshot(null)
   }
 
+  // Creative Headline (2026-09-22) — generated once here, on the speaker's
+  // own record, and reused by every announcement made for them afterward
+  // (see buildCompositeInputs in announcements.ts) — not a per-announcement
+  // regenerate-and-select dance. A second Generate click REPLACES the
+  // batch of 5, same convention as Short Bio/post-copy regeneration.
+  async function generateHeadlinesAction() {
+    setGeneratingHeadlines(true)
+    setMsg(null)
+    setProcessing({ label: 'Generating headlines…', estimatedMs: 6000 })
+    try {
+      const res = await fetch(`${base}/${stakeholderId}/generate-headlines`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setMsg(data?.error ?? 'Could not generate headlines.'); return }
+      const fresh = data.headline_variants as HeadlineVariant[]
+      // Persist immediately — "generate once, leave it," not a separate
+      // propose-then-save step.
+      const saveRes = await fetch(`${base}/${stakeholderId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ headline_variants: fresh, selected_headline_variant_id: null }),
+      })
+      const saveData = await saveRes.json().catch(() => ({}))
+      if (!saveRes.ok) { setMsg(saveData?.error ?? 'Generated, but could not save the headlines.'); return }
+      setHeadlineVariants(saveData.headline_variants ?? fresh)
+      setSelectedHeadlineId(saveData.selected_headline_variant_id ?? null)
+      setRecord(prev => prev ? { ...prev, headline_variants: saveData.headline_variants, selected_headline_variant_id: saveData.selected_headline_variant_id, announcement_status: saveData.announcement_status } : prev)
+      setStatus(saveData.announcement_status)
+    } catch (e) {
+      setMsg(`Could not generate headlines: ${(e as Error).message}`)
+    } finally {
+      setGeneratingHeadlines(false)
+      setProcessing(null)
+    }
+  }
+
+  async function selectHeadline(headlineId: string) {
+    setSelectedHeadlineId(headlineId)
+    setSavingHeadline(true)
+    const res = await fetch(`${base}/${stakeholderId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ selected_headline_variant_id: headlineId }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSavingHeadline(false)
+    if (!res.ok) { setMsg(data?.error ?? 'Could not save the selected headline.'); return }
+    setRecord(prev => prev ? { ...prev, selected_headline_variant_id: data.selected_headline_variant_id, announcement_status: data.announcement_status } : prev)
+    setStatus(data.announcement_status)
+  }
+
+  function editHeadlineSegment(headlineId: string, field: 'lead' | 'emphasis' | 'trail', value: string) {
+    setHeadlineVariants(prev => prev.map(v => (v.id === headlineId ? { ...v, segments: { ...v.segments, [field]: value }, edited: true } : v)))
+  }
+
+  async function saveHeadlineEdit(_headlineId: string) {
+    setSavingHeadline(true)
+    const res = await fetch(`${base}/${stakeholderId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ headline_variants: headlineVariants }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSavingHeadline(false)
+    if (!res.ok) { setMsg(data?.error ?? 'Could not save the headline edit.'); return }
+    const fresh = data.headline_variants as HeadlineVariant[]
+    setHeadlineVariants(fresh)
+    setRecord(prev => prev ? { ...prev, headline_variants: fresh, announcement_status: data.announcement_status } : prev)
+    setStatus(data.announcement_status)
+  }
+
   function setTab(tab: 'overview' | 'registration' | 'secondary' | 'documents' | 'communications' | 'announcements') {
     const params = new URLSearchParams(searchParams.toString())
     params.set('tab', tab)
@@ -952,6 +1069,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
         email: record.email ?? null,
         public_name: record.public_name ?? null,
         custom_fields: record.custom_fields ?? null,
+        selected_headline_variant_id: record.selected_headline_variant_id ?? null,
       }
     : {
         id: record.id,
@@ -976,17 +1094,52 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     .filter((f): f is FieldSchema => !!f)
   const remainingDetailFields = detailFields.filter(f => !detailNamePriority.includes(f.key))
 
-  // Registration split (2026-08-25, speaker-only, per Madhu) — see
-  // SPEAKER_KEY_MAP's own doc comment for the reasoning: a field mapping
-  // to a real event_speakers column is "Public Speaker Page" data (stays
-  // here on Overview — it's also exactly what the Speakers-module KonfHub
-  // push already reads); everything else (email, phone, industry sector,
-  // PR quote, assistant contacts, consent checkboxes) only ever lands in
-  // custom_fields and moves to the new Registration tab instead. Partners
-  // are untouched — Attendee Registration has no partner equivalent here.
+  // Registration split (2026-08-25, speaker-only, per Madhu). Updated
+  // 2026-09-23 (per Madhu — "it should show only relevant fields that
+  // are required to be pushed to konfhub attendee registration... this
+  // page need not require short bio, quote, assistant details"): the
+  // original cut was "everything not on Overview," which pulled in every
+  // leftover custom_fields-only field regardless of whether
+  // konfhub-registration-push/route.ts actually reads it. Curated
+  // instead to exactly what that route sends: the universal fields it
+  // always includes with no per-event mapping needed (email,
+  // phone_number here — see KONFHUB_AUTO_SENT_FIELD_KEYS's own doc
+  // comment, filtered down to the ones NOT already a real
+  // event_speakers column; synthesized as plain FieldSchema stand-ins
+  // below when this event's schema never declared them at all — e.g.
+  // DFS's crm_property-mapped HubSpot fields, see SPEAKER_KEY_MAP's own
+  // doc comment for why those get no schema entry) plus whatever extra
+  // schema fields THIS event has actually wired into
+  // event_websites.konfhub_registration_field_map (industry sector, PR
+  // quote, etc., on events that use it — see that route's own doc
+  // comment for the exact customForms it builds from the map). A field
+  // mapping to a real event_speakers column stays "Public Speaker Page"
+  // data on Overview, unchanged from before. Partners are untouched —
+  // Attendee Registration has no partner equivalent here.
   const publicSpeakerFieldKeys = new Set(Object.keys(SPEAKER_KEY_MAP))
   const overviewFields = kind === 'speaker' ? remainingDetailFields.filter(f => publicSpeakerFieldKeys.has(f.key)) : remainingDetailFields
-  const registrationFields = kind === 'speaker' ? remainingDetailFields.filter(f => !publicSpeakerFieldKeys.has(f.key)) : []
+  const universalRegistrationKeys = [...KONFHUB_AUTO_SENT_FIELD_KEYS].filter(k => !publicSpeakerFieldKeys.has(k))
+  const universalSchemaFields = kind === 'speaker' ? remainingDetailFields.filter(f => universalRegistrationKeys.includes(f.key)) : []
+  const UNIVERSAL_FIELD_META: Record<string, { label: string; type: FieldSchema['type'] }> = {
+    email: { label: 'Email', type: 'email' },
+    phone_number: { label: 'Phone Number', type: 'phone' },
+  }
+  const synthesizedUniversalFields: FieldSchema[] = kind === 'speaker'
+    ? universalRegistrationKeys
+        .filter(key => !universalSchemaFields.some(f => f.key === key))
+        .map(key => ({
+          id: `__synthetic_${key}`, key,
+          label: UNIVERSAL_FIELD_META[key]?.label ?? key,
+          type: UNIVERSAL_FIELD_META[key]?.type ?? 'text',
+          required: false, locked: false,
+        }))
+    : []
+  const mappedRegistrationFields = kind === 'speaker'
+    ? remainingDetailFields.filter(f => !publicSpeakerFieldKeys.has(f.key) && !universalRegistrationKeys.includes(f.key) && konfhubFieldMapKeys.has(f.key))
+    : []
+  const registrationFields = kind === 'speaker'
+    ? [...universalSchemaFields, ...synthesizedUniversalFields, ...mappedRegistrationFields]
+    : []
 
   return (
     // overflowAnchor: 'none' (2026-08-22, per Madhu — reported the page
@@ -1061,10 +1214,10 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
               <Card padded>
                 <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '6px' }}>Registration Details</div>
                 <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '16px' }}>
-                  What the speaker actually submitted — contact details, consents, and everything used for badge printing, check-in, and networking on KonfHub. Review and clean up before registering.
+                  Exactly what gets pushed to KonfHub Attendee Registration for badge printing, check-in, and networking — nothing else about this speaker is needed here. Review and clean up before registering.
                 </div>
                 {registrationFields.length === 0 ? (
-                  <div style={{ fontSize: '13px', color: 'var(--ink4)' }}>No registration-specific fields on this event&apos;s form.</div>
+                  <div style={{ fontSize: '13px', color: 'var(--ink4)' }}>No registration-specific fields for this event.</div>
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px' }}>
                     {registrationFields.map(field => (
@@ -1580,6 +1733,29 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
               )}
             </div>
           </Card>
+
+          {/* Creative Headline (2026-09-22) — the bold on-image phrase for
+              this speaker's promo creatives, distinct from Short Bio above.
+              Generated once here and reused by every announcement made for
+              this speaker afterward (see buildCompositeInputs in
+              announcements.ts) — a Variant with a headline layer stays
+              greyed out ("Requires headline") when creating an
+              announcement for a speaker until one is set here. */}
+          {kind === 'speaker' && (
+            <Card padded>
+              <HeadlinePicker
+                variants={headlineVariants}
+                selectedId={selectedHeadlineId}
+                generating={generatingHeadlines}
+                saving={savingHeadline}
+                disabled={!canEdit}
+                onGenerate={generateHeadlinesAction}
+                onSelect={selectHeadline}
+                onSegmentChange={editHeadlineSegment}
+                onSegmentBlur={saveHeadlineEdit}
+              />
+            </Card>
+          )}
         </div>
 
         {/* Save + Approve — floating on the right, stays visible while scrolling
