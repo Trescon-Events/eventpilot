@@ -907,7 +907,22 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
               </>
             )}
             {phase === 'cleaned-photo' && (
-              <Button variant="lime" onClick={() => setPhase('website-photo')}>Continue</Button>
+              <>
+                <Button variant="lime" onClick={() => setPhase('website-photo')}>Continue</Button>
+                {/* 2026-09-23 fix — this phase is reached from "Use As-Is"
+                    on the gap-warning popup, which force-skips the server's
+                    content-gap check (see postFinalize's force flag), so
+                    the photo landing here can still have the exact framing
+                    issue that was warned about. The generic "Cancel" button
+                    below already routes back to Compose for this phase
+                    (cleaned-photo is in CANCELABLE_TO_COMPOSE) — this just
+                    gives that same action a discoverable label, mirroring
+                    Review's own "Not right? Redo". Real bug: producers
+                    had no visible way to fix a bad crop here, since the
+                    ring shown below looks draggable (same style as
+                    PhotoFitEditor's) but isn't. */}
+                <Button variant="ghost" onClick={resetToCompose}>Not right? Redo</Button>
+              </>
             )}
             {phase === 'review' && (
               <>
@@ -924,8 +939,12 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
             )}
             {/* Review has its own "Done" button above, which does exactly
                 this (calls onClose) — a second "Close" button here would
-                just be a redundant duplicate, not a different action. */}
-            {phase !== 'review' && (
+                just be a redundant duplicate, not a different action.
+                cleaned-photo (2026-09-23) has its own "Not right? Redo"
+                above, which calls the exact same resetToCompose this
+                generic Cancel would — showing both would be two
+                differently-labeled buttons doing the identical thing. */}
+            {phase !== 'review' && phase !== 'cleaned-photo' && (
               <Button variant="ghost" onClick={cancelCurrentStep}>Cancel</Button>
             )}
           </div>
@@ -1148,14 +1167,24 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
               }}>
                 {/* eslint-disable-next-line @next/next/no-img-element -- reviewing the exact just-saved asset, not worth next/image's optimization pass */}
                 <img src={cleanedPhotoUrl} alt="Cleaned photo" style={{ width: '100%', display: 'block' }} />
-                {/* Non-interactive — purely confirms where the head landed, same ring style as PhotoFitEditor's, but this photo is already final. */}
+                {/* Non-interactive — purely confirms where the head landed.
+                    Deliberately NOT styled like PhotoFitEditor's real
+                    draggable ring (solid, not dashed, no pointer cursor) —
+                    a 2026-09-23 fix: the dashed look was indistinguishable
+                    from the genuinely-interactive ring used at Compose/
+                    Confirm Cleaned Photo, so producers tried to drag it and
+                    found nothing responded. If this framing isn't right,
+                    use "Not right? Redo" below instead. */}
                 <div style={{
                   position: 'absolute', pointerEvents: 'none',
                   left: `${(cleaningTarget.centerXRatio - cleaningTarget.heightRatio / 2) * 100}%`,
                   top: `${(cleaningTarget.centerYRatio - cleaningTarget.heightRatio / 2) * 100}%`,
                   width: `${cleaningTarget.heightRatio * 100}%`, height: `${cleaningTarget.heightRatio * 100}%`,
-                  borderRadius: '50%', border: '2px dashed var(--teal-mid)',
+                  borderRadius: '50%', border: '2px solid var(--teal-mid)',
                 }} />
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--ink4)', textAlign: 'center', marginTop: '8px' }}>
+                Final head position — not adjustable here. If this isn&apos;t right, use &quot;Not right? Redo&quot; below.
               </div>
             </div>
           )}

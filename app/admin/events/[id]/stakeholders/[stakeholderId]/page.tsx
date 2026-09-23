@@ -49,8 +49,15 @@ type Kind = 'speaker' | 'partner'
 type AnnouncementStatus = 'pending_review' | 'approved' | 'assets_missing' | 'ready' | 'archived'
 
 // Matches the DB CHECK constraint (event_speakers_confirmation_status_
-// check) exactly — 'On Hold' added 2026-09-08 for speakers sitting in
-// EventPilot but not yet pushed to KonfHub, per Madhu. Keep both in sync.
+// check) exactly, MINUS 'Cancelled' — 'On Hold' added 2026-09-08 for
+// speakers sitting in EventPilot but not yet pushed to KonfHub. 'Cancelled'
+// is a valid DB value (added 2026-09-23) but deliberately NOT offered here
+// (2026-09-23, later same day) — it's only reachable through the Overview
+// tab's guarded "Cancel" action (checks KonfHub listing/registration first,
+// double-confirmed), never a plain dropdown pick. See the read-only
+// "Cancelled" badge rendered below instead of this Select when the current
+// value is 'Cancelled'. Keep in sync with the DB constraint minus that one
+// value.
 const CONFIRMATION_STATUS_OPTIONS = ['New Confirmed', 'Reconfirmed', 'Confirmed', 'On Hold']
 
 type StakeholderRecord = {
@@ -1418,14 +1425,27 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                       color-coding on the Status Board. CONFIRMATION_
                       STATUS_OPTIONS matches the DB CHECK constraint
                       exactly (event_speakers_confirmation_status_check) —
-                      keep both in sync if this ever changes. */}
-                  <Select
-                    className="tfield-lg" value={confirmationStatus} disabled={!canEdit}
-                    onChange={e => { setConfirmationStatus(e.target.value); scheduleSave() }}
-                  >
-                    <option value="">Not set</option>
-                    {CONFIRMATION_STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                  </Select>
+                      keep both in sync if this ever changes.
+                      'Cancelled' (2026-09-23) is read-only here — a select
+                      whose current value isn't in its own options list
+                      renders blank/wrong, and editing it back out from this
+                      page would bypass the guarded Cancel/Restore flow's
+                      KonfHub checks and double-confirm entirely. Restore
+                      only via the Cancelled tab. */}
+                  {confirmationStatus === 'Cancelled' ? (
+                    <div className="tfield-lg" style={{ display: 'flex', alignItems: 'center', fontWeight: 700, color: 'var(--red)' }}>
+                      Cancelled
+                      <span style={{ marginLeft: '8px', fontSize: '12px', fontWeight: 500, color: 'var(--ink4)' }}>— restore from the Cancelled tab</span>
+                    </div>
+                  ) : (
+                    <Select
+                      className="tfield-lg" value={confirmationStatus} disabled={!canEdit}
+                      onChange={e => { setConfirmationStatus(e.target.value); scheduleSave() }}
+                    >
+                      <option value="">Not set</option>
+                      {CONFIRMATION_STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                    </Select>
+                  )}
                 </div>
               </div>
             </Card>

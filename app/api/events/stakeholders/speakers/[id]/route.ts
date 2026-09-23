@@ -82,6 +82,13 @@ type SpeakerPatchBody = {
   // API for this — see the DELETE handler below). Independent of Restore,
   // which also clears this same column (see also_restore_to_website below).
   also_mark_konfhub_registration_cancelled?: boolean
+  // Cancel Speaker flow's registration-acknowledgment gate (2026-09-23,
+  // see CancelSpeakerModal.tsx) — same to-do-flag semantics as the DELETE
+  // handler's identically-named flag below (no KonfHub API exists to cancel
+  // a registration; this is the closest to "sure it's removed" that's
+  // possible), just also reachable via PATCH so the Cancel action can set
+  // confirmation_status and this flag in one request instead of two.
+  also_flag_konfhub_registration_cancel?: boolean
   // Creative Headline (2026-09-22) — generated once on this page (see
   // generate-headlines/route.ts), reused by every announcement/creative
   // for this speaker afterward. headline_variants' `compliance` is
@@ -110,7 +117,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = await req.json().catch(() => null) as SpeakerPatchBody | null
   if (!body) return NextResponse.json({ error: 'body required' }, { status: 400 })
 
-  const { data: existing } = await supabaseAdmin.from('event_speakers').select('event_id, announcement_status, crm_contact_id, custom_fields').eq('id', id).single()
+  const { data: existing } = await supabaseAdmin.from('event_speakers').select('event_id, announcement_status, crm_contact_id, custom_fields, konfhub_booking_id').eq('id', id).single()
   if (!existing) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
 
   const session = getSession(req)
@@ -174,6 +181,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // producer decides whether to re-push via the Registration tab.
   if (body.also_restore_to_website) { row.active = true; row.konfhub_registration_cancel_requested_at = null }
   if (body.also_mark_konfhub_registration_cancelled) row.konfhub_registration_cancel_requested_at = null
+  // No KonfHub API exists to cancel an Attendee Registration booking (same
+  // fact as the DELETE handler below) — only stamped when a registration
+  // actually exists, same guard as DELETE's identical flag.
+  if (body.also_flag_konfhub_registration_cancel && existing.konfhub_booking_id) row.konfhub_registration_cancel_requested_at = new Date().toISOString()
   if (body.remove_company_logo) { row.company_logo_url = null; row.company_logo_raw_url = null }
   if (body.public_name !== undefined) row.public_name = body.public_name || null
   if (body.pronoun_style !== undefined) row.pronoun_style = body.pronoun_style || null

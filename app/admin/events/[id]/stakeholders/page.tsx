@@ -11,7 +11,9 @@ import { FormFieldInput } from '@/app/components/forms/FormFieldInput'
 import { downloadFilesAsZip } from '@/app/lib/download-file'
 import CalendarView from './CalendarView'
 import DeletedTab from './DeletedTab'
+import CancelledTab from './CancelledTab'
 import DeleteConfirmModal from './DeleteConfirmModal'
+import CancelSpeakerModal from './CancelSpeakerModal'
 import KonfhubPushConfirmModal from './KonfhubPushConfirmModal'
 import KonfhubRegistrationPushConfirmModal from './KonfhubRegistrationPushConfirmModal'
 import BulkApproveConfirmModal from './BulkApproveConfirmModal'
@@ -94,6 +96,7 @@ const CATEGORIES: Category[] = [
 
 const DELETED_KEY = 'deleted'
 const INVITES_KEY = 'invites'
+const CANCELLED_KEY = 'cancelled'
 
 // "Add Speaker" quick-add panel (rebuilt 2026-09-19, per Madhu) —
 // deliberately shows only the bare minimum needed to create a placeholder
@@ -208,6 +211,9 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [deleteConfirm, setDeleteConfirm] = useState<(Speaker | Partner)[] | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [cancelConfirm, setCancelConfirm] = useState<Speaker[] | null>(null)
+  const [cancelling, setCancelling] = useState(false)
+  const [cancelledCount, setCancelledCount] = useState(0)
   const [bulkDownloading, setBulkDownloading] = useState<'clean_photo' | 'website_photo' | 'raw_logo' | 'clean_logo' | 'excel' | null>(null)
   // Bulk "Push to KonfHub" (2026-08-24) — bulkKonfhubConfirm holds the
   // gate-eligible subset of the current selection (see openBulkKonfhubConfirm),
@@ -251,11 +257,16 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
 
   async function fetchAll() {
     setLoading(true)
-    const [spRes, ptRes, permRes, eventRes] = await Promise.all([
+    const [spRes, ptRes, permRes, eventRes, cancelledRes] = await Promise.all([
       fetch(`/api/events/stakeholders/speakers?event_id=${eventId}`),
       fetch(`/api/events/stakeholders/partners?event_id=${eventId}`),
       fetch(`/api/events/access/me?event_id=${eventId}`),
       fetch(`/api/events?id=${eventId}`),
+      // Cancelled-tab nav badge (2026-09-23) — a light separate count fetch
+      // rather than deriving it from `speakers`, since the default speakers
+      // fetch above now excludes Cancelled entirely (see that route's own
+      // comment) and has nothing to count from.
+      fetch(`/api/events/stakeholders/speakers?event_id=${eventId}&confirmation_status=Cancelled`),
     ])
     setSpeakers(await spRes.json().catch(() => []))
     setPartners(await ptRes.json().catch(() => []))
@@ -263,6 +274,8 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     setPermissions(new Set(permData.permissions ?? []))
     const eventData = await eventRes.json().catch(() => null)
     setEventName(eventData?.name ?? null)
+    const cancelledData = await cancelledRes.json().catch(() => [])
+    setCancelledCount(Array.isArray(cancelledData) ? cancelledData.length : 0)
     setLoading(false)
   }
 
@@ -485,6 +498,31 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     fetchAll()
   }
 
+  // Guarded Cancel (2026-09-23) — CancelSpeakerModal has already gated on
+  // the KonfHub listing being removed (a real, verified API success) and,
+  // if a registration exists, the manual-cancellation acknowledgment
+  // checkbox, before this ever fires. Sets confirmation_status='Cancelled'
+  // and, only for speakers whose registration was acknowledged, stamps the
+  // same to-do flag DeletedTab's own registration-cancel flow uses — see
+  // .../speakers/[id]/route.ts's also_flag_konfhub_registration_cancel.
+  async function performCancel(registrationAcknowledged: boolean) {
+    if (!cancelConfirm) return
+    setCancelling(true)
+    await Promise.all(cancelConfirm.map(item =>
+      fetch(`/api/events/stakeholders/speakers/${item.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          confirmation_status: 'Cancelled',
+          ...(registrationAcknowledged && item.konfhub_booking_id ? { also_flag_konfhub_registration_cancel: true } : {}),
+        }),
+      })
+    ))
+    setCancelling(false)
+    setCancelConfirm(null)
+    setSelectedIds(new Set())
+    fetchAll()
+  }
+
   // Same three gates the Details page's own Approve/Push buttons enforce
   // (readyForApproval + missingRequiredSpeakerFields there) — kept here
   // rather than shared, since this file has no import path to that page's
@@ -660,6 +698,11 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     ...(category?.kind === 'speaker' && can('sae.approvals.approve') ? [{ label: 'Push to KonfHub', onClick: openBulkKonfhubConfirm }] : []),
     ...(category?.kind === 'speaker' && can('sae.approvals.approve') ? [{ label: 'Register on KonfHub', onClick: openBulkRegistrationConfirm }] : []),
     ...(can('sae.approvals.approve') ? [{ label: 'Approve for Announcements', onClick: openBulkApproveConfirm }] : []),
+    // Cancel (2026-09-23) — speaker-only (confirmation_status doesn't exist
+    // on partners), gated on the same edit permission the confirmation_
+    // status PATCH itself requires. Opens CancelSpeakerModal, which does
+    // its own KonfHub-safety gating before performCancel ever runs.
+    ...(category?.kind === 'speaker' && can('sae.stakeholders.edit') ? [{ label: 'Cancel', danger: true, onClick: () => setCancelConfirm(visibleItems.filter(i => selectedIds.has(i.id)) as Speaker[]) }] : []),
     ...(can('sae.stakeholders.delete') ? [{ label: 'Delete', danger: true, onClick: () => setDeleteConfirm(visibleItems.filter(i => selectedIds.has(i.id))) }] : []),
   ]
 
@@ -721,6 +764,17 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
             }}>
             <span>Invites</span>
           </button>
+          <button onClick={() => setActiveTab(CANCELLED_KEY)}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px',
+              padding: '9px 12px', borderRadius: '8px', border: 'none', textAlign: 'left', cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: '15px', fontWeight: 700,
+              background: activeTab === CANCELLED_KEY ? 'var(--card)' : 'transparent',
+              color: activeTab === CANCELLED_KEY ? 'var(--ink)' : 'var(--ink3)',
+            }}>
+            <span>Cancelled</span>
+            {cancelledCount > 0 && <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>{cancelledCount}</span>}
+          </button>
           <button onClick={() => setActiveTab(DELETED_KEY)}
             style={{
               display: 'flex', alignItems: 'center', gap: '8px',
@@ -739,6 +793,11 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
             <>
               <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--ink)', marginBottom: '16px' }}>Deleted</div>
               <DeletedTab eventId={eventId} />
+            </>
+          ) : activeTab === CANCELLED_KEY ? (
+            <>
+              <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--ink)', marginBottom: '16px' }}>Cancelled</div>
+              <CancelledTab eventId={eventId} onChanged={fetchAll} />
             </>
           ) : activeTab === INVITES_KEY ? (
             <InvitesTab eventId={eventId} can={can} />
@@ -945,6 +1004,19 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
           deleting={deleting}
           onConfirm={performDelete}
           onClose={() => setDeleteConfirm(null)}
+        />
+      )}
+
+      {cancelConfirm && (
+        <CancelSpeakerModal
+          eventId={eventId}
+          items={cancelConfirm.map(item => ({
+            id: item.id, name: item.full_name,
+            konfhubSpeakerId: item.konfhub_speaker_id, konfhubBookingId: item.konfhub_booking_id,
+          }))}
+          cancelling={cancelling}
+          onConfirm={performCancel}
+          onClose={() => setCancelConfirm(null)}
         />
       )}
 

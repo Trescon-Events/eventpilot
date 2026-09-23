@@ -522,7 +522,7 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
                     </td>
                     <td style={tdStyle('center')}>
                       {r.confirmation_status
-                        ? <StatusText label={r.confirmation_status} color={r.confirmation_status === 'On Hold' ? STATUS_RED : STATUS_GREEN} />
+                        ? <StatusText label={r.confirmation_status} color={r.confirmation_status === 'On Hold' || r.confirmation_status === 'Cancelled' ? STATUS_RED : STATUS_GREEN} />
                         : <StatusText label="Not set" color="var(--ink4)" />}
                     </td>
                     {/* Collection's own order — see the header's matching

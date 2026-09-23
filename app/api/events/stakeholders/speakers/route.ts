@@ -54,6 +54,14 @@ function fromRow(row: Record<string, unknown>) {
 export async function GET(req: NextRequest) {
   const eventId = req.nextUrl.searchParams.get('event_id')
   const status  = req.nextUrl.searchParams.get('status')
+  // Cancelled-tab support (2026-09-23) — same override shape as `status`
+  // above: pass ?confirmation_status=Cancelled to fetch ONLY cancelled
+  // speakers (CancelledTab.tsx); omitted, the default view now also hides
+  // them (alongside the existing archived exclusion) so the Overview tab
+  // stays clean. See RemoveFromKonfhubListing/CancelSpeakerModal's own
+  // comments for why 'Cancelled' is only ever set through the guarded
+  // Cancel flow, never this route directly.
+  const confirmationStatus = req.nextUrl.searchParams.get('confirmation_status')
   if (!eventId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
 
   let q = supabaseAdmin
@@ -64,6 +72,13 @@ export async function GET(req: NextRequest) {
 
   if (status) q = q.eq('announcement_status', status)
   else q = q.neq('announcement_status', 'archived') // archived hidden from the default (all-statuses) view
+
+  if (confirmationStatus) q = q.eq('confirmation_status', confirmationStatus)
+  // Plain .neq() would silently exclude every speaker with confirmation_status
+  // still NULL (unlike announcement_status above, this column IS nullable —
+  // SQL's `NULL <> 'Cancelled'` evaluates to NULL, not true, so PostgREST's
+  // neq drops those rows too). Explicit OR-null keeps unset speakers visible.
+  else q = q.or('confirmation_status.neq.Cancelled,confirmation_status.is.null')
 
   const { data, error } = await q
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
