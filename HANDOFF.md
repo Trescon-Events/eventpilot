@@ -15,13 +15,35 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — 22-23 Sep 2026. DFS speaker-onboarding readiness pass: HubSpot field-mapping auto-suggest, a Speaker Properties field-type editor, legal-consent checkbox support, an AI-generated on-image Speaker Creative Headline (moved from announcement-scoped to speaker-scoped after live feedback), Full Bio text pre-extraction, a first-responder-wins redesign of External + Client approval gating, a composer bug fix, and a Registration tab rebuild + a real custom_fields data-loss bug fix. |
+| Who | Madhu + Claude Code (Sonnet 5) — 23 Sep 2026. Access-RBAC walkthrough (how to grant a role edit access to Messaging Doc/Event Details, and to the EventPilot event roster), a live incident found + fixed (a staffer added to an event in Staff Portal never showed up in EventPilot — traced to the daily sync's cron-job.org trigger having silently died 13 days earlier), and a scope-widening of that sync to reconcile roster removals, not just additions. |
 | Date | 2026-09-23 |
-| Latest push | `0a07f62` — pushed to `main`. |
-| DB migrations applied | `supabase/speaker_headline_migration.sql`, `supabase/announcement_headline_migration.sql` (superseded, kept as historical record), `supabase/placeholder_headline_migration.sql`, `supabase/speaker_bio_full_text_migration.sql`, `supabase/external_approval_cc_migration.sql` — **not yet run against production Supabase this session; run manually before relying on the new columns/table in prod.** |
+| Latest push | `b66765a` — pushed to `main`. |
+| DB migrations applied | `supabase/event_staff_data_source_migration.sql` — **applied directly to production this session.** Also confirmed (via direct query) that the previously-pending migrations from the earlier 22-23 Sep session (`speaker_headline_migration.sql`, `speaker_bio_full_text_migration.sql`, `external_approval_cc_migration.sql`, etc.) are now live in production — someone ran them since that handoff. |
 | Handed off to | Durga. |
-| Deployed | `curl` against `eventpilot.tresconglobal.com/login` (200) and `/api/auth/microsoft` (307) both healthy post-push; exact deployed-commit confirmation not independently checked against Railway. |
-| Left alone / known follow-up | See "22-23 Sep 2026" section below for full detail. Headline: **the Registration tab now shows exactly what KonfHub Attendee Registration needs (email/phone + any event-specific mapped fields), and a real bug that silently wiped crm_property-mapped custom_fields (email/phone/salutation) on every unrelated Hub-page edit is fixed.** DFS's own KonfHub registration field mapping is still not set up on KonfHub's side (pre-existing, unrelated to this session). |
+| Deployed | `curl` against `eventpilot.tresconglobal.com/login` (200) and `/api/auth/microsoft` (307) both healthy post-push; manual `/api/cron/staff-portal-sync` trigger also confirmed working end-to-end post-deploy (see below). |
+| Left alone / known follow-up | See "23 Sep 2026 (cont'd 2)" section below. Headline: **Staff Portal → EventPilot roster sync now runs on GitHub Actions (not a hand-registered cron-job.org job) and mirrors removals as well as additions.** `hrms_role_access_map` still only covers 2 of ~7 Staff Portal role types (`media`/`media_lead`) — deliberately left as-is, see that section for why. |
+
+## 23 Sep 2026 (cont'd 2) — Staff Portal sync reliability fix + exact-mirror roster (additions + removals)
+
+### The ask
+
+Madhu was trying to give a "Marketing Manager" role to a staffer (Nicholas Nunes) for AI InfraNext Indonesia 2026 via EventPilot's Access tab, and hit "This staff member is not on this event's Staff roster" — even though Nicholas had been added to that event in Staff Portal (the separate HRMS-side system) weeks earlier. That surfaced a real live incident, then a deliberate scope decision on how far to take the fix.
+
+### What was found and built
+
+- **Root cause (live incident):** the daily Staff Portal → EventPilot sync (`app/lib/staff-portal/run-sync.ts`, both the manual trigger and `/api/cron/staff-portal-sync`) depends on an externally hand-registered cron-job.org job — no in-repo record, no alerting. It silently stopped firing after **2026-09-10** (13 days), so anyone added to an event in Staff Portal after that date never made it into EventPilot's roster. Manually triggering the sync immediately fixed Nicholas's case.
+- **Systemic fix:** replaced the cron-job.org dependency with `.github/workflows/staff-portal-sync.yml` (daily `0 2 * * *` + `workflow_dispatch`), matching the same pattern already used by `hubspot-crm-pull-sync.yml`/`revoke-expired-access.yml` — visible, version-controlled, no manual external registration.
+- **Exact-mirror roster (Madhu's explicit ask):** the sync was additive-only — someone unassigned from an event in Staff Portal stayed on EventPilot's `event_staff` roster forever. Added a `data_source` column (`supabase/event_staff_data_source_migration.sql`) so the sync can tell its own rows (`'staff_portal'`) apart from manually-added ones (`NULL`, from the `/admin` Staff panel) and reconcile — remove sync-owned rows that fall out of Staff Portal's current snapshot — without ever touching a manual entry. Same safety pattern as `auto_granted` in `app/lib/hrms/apply-role-access-map.ts`.
+- **Deliberate scope boundary:** Madhu explicitly did not want EventPilot access-role *permissions* (what a role can do) auto-derived or auto-created from Staff Portal's role-type vocabulary, even as an inert placeholder — "anything to do with what kind of access those roles will have will be defined in eventpilot itself." So `hrms_role_access_map` (currently only mapping `media`/`media_lead` out of ~7 Staff Portal role types) was deliberately left unexpanded — see memory `eventpilot-staff-portal-access-roles-stay-manual`.
+
+### Verified
+
+Live end-to-end against production: manual sync trigger confirmed Nicholas's `event_staff` row landed (`project_role_type: marketing_manager`); the new `data_source` tagging confirmed via direct query (758 rows tagged `staff_portal`, 6 pre-existing manual rows correctly left `NULL`); post-deploy sync run completed with no errors. `tsc --noEmit` clean.
+
+### What's next
+
+- Nothing blocking. If a staffer's roster membership/role for an event ever looks stale again, check the GitHub Actions run history for `staff-portal-sync.yml` first — this exact silent-scheduler-death failure mode already happened once.
+- `hrms_role_access_map` remains incomplete by design (2 of ~7 role types) — don't expand it without being asked, see the memory note above.
 
 ## 22-23 Sep 2026 — Speaker Creative Headline, first-responder-wins approvals, Registration tab rebuild + a real data-loss bug fix
 
