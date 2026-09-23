@@ -917,7 +917,15 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                 const isSpeaker = category.kind === 'speaker'
                 const s = item as Speaker
                 const p = item as Partner
-                const name = isSpeaker ? s.full_name : p.company_name
+                // Public Name is authoritative everywhere a speaker's name
+                // is shown (2026-08-23, see app/lib/events/speaker-public-
+                // name.ts) — this row had been left reading the raw
+                // full_name/name only, so correcting a typo via Public
+                // Name (the field every other surface actually reads)
+                // silently didn't show here. Real bug found live
+                // 2026-09-23 (Jenny Jhonson/Ian Cramb corrections not
+                // appearing in this list).
+                const name = isSpeaker ? (s.public_name || s.full_name) : p.company_name
                 const subtitle = isSpeaker ? `${s.job_title} · ${s.company_name}` : p.partner_type.replace(/_/g, ' ')
                 const badge = STATUS_BADGE[item.announcement_status]
                 // Clean, minimal row (2026-08-14, per Madhu: "just speaker
