@@ -17,10 +17,10 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 |---|---|
 | Who | Madhu + Claude Code (Sonnet 5) — 22-23 Sep 2026. DFS speaker-onboarding readiness pass: HubSpot field-mapping auto-suggest, a Speaker Properties field-type editor, legal-consent checkbox support, an AI-generated on-image Speaker Creative Headline (moved from announcement-scoped to speaker-scoped after live feedback), Full Bio text pre-extraction, a first-responder-wins redesign of External + Client approval gating, a composer bug fix, and a Registration tab rebuild + a real custom_fields data-loss bug fix. |
 | Date | 2026-09-23 |
-| Latest push | See commit below — pending push at handoff time; confirm against `git log origin/main` next session if this line wasn't updated after a successful push. |
+| Latest push | `0a07f62` — pushed to `main`. |
 | DB migrations applied | `supabase/speaker_headline_migration.sql`, `supabase/announcement_headline_migration.sql` (superseded, kept as historical record), `supabase/placeholder_headline_migration.sql`, `supabase/speaker_bio_full_text_migration.sql`, `supabase/external_approval_cc_migration.sql` — **not yet run against production Supabase this session; run manually before relying on the new columns/table in prod.** |
 | Handed off to | Durga. |
-| Deployed | See "Deploy" step at the bottom of this handoff for this session's actual result. |
+| Deployed | `curl` against `eventpilot.tresconglobal.com/login` (200) and `/api/auth/microsoft` (307) both healthy post-push; exact deployed-commit confirmation not independently checked against Railway. |
 | Left alone / known follow-up | See "22-23 Sep 2026" section below for full detail. Headline: **the Registration tab now shows exactly what KonfHub Attendee Registration needs (email/phone + any event-specific mapped fields), and a real bug that silently wiped crm_property-mapped custom_fields (email/phone/salutation) on every unrelated Hub-page edit is fixed.** DFS's own KonfHub registration field mapping is still not set up on KonfHub's side (pre-existing, unrelated to this session). |
 
 ## 22-23 Sep 2026 — Speaker Creative Headline, first-responder-wins approvals, Registration tab rebuild + a real data-loss bug fix
