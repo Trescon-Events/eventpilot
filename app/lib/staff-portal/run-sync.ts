@@ -243,8 +243,31 @@ export async function runStaffPortalSync() {
   const eventStaffRows = [...merged.values()]
   if (eventStaffRows.length > 0) {
     const { error: linkErr } = await supabaseAdmin.from('event_staff')
-      .upsert(eventStaffRows, { onConflict: 'event_id,staff_id', ignoreDuplicates: false })
+      .upsert(
+        eventStaffRows.map(r => ({ ...r, data_source: 'staff_portal' })),
+        { onConflict: 'event_id,staff_id', ignoreDuplicates: false },
+      )
     if (linkErr) throw new Error(`Event staff upsert failed: ${linkErr.message}`)
+  }
+
+  // Reconcile removals: fetchAllStaffPortal('assignments'/'allocations') above
+  // is a full, unfiltered snapshot (client.ts paginates through everything,
+  // no delta params) — so `merged` is the complete current truth. Any row
+  // THIS sync previously created (data_source = 'staff_portal') that isn't
+  // in that snapshot anymore means the person was unassigned in Staff
+  // Portal — remove it here too. Never touches data_source IS NULL rows
+  // (manually added via the /admin "Staff" panel, or pre-dating this
+  // column) — same safety boundary as auto_granted in apply-role-access-map.ts.
+  const { data: existingSynced } = await supabaseAdmin
+    .from('event_staff')
+    .select('id, event_id, staff_id')
+    .eq('data_source', 'staff_portal')
+  const staleIds = (existingSynced ?? [])
+    .filter(r => !merged.has(`${r.event_id}:${r.staff_id}`))
+    .map(r => r.id)
+  if (staleIds.length > 0) {
+    const { error: removeErr } = await supabaseAdmin.from('event_staff').delete().in('id', staleIds)
+    if (removeErr) throw new Error(`Event staff removal failed: ${removeErr.message}`)
   }
 
   // ── Phase 2: auto-apply hrms_role_access_map ────────────────────────────

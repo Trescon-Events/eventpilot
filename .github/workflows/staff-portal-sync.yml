@@ -1,0 +1,33 @@
+name: Staff Portal sync
+
+# Fires the /api/cron/staff-portal-sync endpoint daily. Pulls umbrellas,
+# events, staff, event-staff assignments/allocations (incl. role sync +
+# removal reconciliation), timesheets, and leave balances from Staff
+# Portal — see app/lib/staff-portal/run-sync.ts for the full design.
+#
+# Replaces the old cron-job.org registration (hand-registered, no in-repo
+# record, no alerting — went silent for 13 days undetected, 2026-09-23)
+# with the same GitHub Actions pattern already used for every other cron
+# in this repo (see hubspot-crm-pull-sync.yml, revoke-expired-access.yml).
+#
+# Uses Railway direct URL — Cloudflare challenges GitHub Actions IPs as
+# bots on the proxied eventpilot.tresconglobal.com domain (see
+# revoke-expired-access.yml's note on why).
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:      # manual trigger for testing
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Call Staff Portal sync endpoint
+        run: |
+          curl --fail-with-body --silent --show-error \
+            -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://eventpilot-production-90c6.up.railway.app/api/cron/staff-portal-sync"
