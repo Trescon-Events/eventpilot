@@ -17,10 +17,10 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 |---|---|
 | Who | Madhu + Claude Code (Sonnet 5) — 23 Sep 2026 (long session, cont'd 3). Full DFS speaker-roster reconciliation against the producers' 18-Sep status sheet and several rounds of SharePoint sourcing (passports/National IDs, bios, photos); a new guarded **Cancelled** tab + double-confirmed Cancel/Restore flow on the Stakeholder Hub; a real Clean Photo wizard bug found and fixed live; a KonfHub-vs-EventPilot live audit; and bulk Website Photo regeneration + headline generation for speakers with a Full Bio on file. |
 | Date | 2026-09-23 |
-| Latest push | *(fill in after this push)* |
+| Latest push | `da444bb` — pushed to `main`. |
 | DB migrations applied | `supabase/speaker_confirmation_status_add_cancelled_migration.sql` — **applied directly to production this session** (adds `'Cancelled'` to `event_speakers.confirmation_status`'s check constraint). Everything else this session was direct-`psql` data work against production (speaker creates/updates, sensitive-document uploads, KonfHub-link clearing) — see the section below for the full list; none of it needed a schema change beyond that one migration. |
 | Handed off to | Durga. |
-| Deployed | *(fill in after this push — verify `eventpilot.tresconglobal.com` post-deploy)* |
+| Deployed | `curl` against `eventpilot.tresconglobal.com/login` (200) and `/api/auth/microsoft` (307) both healthy post-push. |
 | Left alone / known follow-up | See "23 Sep 2026 (cont'd 3)" section below. Headline: **DFS's EventPilot roster now matches the producers' 18-Sep sheet exactly** (72 active, 15 cancelled-but-retained), with a proper guarded Cancel/Restore UI replacing this morning's plain dropdown. `konfhub_speaker_id` was deliberately cleared for 49 DFS speakers whose KonfHub listing was never actually pushed through EventPilot — **do not click "Push to KonfHub" on any DFS speaker until Madhu's planned remove-all-then-push-fresh pass happens**, or it will create a duplicate live listing. |
 
 ## 23 Sep 2026 (cont'd 3) — DFS full roster reconciliation, Cancelled tab, Clean Photo bug fix, KonfHub audit
