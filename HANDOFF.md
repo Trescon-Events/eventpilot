@@ -15,13 +15,28 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — 23–24 Sep 2026 (very long session). KonfHub remove-then-repush for all 51 DFS speakers so EventPilot is the sole source of truth going forward; UAE-resident data-mapping fix; Nicolas Moreau/Noel Quinn bio fixes; a Producer role permission bug fix; then a large SAE-module pass: every email send in Communications now opens an editable To/Cc/Subject/Preview popup before sending, typed-DELETE confirmation + reviewer tracking on Sensitive Documents, a Status Board rework (2 new columns, several columns gained a real in-progress state), and a two-section redesign of the public speaker-submission form. |
+| Who | Madhu + Claude Code (Sonnet 5) — 24 Sep 2026 (second session that day). Speaker country data: KonfHub `location` push added, then found the stored "UAE" values were column/modal defaults, blanked, and defaults removed everywhere. |
 | Date | 2026-09-24 |
-| Latest push | `3667e53` — pushed to `main`. |
-| DB migrations applied | `supabase/speaker_sensitive_documents_review_migration.sql` (adds `reviewed_by`/`reviewed_at` to `speaker_sensitive_documents`) and `supabase/speaker_outstanding_items_template_styling_migration.sql` (styles the "Submit your details" button + updates the live `email_templates` row) — **both applied directly to production this session**. Everything else was direct data work (KonfHub API calls, `is_uae_resident`/bio backfills, one stale role-permission row deleted) — see the sections below. |
+| Latest push | `3e2d591` — pushed to `main` (code + migrations); this HANDOFF/SME_CONTEXT update is a later docs commit. |
+| DB migrations applied | `supabase/speaker_country_no_default_migration.sql` (dropped `event_speakers.country` default, blanked 54 auto-defaulted DFS rows) and `supabase/speaker_dial_code_no_default_migration.sql` (dropped `dial_code` default) — both run by Madhu directly against production. |
 | Handed off to | Durga. |
-| Deployed | Verified live post-push — see the "24 Sep 2026" section below for the exact checks run. |
-| Left alone / known follow-up | See "24 Sep 2026" section below. Headline: **all 50 non-blocked DFS speakers are now live on KonfHub under fresh IDs created by EventPilot's own push** (Armin Peter removed but not re-pushed — his record is still incomplete). "Notify Internal Team" was explicitly flagged but NOT reworked to have editable To/Cc — it's a deliberate broadcast-to-all-staff email with no per-recipient concept, built that way per Madhu's own earlier spec; worth a decision from him before touching it. |
+| Deployed | Code pushed to `main` (`3e2d591`); Railway auto-deploy not independently verified in-session. |
+| Left alone / known follow-up | See "24 Sep 2026 (session 2)" section below. |
+
+## 24 Sep 2026 (session 2) — Speaker country: KonfHub location + removing every default
+
+**Ask:** Country was missing on KonfHub's DFS speaker listing. Root cause: the Speakers-listing push (`konfhub-push/route.ts`) never sent `location` (its old comment said EventPilot had no source; `event_speakers.country` now exists). Added `location: speaker.country?.trim() || undefined`, pushed to all already-listed DFS speakers by ID (update only, no creates/deletes), verified by re-fetch.
+
+**What went wrong, and the fix:** the first push sent "UAE" for 33 speakers. Those values were not real data — `event_speakers.country` had `default 'UAE'` (and `dial_code default '+971'`), and the Add Speaker modal pre-filled both. Evidence: all 50 listed DFS speakers had `dial_code=+971`; 33 manual-source rows said UAE with no `is_uae_resident=true` and no CRM country (5 even had `is_uae_resident=false`). Nothing derives country from a phone number — it was defaults. Resolution:
+- KonfHub `location` blanked for the 31 unverified UAE speakers (verified/non-UAE kept); EventPilot vs KonfHub compared afterwards — 0 mismatches.
+- `country` blanked in EventPilot for 54 DFS rows (the 31 + 23 not on KonfHub): manual source, country=UAE, not `is_uae_resident=true`, no CRM country. Kept: Antoine Chemali, Hosam Arab, GV Ravishankar (flag true), Jurgen Heppe, Remo Giovanni Abbondandolo (form + CRM), Harry Gill (form).
+- Two "United Arab Emirates" rows normalised to "UAE" (Jurgen, Remo) at Madhu's request; USA was already short.
+- Both column defaults dropped (migrations above). Add Speaker modal (`app/admin/events/[id]/website/page.tsx`) now opens with `{}` — nothing pre-filled (Tier/Status/Visible dropdowns still *display* speaker/approved/yes, matching DB defaults).
+- `konfhub-registration-push/route.ts`: removed `country || 'UAE'`, `toISO(...) ?? 'ae'` (unmapped countries used to get the UAE code) and `dial_code || '+971'`. Country/country_code sent only when present AND mappable; dial_code sent only when present; a phone with no dial code is left out (KonfHub rejects phone without dial_code). Added ISO mappings for Jordan, Luxembourg, Bermuda, Switzerland, Kenya, United States of America.
+
+**Notes:** no speaker had a KonfHub registration (booking id) at the time, so the old fallbacks never created a wrong attendee. Chris Hogbin, Magnus Grimeland and Yazeed AlDomaiji were removed from the KonfHub listing by the team via the "remove from KonfHub listing" button (intentional); Harry Gill was pushed the same day (real form data). Untracked scratch scripts under `scripts/*-2026-09-24.ts` are one-offs, not committed.
+
+**What's next:** the Country of Residence dropdown stores HubSpot's full names ("United States"), so a new form submission will show that long form on KonfHub rather than "USA"; normalise at push time only if wanted. Other events' speaker rows were not audited for the same default.
 
 ## 24 Sep 2026 — KonfHub full repush, SAE-wide editable To/Cc, Sensitive Documents review tracking, Status Board rework, speaker-submission form redesign
 
