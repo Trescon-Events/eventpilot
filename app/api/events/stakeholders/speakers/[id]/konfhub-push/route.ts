@@ -27,9 +27,10 @@ import { getKonfhubToken, createKonfhubSpeaker, updateKonfhubSpeaker, KonfhubApi
 
    Field mapping is deliberately narrow — only send keys EventPilot
    actually owns a value for (name, about, image, logo, designation,
-   organisation, linkedin). KonfHub's speaker object also supports
-   location/facebook_url/twitter_url/website_url, none of which have an
-   EventPilot source yet; never send those keys at all, so a producer who
+   organisation, linkedin, location = the speaker's country). KonfHub's
+   speaker object also supports facebook_url/twitter_url/website_url,
+   none of which have an EventPilot source yet; never send those keys
+   at all (and omit location when country is empty), so a producer who
    set one of those directly in KonfHub never has it silently clobbered by
    a sync from a system that doesn't track it.
 
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: speaker } = await supabaseAdmin
     .from('event_speakers')
-    .select('event_id, public_name, pronoun_style, photo_cleaning_cycle_done, website_card_url, company_logo_url, bio, role, company, linkedin_url, order_index, konfhub_speaker_id, konfhub_tag_speaker, konfhub_tag_moderator')
+    .select('event_id, public_name, pronoun_style, photo_cleaning_cycle_done, website_card_url, company_logo_url, bio, role, company, country, linkedin_url, order_index, konfhub_speaker_id, konfhub_tag_speaker, konfhub_tag_moderator')
     .eq('id', speakerId)
     .single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
@@ -112,6 +113,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       designation: speaker.role || undefined,
       organisation: speaker.company || undefined,
       linkedin_url: speaker.linkedin_url || undefined,
+      location: speaker.country?.trim() || undefined,
       speaker_category_id: website.konfhub_speaker_category_id || undefined,
       ...(tags.length > 0 ? { tags } : {}),
     }
