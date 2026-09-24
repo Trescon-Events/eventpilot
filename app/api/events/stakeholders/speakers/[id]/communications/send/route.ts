@@ -22,11 +22,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id: speakerId } = await params
   const body = await req.json().catch(() => null) as {
     template_id?: string; token?: string; requested_fields?: MissingItemKey[]
-    recipient_email?: string; subject?: string; html?: string
+    recipient_email?: string; cc_emails?: string[]; subject?: string; html?: string
   } | null
   if (!body?.template_id || !body.token || !body.requested_fields?.length || !body.recipient_email?.trim() || !body.subject?.trim() || !body.html?.trim()) {
     return NextResponse.json({ error: 'template_id, token, requested_fields, recipient_email, subject, html required' }, { status: 400 })
   }
+  const ccEmails = (body.cc_emails ?? []).map(e => e.trim()).filter(Boolean)
 
   const { data: speaker } = await supabaseAdmin.from('event_speakers').select('event_id, producer_staff_id').eq('id', speakerId).single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
@@ -40,27 +41,40 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!template) return NextResponse.json({ error: 'Template not found' }, { status: 404 })
   const sender = await resolveSenderIdentity(session, template, speaker.producer_staff_id)
 
-  const { data: requestRow, error: insertErr } = await supabaseAdmin
+  // A prior attempt with this exact token may already have inserted the row
+  // (see the catch below — "row stays" deliberately, so a failed Graph send
+  // is retryable/inspectable). Reuse it instead of re-inserting: token has a
+  // UNIQUE constraint, so "Retry Send" resubmitting the same unchanged token
+  // used to hit a raw constraint-violation error instead of actually retrying.
+  const { data: existingRow } = await supabaseAdmin
     .from('speaker_communication_requests')
-    .insert({
-      event_id: speaker.event_id,
-      speaker_id: speakerId,
-      requested_fields: body.requested_fields,
-      token: body.token,
-      token_expires_at: new Date(Date.now() + TOKEN_TTL_MS).toISOString(),
-      status: 'pending',
-      actual_subject: body.subject,
-      actual_body_html: body.html,
-      requested_by: session?.sid && session.sid !== 'super-admin' ? session.sid : null,
-    })
     .select()
-    .single()
+    .eq('token', body.token)
+    .maybeSingle()
+
+  const { data: requestRow, error: insertErr } = existingRow
+    ? { data: existingRow, error: null }
+    : await supabaseAdmin
+      .from('speaker_communication_requests')
+      .insert({
+        event_id: speaker.event_id,
+        speaker_id: speakerId,
+        requested_fields: body.requested_fields,
+        token: body.token,
+        token_expires_at: new Date(Date.now() + TOKEN_TTL_MS).toISOString(),
+        status: 'pending',
+        actual_subject: body.subject,
+        actual_body_html: body.html,
+        requested_by: session?.sid && session.sid !== 'super-admin' ? session.sid : null,
+      })
+      .select()
+      .single()
   if (insertErr || !requestRow) return NextResponse.json({ error: insertErr?.message ?? 'Could not create request record' }, { status: 500 })
 
   try {
     await sendGraphMail({
       senderEmail: sender.email, senderName: sender.name,
-      to: body.recipient_email, subject: body.subject, html: body.html,
+      to: body.recipient_email, cc: ccEmails.length ? ccEmails : undefined, subject: body.subject, html: body.html,
     })
 
     await supabaseAdmin.from('email_template_sends').insert({

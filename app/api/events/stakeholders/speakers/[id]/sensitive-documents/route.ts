@@ -40,6 +40,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const active = (rows ?? []).filter(r => !r.deleted_at)
   const history = (rows ?? []).filter(r => r.deleted_at)
 
+  // Reviewer names for active docs — same resolve-UUID-to-name approach as
+  // deleted_by above, so the tab can show who reviewed a document, not
+  // just that it happened (2026-09-24, Status Board's Passport/National ID
+  // columns need a real "reviewed" signal — see the review migration's own
+  // doc comment).
+  const reviewerIds = [...new Set(active.map(r => r.reviewed_by).filter((id): id is string => !!id))]
+  const { data: reviewers } = reviewerIds.length
+    ? await supabaseAdmin.from('staff_members').select('id, name').in('id', reviewerIds)
+    : { data: [] }
+  const reviewerNameById = new Map((reviewers ?? []).map(d => [d.id, d.name]))
+
   const documents = await Promise.all(active.map(async r => ({
     id: r.id,
     document_type: r.document_type,
@@ -48,13 +59,29 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     uploaded_at: r.uploaded_at,
     retention_expires_at: r.retention_expires_at,
     signed_url: r.storage_path ? await getSensitiveDocumentSignedUrl(r.storage_path) : null,
+    reviewed_at: r.reviewed_at,
+    reviewed_by_name: r.reviewed_by ? (reviewerNameById.get(r.reviewed_by) ?? null) : null,
   })))
+
+  // Resolve deleted_by (a real staff_members.id on a manual delete, or the
+  // literal strings 'system_auto_purge'/'unknown' — see this route's own
+  // DELETE handler and the replace-on-upload path above) to a display
+  // name, so "Deletion history" can show who actually did it instead of
+  // the generic word "staff" (2026-09-24, real gap found live — Madhu
+  // asked specifically after checking his own test deletes here).
+  const deleterIds = [...new Set(history.map(r => r.deleted_by).filter((id): id is string => !!id && id !== 'system_auto_purge' && id !== 'unknown'))]
+  const { data: deleters } = deleterIds.length
+    ? await supabaseAdmin.from('staff_members').select('id, name').in('id', deleterIds)
+    : { data: [] }
+  const deleterNameById = new Map((deleters ?? []).map(d => [d.id, d.name]))
 
   return NextResponse.json({
     documents,
     history: history.map(r => ({
       id: r.id, document_type: r.document_type, file_name: r.file_name,
-      uploaded_at: r.uploaded_at, deleted_at: r.deleted_at, deleted_by: r.deleted_by, notified_at: r.notified_at,
+      uploaded_at: r.uploaded_at, deleted_at: r.deleted_at, deleted_by: r.deleted_by,
+      deleted_by_name: r.deleted_by ? (deleterNameById.get(r.deleted_by) ?? null) : null,
+      notified_at: r.notified_at,
     })),
   })
 }

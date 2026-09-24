@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Card, Button, Badge } from '@/app/components/ui'
+import DeleteSensitiveDocumentModal from './DeleteSensitiveDocumentModal'
 
 /* Passport / National ID storage — isolated from the general speaker
    record (see app/lib/events/sensitive-storage.ts's doc comment for the
@@ -20,6 +21,8 @@ type ActiveDoc = {
   uploaded_at: string
   retention_expires_at: string
   signed_url: string | null
+  reviewed_at: string | null
+  reviewed_by_name: string | null
 }
 
 type HistoryDoc = {
@@ -29,6 +32,7 @@ type HistoryDoc = {
   uploaded_at: string
   deleted_at: string
   deleted_by: string | null
+  deleted_by_name: string | null
   notified_at: string | null
 }
 
@@ -68,6 +72,8 @@ export default function SensitiveDocumentsTab({
   const [uploadingType, setUploadingType] = useState<DocType | null>(null)
   const [showHistory, setShowHistory] = useState(false)
   const [savingUaeResident, setSavingUaeResident] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<ActiveDoc | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const fileInputs = { passport: useRef<HTMLInputElement>(null), national_id: useRef<HTMLInputElement>(null) }
 
   const setUaeResident = async (value: boolean | null) => {
@@ -119,13 +125,40 @@ export default function SensitiveDocumentsTab({
 
   const onDelete = async (docId: string) => {
     setError(null)
+    setDeleting(true)
     try {
       const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/sensitive-documents/${docId}`, { method: 'DELETE' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Delete failed')
+      setDeleteTarget(null)
       await load()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Delete failed')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  // Review (2026-09-24) — the Status Board's Passport/National ID columns
+  // need a real "a producer has actually checked this" signal, distinct
+  // from just being uploaded, before counting a document as done (per
+  // Madhu: only a reviewed document is available for further processing,
+  // e.g. an Operations team's future badge/visa workflow).
+  const [reviewingId, setReviewingId] = useState<string | null>(null)
+  const toggleReview = async (docId: string, reviewed: boolean) => {
+    setError(null)
+    setReviewingId(docId)
+    try {
+      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/sensitive-documents/${docId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reviewed }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Could not update review status')
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not update review status')
+    } finally {
+      setReviewingId(null)
     }
   }
 
@@ -180,8 +213,11 @@ export default function SensitiveDocumentsTab({
             // reads as ordinary "Missing," same as before this flag
             // existed, since it might still turn out to be required.
             const notApplicable = type === 'national_id' && isUaeResident === false && !doc
+            const reviewed = !!doc?.reviewed_at
+            const badgeLabel = !doc ? (notApplicable ? 'Not Applicable' : 'Missing') : reviewed ? 'Reviewed' : 'On file — not reviewed'
+            const badgeColor = !doc ? (notApplicable ? 'grey' : 'amber') : reviewed ? 'teal' : 'amber'
             return (
-              <Card key={type} padded color={doc ? 'teal' : undefined}>
+              <Card key={type} padded color={reviewed ? 'teal' : undefined}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>{DOC_LABELS[type]}</div>
@@ -193,6 +229,11 @@ export default function SensitiveDocumentsTab({
                         <div style={{ fontSize: '12px', color: 'var(--ink4)', marginTop: '4px' }}>
                           Uploaded {fmtDate(doc.uploaded_at)} · auto-deletes {fmtDate(doc.retention_expires_at)}
                         </div>
+                        {reviewed && (
+                          <div style={{ fontSize: '12px', color: 'var(--teal-mid)', marginTop: '4px', fontWeight: 700 }}>
+                            ✓ Reviewed {fmtDate(doc.reviewed_at)}{doc.reviewed_by_name ? ` by ${doc.reviewed_by_name}` : ''}
+                          </div>
+                        )}
                       </>
                     ) : (
                       <div style={{ fontSize: '13px', color: 'var(--ink4)', marginTop: '4px' }}>
@@ -200,7 +241,7 @@ export default function SensitiveDocumentsTab({
                       </div>
                     )}
                   </div>
-                  <Badge color={doc ? 'teal' : notApplicable ? 'grey' : 'amber'}>{doc ? 'On file' : notApplicable ? 'Not Applicable' : 'Missing'}</Badge>
+                  <Badge color={badgeColor}>{badgeLabel}</Badge>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '14px' }}>
                   {doc?.signed_url && (
@@ -215,8 +256,18 @@ export default function SensitiveDocumentsTab({
                       </Button>
                       <input ref={fileInputs[type]} type="file" accept={ACCEPT} style={{ display: 'none' }}
                         onChange={e => { const f = e.target.files?.[0]; if (f) onFilePicked(type, f); e.target.value = '' }} />
+                      {doc && !reviewed && (
+                        <Button variant="teal" onClick={() => toggleReview(doc.id, true)} disabled={reviewingId === doc.id}>
+                          {reviewingId === doc.id ? 'Saving…' : 'Mark as Reviewed'}
+                        </Button>
+                      )}
+                      {doc && reviewed && (
+                        <Button variant="ghost" onClick={() => toggleReview(doc.id, false)} disabled={reviewingId === doc.id}>
+                          {reviewingId === doc.id ? 'Saving…' : 'Unmark Reviewed'}
+                        </Button>
+                      )}
                       {doc && (
-                        <Button variant="red" onClick={() => onDelete(doc.id)}>Delete</Button>
+                        <Button variant="red" onClick={() => setDeleteTarget(doc)}>Delete</Button>
                       )}
                     </>
                   )}
@@ -237,7 +288,11 @@ export default function SensitiveDocumentsTab({
                 {history.map(h => (
                   <div key={h.id} style={{ fontSize: '12.5px', color: 'var(--ink3)', padding: '8px 12px', background: 'var(--surface2)', borderRadius: '8px' }}>
                     <strong>{DOC_LABELS[h.document_type]}</strong> ({h.file_name}) — deleted {fmtDate(h.deleted_at)}
-                    {' '}by {h.deleted_by === 'system_auto_purge' ? 'automatic retention purge' : 'staff'}
+                    {' '}by {
+                      h.deleted_by === 'system_auto_purge' ? 'automatic retention purge'
+                      : h.deleted_by === 'unknown' ? 'an admin'
+                      : h.deleted_by_name ?? 'a staff member (no longer in the system)'
+                    }
                     {h.notified_at ? ' · speaker notified' : ''}
                   </div>
                 ))}
@@ -246,6 +301,16 @@ export default function SensitiveDocumentsTab({
           </div>
         )}
       </div>
+
+      {deleteTarget && (
+        <DeleteSensitiveDocumentModal
+          docLabel={DOC_LABELS[deleteTarget.document_type]}
+          fileName={deleteTarget.file_name}
+          deleting={deleting}
+          onConfirm={() => onDelete(deleteTarget.id)}
+          onClose={() => setDeleteTarget(null)}
+        />
+      )}
     </div>
   )
 }

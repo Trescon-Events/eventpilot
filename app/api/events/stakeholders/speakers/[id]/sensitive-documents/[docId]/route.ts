@@ -11,6 +11,34 @@ import { deleteSensitiveDocument } from '@/app/lib/events/sensitive-storage'
    this is an internal fix, not the data-retention event the "your document
    was deleted" notification exists to explain. */
 
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string; docId: string }> }) {
+  const { id: speakerId, docId } = await params
+  const body = await req.json().catch(() => null) as { reviewed?: boolean } | null
+  if (typeof body?.reviewed !== 'boolean') return NextResponse.json({ error: 'reviewed (boolean) required' }, { status: 400 })
+
+  const { data: doc } = await supabaseAdmin
+    .from('speaker_sensitive_documents')
+    .select('id, event_id, speaker_id, deleted_at')
+    .eq('id', docId)
+    .single()
+  if (!doc || doc.speaker_id !== speakerId) return NextResponse.json({ error: 'Document not found' }, { status: 404 })
+  if (doc.deleted_at) return NextResponse.json({ error: 'Document has been deleted' }, { status: 409 })
+
+  const session = getSession(req)
+  if (!session?.adm && !(await hasEventPermission(session?.sid, doc.event_id, 'sae.sensitive_documents.manage'))) {
+    return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
+  }
+
+  const staffId = session?.sid && session.sid !== 'super-admin' ? session.sid : null
+  const { error } = await supabaseAdmin
+    .from('speaker_sensitive_documents')
+    .update(body.reviewed ? { reviewed_at: new Date().toISOString(), reviewed_by: staffId } : { reviewed_at: null, reviewed_by: null })
+    .eq('id', docId)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({ success: true })
+}
+
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string; docId: string }> }) {
   const { id: speakerId, docId } = await params
 

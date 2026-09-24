@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: speaker } = await supabaseAdmin
     .from('event_speakers')
-    .select('event_id, name, public_name, producer_staff_id, bio_full_url, photo_url, is_uae_resident, custom_fields, email')
+    .select('event_id, name, public_name, producer_staff_id, bio_full_url, photo_url, bio, country, is_uae_resident, custom_fields, email')
     .eq('id', speakerId)
     .single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
@@ -75,7 +75,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const token = generateSecureToken()
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com'
   const submissionUrl = `${siteUrl}/public/speaker-submission/${speakerId}?token=${token}`
-  const missingItemsListHtml = `<ul>${chosen.map(m => `<li>${m.label}</li>`).join('')}</ul>`
+  // Inline styles, not a stylesheet — required for this to render correctly
+  // in real email clients (and in the admin Preview iframe, which gets its
+  // own default styling isolated from the page's Tailwind reset). Teal
+  // (#00A5A3) matches the brand accent already used across the site's own
+  // email templates (supabase/site_templates.sql).
+  /* eslint-disable-next-line no-restricted-syntax -- email HTML; clients can't render CSS custom properties, literal colors required (matches render-template.ts) */
+  const missingItemsListHtml = `<ul style="margin:8px 0 16px;padding-left:20px;">${chosen.map(m => `<li style="margin-bottom:6px;font-weight:700;color:#0D6665;">${m.label}</li>`).join('')}</ul>`
 
   const { subject, html } = renderEmailTemplate(template, {
     speaker_name: speaker.public_name || speaker.name || '',

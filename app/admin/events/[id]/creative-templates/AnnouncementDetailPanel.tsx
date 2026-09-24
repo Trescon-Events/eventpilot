@@ -20,6 +20,7 @@ import {
 import PublishProgressModal from './PublishProgressModal'
 import ScheduleConfirmModal from './ScheduleConfirmModal'
 import NotifyExternalComposer from './NotifyExternalComposer'
+import NotifyExternalReminderComposer from './NotifyExternalReminderComposer'
 import RemovePostModal from './RemovePostModal'
 
 // The four (org_promo) / two (self_promo) steps of the left-hand workflow
@@ -110,7 +111,7 @@ export default function AnnouncementDetailPanel({
   const [confirmingTagging, setConfirmingTagging] = useState(false)
   const [notifyingInternal, setNotifyingInternal] = useState(false)
   const [notifyExternalOpen, setNotifyExternalOpen] = useState(false)
-  const [remindingExternal, setRemindingExternal] = useState(false)
+  const [notifyExternalReminderOpen, setNotifyExternalReminderOpen] = useState(false)
   const [notifyError, setNotifyError] = useState<string | null>(null)
   const [selectedChannelIds, setSelectedChannelIds] = useState<string[]>([])
   // Approval CC statuses (2026-09-06, external added 2026-09-22) — see
@@ -482,19 +483,6 @@ export default function AnnouncementDetailPanel({
         internal_notification_last_sent_at: data.internal_notification_last_sent_at,
       })
     } else setNotifyError(data.error || 'Could not notify the internal team.')
-  }
-
-  async function remindExternal() {
-    setRemindingExternal(true); setNotifyError(null)
-    const res = await fetch(`/api/events/stakeholders/announcements/${announcement.id}/notify-external/remind`, { method: 'POST' })
-    const data = await res.json().catch(() => ({}))
-    setRemindingExternal(false)
-    if (res.ok) {
-      onUpdate({
-        external_notification_reminder_count: data.external_notification_reminder_count,
-        external_notification_last_sent_at: data.external_notification_last_sent_at,
-      })
-    } else setNotifyError(data.error || 'Could not send the reminder.')
   }
 
   // "Share to Team" (2026-08-21, per Madhu) — the team's own WhatsApp
@@ -1320,8 +1308,8 @@ export default function AnnouncementDetailPanel({
                   Notify {displayName(stakeholderKind, stakeholder)}
                 </Button>
               ) : (
-                <Button variant="ghost" onClick={remindExternal} disabled={!announcement.tagging_confirmed_at || remindingExternal}>
-                  {remindingExternal ? 'Sending…' : 'Send Reminder'}
+                <Button variant="ghost" onClick={() => setNotifyExternalReminderOpen(true)} disabled={!announcement.tagging_confirmed_at}>
+                  Send Reminder
                 </Button>
               )}
               {announcement.external_notified_at && (
@@ -1414,6 +1402,18 @@ export default function AnnouncementDetailPanel({
             external_notified_at: data.external_notified_at,
             external_notification_recipient_name: data.external_notification_recipient_name,
             external_notification_recipient_email: data.external_notification_recipient_email,
+            external_notification_last_sent_at: data.external_notification_last_sent_at,
+          } as Partial<AnnouncementListItem>)}
+        />
+      )}
+
+      {notifyExternalReminderOpen && (
+        <NotifyExternalReminderComposer
+          announcementId={announcement.id}
+          stakeholderName={displayName(stakeholderKind, stakeholder)}
+          onClose={() => setNotifyExternalReminderOpen(false)}
+          onSent={data => onUpdate({
+            external_notification_reminder_count: data.external_notification_reminder_count,
             external_notification_last_sent_at: data.external_notification_last_sent_at,
           } as Partial<AnnouncementListItem>)}
         />

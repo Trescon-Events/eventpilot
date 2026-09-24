@@ -5,7 +5,7 @@ import { toStoredBioPdf } from '@/app/lib/events/full-bio-upload'
 import { uploadSensitiveDocument } from '@/app/lib/events/sensitive-storage'
 import { sendGraphMail } from '@/app/lib/email/graph-mail'
 import { renderEmailTemplate } from '@/app/lib/email/render-template'
-import { MissingItemKey } from '@/app/lib/stakeholders/missing-items'
+import { MissingItemKey, missingItemLabel } from '@/app/lib/stakeholders/missing-items'
 
 /* POST /api/public/speaker-submission/[speakerId]/submit?token=X
    multipart/form-data — one file per requested item key (bio_full, photo,
@@ -22,24 +22,31 @@ import { MissingItemKey } from '@/app/lib/stakeholders/missing-items'
    flips away from 'pending', re-submitting is rejected, so reopening the
    same link after submitting can never write twice. */
 
-const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp']
-const ALLOWED_DOC_TYPES: Record<string, string> = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
-const MAX_BIO_SIZE = 10 * 1024 * 1024
-const MAX_PHOTO_SIZE = 20 * 1024 * 1024
-const MAX_DOC_SIZE = 20 * 1024 * 1024
+// JPG/PNG/PDF only, matching the HubSpot onboarding form's own field specs
+// exactly (2026-09-24, per Madhu) — dropped webp, which HubSpot's form
+// never accepted either.
+const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/png']
+const ALLOWED_DOC_TYPES: Record<string, string> = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png' }
+const MAX_BIO_SIZE = 5 * 1024 * 1024 // matches HubSpot's "less than 5MB" Full Bio spec
+const MAX_PHOTO_SIZE = 5 * 1024 * 1024 // matches HubSpot's "Max file size: 5MB" Photo spec
+const MAX_DOC_SIZE = 20 * 1024 * 1024 // HubSpot's form has no passport/national ID upload — no existing spec to match, left as-is
+const MAX_SHORT_BIO_CHARS = 500 // matches HubSpot's own Short Bio field limit
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ speakerId: string }> }) {
   const { speakerId } = await params
   const token = req.nextUrl.searchParams.get('token')
   if (!token) return NextResponse.json({ error: 'token required' }, { status: 400 })
 
-  const { data: request } = await supabaseAdmin
+  const { data: request, error: requestErr } = await supabaseAdmin
     .from('speaker_communication_requests')
     .select('*')
     .eq('speaker_id', speakerId)
     .eq('token', token)
     .single()
-  if (!request) return NextResponse.json({ error: 'This link is not valid.' }, { status: 404 })
+  if (!request) {
+    if (requestErr && requestErr.code !== 'PGRST116') console.error(`[speaker-submission/submit] lookup failed for speaker ${speakerId}:`, requestErr)
+    return NextResponse.json({ error: 'This link is not valid.' }, { status: 404 })
+  }
   if (!request.token_expires_at || new Date(request.token_expires_at) < new Date()) {
     return NextResponse.json({ error: 'This link has expired.' }, { status: 410 })
   }
@@ -49,7 +56,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
 
   const { data: speaker } = await supabaseAdmin
     .from('event_speakers')
-    .select('event_id, announcement_status')
+    .select('event_id, announcement_status, is_uae_resident')
     .eq('id', speakerId)
     .single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
@@ -58,6 +65,43 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
   const form = await req.formData()
   const submitted: string[] = []
   const speakerPatch: Record<string, unknown> = {}
+
+  // Short Bio — plain text, not a file. Same 500-char ceiling as the
+  // existing "Generate from Full Bio" AI path (SHORT_BIO_MAX_CHARS in
+  // generate-short-bio/route.ts) and HubSpot's own field, enforced here
+  // too since this is a second, independent entry point into the same
+  // `bio` column.
+  const shortBioRaw = requestedFields.has('short_bio') ? (form.get('short_bio') as string | null) : null
+  if (shortBioRaw && shortBioRaw.trim()) {
+    const shortBio = shortBioRaw.trim()
+    if (shortBio.length > MAX_SHORT_BIO_CHARS) {
+      return NextResponse.json({ error: `Short Bio must be ${MAX_SHORT_BIO_CHARS} characters or less (currently ${shortBio.length}).` }, { status: 400 })
+    }
+    speakerPatch.bio = shortBio
+    submitted.push('short_bio')
+  }
+
+  // Country of Residence — plain text (a value from the HubSpot-sourced
+  // dropdown, not validated against that list server-side since the
+  // dropdown itself already constrains the choice; a stray value here is
+  // no worse than the free-text field this column already was).
+  const countryRaw = requestedFields.has('country') ? (form.get('country') as string | null) : null
+  if (countryRaw && countryRaw.trim()) {
+    speakerPatch.country = countryRaw.trim()
+    submitted.push('country')
+  }
+
+  // UAE Resident — only ever asked (and so only ever present in the form
+  // body) when the record didn't already have an answer; see review-data/
+  // route.ts's is_uae_resident passthrough and the page's own gating.
+  // Re-checking speaker.is_uae_resident (fetched fresh above, not trusted
+  // from the token payload) before writing it means a stale/reopened tab
+  // can never clobber an answer set some other way in the meantime.
+  const uaeResidentRaw = form.get('is_uae_resident') as string | null
+  if (speaker.is_uae_resident === null && (uaeResidentRaw === 'yes' || uaeResidentRaw === 'no')) {
+    speakerPatch.is_uae_resident = uaeResidentRaw === 'yes'
+    submitted.push('uae_resident_status')
+  }
 
   // Full Bio — same PDF-or-Word-converted-to-PDF rule as every other Full
   // Bio entry point (app/lib/events/full-bio-upload.ts's own doc comment).
@@ -182,7 +226,8 @@ async function notifyProducer(eventId: string, speakerId: string, submittedField
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com'
   const speakerName = speaker.public_name || speaker.name || 'A speaker'
   const reviewUrl = `${siteUrl}/admin/events/${eventId}/stakeholders/${speakerId}?tab=communications`
-  const itemsLabel = submittedFields.join(', ')
+  const DISPLAY_LABELS: Record<string, string> = { uae_resident_status: 'UAE Residency Status' }
+  const itemsLabel = submittedFields.map(f => DISPLAY_LABELS[f] ?? missingItemLabel(f as MissingItemKey)).join(', ')
 
   const { html } = renderEmailTemplate(
     { subject: '', body_html: `<p><strong>${speakerName}</strong> has submitted: ${itemsLabel}, for ${event?.public_name || event?.name || 'your event'}.</p><p><a href="${reviewUrl}">Review in EventPilot &rarr;</a></p>`, header_image_url: null, header_alt_text: null },

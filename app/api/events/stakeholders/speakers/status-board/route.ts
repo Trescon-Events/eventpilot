@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
 
   const { data: speakers, error } = await supabaseAdmin
     .from('event_speakers')
-    .select('id, name, public_name, role, company, producer_staff_id, bio, bio_full_url, photo_url, photo_cleaning_cycle_done, website_card_url, konfhub_speaker_id, status, active, announcement_status, confirmation_status, is_uae_resident, reference')
+    .select('id, name, public_name, role, company, producer_staff_id, bio, bio_full_url, photo_url, website_card_url, konfhub_speaker_id, status, active, announcement_status, confirmation_status, is_uae_resident, reference, email, custom_fields')
     .eq('event_id', eventId)
     .neq('announcement_status', 'archived')
     .order('name', { ascending: true })
@@ -43,7 +43,14 @@ export async function GET(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   const speakerIds = (speakers ?? []).map(s => s.id)
 
-  const [announcementStatus, producers, sensitiveDocs] = await Promise.all([
+  // Passport/National ID (2026-09-24) — 'missing' | 'in_progress' |
+  // 'reviewed'. A document merely being uploaded isn't enough to count as
+  // done: a producer has to explicitly mark it reviewed (see the review
+  // migration + SensitiveDocumentsTab's own "Mark as Reviewed" button) —
+  // only then is it considered available for further processing.
+  type DocStatus = 'missing' | 'in_progress' | 'reviewed'
+
+  const [announcementStatus, producers, sensitiveDocs, speakersWithContacts] = await Promise.all([
     fetchAnnouncementStatus(speakerIds),
     (async () => {
       const producerIds = [...new Set((speakers ?? []).map(s => s.producer_staff_id).filter((id): id is string => !!id))]
@@ -52,15 +59,39 @@ export async function GET(req: NextRequest) {
       return new Map((data ?? []).map(p => [p.id, p.name]))
     })(),
     (async () => {
-      if (speakerIds.length === 0) return new Set<string>()
+      if (speakerIds.length === 0) return new Map<string, DocStatus>()
       const { data } = await supabaseAdmin
         .from('speaker_sensitive_documents')
-        .select('speaker_id, document_type')
+        .select('speaker_id, document_type, reviewed_at')
         .in('speaker_id', speakerIds)
         .is('deleted_at', null)
-      return new Set((data ?? []).map(d => `${d.speaker_id}:${d.document_type}`))
+      return new Map((data ?? []).map(d => [`${d.speaker_id}:${d.document_type}`, (d.reviewed_at ? 'reviewed' : 'in_progress') as DocStatus]))
+    })(),
+    // Assistant Email (2026-09-24) — green once AT LEAST ONE Additional
+    // Contact (assistant/office contact, auto-captured from the onboarding
+    // form's consent checkbox or added manually — see speaker_additional_
+    // contacts_migration.sql) exists for this speaker, regardless of which
+    // one; this column doesn't distinguish "the assistant specifically" vs
+    // any other additional contact, matching how the Communications tab's
+    // own Cc auto-fill already treats the whole list the same way.
+    (async () => {
+      if (speakerIds.length === 0) return new Set<string>()
+      const { data } = await supabaseAdmin.from('speaker_additional_contacts').select('speaker_id').in('speaker_id', speakerIds)
+      return new Set((data ?? []).map(d => d.speaker_id))
     })(),
   ])
+  const docStatus = (speakerId: string, type: 'passport' | 'national_id'): DocStatus => sensitiveDocs.get(`${speakerId}:${type}`) ?? 'missing'
+
+  // Email (2026-09-24) — same custom_fields.email-with-legacy-fallback
+  // resolution every other speaker-communication route in this app already
+  // uses (compose/remind/acknowledge routes) — reused inline here rather
+  // than a new shared export, matching how each of those routes already
+  // does its own inline copy of this exact logic.
+  function speakerHasEmail(customFields: unknown, legacyEmail: string | null): boolean {
+    const v = (customFields as Record<string, unknown> | null)?.email
+    const fromCustom = Array.isArray(v) ? v[0] : v
+    return !!((typeof fromCustom === 'string' ? fromCustom : '').trim() || (legacyEmail ?? '').trim())
+  }
 
   const rows = (speakers ?? []).map(s => ({
     id: s.id,
@@ -70,10 +101,12 @@ export async function GET(req: NextRequest) {
     producer_staff_id: s.producer_staff_id,
     producer_name: s.producer_staff_id ? (producers.get(s.producer_staff_id) ?? null) : null,
     // Collection stage
+    email: speakerHasEmail(s.custom_fields, s.email),
+    assistant_email: speakersWithContacts.has(s.id),
     full_bio: !!s.bio_full_url,
     photo: !!s.photo_url,
-    passport: sensitiveDocs.has(`${s.id}:passport`),
-    national_id: sensitiveDocs.has(`${s.id}:national_id`),
+    passport_status: docStatus(s.id, 'passport'),
+    national_id_status: docStatus(s.id, 'national_id'),
     // UAE Resident (2026-09-08) — mirrors the HubSpot onboarding form's own
     // logic: National ID is only required alongside Passport for UAE
     // residents. null = not yet determined (producers backfill this by
@@ -84,8 +117,17 @@ export async function GET(req: NextRequest) {
     is_uae_resident: s.is_uae_resident,
     national_id_applicable: s.is_uae_resident !== false,
     // Production stage
-    short_bio: !!(s.bio && s.bio.trim()),
-    cleaned_photo: !!s.photo_cleaning_cycle_done,
+    // Short Bio (2026-09-24) — 'missing' | 'in_progress' | 'approved'.
+    // in_progress = text present but the speaker hasn't been Approved for
+    // Announcement yet (a whole-record blanket approval, not per-field —
+    // see the Details page's own "Approve for Announcement" card copy —
+    // reused here anyway per Madhu as the intended "final" signal for this
+    // one column specifically).
+    short_bio_status: !s.bio?.trim() ? 'missing' as const : s.announcement_status === 'ready' ? 'approved' as const : 'in_progress' as const,
+    // Website Photo (2026-09-24, merged with the old separate "Cleaned
+    // Photo" column per Madhu: they're generated together in one cycle, so
+    // a generated website_card_url already implies cleaned) — reuses the
+    // `photo` field above (raw photo received) as the "in progress" gate.
     website_photo: !!s.website_card_url,
     // Existing 3-state columns (shared with the Registry view)
     website_status: websiteStatus(s),

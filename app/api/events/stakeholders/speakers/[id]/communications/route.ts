@@ -14,7 +14,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { data: speaker } = await supabaseAdmin
     .from('event_speakers')
-    .select('event_id, bio_full_url, photo_url, is_uae_resident')
+    .select('event_id, bio_full_url, photo_url, bio, country, is_uae_resident')
     .eq('id', speakerId)
     .single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })

@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, Button, Badge, Input } from '@/app/components/ui'
+import { Card, Button, Badge } from '@/app/components/ui'
+import ComposeEmailFields from '@/app/components/EmailComposeFields'
 import AdditionalContactsCard from './AdditionalContactsCard'
 
 /* Speaker Communications (2026-09-10) — a per-speaker "request outstanding
@@ -12,7 +13,7 @@ import AdditionalContactsCard from './AdditionalContactsCard'
    communication_requests_migration.sql's own doc comment for the full
    design (modeled on announcement_approvals, not stakeholder_invites). */
 
-type ItemKey = 'bio_full' | 'photo' | 'passport' | 'national_id'
+type ItemKey = 'bio_full' | 'photo' | 'short_bio' | 'country' | 'passport' | 'national_id'
 type MissingItem = { key: ItemKey; label: string }
 type RequestStatus = 'pending' | 'submitted' | 'closed'
 type RequestRow = {
@@ -26,7 +27,7 @@ type RequestRow = {
   closed_at: string | null
 }
 
-const LABELS: Record<ItemKey, string> = { bio_full: 'Full Bio', photo: 'Photo', passport: 'Passport', national_id: 'National ID' }
+const LABELS: Record<ItemKey, string> = { bio_full: 'Full Bio', photo: 'Photo', short_bio: 'Short Bio', country: 'Country of Residence', passport: 'Passport', national_id: 'National ID' }
 const STATUS_BADGE: Record<RequestStatus, { label: string; color: 'amber' | 'teal' | 'grey' }> = {
   pending: { label: 'Pending', color: 'amber' },
   submitted: { label: 'Submitted — needs review', color: 'teal' },
@@ -45,7 +46,8 @@ export default function CommunicationsTab({ speakerId, stakeholderName, canEdit 
   const [error, setError] = useState<string | null>(null)
   const [composerOpen, setComposerOpen] = useState(false)
   const [composerSeed, setComposerSeed] = useState<ItemKey[]>([])
-  const [busyRequestId, setBusyRequestId] = useState<string | null>(null)
+  const [reminderTarget, setReminderTarget] = useState<string | null>(null)
+  const [acknowledgeTarget, setAcknowledgeTarget] = useState<string | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -71,34 +73,6 @@ export default function CommunicationsTab({ speakerId, stakeholderName, canEdit 
   function openComposer(seedKeys: ItemKey[]) {
     setComposerSeed(seedKeys)
     setComposerOpen(true)
-  }
-
-  async function remind(requestId: string) {
-    setBusyRequestId(requestId); setError(null)
-    try {
-      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/communications/${requestId}/remind`, { method: 'POST' })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Reminder failed')
-      await load()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Reminder failed')
-    } finally {
-      setBusyRequestId(null)
-    }
-  }
-
-  async function acknowledge(requestId: string) {
-    setBusyRequestId(requestId); setError(null)
-    try {
-      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/communications/${requestId}/acknowledge`, { method: 'POST' })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Could not send acknowledgment')
-      await load()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not send acknowledgment')
-    } finally {
-      setBusyRequestId(null)
-    }
   }
 
   return (
@@ -141,7 +115,6 @@ export default function CommunicationsTab({ speakerId, stakeholderName, canEdit 
             <div style={{ display: 'grid', gap: '10px' }}>
               {requests.map(r => {
                 const badge = STATUS_BADGE[r.status]
-                const busy = busyRequestId === r.id
                 return (
                   <div key={r.id} style={{ border: '1px solid var(--border-light)', borderRadius: '10px', padding: '12px 14px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
@@ -160,11 +133,11 @@ export default function CommunicationsTab({ speakerId, stakeholderName, canEdit 
                     </div>
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
                       {r.status === 'pending' && (
-                        <Button variant="ghost" onClick={() => remind(r.id)} disabled={busy}>{busy ? 'Sending…' : 'Send Reminder'}</Button>
+                        <Button variant="ghost" onClick={() => setReminderTarget(r.id)}>Send Reminder</Button>
                       )}
                       {r.status === 'submitted' && (
                         <>
-                          <Button variant="teal" onClick={() => acknowledge(r.id)} disabled={busy}>{busy ? 'Sending…' : 'Send Acknowledgment (all good)'}</Button>
+                          <Button variant="teal" onClick={() => setAcknowledgeTarget(r.id)}>Send Acknowledgment (all good)</Button>
                           {missingItems.length > 0 && (
                             <Button variant="ghost" onClick={() => openComposer(missingItems.map(m => m.key))}>Request Again</Button>
                           )}
@@ -189,6 +162,26 @@ export default function CommunicationsTab({ speakerId, stakeholderName, canEdit 
           onSent={load}
         />
       )}
+
+      {reminderTarget && (
+        <ReminderComposer
+          speakerId={speakerId}
+          stakeholderName={stakeholderName}
+          requestId={reminderTarget}
+          onClose={() => setReminderTarget(null)}
+          onSent={load}
+        />
+      )}
+
+      {acknowledgeTarget && (
+        <AcknowledgeComposer
+          speakerId={speakerId}
+          stakeholderName={stakeholderName}
+          requestId={acknowledgeTarget}
+          onClose={() => setAcknowledgeTarget(null)}
+          onSent={load}
+        />
+      )}
     </div>
   )
 }
@@ -210,11 +203,30 @@ function RequestComposer({ speakerId, stakeholderName, allMissingItems, initialS
   const [token, setToken] = useState('')
   const [requestedFields, setRequestedFields] = useState<ItemKey[]>([])
   const [recipientEmail, setRecipientEmail] = useState('')
+  const [ccInput, setCcInput] = useState('')
   const [subject, setSubject] = useState('')
   const [html, setHtml] = useState('')
   const [senderName, setSenderName] = useState('')
   const [senderEmail, setSenderEmail] = useState('')
   const [sendError, setSendError] = useState<string | null>(null)
+
+  // Auto-fill Cc from this speaker's Additional Contacts (assistant/office
+  // contacts) — same client-side fetch-and-join pattern SendToSpeakerComposer/
+  // SendForExternalApprovalComposer/NotifyExternalComposer already use, kept
+  // editable rather than locked so a producer can drop or add someone per send.
+  useEffect(() => {
+    fetch(`/api/events/stakeholders/speakers/${speakerId}/additional-contacts`)
+      .then(res => res.json())
+      .then(data => {
+        const contacts = (data.contacts ?? []) as { email: string }[]
+        setCcInput(prev => prev || contacts.map(c => c.email).join(', '))
+      })
+      .catch(() => {})
+  }, [speakerId])
+
+  function parseCc(): string[] {
+    return ccInput.split(',').map(s => s.trim()).filter(Boolean)
+  }
 
   function toggle(key: ItemKey) {
     setSelected(prev => {
@@ -255,7 +267,7 @@ function RequestComposer({ speakerId, stakeholderName, allMissingItems, initialS
     try {
       const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/communications/send`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template_id: templateId, token, requested_fields: requestedFields, recipient_email: recipientEmail, subject, html }),
+        body: JSON.stringify({ template_id: templateId, token, requested_fields: requestedFields, recipient_email: recipientEmail, cc_emails: parseCc(), subject, html }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -291,24 +303,210 @@ function RequestComposer({ speakerId, stakeholderName, allMissingItems, initialS
         )}
 
         {(step === 'edit' || step === 'sending' || step === 'error') && (
-          <div style={{ display: 'grid', gap: '12px' }}>
-            <div style={{ fontSize: '14px', color: 'var(--ink3)' }}>
-              Sending as <strong style={{ color: 'var(--ink2)' }}>{senderName}</strong> &lt;{senderEmail}&gt; to <strong style={{ color: 'var(--ink2)' }}>{recipientEmail}</strong>
-            </div>
-            <div>
-              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Subject</span>
-              <Input value={subject} onChange={e => setSubject(e.target.value)} />
-            </div>
-            <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '14px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '10px' }}>Preview</span>
-              <div style={{ fontSize: '14.5px', color: 'var(--ink2)', lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: html }} />
-            </div>
-            {sendError && <div style={{ fontSize: '14.5px', color: 'var(--red)' }}>{sendError}</div>}
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <Button variant="teal" onClick={send} disabled={step === 'sending'}>{step === 'sending' ? 'Sending…' : step === 'error' ? 'Retry Send' : 'Send'}</Button>
-              <Button variant="ghost" onClick={() => setStep('pick')}>Back</Button>
-            </div>
-          </div>
+          <ComposeEmailFields
+            senderName={senderName} senderEmail={senderEmail}
+            recipientEmail={recipientEmail} setRecipientEmail={setRecipientEmail}
+            ccInput={ccInput} setCcInput={setCcInput}
+            subject={subject} setSubject={setSubject}
+            html={html}
+            sendError={sendError}
+            sending={step === 'sending'}
+            sendLabel={step === 'sending' ? 'Sending…' : step === 'error' ? 'Retry Send' : 'Send'}
+            onSend={send}
+            onBack={() => setStep('pick')}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ReminderComposer({ speakerId, stakeholderName, requestId, onClose, onSent }: {
+  speakerId: string
+  stakeholderName: string
+  requestId: string
+  onClose: () => void
+  onSent: () => void
+}) {
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [templateId, setTemplateId] = useState('')
+  const [recipientEmail, setRecipientEmail] = useState('')
+  const [ccInput, setCcInput] = useState('')
+  const [subject, setSubject] = useState('')
+  const [html, setHtml] = useState('')
+  const [senderName, setSenderName] = useState('')
+  const [senderEmail, setSenderEmail] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch(`/api/events/stakeholders/speakers/${speakerId}/communications/${requestId}/remind/compose`, { method: 'POST' })
+      .then(async res => { const data = await res.json().catch(() => ({})); if (!res.ok) throw new Error(data.error || 'Could not load reminder'); return data })
+      .then(data => {
+        setTemplateId(data.template_id)
+        setRecipientEmail(data.recipient_email)
+        setSubject(data.subject)
+        setHtml(data.html)
+        setSenderName(data.sender_name)
+        setSenderEmail(data.sender_email)
+      })
+      .catch(e => setLoadError(e instanceof Error ? e.message : 'Could not load reminder'))
+      .finally(() => setLoading(false))
+  }, [speakerId, requestId])
+
+  // Same Additional Contacts auto-fill as the original request composer.
+  useEffect(() => {
+    fetch(`/api/events/stakeholders/speakers/${speakerId}/additional-contacts`)
+      .then(res => res.json())
+      .then(data => {
+        const contacts = (data.contacts ?? []) as { email: string }[]
+        setCcInput(prev => prev || contacts.map(c => c.email).join(', '))
+      })
+      .catch(() => {})
+  }, [speakerId])
+
+  function parseCc(): string[] {
+    return ccInput.split(',').map(s => s.trim()).filter(Boolean)
+  }
+
+  async function send() {
+    setSending(true); setSendError(null)
+    try {
+      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/communications/${requestId}/remind`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template_id: templateId, recipient_email: recipientEmail, cc_emails: parseCc(), subject, html }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Reminder failed')
+      onSent()
+      onClose()
+    } catch (e) {
+      setSendError(e instanceof Error ? e.message : 'Reminder failed')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'color-mix(in srgb, black 60%, transparent)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <div style={{ width: '620px', maxWidth: '95%', maxHeight: '90vh', overflowY: 'auto', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--ink)' }}>Send Reminder — {stakeholderName}</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '20px', color: 'var(--ink3)', cursor: 'pointer' }}>×</button>
+        </div>
+        {loading ? (
+          <div style={{ fontSize: '13px', color: 'var(--ink4)' }}>Loading…</div>
+        ) : loadError ? (
+          <div style={{ fontSize: '14.5px', color: 'var(--red)' }}>{loadError}</div>
+        ) : (
+          <ComposeEmailFields
+            senderName={senderName} senderEmail={senderEmail}
+            recipientEmail={recipientEmail} setRecipientEmail={setRecipientEmail}
+            ccInput={ccInput} setCcInput={setCcInput}
+            subject={subject} setSubject={setSubject}
+            html={html}
+            sendError={sendError}
+            sending={sending}
+            sendLabel={sending ? 'Sending…' : 'Send Reminder'}
+            onSend={send}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function AcknowledgeComposer({ speakerId, stakeholderName, requestId, onClose, onSent }: {
+  speakerId: string
+  stakeholderName: string
+  requestId: string
+  onClose: () => void
+  onSent: () => void
+}) {
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [templateId, setTemplateId] = useState('')
+  const [recipientEmail, setRecipientEmail] = useState('')
+  const [ccInput, setCcInput] = useState('')
+  const [subject, setSubject] = useState('')
+  const [html, setHtml] = useState('')
+  const [senderName, setSenderName] = useState('')
+  const [senderEmail, setSenderEmail] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch(`/api/events/stakeholders/speakers/${speakerId}/communications/${requestId}/acknowledge/compose`, { method: 'POST' })
+      .then(async res => { const data = await res.json().catch(() => ({})); if (!res.ok) throw new Error(data.error || 'Could not load acknowledgment'); return data })
+      .then(data => {
+        setTemplateId(data.template_id)
+        setRecipientEmail(data.recipient_email)
+        setSubject(data.subject)
+        setHtml(data.html)
+        setSenderName(data.sender_name)
+        setSenderEmail(data.sender_email)
+      })
+      .catch(e => setLoadError(e instanceof Error ? e.message : 'Could not load acknowledgment'))
+      .finally(() => setLoading(false))
+  }, [speakerId, requestId])
+
+  // Same Additional Contacts auto-fill as the original request composer.
+  useEffect(() => {
+    fetch(`/api/events/stakeholders/speakers/${speakerId}/additional-contacts`)
+      .then(res => res.json())
+      .then(data => {
+        const contacts = (data.contacts ?? []) as { email: string }[]
+        setCcInput(prev => prev || contacts.map(c => c.email).join(', '))
+      })
+      .catch(() => {})
+  }, [speakerId])
+
+  function parseCc(): string[] {
+    return ccInput.split(',').map(s => s.trim()).filter(Boolean)
+  }
+
+  async function send() {
+    setSending(true); setSendError(null)
+    try {
+      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/communications/${requestId}/acknowledge`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template_id: templateId, recipient_email: recipientEmail, cc_emails: parseCc(), subject, html }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Could not send acknowledgment')
+      onSent()
+      onClose()
+    } catch (e) {
+      setSendError(e instanceof Error ? e.message : 'Could not send acknowledgment')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'color-mix(in srgb, black 60%, transparent)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <div style={{ width: '620px', maxWidth: '95%', maxHeight: '90vh', overflowY: 'auto', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--ink)' }}>Send Acknowledgment — {stakeholderName}</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '20px', color: 'var(--ink3)', cursor: 'pointer' }}>×</button>
+        </div>
+        {loading ? (
+          <div style={{ fontSize: '13px', color: 'var(--ink4)' }}>Loading…</div>
+        ) : loadError ? (
+          <div style={{ fontSize: '14.5px', color: 'var(--red)' }}>{loadError}</div>
+        ) : (
+          <ComposeEmailFields
+            senderName={senderName} senderEmail={senderEmail}
+            recipientEmail={recipientEmail} setRecipientEmail={setRecipientEmail}
+            ccInput={ccInput} setCcInput={setCcInput}
+            subject={subject} setSubject={setSubject}
+            html={html}
+            sendError={sendError}
+            sending={sending}
+            sendLabel={sending ? 'Sending…' : 'Send Acknowledgment'}
+            onSend={send}
+          />
         )}
       </div>
     </div>

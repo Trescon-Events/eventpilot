@@ -7,13 +7,23 @@ import { resolveSenderIdentity } from '@/app/lib/email/sender-identity'
 import { renderEmailTemplate } from '@/app/lib/email/render-template'
 
 /* POST /api/events/stakeholders/speakers/[id]/communications/[requestId]/acknowledge
-   No body — a producer has manually verified everything the speaker
-   submitted is good, so this sends a short thank-you and closes the
-   request. Only valid once the speaker has actually submitted
-   (status === 'submitted'); a still-'pending' request has nothing to
-   acknowledge yet. */
+   Body (optional): { template_id?, recipient_email?, cc_emails?, subject?,
+   html? } — the edited content from the acknowledgment compose popup
+   (2026-09-24, acknowledge/compose/route.ts's own preview, same edit-then-
+   send split as Request Missing Items/Send Reminder). recipient_email/
+   subject/html together are used verbatim when all three are given;
+   otherwise (a stale caller) this falls back to re-deriving everything
+   fresh server-side, same fallback shape as the reminder route.
+   A producer has manually verified everything the speaker submitted is
+   good, so this sends a short thank-you and closes the request. Only
+   valid once the speaker has actually submitted (status === 'submitted');
+   a still-'pending' request has nothing to acknowledge yet. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string; requestId: string }> }) {
   const { id: speakerId, requestId } = await params
+  const body = await req.json().catch(() => null) as {
+    template_id?: string; recipient_email?: string; cc_emails?: string[]; subject?: string; html?: string
+  } | null
+  const ccEmailsOverride = body?.cc_emails?.map(e => e.trim()).filter(Boolean)
 
   const { data: request } = await supabaseAdmin.from('speaker_communication_requests').select('*').eq('id', requestId).eq('speaker_id', speakerId).single()
   if (!request) return NextResponse.json({ error: 'Request not found' }, { status: 404 })
@@ -31,26 +41,40 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   }
 
-  const v = (speaker.custom_fields as Record<string, unknown> | null)?.email
-  const recipientEmail = (typeof v === 'string' ? v : Array.isArray(v) ? v[0] : '')?.trim() || (speaker.email ?? '').trim()
-
-  const [{ data: event }, { data: template }] = await Promise.all([
+  const [{ data: event }, { data: template }, { data: additionalContacts }] = await Promise.all([
     supabaseAdmin.from('events').select('name, public_name').eq('id', speaker.event_id).single(),
-    supabaseAdmin.from('email_templates').select('*').eq('slug', 'speaker_outstanding_items_ack').eq('is_active', true).single(),
+    body?.template_id
+      ? supabaseAdmin.from('email_templates').select('*').eq('id', body.template_id).single()
+      : supabaseAdmin.from('email_templates').select('*').eq('slug', 'speaker_outstanding_items_ack').eq('is_active', true).single(),
+    // Same "CC the speaker's Additional Contacts" convention as the request
+    // email itself — used as the fallback default when the client doesn't
+    // send its own (edited) cc_emails.
+    supabaseAdmin.from('speaker_additional_contacts').select('email').eq('speaker_id', speakerId),
   ])
   if (!template) return NextResponse.json({ error: '"Speaker Outstanding Items Acknowledgment" template not found' }, { status: 404 })
+  const ccEmails = ccEmailsOverride ?? (additionalContacts ?? []).map(c => c.email).filter(Boolean)
 
   const sender = await resolveSenderIdentity(session, template, speaker.producer_staff_id)
   const staffId = session?.sid && session.sid !== 'super-admin' ? session.sid : null
 
-  if (recipientEmail) {
-    const { subject, html } = renderEmailTemplate(template, {
+  let recipientEmail = body?.recipient_email?.trim()
+  let subject = body?.subject?.trim()
+  let html = body?.html?.trim()
+  if (!recipientEmail || !subject || !html) {
+    const v = (speaker.custom_fields as Record<string, unknown> | null)?.email
+    recipientEmail = (typeof v === 'string' ? v : Array.isArray(v) ? v[0] : '')?.trim() || (speaker.email ?? '').trim()
+    const rendered = renderEmailTemplate(template, {
       speaker_name: speaker.public_name || speaker.name || '',
       event_name: event?.public_name || event?.name || '',
       producer_name: sender.name,
     })
+    subject = rendered.subject
+    html = rendered.html
+  }
+
+  if (recipientEmail) {
     try {
-      await sendGraphMail({ senderEmail: sender.email, senderName: sender.name, to: recipientEmail, subject, html })
+      await sendGraphMail({ senderEmail: sender.email, senderName: sender.name, to: recipientEmail, cc: ccEmails.length ? ccEmails : undefined, subject, html })
       await supabaseAdmin.from('email_template_sends').insert({
         template_id: template.id, send_type: 'live', to_email: recipientEmail, subject, status: 'sent', sent_by: session!.sid,
       })

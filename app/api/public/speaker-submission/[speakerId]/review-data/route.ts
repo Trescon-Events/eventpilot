@@ -12,18 +12,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ spea
   const token = req.nextUrl.searchParams.get('token')
   if (!token) return NextResponse.json({ error: 'token required' }, { status: 400 })
 
-  const { data: request } = await supabaseAdmin
+  const { data: request, error: requestErr } = await supabaseAdmin
     .from('speaker_communication_requests')
     .select('status, token_expires_at, requested_fields, submitted_at')
     .eq('speaker_id', speakerId)
     .eq('token', token)
     .single()
-  if (!request) return NextResponse.json({ error: 'This link is not valid.' }, { status: 404 })
+  if (!request) {
+    // A genuine query error (bad UUID, transient DB issue) looks identical
+    // to a truly-missing row here otherwise — log it so a real failure
+    // isn't indistinguishable from "no such request" (2026-09-24).
+    if (requestErr && requestErr.code !== 'PGRST116') console.error(`[speaker-submission/review-data] lookup failed for speaker ${speakerId}:`, requestErr)
+    return NextResponse.json({ error: 'This link is not valid.' }, { status: 404 })
+  }
   if (!request.token_expires_at || new Date(request.token_expires_at) < new Date()) {
     return NextResponse.json({ error: 'This link has expired.' }, { status: 410 })
   }
 
-  const { data: speaker } = await supabaseAdmin.from('event_speakers').select('name, public_name, event_id').eq('id', speakerId).single()
+  const { data: speaker } = await supabaseAdmin.from('event_speakers').select('name, public_name, event_id, bio, country, is_uae_resident').eq('id', speakerId).single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
 
   const { data: event } = await supabaseAdmin.from('events').select('name, public_name').eq('id', speaker.event_id).single()
@@ -36,5 +42,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ spea
     status: request.status,
     submitted_at: request.submitted_at,
     requested_fields: requestedFields.map(key => ({ key, label: missingItemLabel(key) })),
+    // Current values, so the form can pre-fill Short Bio/Country rather
+    // than always starting blank, and so the frontend can decide whether
+    // to ask "Are you a UAE resident?" at all — only when this is still
+    // genuinely unknown (2026-09-24, per Madhu: never ask a question the
+    // record already has an answer to).
+    current_short_bio: speaker.bio ?? '',
+    current_country: speaker.country ?? '',
+    is_uae_resident: speaker.is_uae_resident,
   })
 }

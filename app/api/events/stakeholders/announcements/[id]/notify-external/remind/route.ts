@@ -8,12 +8,22 @@ import { renderEmailTemplate } from '@/app/lib/email/render-template'
 import { buildPlatformLinksHtml } from '@/app/lib/events/postiz-publish'
 
 /* POST /api/events/stakeholders/announcements/[id]/notify-external/remind
-   No body — one-click resend to whoever notify-external/send last recorded
-   (external_notification_recipient_*), re-rendering the template fresh
-   (in case a channel confirmed its link after the first send). Only
-   available once a first send has actually happened. */
+   Body (optional): { template_id?, recipient_email?, cc_emails?, subject?,
+   html? } — the edited content from the reminder compose popup
+   (2026-09-24, notify-external/remind/compose/route.ts's own preview,
+   same edit-then-send split as the Communications tab's own reminder).
+   recipient_email/subject/html together are used verbatim when all three
+   are given; otherwise this falls back to re-deriving everything fresh
+   from whatever notify-external/send last recorded, exactly as the old
+   one-click version did. Only available once a first send has actually
+   happened. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  const body = await req.json().catch(() => null) as {
+    template_id?: string; recipient_email?: string; cc_emails?: string[]; subject?: string; html?: string
+  } | null
+  const ccEmailsOverride = body?.cc_emails?.map(e => e.trim()).filter(Boolean)
+
   const { data: announcement } = await supabaseAdmin.from('stakeholder_announcements')
     .select('*, event:event_id(name, public_name, postiz_profile_key)')
     .eq('id', id).single()
@@ -29,40 +39,53 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const event = Array.isArray(announcement.event) ? announcement.event[0] : announcement.event
 
-  const { data: template } = await supabaseAdmin.from('email_templates').select('*').eq('slug', 'publish_notification_external').eq('is_active', true).single()
+  const { data: template } = body?.template_id
+    ? await supabaseAdmin.from('email_templates').select('*').eq('id', body.template_id).single()
+    : await supabaseAdmin.from('email_templates').select('*').eq('slug', 'publish_notification_external').eq('is_active', true).single()
   if (!template) return NextResponse.json({ error: '"Publish Notification — External" template not found' }, { status: 404 })
 
-  let stakeholderName = ''
-  if (announcement.speaker_id) {
-    const { data: speaker } = await supabaseAdmin.from('event_speakers').select('name, public_name').eq('id', announcement.speaker_id).single()
-    stakeholderName = speaker?.public_name || speaker?.name || ''
-  } else if (announcement.partner_id) {
-    const { data: partner } = await supabaseAdmin.from('event_sponsors').select('name').eq('id', announcement.partner_id).single()
-    stakeholderName = partner?.name || ''
-  }
-
   const sender = await resolveSenderIdentity(session, template, await getSpeakerProducerId(announcement.speaker_id))
-  const platformLinks = await buildPlatformLinksHtml(announcement.publish_results, event?.postiz_profile_key || undefined)
-  const { subject, html } = renderEmailTemplate(template, {
-    recipient_name: announcement.external_notification_recipient_name || '',
-    stakeholder_name: stakeholderName,
-    kind_label: announcement.speaker_id ? 'speaker announcement' : 'partner announcement',
-    event_name: event?.public_name || event?.name || '',
-    platform_links: platformLinks,
-    sender_name: sender.name,
-  })
-  const ccEmails: string[] = announcement.external_notification_cc_emails ?? []
+
+  let recipientEmail: string = body?.recipient_email?.trim() || ''
+  let subject = body?.subject?.trim()
+  let html = body?.html?.trim()
+  if (!recipientEmail || !subject || !html) {
+    let stakeholderName = ''
+    if (announcement.speaker_id) {
+      const { data: speaker } = await supabaseAdmin.from('event_speakers').select('name, public_name').eq('id', announcement.speaker_id).single()
+      stakeholderName = speaker?.public_name || speaker?.name || ''
+    } else if (announcement.partner_id) {
+      const { data: partner } = await supabaseAdmin.from('event_sponsors').select('name').eq('id', announcement.partner_id).single()
+      stakeholderName = partner?.name || ''
+    }
+    const platformLinks = await buildPlatformLinksHtml(announcement.publish_results, event?.postiz_profile_key || undefined)
+    const rendered = renderEmailTemplate(template, {
+      recipient_name: announcement.external_notification_recipient_name || '',
+      stakeholder_name: stakeholderName,
+      kind_label: announcement.speaker_id ? 'speaker announcement' : 'partner announcement',
+      event_name: event?.public_name || event?.name || '',
+      platform_links: platformLinks,
+      sender_name: sender.name,
+    })
+    // The early guard above already rejected a request with no recorded
+    // recipient before reaching here — the `|| ''` is just to satisfy the
+    // compiler (announcement is an untyped raw Supabase row).
+    recipientEmail = announcement.external_notification_recipient_email || ''
+    subject = rendered.subject
+    html = rendered.html
+  }
+  const ccEmails: string[] = ccEmailsOverride ?? announcement.external_notification_cc_emails ?? []
 
   try {
     await sendGraphMail({
       senderEmail: sender.email, senderName: sender.name,
-      to: announcement.external_notification_recipient_email,
+      to: recipientEmail,
       cc: ccEmails.length ? ccEmails : undefined,
       subject, html,
     })
 
     await supabaseAdmin.from('email_template_sends').insert({
-      template_id: template.id, send_type: 'live', to_email: announcement.external_notification_recipient_email, subject, status: 'sent', sent_by: session!.sid,
+      template_id: template.id, send_type: 'live', to_email: recipientEmail, subject, status: 'sent', sent_by: session!.sid,
     })
 
     const now = new Date().toISOString()
@@ -73,7 +96,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
     await supabaseAdmin.from('email_template_sends').insert({
-      template_id: template.id, send_type: 'live', to_email: announcement.external_notification_recipient_email, subject, status: 'failed', error_message: message, sent_by: session!.sid,
+      template_id: template.id, send_type: 'live', to_email: recipientEmail, subject, status: 'failed', error_message: message, sent_by: session!.sid,
     })
     return NextResponse.json({ error: message }, { status: 502 })
   }

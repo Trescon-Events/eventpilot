@@ -168,6 +168,29 @@ export function mapFieldsToRecord(
     if (fileUrls.bio_full_source) columns.bio_full_source = fileUrls.bio_full_source
     if (fileUrls.bio_full_text) columns.bio_full_text = fileUrls.bio_full_text
     if (publicNameDefault && !columns.public_name) columns.public_name = publicNameDefault
+
+    // UAE Residency (2026-09-24) — same gap shape as the company/bio
+    // aliases above: 'are_you_a_uae_resident' has never been a declared
+    // schema field (no native form ever asked it; it only exists as a raw
+    // HubSpot-mapped custom property), so it always fell into customFields
+    // via the "not on the resolved schema" passthrough above and never
+    // reached the real is_uae_resident BOOLEAN column that missing-items.ts/
+    // the Documents tab actually read — a speaker who genuinely answered
+    // "Yes" on intake still showed "Not determined yet" everywhere in the
+    // app. Real bug found live (John Travis, DFS). Parsed here rather than
+    // added to SPEAKER_KEY_MAP because that map does a raw passthrough
+    // (`columns[column] = value`), which would try to write the literal
+    // string "true"/"Yes" into a boolean column; this needs real
+    // true/false/unrecognized coercion instead. Gated on
+    // defaultSpeakerPublicName (creation-only, same flag already used for
+    // the public_name default above) — never re-derived on a later PATCH
+    // autosave, so a producer's own manual UAE Resident / Not a UAE
+    // Resident toggle on the Documents tab is never silently overwritten.
+    if (opts.defaultSpeakerPublicName) {
+      const uaeRaw = asStr(data.are_you_a_uae_resident)?.trim().toLowerCase()
+      if (uaeRaw === 'true' || uaeRaw === 'yes') columns.is_uae_resident = true
+      else if (uaeRaw === 'false' || uaeRaw === 'no') columns.is_uae_resident = false
+    }
   } else {
     if (fileUrls.logo) { columns.logo_url = fileUrls.logo; columns.logo_raw_url = fileUrls.logo }
   }

@@ -21,6 +21,8 @@ import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 
 type TriState = 'pending' | 'created' | 'published'
 type SelfPromoState = 'pending' | 'created' | 'sent'
+type DocStatus = 'missing' | 'in_progress' | 'reviewed'
+type ShortBioStatus = 'missing' | 'in_progress' | 'approved'
 
 type Row = {
   id: string
@@ -29,18 +31,32 @@ type Row = {
   company_name: string | null
   producer_staff_id: string | null
   producer_name: string | null
+  email: boolean
+  // Assistant Email (2026-09-24) — green once at least one Additional
+  // Contact (assistant or otherwise) is on file for this speaker.
+  assistant_email: boolean
   full_bio: boolean
   photo: boolean
-  passport: boolean
-  national_id: boolean
+  // Passport/National ID (2026-09-24) — a document merely being uploaded
+  // isn't "done": a producer has to explicitly mark it reviewed (see
+  // SensitiveDocumentsTab's "Mark as Reviewed" button) before it counts.
+  passport_status: DocStatus
+  national_id_status: DocStatus
   // UAE Resident (2026-09-08) — null = not yet determined. Gates whether
   // National ID is actually required (mirrors the HubSpot onboarding
   // form's own logic) — see national_id_applicable below and this
   // route's own top comment.
   is_uae_resident: boolean | null
   national_id_applicable: boolean
-  short_bio: boolean
-  cleaned_photo: boolean
+  // Short Bio (2026-09-24) — in_progress = text present, not yet Approved
+  // for Announcement; approved = that (whole-record, blanket) approval
+  // has happened.
+  short_bio_status: ShortBioStatus
+  // Website Photo (2026-09-24, merged with the old separate "Cleaned
+  // Photo" column — they're generated together in one cycle, so a
+  // generated card already implies cleaned) — true once website_card_url
+  // exists; `photo` above gates the "in progress" (raw photo received,
+  // card not generated yet) state.
   website_photo: boolean
   website_status: TriState
   social_post_status: TriState
@@ -55,22 +71,17 @@ type Row = {
 
 type Producer = { id: string; name: string }
 
-// National ID is deliberately NOT in this array (2026-09-08) — it's the
-// one column whose meaning depends on another field (UAE Resident), so it
-// gets fully custom header/cell JSX below instead of the generic
-// BoolCell render every other column here uses. Collection's own colSpan
-// is COLLECTION_BOOL_COLUMNS.length + 2 (UAE Resident, National ID) —
-// see the header JSX.
-const BOOL_COLUMNS: { key: keyof Row; label: string; group: 'Collection' | 'Production' }[] = [
+// Simple presence-based columns only — everything else in Collection/
+// Production (UAE Resident, Passport, National ID, Short Bio, Website
+// Photo) has multi-state logic depending on another field, so it gets
+// fully custom header/cell JSX below instead of this generic BoolCell map.
+const BOOL_COLUMNS: { key: 'email' | 'assistant_email' | 'full_bio' | 'photo'; label: string; group: 'Collection' }[] = [
+  { key: 'email', label: 'Email', group: 'Collection' },
+  { key: 'assistant_email', label: 'Assistant Email', group: 'Collection' },
   { key: 'full_bio', label: 'Full Bio', group: 'Collection' },
   { key: 'photo', label: 'Photo', group: 'Collection' },
-  { key: 'passport', label: 'Passport', group: 'Collection' },
-  { key: 'short_bio', label: 'Short Bio', group: 'Production' },
-  { key: 'cleaned_photo', label: 'Cleaned Photo', group: 'Production' },
-  { key: 'website_photo', label: 'Website Photo', group: 'Production' },
 ]
-const COLLECTION_BOOL_COLUMNS = BOOL_COLUMNS.filter(c => c.group === 'Collection')
-const PRODUCTION_BOOL_COLUMNS = BOOL_COLUMNS.filter(c => c.group === 'Production')
+const COLLECTION_BOOL_COLUMNS = BOOL_COLUMNS
 
 const TRISTATE_COLUMNS: { key: 'website_status' | 'social_post_status' | 'self_promo_status'; label: string }[] = [
   { key: 'website_status', label: 'Website' },
@@ -78,9 +89,10 @@ const TRISTATE_COLUMNS: { key: 'website_status' | 'social_post_status' | 'self_p
   { key: 'self_promo_status', label: 'Self Promo' },
 ]
 // Speaker, Producer, REF, Confirmation Status (4) + Collection's own bool
-// columns + UAE Resident + National ID (2) + Production + the 3-state
-// Publish columns.
-const TOTAL_TABLE_COLUMNS = 4 + COLLECTION_BOOL_COLUMNS.length + 2 + PRODUCTION_BOOL_COLUMNS.length + TRISTATE_COLUMNS.length
+// columns + UAE Resident + Passport + National ID (3, hand-rendered) +
+// Short Bio + Website Photo (2, hand-rendered) + the 3-state Publish
+// columns.
+const TOTAL_TABLE_COLUMNS = 4 + COLLECTION_BOOL_COLUMNS.length + 3 + 2 + TRISTATE_COLUMNS.length
 
 // One accent color per column group (2026-09-08, per Madhu — make the
 // three groups visually distinct, not just via the header labels). A
@@ -131,28 +143,48 @@ function StatusText({ label, color }: { label: string; color: string }) {
   )
 }
 
+// Checkmark, not the word "Done" (2026-09-24, per Madhu) — a glyph reads
+// faster than text for the simple presence columns (Email, Full Bio,
+// Photo) and matches the same "done" end-state the multi-state columns
+// below also use for their own fully-complete state.
 function BoolCell({ value }: { value: boolean }) {
-  return <StatusText label={value ? 'Done' : 'Pending'} color={value ? STATUS_GREEN : STATUS_RED} />
+  return <StatusText label={value ? '✓' : 'Pending'} color={value ? STATUS_GREEN : STATUS_RED} />
+}
+
+const DOC_STATUS_LABEL: Record<DocStatus, string> = { missing: 'Pending', in_progress: 'In Progress', reviewed: '✓' }
+const DOC_STATUS_COLOR: Record<DocStatus, string> = { missing: STATUS_RED, in_progress: STATUS_AMBER, reviewed: STATUS_GREEN }
+
+const SHORT_BIO_STATUS_LABEL: Record<ShortBioStatus, string> = { missing: 'Pending', in_progress: 'In Progress', approved: '✓' }
+const SHORT_BIO_STATUS_COLOR: Record<ShortBioStatus, string> = { missing: STATUS_RED, in_progress: STATUS_AMBER, approved: STATUS_GREEN }
+
+// Website Photo's 3 states (2026-09-24, merged with the old separate
+// "Cleaned Photo" column) derived from two existing booleans rather than
+// its own status field — see the Row type's own comment.
+function websitePhotoState(r: Row): { label: string; color: string } {
+  if (r.website_photo) return { label: 'Cleaned', color: STATUS_GREEN }
+  if (r.photo) return { label: 'In Progress', color: STATUS_AMBER }
+  return { label: 'Pending', color: STATUS_RED }
 }
 
 const MISSING_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: 'all', label: 'Show all' },
   { value: 'anything', label: 'Missing anything' },
+  { value: 'email', label: 'Missing Email' },
+  { value: 'assistant_email', label: 'Missing Assistant Email' },
   { value: 'full_bio', label: 'Missing Full Bio' },
   { value: 'photo', label: 'Missing Photo' },
-  { value: 'passport', label: 'Missing Passport' },
-  { value: 'national_id', label: 'Missing National ID' },
+  { value: 'passport', label: 'Passport Not Reviewed' },
+  { value: 'national_id', label: 'National ID Not Reviewed' },
   { value: 'uae_not_determined', label: 'UAE Residency Not Set' },
-  { value: 'short_bio', label: 'Missing Short Bio' },
-  { value: 'cleaned_photo', label: 'Not Cleaned' },
-  { value: 'website_photo', label: 'Missing Website Photo' },
+  { value: 'short_bio', label: 'Short Bio Not Approved' },
+  { value: 'website_photo', label: 'Website Photo Not Cleaned' },
 ]
 
 // National ID's "missing" meaning depends on national_id_applicable —
 // see the Row type's own comment — so it can't go through the generic
 // BOOL_COLUMNS lookup below like every other filter option.
 function nationalIdMissing(r: Row) {
-  return r.national_id_applicable && !r.national_id
+  return r.national_id_applicable && r.national_id_status !== 'reviewed'
 }
 
 export default function StatusBoardPage({ params }: { params: Promise<{ id: string }> }) {
@@ -231,9 +263,13 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
       if (selectedProducerIds.size > 0 && !(r.producer_staff_id && selectedProducerIds.has(r.producer_staff_id))) return false
       if (missingFilter === 'anything') {
         return BOOL_COLUMNS.some(c => r[c.key] === false) || nationalIdMissing(r)
+          || r.passport_status !== 'reviewed' || r.short_bio_status !== 'approved' || !r.website_photo
       }
+      if (missingFilter === 'passport') return r.passport_status !== 'reviewed'
       if (missingFilter === 'national_id') return nationalIdMissing(r)
       if (missingFilter === 'uae_not_determined') return r.is_uae_resident === null
+      if (missingFilter === 'short_bio') return r.short_bio_status !== 'approved'
+      if (missingFilter === 'website_photo') return !r.website_photo
       if (missingFilter !== 'all') {
         const col = BOOL_COLUMNS.find(c => c.key === missingFilter)
         if (col && r[col.key] !== false) return false
@@ -250,9 +286,12 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
     // well short of 100% forever for any event with real non-UAE-resident
     // speakers, even once every actually-required National ID is on file.
     const nationalIdApplicable = filteredRows.filter(r => r.national_id_applicable)
-    const nationalIdCount = { key: 'national_id' as const, label: 'National ID', count: nationalIdApplicable.filter(r => r.national_id).length, total: nationalIdApplicable.length }
+    const nationalIdCount = { key: 'national_id' as const, label: 'National ID', count: nationalIdApplicable.filter(r => r.national_id_status === 'reviewed').length, total: nationalIdApplicable.length }
+    const passportCount = { key: 'passport' as const, label: 'Passport', count: filteredRows.filter(r => r.passport_status === 'reviewed').length, total }
+    const shortBioCount = { key: 'short_bio' as const, label: 'Short Bio', count: filteredRows.filter(r => r.short_bio_status === 'approved').length, total }
+    const websitePhotoCount = { key: 'website_photo' as const, label: 'Website Photo', count: filteredRows.filter(r => r.website_photo).length, total }
     const uaeDeterminedCount = filteredRows.filter(r => r.is_uae_resident !== null).length
-    return { total, boolCounts, nationalIdCount, uaeDeterminedCount }
+    return { total, boolCounts, nationalIdCount, passportCount, shortBioCount, websitePhotoCount, uaeDeterminedCount }
   }, [filteredRows])
 
   function toggleProducer(id: string) {
@@ -280,14 +319,15 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
       'Ref': r.reference ?? '',
       'Producer': r.producer_name ?? '',
       'Confirmation Status': r.confirmation_status ?? 'Not set',
+      'Email': r.email ? 'Done' : 'Pending',
+      'Assistant Email': r.assistant_email ? 'Done' : 'Pending',
       'Full Bio': r.full_bio ? 'Done' : 'Pending',
       'Photo': r.photo ? 'Done' : 'Pending',
-      'UAE Resident': r.is_uae_resident === true ? 'UAE' : r.is_uae_resident === false ? 'Not UAE' : 'Unknown',
-      'Passport': r.passport ? 'Done' : 'Pending',
-      'National ID': r.national_id_applicable ? (r.national_id ? 'Done' : 'Pending') : 'Not Applicable',
-      'Short Bio': r.short_bio ? 'Done' : 'Pending',
-      'Cleaned Photo': r.cleaned_photo ? 'Done' : 'Pending',
-      'Website Photo': r.website_photo ? 'Done' : 'Pending',
+      'UAE Resident': r.is_uae_resident === true ? 'YES' : r.is_uae_resident === false ? 'NO' : 'UNKNOWN',
+      'Passport': r.passport_status === 'reviewed' ? 'Reviewed' : r.passport_status === 'in_progress' ? 'In Progress' : 'Pending',
+      'National ID': !r.national_id_applicable ? 'Not Applicable' : r.national_id_status === 'reviewed' ? 'Reviewed' : r.national_id_status === 'in_progress' ? 'In Progress' : 'Pending',
+      'Short Bio': r.short_bio_status === 'approved' ? 'Approved' : r.short_bio_status === 'in_progress' ? 'In Progress' : 'Pending',
+      'Website Photo': websitePhotoState(r).label,
       'Website': TRISTATE_LABEL[r.website_status],
       'Social Post': TRISTATE_LABEL[r.social_post_status],
       'Self Promo': TRISTATE_LABEL[r.self_promo_status],
@@ -335,20 +375,30 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
               </div>
             </Card>
             <Card padded>
-              <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink3)' }}>National ID</div>
+              <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink3)' }}>Passport Reviewed</div>
+              <div style={{ fontSize: '22px', fontWeight: 900, color: summary.passportCount.count === summary.passportCount.total ? 'var(--success)' : 'var(--ink)', marginTop: '2px' }}>
+                {summary.passportCount.count}/{summary.passportCount.total}
+              </div>
+            </Card>
+            <Card padded>
+              <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink3)' }}>National ID Reviewed</div>
               <div style={{ fontSize: '22px', fontWeight: 900, color: summary.nationalIdCount.total > 0 && summary.nationalIdCount.count === summary.nationalIdCount.total ? 'var(--success)' : 'var(--ink)', marginTop: '2px' }}>
                 {summary.nationalIdCount.count}/{summary.nationalIdCount.total}
               </div>
               <div style={{ fontSize: '10.5px', color: 'var(--ink4)', marginTop: '2px' }}>of UAE residents</div>
             </Card>
-            {summary.boolCounts.filter(c => c.group === 'Production').map(c => (
-              <Card key={c.key as string} padded>
-                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink3)' }}>{c.label}</div>
-                <div style={{ fontSize: '22px', fontWeight: 900, color: c.count === summary.total ? 'var(--success)' : 'var(--ink)', marginTop: '2px' }}>
-                  {c.count}/{summary.total}
-                </div>
-              </Card>
-            ))}
+            <Card padded>
+              <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink3)' }}>Short Bio Approved</div>
+              <div style={{ fontSize: '22px', fontWeight: 900, color: summary.shortBioCount.count === summary.total ? 'var(--success)' : 'var(--ink)', marginTop: '2px' }}>
+                {summary.shortBioCount.count}/{summary.total}
+              </div>
+            </Card>
+            <Card padded>
+              <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink3)' }}>Website Photo</div>
+              <div style={{ fontSize: '22px', fontWeight: 900, color: summary.websitePhotoCount.count === summary.total ? 'var(--success)' : 'var(--ink)', marginTop: '2px' }}>
+                {summary.websitePhotoCount.count}/{summary.total}
+              </div>
+            </Card>
           </div>
         )}
 
@@ -474,28 +524,32 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
                   <Th rowSpan={2} cellStyle={{ ...stickyStyle({ top: 0, z: 3 }), minWidth: '70px', width: '70px' }} contentStyle={thContentStyle('left')}>Ref</Th>
                   <Th rowSpan={2} cellStyle={{ ...stickyStyle({ top: 0, z: 3 }), minWidth: '110px', width: '110px' }} contentStyle={{ ...thContentStyle('left'), whiteSpace: 'normal' }}>Producer</Th>
                   <Th rowSpan={2} cellStyle={{ ...stickyStyle({ top: 0, z: 3 }), minWidth: '90px', width: '90px' }} contentStyle={{ ...thContentStyle('center'), whiteSpace: 'normal' }}>Confirmation Status</Th>
-                  {/* +2 for UAE Resident and National ID — hand-placed
-                      below, not in COLLECTION_BOOL_COLUMNS (see that
-                      array's own comment). */}
-                  <Th colSpan={COLLECTION_BOOL_COLUMNS.length + 2} cellStyle={{ ...stickyStyle({ top: 0, z: 3 }), ...groupHeaderStyle('Collection'), ...groupStartStyle('Collection') }} contentStyle={thContentStyle('center')}>Collection</Th>
-                  <Th colSpan={PRODUCTION_BOOL_COLUMNS.length} cellStyle={{ ...stickyStyle({ top: 0, z: 3 }), ...groupHeaderStyle('Production'), ...groupStartStyle('Production') }} contentStyle={thContentStyle('center')}>Production</Th>
+                  {/* +3 for UAE Resident, Passport, National ID —
+                      hand-placed below, not in COLLECTION_BOOL_COLUMNS (see
+                      that array's own comment). */}
+                  <Th colSpan={COLLECTION_BOOL_COLUMNS.length + 3} cellStyle={{ ...stickyStyle({ top: 0, z: 3 }), ...groupHeaderStyle('Collection'), ...groupStartStyle('Collection') }} contentStyle={thContentStyle('center')}>Collection</Th>
+                  <Th colSpan={2} cellStyle={{ ...stickyStyle({ top: 0, z: 3 }), ...groupHeaderStyle('Production'), ...groupStartStyle('Production') }} contentStyle={thContentStyle('center')}>Production</Th>
                   <Th colSpan={3} cellStyle={{ ...stickyStyle({ top: 0, z: 3 }), ...groupHeaderStyle('Publish'), ...groupStartStyle('Publish') }} contentStyle={thContentStyle('center')}>Publish</Th>
                 </tr>
                 <tr style={{ background: 'var(--card-hi)' }}>
-                  {/* Collection's own order (2026-09-09, per Madhu): Full
-                      Bio, Photo, UAE Resident, Passport, National ID — UAE
-                      Resident moved before Passport since it gates what
-                      Passport/National ID actually require. Hand-rendered
-                      rather than mapped over COLLECTION_BOOL_COLUMNS since
-                      UAE Resident/National ID split it out of array order. */}
-                  <Th cellStyle={{ ...groupStartStyle('Collection'), ...stickyStyle({ top: headerRow1Height, z: 3 }) }} contentStyle={thContentStyle('center')}>Full Bio</Th>
+                  {/* Collection's own order (2026-09-09, per Madhu): Email,
+                      Full Bio, Photo, UAE Resident, Passport, National ID —
+                      UAE Resident sits before Passport since it gates what
+                      Passport/National ID actually require. UAE Resident/
+                      Passport/National ID hand-rendered since each has
+                      multi-state logic (see the Row type's own comments). */}
+                  <Th cellStyle={{ ...groupStartStyle('Collection'), ...stickyStyle({ top: headerRow1Height, z: 3 }) }} contentStyle={thContentStyle('center')}>Email</Th>
+                  {/* Two lines, not nowrap (2026-09-24, per Madhu — "Assistant
+                      Email" is too wide for this column at the standard
+                      nowrap header width). */}
+                  <Th cellStyle={stickyStyle({ top: headerRow1Height, z: 3 })} contentStyle={{ ...thContentStyle('center'), whiteSpace: 'normal' }}>Assistant<br />Email</Th>
+                  <Th cellStyle={stickyStyle({ top: headerRow1Height, z: 3 })} contentStyle={thContentStyle('center')}>Full Bio</Th>
                   <Th cellStyle={stickyStyle({ top: headerRow1Height, z: 3 })} contentStyle={thContentStyle('center')}>Photo</Th>
                   <Th cellStyle={stickyStyle({ top: headerRow1Height, z: 3 })} contentStyle={thContentStyle('center')}>UAE Resident</Th>
                   <Th cellStyle={stickyStyle({ top: headerRow1Height, z: 3 })} contentStyle={thContentStyle('center')}>Passport</Th>
                   <Th cellStyle={stickyStyle({ top: headerRow1Height, z: 3 })} contentStyle={thContentStyle('center')}>National ID</Th>
-                  {PRODUCTION_BOOL_COLUMNS.map((c, i) => (
-                    <Th key={c.key as string} cellStyle={{ ...(i === 0 ? groupStartStyle('Production') : {}), ...stickyStyle({ top: headerRow1Height, z: 3 }) }} contentStyle={thContentStyle('center')}>{c.label}</Th>
-                  ))}
+                  <Th cellStyle={{ ...groupStartStyle('Production'), ...stickyStyle({ top: headerRow1Height, z: 3 }) }} contentStyle={thContentStyle('center')}>Short Bio</Th>
+                  <Th cellStyle={stickyStyle({ top: headerRow1Height, z: 3 })} contentStyle={thContentStyle('center')}>Website Photo</Th>
                   {TRISTATE_COLUMNS.map((c, i) => (
                     <Th key={c.key} cellStyle={{ ...(i === 0 ? groupStartStyle('Publish') : {}), ...stickyStyle({ top: headerRow1Height, z: 3 }) }} contentStyle={thContentStyle('center')}>{c.label}</Th>
                   ))}
@@ -528,6 +582,12 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
                     {/* Collection's own order — see the header's matching
                         comment for why this is hand-rendered. */}
                     <td style={{ ...tdStyle('center'), ...groupStartStyle('Collection') }}>
+                      <BoolCell value={r.email} />
+                    </td>
+                    <td style={tdStyle('center')}>
+                      <BoolCell value={r.assistant_email} />
+                    </td>
+                    <td style={tdStyle('center')}>
                       <BoolCell value={r.full_bio} />
                     </td>
                     <td style={tdStyle('center')}>
@@ -535,23 +595,24 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
                     </td>
                     <td style={tdStyle('center')}>
                       <StatusText
-                        label={r.is_uae_resident === true ? 'UAE' : r.is_uae_resident === false ? 'Not UAE' : 'Unknown'}
+                        label={r.is_uae_resident === true ? 'YES' : r.is_uae_resident === false ? 'NO' : 'UNKNOWN'}
                         color={r.is_uae_resident === null ? STATUS_RED : STATUS_GREEN}
                       />
                     </td>
                     <td style={tdStyle('center')}>
-                      <BoolCell value={r.passport} />
+                      <StatusText label={DOC_STATUS_LABEL[r.passport_status]} color={DOC_STATUS_COLOR[r.passport_status]} />
                     </td>
                     <td style={tdStyle('center')}>
                       {r.national_id_applicable
-                        ? <BoolCell value={r.national_id} />
+                        ? <StatusText label={DOC_STATUS_LABEL[r.national_id_status]} color={DOC_STATUS_COLOR[r.national_id_status]} />
                         : <StatusText label="N/A" color="var(--ink4)" />}
                     </td>
-                    {PRODUCTION_BOOL_COLUMNS.map((c, i) => (
-                      <td key={c.key as string} style={{ ...tdStyle('center'), ...(i === 0 ? groupStartStyle('Production') : {}) }}>
-                        <BoolCell value={r[c.key] as boolean} />
-                      </td>
-                    ))}
+                    <td style={{ ...tdStyle('center'), ...groupStartStyle('Production') }}>
+                      <StatusText label={SHORT_BIO_STATUS_LABEL[r.short_bio_status]} color={SHORT_BIO_STATUS_COLOR[r.short_bio_status]} />
+                    </td>
+                    <td style={tdStyle('center')}>
+                      <StatusText label={websitePhotoState(r).label} color={websitePhotoState(r).color} />
+                    </td>
                     {TRISTATE_COLUMNS.map((c, i) => {
                       const state = r[c.key]
                       return (
