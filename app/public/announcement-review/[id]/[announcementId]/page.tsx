@@ -48,6 +48,12 @@ type ReviewData = {
   is_secondary_recipient?: boolean
 }
 
+// Shown only to speaker-side (External Reviewer) approvers. The same wording
+// lives in the speaker_announcement_approval_request email template row
+// (managed in Admin > Email Templates) — keep the two in step.
+const SPEAKER_KIND_NOTE =
+  "Thank you for taking the time to review this. As we're welcoming a large speaker line-up, we're sharing announcements in phases across our channels, and not every post may be featured. Your approval helps us keep it ready to go whenever a slot opens up. Thank you for your understanding and support."
+
 const DECISION_VERBS: Record<string, { verb: string; suffix: string }> = {
   approved: { verb: 'approved', suffix: '' },
   approved_with_comments: { verb: 'approved', suffix: ', with comments' },
@@ -239,6 +245,12 @@ export default function AnnouncementReviewPage({ params }: { params: Promise<{ i
             {submitting ? 'Submitting…' : 'Submit Decision'}
           </button>
         </div>
+
+        {data.approver_role === 'External Reviewer' && (
+          <p style={{ marginTop: '16px', fontSize: 'clamp(12px, 3vw, 13px)', lineHeight: 1.5, color: 'var(--ink4)' }}>
+            <strong>A kind note:</strong> {SPEAKER_KIND_NOTE}
+          </p>
+        )}
       </div>
 
       {lightboxOpen && data.creative_url && (
