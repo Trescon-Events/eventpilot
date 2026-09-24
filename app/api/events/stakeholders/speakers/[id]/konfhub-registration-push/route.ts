@@ -87,9 +87,12 @@ const COUNTRY_ISO: Record<string, string> = {
   nigeria: 'ng', canada: 'ca', china: 'cn', indonesia: 'id',
   thailand: 'th', 'sri lanka': 'lk', bahrain: 'bh', 'saudi arabia': 'sa',
   qatar: 'qa', kuwait: 'kw', oman: 'om', turkey: 'tr',
+  'united states of america': 'us', switzerland: 'ch', jordan: 'jo',
+  luxembourg: 'lu', bermuda: 'bm', kenya: 'ke',
 }
+// undefined (never a guessed code) for a country we have no mapping for.
 function toISO(country: string) {
-  return COUNTRY_ISO[(country ?? '').trim().toLowerCase()] ?? 'ae'
+  return COUNTRY_ISO[(country ?? '').trim().toLowerCase()]
 }
 
 const KONFHUB_API_BASE = 'https://api.konfhub.com/event'
@@ -198,9 +201,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     designation: speaker.role || '',
     organisation: speaker.company || '',
   }
-  if (phoneNumber) {
+  // Never default the dial code. KonfHub rejects a phone_number without a
+  // dial_code, so a phone with no recorded dial code is left out entirely.
+  const speakerDialCode = (speaker.dial_code || '').trim()
+  if (phoneNumber && speakerDialCode) {
     commonFields.phone_number = phoneNumber
-    commonFields.dial_code = speaker.dial_code || '+971'
+    commonFields.dial_code = speakerDialCode
   }
 
   const { data: job, error: jobErr } = await supabaseAdmin
@@ -316,10 +322,17 @@ async function runRegistrationJob(
 
   const attendee: Record<string, unknown> = {
     ...commonFields,
-    country: country || 'UAE',
-    country_code: toISO(country || 'UAE'),
-    dial_code: dialCode || '+971',
     custom_forms: customForms,
+  }
+  const trimmedDial = (dialCode || '').trim()
+  if (trimmedDial) attendee.dial_code = trimmedDial
+  // KonfHub doesn't require country — send it only when the speaker record
+  // actually has one, and only with a code we can map. Never default it.
+  const trimmedCountry = (country || '').trim()
+  const countryCode = toISO(trimmedCountry)
+  if (trimmedCountry && countryCode) {
+    attendee.country = trimmedCountry
+    attendee.country_code = countryCode
   }
   // Only include linkedin_url when there's an actual value — KonfHub's
   // admin/register validation rejects a present-but-empty linkedin_url as

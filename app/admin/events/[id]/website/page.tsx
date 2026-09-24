@@ -1964,7 +1964,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 <div style={{ fontSize: '12px', color: C.muted, marginTop: '2px' }}>{speakers.filter(s => s.active).length} active</div>
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button onClick={() => { setEditSpeaker({ tier: 'speaker', status: 'approved', active: true, dial_code: '+971', country: 'UAE' }); setSpModal(true) }}
+                <button onClick={() => { setEditSpeaker({}); setSpModal(true) }}
                   style={{ padding: '9px 18px', borderRadius: '8px', border: 'none', background: C.green, color: 'var(--lime-dark)', fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
                   + Add Speaker
                 </button>
@@ -2425,8 +2425,8 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 <Field label="Phone" value={editSpeaker.phone ?? ''} onChange={v => setEditSpeaker(s => ({ ...s, phone: v }))} placeholder="9876543210" />
               </div>
               <div style={{ ...g2, marginTop: '10px' }}>
-                <Field label="Dial Code" value={editSpeaker.dial_code ?? '+971'} onChange={v => setEditSpeaker(s => ({ ...s, dial_code: v }))} placeholder="+971" />
-                <Field label="Country" value={editSpeaker.country ?? ''} onChange={v => setEditSpeaker(s => ({ ...s, country: v }))} placeholder="UAE" />
+                <Field label="Dial Code" value={editSpeaker.dial_code ?? ''} onChange={v => setEditSpeaker(s => ({ ...s, dial_code: v }))} placeholder="e.g. +44" />
+                <Field label="Country" value={editSpeaker.country ?? ''} onChange={v => setEditSpeaker(s => ({ ...s, country: v }))} placeholder="Country of residence" />
               </div>
             </div>
             <div style={g2}>
