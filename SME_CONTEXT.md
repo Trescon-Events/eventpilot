@@ -211,6 +211,8 @@ Do not ask Durga to build anything that already exists. Reference this when writ
 | `/finance` | Finance Portal — salary, expense claims, vendor payments, payroll |
 | `/admin/commercial` | Commercial P&L — revenue, costs, executive dashboard |
 | `/admin/crm` | CRM Admin (16 Sep 2026) — cross-event Contact/Company identity layer, deduped by email/domain, populated automatically from every speaker/sponsor onboarding submission. `/admin/crm/contacts` and `/admin/crm/companies` are searchable directories with a per-record "Sync to HubSpot" action (also fires automatically now — see §13's HubSpot CRM Sync entry); `/admin/crm/objects` manages the Contact/Company property registry, HubSpot Settings→Properties-style, and flags which properties still need a matching property created in HubSpot (a human creates it there, never auto-provisioned — see §13) |
+| `/admin/events/[id]/operations` | **Operations Hub** (25 Sep 2026) — event-scoped ops workspace; first tool is speaker licence procurement. Sub-pages: `/operations/vendors` (shared Vendor Directory, contacts, per-event assignment, Vendor Portal logins) and `/operations/licenses` (speakers whose passport/National ID are producer-reviewed appear automatically; group into batches for the licence vendor; send / extend / revoke / reopen; upload licence). Permissions `ops.*` (+ `sae.sensitive_documents.view` to preview documents). |
+| `/vendor-portal/*` | **Vendor Portal** (25 Sep 2026) — EXTERNAL licence vendors only, completely separate login (email + password + captcha + emailed code) and bare layout. Vendors see only their own batches; download a ZIP, upload the licence or confirm approval. Never linked from the staff UI. |
 | `/pilots` | Pilot Projects — SME/Co-Pilot/Tracker view of active builds (see §17) |
 | `/admin/pilots` | Pilot Projects — admin view, all projects/members/checklists |
 | `/admin/pilots/new` | Create/edit a Pilot Project (members, roles, checklist, tool grants) |
@@ -234,6 +236,10 @@ These tables already exist. Any new tool should use them where relevant, or add 
 | `event_validation_rules` | event_id/umbrella_id (exactly one set), rule_type, pattern | Deterministic content-validation rules (forbidden_term/forbidden_pattern/required_format/proximity) |
 | `event_agenda_tracks` / `event_agenda_sessions` / `event_agenda_session_speakers` | event_id, name/title, track_id FK, speaker_id FK | New Agenda Builder (16 Sep 2026) — replaces free-text `event_agenda` for opted-in events (`event_websites.agenda_source`). `event_agenda_track_konfhub_links` is a DFFW-only bridge table, dormant for events that originate structure in EventPilot itself |
 | `crm_contacts` / `crm_companies` | email/domain (unique, dedup key), first_name/last_name or name, hubspot_contact_id/hubspot_company_id, hubspot_last_synced_at | CRM Admin (16 Sep 2026) — cross-event Contact/Company identity, deduped by email/domain. Populated automatically by every speaker/sponsor onboarding submission; the `hubspot_*` columns track sync state with HubSpot (see §13) |
+| `ops_vendors` / `ops_vendor_contacts` / `ops_event_vendors` | name, category; vendor_id, email; event_id+vendor_id+purpose | Operations Hub Vendor Directory (25 Sep 2026) — shared vendors, their 1–2 contacts, per-event assignment. NOT the Task Manager's `vendor_contacts`. |
+| `ops_license_batches` / `ops_license_batch_items` | event_id, vendor_id, batch_number, status, access_days, expires_at; speaker_id + frozen speaker fields + document ids | Licence batches (status draft/sent/downloaded/completed/expired/cancelled) and their frozen speaker snapshots; a speaker is in at most one ACTIVE batch |
+| `ops_vendor_users` / `_tokens` / `_otps` / `_sessions` / `_auth_events` | email (= username), password_hash, status; hashed link tokens, codes, session tokens | Vendor Portal auth — entirely separate from `staff_members`; only hashes stored |
+| `ops_license_files` / `ops_license_file_batches` / `ops_access_audit` | storage_path in private bucket `ops-license-files`; file↔batch link; actor_type/action/target | Licence copies (one file may cover several batches) and the append-only access audit |
 | `crm_contact_event_links` / `crm_company_event_links` | contact_id/company_id, event_id, role | Which events a CRM contact/company is linked to and in what role (speaker/sponsor_contact/sponsor/media_partner/association_partner) — EventPilot's own mirror of HubSpot's Association Label pattern |
 | `crm_properties` / `crm_property_groups` | entity_type (contact/company), property_key, label, field_type, hubspot_property_name | The Contact/Company property registry managed at `/admin/crm/objects`, HubSpot Settings→Properties-style. `hubspot_property_name` is null until a HubSpot CRM admin manually creates the matching property and maps it — never auto-provisioned |
 | `notifications` | staff_id, type, title, body, read | In-app bell notifications |
@@ -495,7 +501,7 @@ When describing AI features in your prompt, specify:
 These are intentional gaps — do not tell Claude Code to integrate them:
 
 - Real-time / WebSocket connections (polling is used where needed)
-- Role-based column-level permissions in Supabase (RLS is not enabled — all access is via the service role key from the server, with session checks in API routes)
+- Role-based column-level permissions in Supabase (all access is via the service role key from the server, with session checks in API routes. RLS IS enabled on every public table — checked 25 Sep 2026 — with no policies, so the public anon key can read nothing; new tables must keep it that way)
 - Native mobile app
 - Multi-tenancy (it is single-org only — Trescon)
 - Payment processing
