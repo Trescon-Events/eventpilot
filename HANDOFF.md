@@ -22,7 +22,7 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 | Railway config | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY` set on production with `--skip-deploys` (site key is inlined at build, so it takes effect on the next push). Widget hostnames include `eventpilot.tresconglobal.com`. |
 | Handed off to | Durga. |
 | Deployed | Not yet. After the push: watch the Railway deploy, then run the live test in "What's next" below. |
-| Left alone / known follow-up | The pre-existing security issues found along the way (browser-visible admin code, forged-cookie acceptance, hardcoded secret, anonymous department change, task-profiles leak) are fixed — see "Pre-existing security issues" below. Still open there: the ~40 hand-rolled cookie decoders behind the middleware (mechanical sweep recommended) and deleting `NEXT_PUBLIC_ADMIN_CODE` from Railway. |
+| Left alone / known follow-up | The pre-existing security issues found along the way (browser-visible admin code, forged-cookie acceptance, hardcoded secret, anonymous department change, task-profiles leak) are fixed — see "Pre-existing security issues" below. Still open there: the ~40 hand-rolled cookie decoders behind the middleware (mechanical sweep recommended). `NEXT_PUBLIC_ADMIN_CODE` was deleted from Railway on 26 Sep 2026 (no redeploy triggered). |
 
 ## 25 Sep 2026 — Operations Hub (speaker licence procurement + Vendor Portal)
 
@@ -74,11 +74,11 @@ Found while checking what a vendor could reach; none were caused by the Ops Hub.
 4. **`verify-staff` PATCH** let anyone change ANY staff member's department with no login — and department gates HR/Finance/Marketing access. **Now:** with a session only your own record (or admin); anonymous only for someone who has not finished onboarding. Residual: an anonymous caller knowing a not-yet-onboarded colleague's staff id can still set that person's department once. `verify-staff` POST (email -> staff id/name/department) is still public by design for the pre-session profile flow — it leaks internal ids to anyone who knows an email.
 5. **`GET /api/task-profiles`** (all staff task profiles, unauthenticated) — fixed 25 Sep (see above). `hr/attendance/sync/diagnose` (signed into the old HRMS and returned samples, public via the bypass) is now admin-only.
 **Left as is on purpose:** `platform-docs` GET (public docs content, used by the AI assistant), `domain-lookup` (needed by middleware), `public/event/[slug]`.
-**For Madhu:** (a) `NEXT_PUBLIC_ADMIN_CODE` is now unused everywhere — delete it from Railway (needs his explicit go; nothing to rotate). (b) CLAUDE.md still lists the admin code (`taos2026`) and the cron secret literal — both are now dead values and should be removed from that file (his account-map file, not edited here). (c) The real `CRON_SECRET` was never exposed to browsers, so it does not need rotating.
+**For Madhu:** (a) `NEXT_PUBLIC_ADMIN_CODE` is now unused everywhere — DELETED from Railway 26 Sep 2026 with his go (nothing to rotate). (b) CLAUDE.md still lists the admin code (`taos2026`) and the cron secret literal — both are now dead values and should be removed from that file (his account-map file, not edited here). (c) The real `CRON_SECRET` was never exposed to browsers, so it does not need rotating.
 
 ### What's next
 1. Madhu says "push" → push, watch the Railway deploy, then live-test with the test vendor ("TEST VENDOR" → rnxfinancial@gmail.com, status invited): use **Resend invite** (the first invite only went to the local dev outbox), set password, sign in, run a batch with John Travis (TEST), and check as Hussain that previews work, ops notification emails arrive, and vendor errors list him.
-2. Security follow-ups: delete the now-unused `NEXT_PUBLIC_ADMIN_CODE` from Railway (needs Madhu's explicit go), remove the dead admin code / cron-secret literal from CLAUDE.md, and sweep the ~40 remaining hand-rolled `tcs_session` decoders to `getSession()` (see the security section above).
+2. Security follow-ups: remove the dead admin code / cron-secret literal from CLAUDE.md (Madhu's file), and sweep the ~40 remaining hand-rolled `tcs_session` decoders to `getSession()` (see the security section above).
 3. Ask legal whether Supabase's region is acceptable for UAE passport data (data-residency).
 4. Not built: in-app notification bell (ops gets emails only); fallback to platform admins when nobody holds an ops role on an event.
 
@@ -3158,3 +3158,4 @@ Plus 19 historical admin comments backfilled retroactively for previously-resolv
 ---
 
 *This handoff was last updated by Claude Code (Sonnet 5) on 2026-07-03, end of Madhu's SmartExcel session (`c4d4fb0`). All commits pushed to `origin/main`; Railway confirmed live. SmartExcel live at both `eventpilot.tresconglobal.com/smartexcel` (canonical) and `smartexcel.trescon.workers.dev` (still resolves, no longer advertised). Local main is synced except for two pre-existing, unrelated uncommitted files that aren't part of this session's work: `EVENTPILOT_PLATFORM_DOCUMENT.md` (in-progress edit, untouched) and `supabase/kb_migration.sql` (untracked, untouched).*
+
