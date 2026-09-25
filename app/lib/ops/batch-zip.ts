@@ -1,6 +1,7 @@
 import { Zip, ZipPassThrough } from 'fflate'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { downloadSensitiveDocument } from '@/app/lib/events/sensitive-storage'
+import { sensitiveDocumentFileName } from '@/app/lib/events/sensitive-doc-name'
 
 /* Builds the vendor's download for one batch: a ZIP with a folder per
    speaker (passport, and National ID for UAE residents) plus a manifest.csv.
@@ -46,13 +47,16 @@ export async function prepareBatchZip(batchId: string): Promise<PreparedZip> {
     const folder = `${String(idx + 1).padStart(2, '0')} - ${safeSegment(it.speaker_name)}`
     const cells: Record<string, string> = {}
     for (const [label, docId] of [['passport', it.passport_doc_id], ['national-id', it.national_id_doc_id]] as const) {
+      const docType = label === 'passport' ? 'passport' : 'national_id'
       if (!docId) continue
       const d = docById.get(docId)
       // A replaced/deleted/purged document can't be sent — better to say so
       // than to hand the vendor an incomplete or wrong batch.
       if (!d || d.deleted_at || !d.storage_path) return { ok: false, message: 'A document in this batch is no longer available.' }
       const ext = EXT_BY_MIME[d.mime_type] ?? (d.file_name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin')
-      const name = `${folder}/${label}.${ext}`
+      // Same standard as at intake: <Public Name>-passport.<ext> / <Public Name>-EID.<ext>
+      // (speaker_name is the frozen Public Name from when the batch was created).
+      const name = `${folder}/${sensitiveDocumentFileName(it.speaker_name, docType, ext)}`
       cells[label] = name
       const storagePath = d.storage_path
       files.push({ name, load: () => downloadSensitiveDocument(storagePath) })

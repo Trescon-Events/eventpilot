@@ -3,6 +3,7 @@ import sharp from 'sharp'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { uploadSensitiveDocument } from '@/app/lib/events/sensitive-storage'
+import { sensitiveDocumentFileName, publicNameForFile } from '@/app/lib/events/sensitive-doc-name'
 import { toStoredBioPdf } from '@/app/lib/events/full-bio-upload'
 import { detectHeadBox } from '@/app/lib/media/face-alignment'
 import { MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine'
@@ -355,7 +356,7 @@ export async function POST(req: NextRequest) {
         await uploadSensitiveDocument(storagePath, buffer, contentType)
         await supabaseAdmin.from('speaker_sensitive_documents').insert({
           speaker_id: speaker.id, event_id: body.event_id, document_type: docType,
-          storage_path: storagePath, file_name: `${docType}.${ext}`, mime_type: contentType, file_size: buffer.length,
+          storage_path: storagePath, file_name: sensitiveDocumentFileName(publicNameForFile(speaker), docType, ext), mime_type: contentType, file_size: buffer.length,
           uploaded_by: null, retention_expires_at: retentionExpiresAt,
         })
       } catch (e) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
+import { sensitiveDocumentFileName, publicNameForFile, type SensitiveDocType } from '@/app/lib/events/sensitive-doc-name'
 import { uploadSensitiveDocument, deleteSensitiveDocument } from '@/app/lib/events/sensitive-storage'
 
 /* GET  /api/events/stakeholders/speakers/[id]/sensitive-documents
@@ -88,7 +89,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: speakerId } = await params
 
-  const { data: speaker } = await supabaseAdmin.from('event_speakers').select('event_id').eq('id', speakerId).single()
+  const { data: speaker } = await supabaseAdmin.from('event_speakers').select('event_id, name, public_name').eq('id', speakerId).single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
 
   const session = getSession(req)
@@ -148,7 +149,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       event_id: speaker.event_id,
       document_type: documentType,
       storage_path: storagePath,
-      file_name: file.name,
+      file_name: sensitiveDocumentFileName(publicNameForFile(speaker), documentType as SensitiveDocType, file.type),
       mime_type: file.type,
       file_size: file.size,
       uploaded_by: staffId,

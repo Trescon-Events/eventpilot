@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { toStoredBioPdf } from '@/app/lib/events/full-bio-upload'
 import { uploadSensitiveDocument } from '@/app/lib/events/sensitive-storage'
+import { sensitiveDocumentFileName, publicNameForFile } from '@/app/lib/events/sensitive-doc-name'
 import { sendGraphMail } from '@/app/lib/email/graph-mail'
 import { renderEmailTemplate } from '@/app/lib/email/render-template'
 import { MissingItemKey, missingItemLabel } from '@/app/lib/stakeholders/missing-items'
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
 
   const { data: speaker } = await supabaseAdmin
     .from('event_speakers')
-    .select('event_id, announcement_status, is_uae_resident')
+    .select('event_id, announcement_status, is_uae_resident, name, public_name')
     .eq('id', speakerId)
     .single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
@@ -172,7 +173,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
     await uploadSensitiveDocument(storagePath, buffer, file.type)
     await supabaseAdmin.from('speaker_sensitive_documents').insert({
       speaker_id: speakerId, event_id: speaker.event_id, document_type: docType,
-      storage_path: storagePath, file_name: file.name, mime_type: file.type, file_size: file.size,
+      storage_path: storagePath, file_name: sensitiveDocumentFileName(publicNameForFile(speaker), docType, file.type), mime_type: file.type, file_size: file.size,
       uploaded_by: null, retention_expires_at: retentionExpiresAt,
     })
     submitted.push(docType)
