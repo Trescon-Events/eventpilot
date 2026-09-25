@@ -1,0 +1,28 @@
+name: Purge expired sensitive documents
+
+# Fires /api/cron/purge-sensitive-documents once a day (03:00 UTC): hard-deletes Passport / National ID
+# files past their retention date and emails the speaker. This used to be a hand-registered cron-job.org
+# job (nothing in the repo scheduled it, and cron-job.org once died silently for 13 days) — the privacy
+# policy promises deletion, so it lives here now, next to the other in-repo crons.
+#
+# Uses the Railway direct URL — the primary host is behind Cloudflare, which challenges GitHub Actions
+# IPs as bots (see revoke-expired-access.yml). GitHub scheduled crons are best-effort (can be delayed);
+# a day-scale retention job doesn't care.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:      # manual trigger for testing
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Call purge endpoint
+        run: |
+          curl --fail-with-body --silent --show-error \
+            -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://eventpilot-production-90c6.up.railway.app/api/cron/purge-sensitive-documents"

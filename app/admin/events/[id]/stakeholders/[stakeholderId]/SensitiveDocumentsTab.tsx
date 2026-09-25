@@ -67,6 +67,7 @@ export default function SensitiveDocumentsTab({
 }) {
   const [documents, setDocuments] = useState<ActiveDoc[]>([])
   const [history, setHistory] = useState<HistoryDoc[]>([])
+  const [consent, setConsent] = useState<{ at: string; version: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [uploadingType, setUploadingType] = useState<DocType | null>(null)
@@ -93,6 +94,7 @@ export default function SensitiveDocumentsTab({
       if (!res.ok) throw new Error(data.error || 'Failed to load documents')
       setDocuments(data.documents ?? [])
       setHistory(data.history ?? [])
+      setConsent(data.consent ?? null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load documents')
     } finally {
@@ -179,6 +181,12 @@ export default function SensitiveDocumentsTab({
             🔒 <strong>Sensitive Documents</strong> — kept separate from the speaker&apos;s public record. Never shown on the event website or in any speaker email. Automatically and permanently deleted a set number of days after the event ends (the speaker is notified when that happens), with an audit record kept of the deletion itself even after the file is gone.
           </div>
         </Card>
+
+        {consent && (
+          <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>
+            ✓ The speaker gave their consent on the upload form on {fmtDate(consent.at)} (statement {consent.version || 'v1'}).
+          </div>
+        )}
 
         <Card padded>
           <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>UAE Resident?</div>

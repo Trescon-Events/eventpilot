@@ -6,6 +6,7 @@ import { renderEmailTemplate } from '@/app/lib/email/render-template'
 import { resolveSenderIdentity } from '@/app/lib/email/sender-identity'
 import { generateSecureToken } from '@/app/lib/security/generate-token'
 import { computeMissingItems, MissingItemKey } from '@/app/lib/stakeholders/missing-items'
+import { SENSITIVE_EMAIL_LINE } from '@/app/lib/stakeholders/sensitive-consent'
 
 const TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000 // 14 days — documents take longer to gather than a creative approval
 
@@ -80,8 +81,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // own default styling isolated from the page's Tailwind reset). Teal
   // (#00A5A3) matches the brand accent already used across the site's own
   // email templates (supabase/site_templates.sql).
+  const asksForDocuments = chosen.some(m => m.key === 'passport' || m.key === 'national_id')
   /* eslint-disable-next-line no-restricted-syntax -- email HTML; clients can't render CSS custom properties, literal colors required (matches render-template.ts) */
-  const missingItemsListHtml = `<ul style="margin:8px 0 16px;padding-left:20px;">${chosen.map(m => `<li style="margin-bottom:6px;font-weight:700;color:#0D6665;">${m.label}</li>`).join('')}</ul>`
+  const missingItemsListHtml = `<ul style="margin:8px 0 16px;padding-left:20px;">${chosen.map(m => `<li style="margin-bottom:6px;font-weight:700;color:#0D6665;">${m.label}</li>`).join('')}</ul>${asksForDocuments ? `<p style="margin:0 0 16px;font-size:13px;line-height:1.6;">${SENSITIVE_EMAIL_LINE}</p>` : ''}`
 
   const { subject, html } = renderEmailTemplate(template, {
     speaker_name: speaker.public_name || speaker.name || '',

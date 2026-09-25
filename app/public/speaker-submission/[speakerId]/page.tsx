@@ -2,6 +2,11 @@
 
 import { useState, useEffect, use } from 'react'
 import { HUBSPOT_COUNTRIES } from '@/app/lib/forms/hubspot-countries'
+import {
+  SENSITIVE_CONSENT_VERSION, PRIVACY_POLICY_URL, SENSITIVE_CONSENT_TITLE, sensitiveConsentBullets,
+  SENSITIVE_CONSENT_CHECKBOX_PREFIX, SENSITIVE_CONSENT_LINK_TEXT, SENSITIVE_CONSENT_CHECKBOX_SUFFIX,
+  SENSITIVE_CONSENT_LOCKED_HINT, SENSITIVE_CONSENT_REQUIRED_ERROR, SENSITIVE_DONE_LINE,
+} from '@/app/lib/stakeholders/sensitive-consent'
 
 /* Speaker Communications (2026-09-10, redesigned 2026-09-24) — a speaker
    lands here from a "Request Missing Items" email with a personal,
@@ -96,6 +101,8 @@ export default function SpeakerSubmissionPage({ params }: { params: Promise<{ sp
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
+  const [consent, setConsent] = useState(false)
+  const [doneWithDocs, setDoneWithDocs] = useState(false)
 
   useEffect(() => {
     if (!token) return
@@ -117,6 +124,7 @@ export default function SpeakerSubmissionPage({ params }: { params: Promise<{ sp
         <div style={{ fontSize: 'clamp(30px, 8vw, 36px)', marginBottom: '10px' }}>✓</div>
         <h1 style={{ fontSize: 'clamp(18px, 4.5vw, 22px)', fontWeight: 900, color: 'var(--ink)', margin: '0 0 10px' }}>Thank you!</h1>
         <p style={{ color: 'var(--ink3)', fontSize: 'clamp(13.5px, 3.4vw, 15px)' }}>Your details have been submitted for review. Our team will be in touch if anything else is needed.</p>
+        {doneWithDocs && <p style={{ color: 'var(--ink3)', fontSize: 'clamp(12.5px, 3.1vw, 14px)', marginTop: '10px' }}>{SENSITIVE_DONE_LINE}</p>}
       </Centered>
     )
   }
@@ -157,6 +165,8 @@ export default function SpeakerSubmissionPage({ params }: { params: Promise<{ sp
     const shownFiles = shownFileKeys.filter(k => files[k])
     const hasShortBio = profileItems.includes('short_bio') && shortBio.trim().length > 0
     const hasCountry = profileItems.includes('country') && country.trim().length > 0
+    const sendingDocs = shownFiles.some(k => k === 'passport' || k === 'national_id')
+    if (sendingDocs && !consent) { setSubmitError(SENSITIVE_CONSENT_REQUIRED_ERROR); return }
     if (shownFiles.length === 0 && !hasShortBio && !hasCountry) { setSubmitError('Please add at least one item before submitting.'); return }
     if (hasShortBio && shortBio.trim().length > MAX_SHORT_BIO_CHARS) { setSubmitError(`Short Bio must be ${MAX_SHORT_BIO_CHARS} characters or less.`); return }
     setSubmitting(true); setSubmitError(null)
@@ -164,10 +174,11 @@ export default function SpeakerSubmissionPage({ params }: { params: Promise<{ sp
     for (const key of shownFiles) form.append(key, files[key] as File)
     if (hasShortBio) form.append('short_bio', shortBio.trim())
     if (hasCountry) form.append('country', country.trim())
+    if (sendingDocs && consent) form.append('sensitive_consent', SENSITIVE_CONSENT_VERSION)
     if (needsUaeQuestion && uaeAnswer) form.append('is_uae_resident', uaeAnswer)
     const res = await fetch(`/api/public/speaker-submission/${speakerId}/submit?token=${token}`, { method: 'POST', body: form })
     const result = await res.json().catch(() => ({}))
-    if (res.ok) setDone(true)
+    if (res.ok) { setDoneWithDocs(sendingDocs); setDone(true) }
     else setSubmitError(result.error || 'Could not submit — please try again.')
     setSubmitting(false)
   }
@@ -249,10 +260,28 @@ export default function SpeakerSubmissionPage({ params }: { params: Promise<{ sp
               </div>
             )}
 
+            {showLicenseUploads && (licenseItems.includes('passport') || showNationalId) && (
+              <div className="ss-field" style={{ padding: '14px 16px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--surface2)' }}>
+                <div className="ss-item-label">{SENSITIVE_CONSENT_TITLE}</div>
+                <ul style={{ margin: '8px 0 12px', paddingLeft: '18px', color: 'var(--ink2)', fontSize: 'clamp(12.5px, 3vw, 13.5px)', lineHeight: 1.6 }}>
+                  {sensitiveConsentBullets(data.event_name).map(b => <li key={b}>{b}</li>)}
+                </ul>
+                <label style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', cursor: 'pointer', fontSize: 'clamp(12.5px, 3vw, 13.5px)', color: 'var(--ink)', fontWeight: 600, lineHeight: 1.5 }}>
+                  <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} style={{ marginTop: '3px', flexShrink: 0 }} />
+                  <span>
+                    {SENSITIVE_CONSENT_CHECKBOX_PREFIX}
+                    <a href={PRIVACY_POLICY_URL} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--teal)' }}>{SENSITIVE_CONSENT_LINK_TEXT}</a>
+                    {SENSITIVE_CONSENT_CHECKBOX_SUFFIX}
+                  </span>
+                </label>
+                {!consent && <div className="ss-help" style={{ marginTop: '8px' }}>{SENSITIVE_CONSENT_LOCKED_HINT}</div>}
+              </div>
+            )}
+
             {showLicenseUploads && licenseItems.includes('passport') && (
               <div className="ss-field">
                 <div className="ss-item-label">Passport</div>
-                <input type="file" accept={ACCEPT.passport} className="ss-file-input" onChange={e => setFiles(prev => ({ ...prev, passport: e.target.files?.[0] ?? null }))} />
+                <input type="file" accept={ACCEPT.passport} className="ss-file-input" disabled={!consent} onChange={e => setFiles(prev => ({ ...prev, passport: e.target.files?.[0] ?? null }))} />
                 <div className="ss-help">{HELP_TEXT.passport}</div>
               </div>
             )}
@@ -260,7 +289,7 @@ export default function SpeakerSubmissionPage({ params }: { params: Promise<{ sp
             {showLicenseUploads && showNationalId && (
               <div className="ss-field">
                 <div className="ss-item-label">National ID</div>
-                <input type="file" accept={ACCEPT.national_id} className="ss-file-input" onChange={e => setFiles(prev => ({ ...prev, national_id: e.target.files?.[0] ?? null }))} />
+                <input type="file" accept={ACCEPT.national_id} className="ss-file-input" disabled={!consent} onChange={e => setFiles(prev => ({ ...prev, national_id: e.target.files?.[0] ?? null }))} />
                 <div className="ss-help">{HELP_TEXT.national_id}</div>
               </div>
             )}

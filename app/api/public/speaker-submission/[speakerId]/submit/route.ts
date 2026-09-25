@@ -9,6 +9,8 @@ import { hasEventPermission } from '@/app/lib/access/event-access'
 import { sendGraphMail } from '@/app/lib/email/graph-mail'
 import { renderEmailTemplate } from '@/app/lib/email/render-template'
 import { MissingItemKey, missingItemLabel } from '@/app/lib/stakeholders/missing-items'
+import { SENSITIVE_CONSENT_VERSION, SENSITIVE_CONSENT_REQUIRED_ERROR } from '@/app/lib/stakeholders/sensitive-consent'
+import { clientIp } from '@/app/lib/ops/audit'
 
 /* POST /api/public/speaker-submission/[speakerId]/submit?token=X
    multipart/form-data — one file per requested item key (bio_full, photo,
@@ -68,6 +70,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
   const form = await req.formData()
   const submitted: string[] = []
   const speakerPatch: Record<string, unknown> = {}
+
+  // Passport / National ID need the speaker's recorded consent (wording + version: sensitive-consent.ts).
+  // Checked BEFORE anything is written, server-side — the form's checkbox is only a convenience.
+  const sendingDocs = (['passport', 'national_id'] as const).some(t => {
+    const f = form.get(t)
+    return requestedFields.has(t) && f instanceof File && f.size > 0
+  })
+  if (sendingDocs && form.get('sensitive_consent') !== SENSITIVE_CONSENT_VERSION) {
+    return NextResponse.json({ error: SENSITIVE_CONSENT_REQUIRED_ERROR }, { status: 400 })
+  }
 
   // Short Bio — plain text, not a file. Same 500-char ceiling as the
   // existing "Generate from Full Bio" AI path (SHORT_BIO_MAX_CHARS in
@@ -193,7 +205,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
 
   await supabaseAdmin
     .from('speaker_communication_requests')
-    .update({ status: 'submitted', submitted_at: new Date().toISOString(), submitted_data: { fields: submitted } })
+    .update({
+      status: 'submitted', submitted_at: new Date().toISOString(), submitted_data: { fields: submitted },
+      ...((submitted.includes('passport') || submitted.includes('national_id'))
+        ? { sensitive_consent_at: new Date().toISOString(), sensitive_consent_version: SENSITIVE_CONSENT_VERSION, sensitive_consent_ip: clientIp(req) }
+        : {}),
+    })
     .eq('id', request.id)
 
   await notifyProducer(speaker.event_id, speakerId, submitted, request.requested_by).catch(e => console.error('[speaker-submission] producer notification failed (submission still recorded):', e))

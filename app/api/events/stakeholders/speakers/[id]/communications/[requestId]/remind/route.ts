@@ -6,6 +6,7 @@ import { sendGraphMail } from '@/app/lib/email/graph-mail'
 import { resolveSenderIdentity } from '@/app/lib/email/sender-identity'
 import { renderEmailTemplate } from '@/app/lib/email/render-template'
 import { missingItemLabel, MissingItemKey } from '@/app/lib/stakeholders/missing-items'
+import { SENSITIVE_EMAIL_LINE } from '@/app/lib/stakeholders/sensitive-consent'
 
 /* POST /api/events/stakeholders/speakers/[id]/communications/[requestId]/remind
    Body (optional): { template_id?, recipient_email?, cc_emails?, subject?,
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Kept in sync with compose/route.ts's own styling (2026-09-24) — a
     // reminder should look identical to the original request.
     /* eslint-disable-next-line no-restricted-syntax -- email HTML; clients can't render CSS custom properties, literal colors required (matches render-template.ts) */
-    const missingItemsListHtml = `<ul style="margin:8px 0 16px;padding-left:20px;">${requestedFields.map(k => `<li style="margin-bottom:6px;font-weight:700;color:#0D6665;">${missingItemLabel(k)}</li>`).join('')}</ul>`
+    const missingItemsListHtml = `<ul style="margin:8px 0 16px;padding-left:20px;">${requestedFields.map(k => `<li style="margin-bottom:6px;font-weight:700;color:#0D6665;">${missingItemLabel(k)}</li>`).join('')}</ul>${requestedFields.some(k => k === 'passport' || k === 'national_id') ? `<p style="margin:0 0 16px;font-size:13px;line-height:1.6;">${SENSITIVE_EMAIL_LINE}</p>` : ''}`
 
     const rendered = renderEmailTemplate(template, {
       speaker_name: speaker.public_name || speaker.name || '',

@@ -76,8 +76,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     : { data: [] }
   const deleterNameById = new Map((deleters ?? []).map(d => [d.id, d.name]))
 
+  // The speaker's recorded consent from the form (2026-09-26). Tolerant: a missing column/table must never break this tab.
+  let consent: { at: string; version: string } | null = null
+  try {
+    const { data: c } = await supabaseAdmin.from('speaker_communication_requests')
+      .select('sensitive_consent_at, sensitive_consent_version').eq('speaker_id', speakerId)
+      .not('sensitive_consent_at', 'is', null).order('sensitive_consent_at', { ascending: false }).limit(1).maybeSingle()
+    if (c?.sensitive_consent_at) consent = { at: c.sensitive_consent_at, version: c.sensitive_consent_version ?? '' }
+  } catch { /* ignore */ }
+
   return NextResponse.json({
     documents,
+    consent,
     history: history.map(r => ({
       id: r.id, document_type: r.document_type, file_name: r.file_name,
       uploaded_at: r.uploaded_at, deleted_at: r.deleted_at, deleted_by: r.deleted_by,
