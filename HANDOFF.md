@@ -47,12 +47,12 @@ Full flow with a throwaway vendor and John Travis (TEST) on Dubai FinTech Summit
 
 ### Pre-existing security issues found (NOT fixed by the Ops Hub commits)
 1. About a dozen routes on the middleware's public list (`api/admin/set-password`, `set-job-level`, `seed-demo`, `hr/attendance/sync`, `staff-portal-sync`, seed routes …) are gated only by `NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'`. NEXT_PUBLIC_ vars are inlined into browser JavaScript (client pages such as `app/admin/page.tsx` reference it), and the fallback is hardcoded. Never called during this work. An anonymous caller with the code could, per the code, change any staff `job_level` (incl. to super_admin).
-2. `GET /api/task-profiles` returns every staff member's task profile with no login (confirmed live); its `POST` lets an unauthenticated caller overwrite a profile by `staff_id`.
+2. ~~`GET /api/task-profiles` returns every staff member's task profile with no login~~ — **FIXED 2026-09-25** (separate commit): `GET` is now admin-only; `POST` and `mark-complete` still work pre-session (profile setup) but an anonymous caller can only submit a FIRST profile, never overwrite one, and a signed-in user can only write their own (`app/lib/access/task-profile-access.ts`). Tested: no/garbage/vendor cookie → 403, admin → 200, anonymous overwrite of an existing profile → 403, bad id → 400. NOT tested: the first-time-submit happy path (would write real data) — please check the /profile flow once. Residual: an anonymous caller who knows a staff UUID can still submit that person's first profile.
 Also: the staff nav JS chunk (labels + route paths, no data) is downloaded by vendors, exactly as by visitors of the public `/login` — left as is pending Madhu's call.
 
 ### What's next
 1. Madhu says "push" → push, watch the Railway deploy, then live-test with the test vendor ("TEST VENDOR" → rnxfinancial@gmail.com, status invited): use **Resend invite** (the first invite only went to the local dev outbox), set password, sign in, run a batch with John Travis (TEST), and check as Hussain that previews work, ops notification emails arrive, and vendor errors list him.
-2. Fix the two pre-existing security issues (separate commits): `task-profiles` first; then admin-code routes → session check / server-only secret, remove the hardcoded default, rotate the code (Railway change needs explicit go), gate or delete the seed routes; then audit the remaining public-prefix routes.
+2. Fix the remaining pre-existing security issue (`task-profiles` is done): admin-code routes → session check / server-only secret, remove the hardcoded default, rotate the code (Railway change needs explicit go), gate or delete the seed routes; then audit the remaining public-prefix routes.
 3. Ask legal whether Supabase's region is acceptable for UAE passport data (data-residency).
 4. Not built: in-app notification bell (ops gets emails only); fallback to platform admins when nobody holds an ops role on an event.
 

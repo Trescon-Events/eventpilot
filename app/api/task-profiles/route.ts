@@ -1,8 +1,16 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { getSession } from '@/app/lib/access/session'
+import { checkProfileSubmitAccess } from '@/app/lib/access/task-profile-access'
 
-/* GET /api/task-profiles — all staff task profiles for admin dashboard */
-export async function GET() {
+/* GET /api/task-profiles — all staff task profiles, for the admin dashboard.
+   ADMIN ONLY (2026-09-25). This route sits on the middleware's public list
+   (the profile-setup POST below has to work before a session exists), so the
+   route itself must enforce auth — until now GET returned every staff
+   member's task profile to anyone on the internet with no login. */
+export async function GET(req: NextRequest) {
+  if (!getSession(req)?.adm) return NextResponse.json({ error: 'Admin only' }, { status: 403 })
+
   const { data, error } = await supabaseAdmin
     .from('staff_task_profiles')
     .select('*')
@@ -13,7 +21,7 @@ export async function GET() {
 }
 
 /* POST /api/task-profiles — submit staff assessment (replaces server action) */
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const { staff_id, tasks } = body
@@ -21,6 +29,14 @@ export async function POST(req: Request) {
     if (!staff_id || !tasks) {
       return NextResponse.json({ error: 'Missing data. Please try again.' }, { status: 400 })
     }
+
+    // Who may write THIS profile (2026-09-25). Staff can arrive here before a
+    // session exists (first-time profile setup), so an anonymous caller is still
+    // allowed — but only to submit a staff member's FIRST profile, never to
+    // overwrite one already submitted. With a session, it must be the person's
+    // own (or an admin's).
+    const denied = await checkProfileSubmitAccess(req, staff_id)
+    if (denied) return denied
 
     const validTasks = Array.isArray(tasks) ? tasks.filter((t: { task_name?: string }) => t.task_name?.trim()) : []
     if (!validTasks.length) {
@@ -58,3 +74,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 })
   }
 }
+

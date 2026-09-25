@@ -1,13 +1,18 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { checkMarkCompleteAccess } from '@/app/lib/access/task-profile-access'
 
 /* POST /api/task-profiles/mark-complete
    Retry-only endpoint: sets profile_complete = true for a staff member.
    Called by the profile page if the main submit succeeded but the flag update failed. */
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const { staff_id } = await req.json()
     if (!staff_id) return NextResponse.json({ error: 'staff_id required' }, { status: 400 })
+    // 2026-09-25: this route is publicly reachable (pre-session profile setup), so it
+    // checks for itself — see app/lib/access/task-profile-access.ts.
+    const denied = await checkMarkCompleteAccess(req, staff_id)
+    if (denied) return denied
 
     const { error } = await supabaseAdmin
       .from('staff_members')
