@@ -33,6 +33,9 @@ const eslintConfig = defineConfig([
       // properties — var(--token) simply doesn't work there, so every color
       // in this file has to be a literal by necessity, not oversight.
       "app/lib/email.ts",
+      // Same reason, for the Vendor Portal / ops notification emails
+      // (2026-09-25) — raw HTML rendered by mail clients.
+      "app/lib/ops/vendor-auth/mail.ts",
       // AI Learning tab (2026-08-18 consolidation): these three files carry
       // forward JSX moved verbatim out of app/admin/page.tsx's own
       // pre-existing (grandfathered, ~97-offender) literal-color debt for

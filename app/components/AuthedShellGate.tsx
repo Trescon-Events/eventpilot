@@ -27,9 +27,11 @@ import { BreadcrumbLabelsProvider } from '@/app/lib/nav/breadcrumb-labels'
 
 const EXACT_NO_SHELL = new Set([
   '/', '/login', '/join', '/welcome', '/set-password', '/reset-password',
-  '/access-pending', '/no-access', '/profile',
+  '/access-pending', '/no-access', '/profile', '/vendor-portal',
 ])
-const PREFIX_NO_SHELL = ['/events/', '/public/']
+// /vendor-portal/ (2026-09-25): external licence vendors must never see the
+// staff sidebar, breadcrumbs or command palette — see VendorPortalLayout.
+const PREFIX_NO_SHELL = ['/events/', '/public/', '/vendor-portal/']
 // Standalone-layout pages with two dynamic path segments — a prefix/exact
 // match can't express these, so a small explicit regex list sits alongside
 // the two above. SAE's approval review page renders its own dedicated

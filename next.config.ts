@@ -69,6 +69,23 @@ const nextConfig: NextConfig = {
           { key: 'Cache-Control', value: 'private, max-age=300' },
         ],
       },
+      // Vendor Portal (2026-09-25) — external licence vendors. Never framed
+      // (clickjacking), never indexed, never leaks the URL (which can carry
+      // a one-time set-password token) via Referer, no MIME sniffing of the
+      // documents it serves. Deliberately a SUBSET CSP (no script-src): a
+      // strict script policy needs per-request nonces to coexist with
+      // Next's inline bootstrap scripts, which this repo doesn't set up.
+      {
+        source: '/vendor-portal/:path*',
+        headers: [
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'Referrer-Policy', value: 'no-referrer' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'; base-uri 'self'; form-action 'self'" },
+          { key: 'Cache-Control', value: 'no-store, must-revalidate' },
+        ],
+      },
     ]
   },
 };

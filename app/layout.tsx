@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
 import "./globals.css";
-import ReviewWidget from "@/app/components/ReviewWidget";
-import RealtimeNotifications from "@/app/components/RealtimeNotifications";
+import StaffOnlyWidgets from "@/app/components/StaffOnlyWidgets";
 import AuthedShellGate from "@/app/components/AuthedShellGate";
 
 const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope", display: "swap" });
@@ -42,8 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${manrope.variable} h-full antialiased`}>
       <body className="min-h-full">
         <AuthedShellGate>{children}</AuthedShellGate>
-        <ReviewWidget />
-        <RealtimeNotifications />
+        <StaffOnlyWidgets />
       </body>
     </html>
   );
