@@ -5,6 +5,7 @@ import { toStoredBioPdf } from '@/app/lib/events/full-bio-upload'
 import { uploadSensitiveDocument } from '@/app/lib/events/sensitive-storage'
 import { computeRetention } from '@/app/lib/events/sensitive-retention'
 import { sensitiveDocumentFileName, publicNameForFile } from '@/app/lib/events/sensitive-doc-name'
+import { hasEventPermission } from '@/app/lib/access/event-access'
 import { sendGraphMail } from '@/app/lib/email/graph-mail'
 import { renderEmailTemplate } from '@/app/lib/email/render-template'
 import { MissingItemKey, missingItemLabel } from '@/app/lib/stakeholders/missing-items'
@@ -224,7 +225,11 @@ async function notifyProducer(eventId: string, speakerId: string, submittedField
   const { data: event } = await supabaseAdmin.from('events').select('name, public_name').eq('id', eventId).single()
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com'
   const speakerName = speaker.public_name || speaker.name || 'A speaker'
-  const reviewUrl = `${siteUrl}/admin/events/${eventId}/stakeholders/${speakerId}?tab=communications`
+  // Passport / National ID are reviewed on the Documents tab, not Communications — but only send
+  // someone there who can actually open it (that tab is hidden without the permission).
+  const submittedDocs = submittedFields.some(f => f === 'passport' || f === 'national_id')
+  const canSeeDocs = submittedDocs && await hasEventPermission(recipientStaffId, eventId, 'sae.sensitive_documents.view')
+  const reviewUrl = `${siteUrl}/admin/events/${eventId}/stakeholders/${speakerId}?tab=${canSeeDocs ? 'documents' : 'communications'}`
   const DISPLAY_LABELS: Record<string, string> = { uae_resident_status: 'UAE Residency Status' }
   const itemsLabel = submittedFields.map(f => DISPLAY_LABELS[f] ?? missingItemLabel(f as MissingItemKey)).join(', ')
 
