@@ -32,15 +32,11 @@ import {
   findSilentStaff,
 } from '@/app/lib/leaderboard'
 import { sendLeaderboardDigest } from '@/app/lib/email'
+import { hasCronSecret } from '@/app/lib/access/require-admin'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // 5 minutes — 127 emails at ~10/sec
 
-// Fallback secret so the endpoint stays callable even if Railway's env var is
-// missing / out of sync with GitHub Actions' CRON_SECRET. Matches the pattern
-// used by build_requests PATCH. Rotate both env + this constant together if
-// you ever change the secret.
-const CRON_SECRET_FALLBACK = 'trescon-weekly-insights-2026'
 
 export async function POST(req: NextRequest) {
   return handle(req)
@@ -56,11 +52,10 @@ async function handle(req: NextRequest) {
   const secretFromHeader = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '')
   const secretFromSetupHeader = req.headers.get('x-setup-key') ?? ''
   const provided = secretFromHeader || secretFromSetupHeader || secretFromQuery
-  // Accept EITHER the env value OR the hardcoded fallback — so if Railway's env
-  // is out of sync with GitHub's secret, the fallback still lets the endpoint
-  // run. Rotate both together if the secret ever changes.
-  const acceptable = new Set([process.env.CRON_SECRET, CRON_SECRET_FALLBACK].filter(Boolean) as string[])
-  if (!provided || !acceptable.has(provided)) {
+    // Env CRON_SECRET only (2026-09-25): the old hardcoded fallback was removed — it was a
+  // second, permanent password sitting in source. GitHub's CRON_SECRET matches Railway's env
+  // (proved by the other cron workflows, which have never had a fallback).
+  if (!hasCronSecret(provided)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

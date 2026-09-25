@@ -1,19 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireAdmin } from '@/app/lib/access/require-admin'
 
-const ADMIN_CODE   = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
 const VALID_LEVELS = ['staff', 'team_lead', 'dept_head', 'office_head', 'super_admin']
 
 /* POST /api/admin/set-job-level
-   Body: { admin_code, email, job_level }
-   Directly sets a staff member's job level. Admin-only, protected by admin_code.
+   Body: { email, job_level }
+   Directly sets a staff member's job level. Admin session only (verified signature).
 */
 export async function POST(req: NextRequest) {
-  const { admin_code, email, job_level } = await req.json().catch(() => ({}))
-
-  if (admin_code !== ADMIN_CODE) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = requireAdmin(req)
+  if (denied) return denied
+  const { email, job_level } = await req.json().catch(() => ({}))
 
   if (!email || !job_level) {
     return NextResponse.json({ error: 'email and job_level required' }, { status: 400 })

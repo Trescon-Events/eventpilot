@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAdmin } from '@/app/lib/access/require-admin'
 
-const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
 
 const ADDITIONAL_COURSES = [
   /* ─── FOUNDATION 3 ─────────────────────────────────────────── */
@@ -266,8 +266,8 @@ const ADDITIONAL_COURSES = [
 ]
 
 export async function POST(req: NextRequest) {
-  const { admin_code } = await req.json().catch(() => ({}))
-  if (admin_code !== ADMIN_CODE) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const denied = requireAdmin(req)
+  if (denied) return denied
 
   const rows = ADDITIONAL_COURSES.map(c => ({ ...c, source: 'manual', status: 'published' }))
 

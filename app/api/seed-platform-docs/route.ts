@@ -1,8 +1,8 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { getStaffCount } from '@/app/lib/staff-count'
+import { requireAdmin } from '@/app/lib/access/require-admin'
 
-const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
 
 /*
   POST /api/seed-platform-docs
@@ -832,8 +832,8 @@ NOTIFICATION BEHAVIOUR
 ]
 
 export async function POST(req: NextRequest) {
-  const { admin_code } = await req.json().catch(() => ({}))
-  if (admin_code !== ADMIN_CODE) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const denied = requireAdmin(req)
+  if (denied) return denied
 
   // Substitute the live staff count into content placeholders before seed.
   const staffCount = await getStaffCount()

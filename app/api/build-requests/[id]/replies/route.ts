@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getSession } from '@/app/lib/access/session'
 
-function getSession(req: NextRequest) {
-  const raw = req.cookies.get('tcs_session')?.value
-  if (!raw) return null
-  try { return JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) as { sid: string; adm?: boolean } }
-  catch { return null }
-}
 
 /* POST /api/build-requests/[id]/replies — pilot responds to needs_clarification */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

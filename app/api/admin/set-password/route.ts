@@ -1,19 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import bcrypt from 'bcryptjs'
+import { requireAdmin } from '@/app/lib/access/require-admin'
 
-const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
 
 /* POST /api/admin/set-password
-   Body: { admin_code, email, password }
+   Body: { email, password }
    Admin-only: set or reset a staff member's password directly by email.
 */
 export async function POST(req: NextRequest) {
-  const { admin_code, email, password } = await req.json().catch(() => ({}))
-
-  if (admin_code !== ADMIN_CODE) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = requireAdmin(req)
+  if (denied) return denied
+  const { email, password } = await req.json().catch(() => ({}))
 
   if (!email || !password) {
     return NextResponse.json({ error: 'email and password required' }, { status: 400 })

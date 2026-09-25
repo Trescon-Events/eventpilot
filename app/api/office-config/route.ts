@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase, supabaseAdmin } from '@/app/lib/supabase'
+import { requireAdmin } from '@/app/lib/access/require-admin'
 
 // GET — public read, used by landing page
 export async function GET() {
@@ -12,14 +13,12 @@ export async function GET() {
 }
 
 // POST — admin only, updates totals
-// Body: { admin_code: string, updates: { office_id: string, total_staff: number }[] }
+// Body: { updates: { office_id: string, total_staff: number }[] }
 export async function POST(req: NextRequest) {
+  const denied = requireAdmin(req)
+  if (denied) return denied
   const body = await req.json()
-  const { admin_code, updates } = body
-
-  if (admin_code !== (process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026')) {
-    return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
-  }
+  const { updates } = body
 
   if (!Array.isArray(updates) || updates.length === 0) {
     return NextResponse.json({ error: 'No updates provided' }, { status: 400 })

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireAdminOrHr } from '@/app/lib/access/require-admin'
 
 const STATUS_MAP: Record<string, string> = {
   present:  'present',
@@ -23,16 +24,14 @@ function normalizeName(n: string) {
   return n.toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
-const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
 
-  // admin_code required when called outside browser session (CLI/cron)
-  // Middleware bypasses auth check for this path, so we gate here
-  if (body.admin_code && body.admin_code !== ADMIN_CODE) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  // Admin or HR session only (2026-09-25). This used to reject only a WRONG admin_code and let a
+  // request with NO code through, so anyone could trigger it.
+  const denied = requireAdminOrHr(req)
+  if (denied) return denied
 
   let fromDate: string
   if (body.from_date) {

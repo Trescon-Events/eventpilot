@@ -1,21 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { sendBuildRequestUpdate } from '@/app/lib/email'
+import { getSession } from '@/app/lib/access/session'
+import { hasCronSecret } from '@/app/lib/access/require-admin'
 
-const CRON_SECRET = 'trescon-weekly-insights-2026'
 const BUCKET = 'build-request-files'
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://eventpilot.tresconglobal.com'
 
-function getSession(req: NextRequest) {
-  const raw = req.cookies.get('tcs_session')?.value
-  if (!raw) return null
-  try { return JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) as { sid: string; adm?: boolean } }
-  catch { return null }
-}
 
 function isAdminKey(req: NextRequest) {
   const key = req.headers.get('x-setup-key')
-  return key === process.env.CRON_SECRET || key === CRON_SECRET
+  return hasCronSecret(key)
 }
 
 /* GET /api/build-requests/[id] */

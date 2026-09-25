@@ -1,8 +1,14 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { requireAdmin } from '@/app/lib/access/require-admin'
 import { createClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from '@/app/lib/supabase'
 
-export async function GET() {
+/* Debug tool: signs into the old HRMS and returns sample staff/attendance rows. Admin only (2026-09-25) — it used
+   to be reachable by anyone through a middleware bypass. */
+export async function GET(req: NextRequest) {
+  const denied = requireAdmin(req)
+  if (denied) return denied
+
   // Sample from new staff_members
   const { data: newStaff } = await supabaseAdmin
     .from('staff_members')

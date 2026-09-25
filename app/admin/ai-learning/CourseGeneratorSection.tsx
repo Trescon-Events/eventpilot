@@ -40,7 +40,7 @@ export default function CourseGeneratorSection() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026',
+        
         suggestion: suggestion.trim(),
         department: suggestDept,
         tier_level: suggestTier,
@@ -67,7 +67,7 @@ export default function CourseGeneratorSection() {
     const pubRes = await fetch('/api/courses', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026', course: courseWithCredit }),
+      body: JSON.stringify({ course: courseWithCredit }),
     })
     if (pubRes.ok) {
       setPublishMsg(`Course submitted for review. You will be notified on your dashboard once it is approved and live.`)

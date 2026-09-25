@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAdmin } from '@/app/lib/access/require-admin'
 
-const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
 
 /* POST /api/staff-import
    Bulk upsert staff members from HR database export.
@@ -9,7 +9,6 @@ const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
 
    Expected body:
    {
-     admin_code: string,
      staff: [
        {
          name: string,
@@ -30,12 +29,10 @@ const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
 */
 
 export async function POST(req: NextRequest) {
+  const denied = requireAdmin(req)
+  if (denied) return denied
   const body = await req.json()
-  const { admin_code, staff: incoming } = body
-
-  if (admin_code !== ADMIN_CODE) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const { staff: incoming } = body
   if (!Array.isArray(incoming) || incoming.length === 0) {
     return NextResponse.json({ error: 'No staff data provided.' }, { status: 400 })
   }

@@ -1,24 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { sendBuildRequestAlert } from '@/app/lib/email'
+import { getSession } from '@/app/lib/access/session'
+import { hasCronSecret } from '@/app/lib/access/require-admin'
 
 const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/png']
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const MAX_FILES = 3
-const CRON_SECRET = 'trescon-weekly-insights-2026'
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://eventpilot.tresconglobal.com'
 const BUCKET = 'build-request-files'
 
-function getSession(req: NextRequest) {
-  const raw = req.cookies.get('tcs_session')?.value
-  if (!raw) return null
-  try { return JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) as { sid: string; adm?: boolean } }
-  catch { return null }
-}
 
 function isAdminKey(req: NextRequest) {
   const key = req.headers.get('x-setup-key')
-  return key === process.env.CRON_SECRET || key === CRON_SECRET
+  return hasCronSecret(key)
 }
 
 async function signedUrl(path: string) {

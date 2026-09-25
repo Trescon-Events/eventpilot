@@ -3,6 +3,8 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { sendPilotAssignment } from '@/app/lib/email'
 import { Client } from 'pg'
 import dns from 'dns'
+import { getSession } from '@/app/lib/access/session'
+import { hasCronSecret } from '@/app/lib/access/require-admin'
 
 async function runMigration(log: string[], errors: string[]) {
   const pass = process.env.SUPABASE_DB_PASSWORD
@@ -65,12 +67,6 @@ async function runMigration(log: string[], errors: string[]) {
   }
 }
 
-function getSession(req: NextRequest) {
-  const raw = req.cookies.get('tcs_session')?.value
-  if (!raw) return null
-  try { return JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) as { sid: string; adm?: boolean } }
-  catch { return null }
-}
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://eventpilot.tresconglobal.com'
 
@@ -159,7 +155,7 @@ const PROJECTS: Array<{
 export async function POST(req: NextRequest) {
   const session = getSession(req)
   const secretKey = req.headers.get('x-setup-key')
-  const validSecret = secretKey === process.env.CRON_SECRET || secretKey === 'trescon-weekly-insights-2026'
+  const validSecret = hasCronSecret(secretKey)
   if (!session?.adm && !validSecret) return NextResponse.json({ error: 'Admin only' }, { status: 403 })
 
   const log: string[] = []

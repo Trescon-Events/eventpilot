@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { sendCredentials } from '@/app/lib/email'
+import { requireAdminOrHr } from '@/app/lib/access/require-admin'
 
 /* ── Temp password: FirstName@XXXX ────────────────────────────────────────── */
 function makeTempPassword(name: string): string {
@@ -57,25 +58,12 @@ export async function GET(req: NextRequest) {
     4. Optionally start an onboarding checklist
     5. Return credentials
 
-  Auth: session cookie (adm) or admin_code header
+  Auth: verified session — admin or HR department
 */
 export async function POST(req: NextRequest) {
-  /* ── Auth ── */
-  const adminCode = req.headers.get('x-admin-code')
-  const expectedCode = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
-
-  // Allow session-based auth (admin or HR dept)
-  const raw = req.cookies.get('tcs_session')?.value
-  let sessionOk = false
-  if (raw) {
-    try {
-      const s = JSON.parse(atob(raw))
-      if (s.adm === true || s.dept === 'HR') sessionOk = true
-    } catch { /* ignore */ }
-  }
-  if (!sessionOk && adminCode !== expectedCode) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  /* ── Auth ── (signature-verified admin or HR session; the x-admin-code header was removed 2026-09-25) */
+  const denied = requireAdminOrHr(req)
+  if (denied) return denied
 
   const body = await req.json().catch(() => ({}))
   const {

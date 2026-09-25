@@ -289,7 +289,7 @@ export default function HRDashboard() {
     await fetch('/api/staff-portal-sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026' }),
+      body: JSON.stringify({  }),
     })
     setSyncing(false)
     refreshDashboard()

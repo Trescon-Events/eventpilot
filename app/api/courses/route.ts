@@ -2,13 +2,14 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { getCachedCourses, invalidateCourseCache } from '@/app/lib/courseCache'
 import { requireApiModuleAccess } from '@/app/lib/registry/api-access'
+import { requireAdmin } from '@/app/lib/access/require-admin'
 
-const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
 
 /* POST — save generated course as draft, notify super admin */
 export async function POST(req: NextRequest) {
-  const { admin_code, course } = await req.json()
-  if (admin_code !== ADMIN_CODE) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const denied = requireAdmin(req)
+  if (denied) return denied
+  const { course } = await req.json()
   if (!course) return NextResponse.json({ error: 'No course data provided.' }, { status: 400 })
 
   const { data, error } = await supabaseAdmin
@@ -47,8 +48,9 @@ export async function POST(req: NextRequest) {
 
 /* PATCH — approve a draft course: publish it and notify the suggester */
 export async function PATCH(req: NextRequest) {
-  const { admin_code, course_id } = await req.json()
-  if (admin_code !== ADMIN_CODE) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const denied = requireAdmin(req)
+  if (denied) return denied
+  const { course_id } = await req.json()
   if (!course_id) return NextResponse.json({ error: 'course_id is required.' }, { status: 400 })
 
   const { data, error } = await supabaseAdmin
@@ -78,8 +80,9 @@ export async function PATCH(req: NextRequest) {
 
 /* DELETE — reject and remove a draft course */
 export async function DELETE(req: NextRequest) {
-  const { admin_code, course_id } = await req.json()
-  if (admin_code !== ADMIN_CODE) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const denied = requireAdmin(req)
+  if (denied) return denied
+  const { course_id } = await req.json()
   if (!course_id) return NextResponse.json({ error: 'course_id is required.' }, { status: 400 })
 
   const { error } = await supabaseAdmin
@@ -95,8 +98,10 @@ export async function DELETE(req: NextRequest) {
 
 /* PUT — update any course fields (admin editor) */
 export async function PUT(req: NextRequest) {
+  const denied = requireAdmin(req)
+  if (denied) return denied
   const body = await req.json().catch(() => null)
-  if (!body?.admin_code || body.admin_code !== ADMIN_CODE) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!body) return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
   const { course_id, ...fields } = body
   if (!course_id) return NextResponse.json({ error: 'course_id required' }, { status: 400 })
 

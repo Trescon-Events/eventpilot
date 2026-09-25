@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getSession } from '@/app/lib/access/session'
+import { hasCronSecret } from '@/app/lib/access/require-admin'
 
 /**
- * GET /api/cron/attendance-live?secret=X
+ * GET /api/cron/attendance-live
+ * Auth (2026-09-25): the real CRON_SECRET (?secret= or Authorization: Bearer) OR a signature-verified
+ * admin / HR session — the HR attendance page polls this every 5 minutes with its own session, so the
+ * browser never needs (or receives) any secret. The page used to embed a hardcoded secret that did not
+ * even match the server's, so this auto-sync was silently failing with 401.
  * Near-real-time attendance sync — pulls today's records from HRMS.
  * Designed to be called every 5 minutes by an external scheduler or client-side polling.
  * Only syncs today + yesterday (2 days) for speed.
@@ -30,7 +36,10 @@ let lastSyncAt = 0
 
 export async function GET(req: NextRequest) {
   const secret = new URL(req.url).searchParams.get('secret')
-  if (secret !== process.env.CRON_SECRET) {
+  const bearer = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '')
+  const session = getSession(req)
+  const allowed = hasCronSecret(secret) || hasCronSecret(bearer) || !!session?.adm || session?.dept === 'HR'
+  if (!allowed) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

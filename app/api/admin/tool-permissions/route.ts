@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireAdmin } from '@/app/lib/access/require-admin'
 
-const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
 
 /*
   GET /api/admin/tool-permissions?id=X
   Returns { tool_grants: Record<string,boolean>, toolkit_access: boolean }
 
   PATCH /api/admin/tool-permissions
-  Body: { admin_code, id, tool_key, value }
+  Body: { id, tool_key, value }
   Toggles a single tool grant. If tool_key === 'smart_data' also syncs toolkit_access.
 */
 
@@ -16,11 +16,8 @@ export async function GET(req: NextRequest) {
   const id = new URL(req.url).searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
-  const raw = req.cookies.get('tcs_session')?.value
-  if (!raw) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
-  let session: { adm?: boolean } | null = null
-  try { session = JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) } catch {}
-  if (!session?.adm) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+  const denied = requireAdmin(req)
+  if (denied) return denied
 
   const { data, error } = await supabaseAdmin
     .from('staff_members')
@@ -33,21 +30,12 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  // Accept either session auth (admin) or admin_code (for server-side calls)
+  // Admin session only, signature-verified (2026-09-25). This used to decode the cookie by hand
+  // WITHOUT checking its signature and also accepted a shared admin_code.
+  const denied = requireAdmin(req)
+  if (denied) return denied
   const body = await req.json().catch(() => ({}))
   const { id, tool_key, value } = body
-
-  const raw = req.cookies.get('tcs_session')?.value
-  let isAdmin = false
-  if (raw) {
-    try {
-      const session = JSON.parse(Buffer.from(raw, 'base64').toString('utf-8'))
-      isAdmin = session?.adm === true
-    } catch {}
-  }
-  if (!isAdmin && body.admin_code !== ADMIN_CODE) {
-    return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
-  }
 
   if (!id || !tool_key || typeof value !== 'boolean') {
     return NextResponse.json({ error: 'id, tool_key, and value required' }, { status: 400 })

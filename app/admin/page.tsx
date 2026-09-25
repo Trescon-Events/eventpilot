@@ -352,7 +352,7 @@ function AdminPageInner() {
       const res  = await fetch('/api/staff-portal-sync', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026' }),
+        body:    JSON.stringify({  }),
       })
       const data = await res.json()
       if (!res.ok || data.error) { setStaffPortalSyncError(data.error ?? 'Sync failed'); setStaffPortalSyncState('error'); return }
@@ -404,7 +404,7 @@ function AdminPageInner() {
     const res  = await fetch('/api/staff-import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_code: 'eventpilot2026', staff: csvParsed }),
+      body: JSON.stringify({ staff: csvParsed }),
     })
     const data = await res.json()
     setImportResult(data)
@@ -460,7 +460,7 @@ function AdminPageInner() {
     const res  = await fetch('/api/staff-import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_code: 'eventpilot2026', staff: [addForm] }),
+      body: JSON.stringify({ staff: [addForm] }),
     })
     const data = await res.json()
     if (data.error) { setAddError(data.error); setAddState('error'); return }
@@ -549,7 +549,7 @@ function AdminPageInner() {
     const res = await fetch('/api/courses', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026', course_id: courseId }),
+      body: JSON.stringify({ course_id: courseId }),
     })
     if (res.ok) {
       setDraftCourses(prev => prev.filter(c => c.id !== courseId))
@@ -565,7 +565,7 @@ function AdminPageInner() {
     const res = await fetch('/api/courses', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026', course_id: courseId }),
+      body: JSON.stringify({ course_id: courseId }),
     })
     if (res.ok) {
       setDraftCourses(prev => prev.filter(c => c.id !== courseId))
@@ -637,7 +637,7 @@ function AdminPageInner() {
 
   async function seedDemo() {
     setSeedLoading(true); setSeedMsg('')
-    const res = await fetch('/api/seed-demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026' }) })
+    const res = await fetch('/api/seed-demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({  }) })
     const data = await res.json()
     setSeedMsg(data.message ?? data.error ?? 'Done')
     setSeedLoading(false)
@@ -646,7 +646,7 @@ function AdminPageInner() {
 
   async function clearDemo() {
     setSeedLoading(true); setSeedMsg('')
-    const res = await fetch('/api/seed-demo', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026' }) })
+    const res = await fetch('/api/seed-demo', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({  }) })
     const data = await res.json()
     setSeedMsg(data.message ?? data.error ?? 'Cleared')
     setSeedLoading(false)

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireAdmin } from '@/app/lib/access/require-admin'
 
-const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
 const DEMO_TAG   = '@demo.tai'  // all demo emails end with this — used for safe deletion
 
 /* ─────────────────────────────────────────────────────────────────
@@ -235,8 +235,8 @@ function buildProfiles(staffId: string, name: string) {
 
 /* ─── POST: seed demo data ────────────────────────────────────── */
 export async function POST(req: NextRequest) {
-  const { admin_code } = await req.json().catch(() => ({}))
-  if (admin_code !== ADMIN_CODE) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const denied = requireAdmin(req)
+  if (denied) return denied
 
   // Check for existing demo data
   const { data: existing } = await supabaseAdmin
@@ -296,8 +296,8 @@ export async function POST(req: NextRequest) {
 
 /* ─── DELETE: clear all demo data ────────────────────────────── */
 export async function DELETE(req: NextRequest) {
-  const { admin_code } = await req.json().catch(() => ({}))
-  if (admin_code !== ADMIN_CODE) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const denied = requireAdmin(req)
+  if (denied) return denied
 
   // Find demo staff IDs
   const { data: demoStaff } = await supabaseAdmin

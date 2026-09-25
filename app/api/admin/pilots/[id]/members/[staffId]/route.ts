@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getSession } from '@/app/lib/access/session'
 
-function getSession(req: NextRequest) {
-  const raw = req.cookies.get('tcs_session')?.value
-  if (!raw) return null
-  try { return JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) as { sid: string; adm?: boolean } }
-  catch { return null }
-}
 
 /* PATCH /api/admin/pilots/[id]/members/[staffId]
    Admin-session-only. Updates an existing membership's role/label/color, and/or

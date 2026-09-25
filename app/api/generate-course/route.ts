@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { requireAdmin } from '@/app/lib/access/require-admin'
 
-const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
 
 export async function POST(req: NextRequest) {
-  const { admin_code, suggestion, department, tier_level } = await req.json()
-
-  if (admin_code !== ADMIN_CODE) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = requireAdmin(req)
+  if (denied) return denied
+  const { suggestion, department, tier_level } = await req.json()
   if (!suggestion || !department || !tier_level) {
     return NextResponse.json({ error: 'suggestion, department, and tier_level are required.' }, { status: 400 })
   }

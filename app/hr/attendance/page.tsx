@@ -501,7 +501,7 @@ export default function AttendancePage() {
   // Auto-sync from HRMS every 5 minutes while page is open
   useEffect(() => {
     const doLiveSync = () => {
-      fetch(`/api/cron/attendance-live?secret=${encodeURIComponent('trescon-weekly-insights-2026')}`)
+      fetch('/api/cron/attendance-live')
         .then(r => r.json())
         .then(d => {
           if (d.synced > 0) {

@@ -28,7 +28,6 @@ type Course = {
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
-const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
 
 const TIERS = ['foundation', 'adoption', 'advanced'] as const
 const TIER_COLOR: Record<string, { color: string; bg: string; label: string }> = {
@@ -443,7 +442,7 @@ export default function CoursesPage() {
     const res = await fetch('/api/courses', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_code: ADMIN_CODE, course_id: fields.id, ...fields }),
+      body: JSON.stringify({ course_id: fields.id, ...fields }),
     })
     if (!res.ok) throw new Error('Save failed')
     // Update local list
@@ -456,7 +455,7 @@ export default function CoursesPage() {
     await fetch('/api/courses', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_code: ADMIN_CODE, course_id: id }),
+      body: JSON.stringify({ course_id: id }),
     })
     setSelected(null)
     await load()
@@ -467,7 +466,7 @@ export default function CoursesPage() {
     await fetch('/api/courses', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_code: ADMIN_CODE, course_id: id }),
+      body: JSON.stringify({ course_id: id }),
     })
     setSelected(null)
     await load()
@@ -480,7 +479,6 @@ export default function CoursesPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        admin_code: ADMIN_CODE,
         course: {
           title: newTitle, subtitle: newSubtitle, tier_level: newTier,
           dept_tags: newDepts, is_mandatory: newMandatory, estimated_minutes: newMinutes,

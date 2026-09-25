@@ -207,18 +207,13 @@ export async function middleware(req: NextRequest) {
   if (
     pathname.startsWith('/api/auth/') ||   // covers session, logout, microsoft SSO, callback
     pathname.startsWith('/api/platform-docs') ||
-    pathname.startsWith('/api/staff-portal-sync') ||
-    pathname.startsWith('/api/hr/attendance/sync') ||
-    pathname.startsWith('/api/admin/set-password') ||
-    pathname.startsWith('/api/admin/set-job-level') ||
-    pathname.startsWith('/api/admin/tool-permissions') ||
+    // 2026-09-25: staff-portal-sync, hr/attendance/sync, admin/set-password, admin/set-job-level, admin/tool-permissions and the
+    // seed-* routes were REMOVED from this list. They used to bypass the session check and rely on a shared admin code (or an
+    // unsigned cookie); they now require a verified session both here and inside the route.
     pathname.startsWith('/api/cron/') ||
     pathname.startsWith('/api/webhooks/') ||  // external callers, auth checked inside via bearer token (e.g. GitHub Actions)
     pathname === '/api/kb/intel/run' ||  // cron-job.org calls this with no session cookie; auth checked inside via bearer token or admin_staff_id. NOT startsWith — that would also match /api/kb/intel/runs (the run-history GET) and make it public.
     pathname.startsWith('/api/docuhub/resolve') ||  // public permanent-link resolver; visibility (public/internal) is checked inside the route itself, not here
-    pathname.startsWith('/api/seed-platform-docs') ||
-    pathname.startsWith('/api/seed-courses') ||
-    pathname.startsWith('/api/seed-demo') ||
     // SAE approval review: reachable via a signed approval_token with no
     // EventPilot session (external approvers). Auth is checked inside the
     // route via the token, not here. Scoped tightly with a regex so this
