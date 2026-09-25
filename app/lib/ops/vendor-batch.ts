@@ -19,13 +19,21 @@ export type OwnBatch = {
   downloaded_at: string | null
   completed_at: string | null
   completion_type: string | null
+  delete_by: string | null
+  download_ack_at: string | null
+  deletion_confirmed_at: string | null
+  deletion_confirmed_by: string | null
 }
 
 export async function loadOwnBatch(vendorId: string, batchId: string): Promise<OwnBatch | null> {
   if (!UUID.test(batchId)) return null
   await expireDueBatches({ vendorId })
   const { data } = await supabaseAdmin.from('ops_license_batches')
-    .select('id, event_id, umbrella_id, batch_number, status, expires_at, sent_at, downloaded_at, completed_at, completion_type')
-    .eq('id', batchId).eq('vendor_id', vendorId).in('status', [...VENDOR_VISIBLE]).maybeSingle()
-  return data ?? null
+    .select('id, event_id, umbrella_id, batch_number, status, expires_at, sent_at, downloaded_at, completed_at, completion_type, delete_by, download_ack_at, deletion_confirmed_at, deletion_confirmed_by')
+    .eq('id', batchId).eq('vendor_id', vendorId).in('status', [...VENDOR_VISIBLE, 'cancelled']).maybeSingle()
+  if (!data) return null
+  // A cancelled (revoked) batch is invisible to the vendor — EXCEPT one they already downloaded and haven't
+  // confirmed deleting yet: they must be able to do that (and nothing else).
+  if (data.status === 'cancelled' && !(data.downloaded_at && !data.deletion_confirmed_at)) return null
+  return data
 }

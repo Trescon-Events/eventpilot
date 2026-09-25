@@ -8,6 +8,7 @@ import { isBatchAccessible, completeBatch, notifyOps } from '@/app/lib/ops/batch
 import { LICENSE_ALLOWED, LICENSE_MAX_BYTES, sniffLicenseType, uploadLicenseFile, removeLicenseFile } from '@/app/lib/ops/license-storage'
 import { logOpsAccess } from '@/app/lib/ops/audit'
 import { scopeOfRow, ownerFields, auditOwner } from '@/app/lib/ops/scope'
+import { DELETION_CONFIRM_ERROR, deletionConfirmationFields } from '@/app/lib/ops/delete-by'
 
 /* POST /vendor-portal/api/batches/[batchId]/license   (multipart: file)
    The vendor uploads the licence copy for their batch. The file's type is
@@ -31,6 +32,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
   if (!isBatchAccessible(batch)) return vpError(409, 'This batch can no longer accept a licence.', { eventIds })
 
   const form = await req.formData().catch(() => null)
+  // Submitting the licence includes confirming that every copy of the documents was deleted (checked server-side).
+  if (form?.get('confirm_deleted') !== 'true') return vpError(400, DELETION_CONFIRM_ERROR, { eventIds })
   const file = form?.get('file')
   if (!(file instanceof File)) return vpError(400, 'Please choose a file to upload.', { eventIds })
   if (file.size === 0 || file.size > LICENSE_MAX_BYTES) return vpError(400, 'The file must be between 1 byte and 20 MB.', { eventIds })
@@ -54,7 +57,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
 
   // Link first: if completing then loses a race, deleting the file row cascades this link away.
   await supabaseAdmin.from('ops_license_file_batches').insert({ file_id: fileRow.id, batch_id: batch.id })
-  const completed = await completeBatch(batch.id, 'license_uploaded', { fromStatuses: ['sent', 'downloaded'], requireUnexpired: true })
+  const completed = await completeBatch(batch.id, 'license_uploaded', { fromStatuses: ['sent', 'downloaded'], requireUnexpired: true, extra: deletionConfirmationFields(session.userId, ip) })
   if (!completed) {
     // Lost a race (expired / revoked / already completed): keep nothing.
     await supabaseAdmin.from('ops_license_files').delete().eq('id', fileRow.id)
@@ -62,8 +65,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
     return vpError(409, 'This batch can no longer accept a licence.', { eventIds })
   }
 
-  await logOpsAccess({ ...auditOwner(scope), actorType: 'vendor', actorId: session.userId, action: 'vendor_license_uploaded', targetType: 'license_batch', targetId: batch.id, meta: { file_id: fileRow.id, size: file.size }, ip })
-  await notifyOps(scope, `Licence uploaded for Batch ${batch.batch_number}`, 'Licence uploaded',
-    `${session.name} (${session.vendorName}) uploaded the licence for Batch ${batch.batch_number}. The batch is now complete and vendor access to it has ended.`)
+  await logOpsAccess({ ...auditOwner(scope), actorType: 'vendor', actorId: session.userId, action: 'vendor_license_uploaded', targetType: 'license_batch', targetId: batch.id, meta: { file_id: fileRow.id, size: file.size, deletion_confirmed: true }, ip })
+  await notifyOps(scope, `Licence uploaded and deletion confirmed: Batch ${batch.batch_number}`, 'Licence uploaded and deletion confirmed',
+    `${session.name} (${session.vendorName}) uploaded the licence for Batch ${batch.batch_number} and confirmed that all copies of its documents were deleted. The batch is now complete and vendor access to it has ended.`)
   return NextResponse.json({ ok: true }, { headers: { 'Cache-Control': 'no-store' } })
 }

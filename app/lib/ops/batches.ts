@@ -34,6 +34,10 @@ export type BatchView = {
   downloaded_at: string | null
   completed_at: string | null
   completion_type: string | null
+  delete_by: string | null
+  download_ack_at: string | null
+  deletion_confirmed_at: string | null
+  deletion_confirmed_by_name: string | null
   license_files: { id: string; file_name: string; uploaded_by_type: string; created_at: string }[]
   items: BatchItemView[]
 }
@@ -75,6 +79,11 @@ export async function loadBatches(scope: OpsScope): Promise<BatchView[]> {
     const f = Array.isArray(l.ops_license_files) ? l.ops_license_files[0] : l.ops_license_files
     if (f) filesByBatch.set(l.batch_id, [...(filesByBatch.get(l.batch_id) ?? []), f])
   }
+  const confirmerIds = [...new Set(batches.map(b => b.deletion_confirmed_by).filter((v): v is string => !!v))]
+  const { data: confirmers } = confirmerIds.length
+    ? await supabaseAdmin.from('ops_vendor_users').select('id, name').in('id', confirmerIds)
+    : { data: [] as { id: string; name: string }[] }
+  const confirmerName = new Map((confirmers ?? []).map(c => [c.id, c.name]))
   const liveReviewed = new Set((liveDocs ?? []).map(d => d.id))
   const cancelled = new Set((speakers ?? []).filter(s => s.confirmation_status === 'Cancelled').map(s => s.id))
   const creatorName = new Map((creators ?? []).map(c => [c.id, c.name]))
@@ -98,7 +107,10 @@ export async function loadBatches(scope: OpsScope): Promise<BatchView[]> {
       vendor_id: b.vendor_id, vendor_name: vendor?.name ?? 'Unknown vendor', created_at: b.created_at,
       created_by_name: b.created_by ? (creatorName.get(b.created_by) ?? null) : null,
       sent_at: b.sent_at, expires_at: b.expires_at, downloaded_at: b.downloaded_at, completed_at: b.completed_at,
-      completion_type: b.completion_type, license_files: filesByBatch.get(b.id) ?? [], items,
+      completion_type: b.completion_type, delete_by: b.delete_by ?? null, download_ack_at: b.download_ack_at ?? null,
+      deletion_confirmed_at: b.deletion_confirmed_at ?? null,
+      deletion_confirmed_by_name: b.deletion_confirmed_by ? (confirmerName.get(b.deletion_confirmed_by) ?? null) : null,
+      license_files: filesByBatch.get(b.id) ?? [], items,
     }
   })
 }

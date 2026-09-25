@@ -8,7 +8,7 @@ import { ErrorBox, readError, ghostBtn, type ApiError } from './ui'
 type Batch = {
   id: string; batch_number: number; event_name: string; status: string; speaker_count: number
   sent_at: string | null; expires_at: string | null; completed_at: string | null; completion_type: string | null
-  can_download: boolean
+  can_download: boolean; needs_deletion_confirmation?: boolean
 }
 
 const STATUS: Record<string, { label: string; color: string; bg: string }> = {
@@ -16,6 +16,7 @@ const STATUS: Record<string, { label: string; color: string; bg: string }> = {
   downloaded: { label: 'Downloaded',        color: 'var(--amber)', bg: 'var(--amber-light)' },
   completed:  { label: 'Completed',         color: 'var(--lime)',  bg: 'var(--lime-light)' },
   expired:    { label: 'Expired',           color: 'var(--ink3)',  bg: 'var(--border-light)' },
+  cancelled:  { label: 'Cancelled',         color: 'var(--ink3)',  bg: 'var(--border-light)' },
 }
 
 export default function VendorHomePage() {
@@ -30,6 +31,10 @@ export default function VendorHomePage() {
       const res = await fetch('/vendor-portal/api/batches')
       if (cancelled) return
       if (res.status === 401) { router.replace('/vendor-portal/login'); return }
+      if (res.status === 403) {
+        const denied = await res.clone().json().catch(() => null)
+        if (denied?.code === 'terms_required') { router.replace('/vendor-portal/terms'); return }
+      }
       if (!res.ok) { setError(await readError(res)); return }
       const body = await res.json()
       if (cancelled) return
@@ -71,7 +76,10 @@ export default function VendorHomePage() {
                     {b.can_download && b.expires_at ? ` · available until ${new Date(b.expires_at).toLocaleString()}` : ''}
                   </div>
                 </div>
-                <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '999px', color: st.color, background: st.bg }}>{st.label}</span>
+                <span style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  {b.needs_deletion_confirmation && <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '999px', color: 'var(--amber)', background: 'var(--amber-light)' }}>Confirm deletion</span>}
+                  <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '999px', color: st.color, background: st.bg }}>{st.label}</span>
+                </span>
               </div>
             </Link>
           )

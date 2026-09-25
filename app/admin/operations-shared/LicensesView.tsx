@@ -21,11 +21,15 @@ type Batch = {
   id: string; batch_number: number; status: string; access_days: number; notes: string | null; vendor_name: string
   created_at: string; created_by_name: string | null; sent_at: string | null; expires_at: string | null
   downloaded_at: string | null; completed_at: string | null; completion_type: string | null; items: BatchItem[]
+  delete_by: string | null; download_ack_at: string | null; deletion_confirmed_at: string | null; deletion_confirmed_by_name: string | null
   license_files: { id: string; file_name: string; uploaded_by_type: string; created_at: string }[]
   vendor_id: string
 }
 type Vendor = { id: string; name: string }
 type Data = { scope: { kind: 'event' | 'umbrella'; id: string; name: string; events: number }; ready: Candidate[]; notReadyCount: number; batches: Batch[]; vendors: Vendor[] }
+
+/** The vendor downloaded this batch, it has ended, and they never confirmed deleting their copies. */
+const deletionUnconfirmed = (b: Batch) => !!b.downloaded_at && !b.deletion_confirmed_at && ['completed', 'expired', 'cancelled'].includes(b.status)
 
 const STATUS: Record<string, { label: string; color: string; bg: string }> = {
   draft:      { label: 'Draft',      color: 'var(--ink3)',  bg: 'var(--border-light)' },
@@ -260,6 +264,7 @@ function BatchCard({ batch: b, onCancel, onChanged, onError }: { batch: Batch; o
         <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>Batch {b.batch_number}</div>
         <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '999px', color: st.color, background: st.bg }}>{st.label}</span>
         {b.status === 'completed' && b.completion_type && <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--lime)' }}>{COMPLETION_LABEL[b.completion_type] ?? b.completion_type}</span>}
+        {deletionUnconfirmed(b) && <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--amber)' }}>Vendor deletion not confirmed</span>}
         <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>
           {b.vendor_name} · {b.items.length} speaker{b.items.length === 1 ? '' : 's'} · {b.access_days}-day access
           {b.created_by_name ? ` · created by ${b.created_by_name}` : ''} · {new Date(b.created_at).toLocaleDateString()}
@@ -307,6 +312,14 @@ function BatchCard({ batch: b, onCancel, onChanged, onError }: { batch: Batch; o
             <span>Downloaded: {when(b.downloaded_at)}</span>
             <span>Completed: {when(b.completed_at)}</span>
           </div>
+          {(b.deletion_confirmed_at || deletionUnconfirmed(b) || b.download_ack_at) && (
+            <div style={{ fontSize: '12px', display: 'flex', gap: '18px', flexWrap: 'wrap', color: 'var(--ink3)' }}>
+              {b.download_ack_at && <span>Vendor acknowledged delete-by {b.delete_by ? new Date(b.delete_by + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : ''} on {when(b.download_ack_at)}</span>}
+              {b.deletion_confirmed_at
+                ? <span style={{ color: 'var(--lime)', fontWeight: 700 }}>✓ Vendor confirmed deletion{b.deletion_confirmed_by_name ? ` (${b.deletion_confirmed_by_name})` : ''}: {when(b.deletion_confirmed_at)}</span>
+                : deletionUnconfirmed(b) && <span style={{ color: 'var(--amber)', fontWeight: 700 }}>Vendor deletion not confirmed. The vendor can still confirm from their portal.</span>}
+            </div>
+          )}
           {b.status !== 'draft' && b.status !== 'cancelled' && (
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', fontSize: '12px', color: 'var(--ink3)' }}>
               <label style={{ ...btnGhost, cursor: 'pointer' }}>

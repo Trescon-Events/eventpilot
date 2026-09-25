@@ -53,10 +53,10 @@ export async function notifyOps(scope: OpsScope, subject: string, heading: strin
 export async function completeBatch(
   batchId: string,
   completionType: 'license_uploaded' | 'approved',
-  opts: { fromStatuses: readonly string[]; requireUnexpired: boolean },
+  opts: { fromStatuses: readonly string[]; requireUnexpired: boolean; extra?: Record<string, unknown> },
 ): Promise<boolean> {
   let q = supabaseAdmin.from('ops_license_batches')
-    .update({ status: 'completed', completed_at: new Date().toISOString(), completion_type: completionType })
+    .update({ status: 'completed', completed_at: new Date().toISOString(), completion_type: completionType, ...(opts.extra ?? {}) })
     .eq('id', batchId).in('status', [...opts.fromStatuses])
   if (opts.requireUnexpired) q = q.gt('expires_at', new Date().toISOString())
   const { data, error } = await q.select('id')

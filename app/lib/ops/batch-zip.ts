@@ -2,6 +2,7 @@ import { Zip, ZipPassThrough } from 'fflate'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { downloadSensitiveDocument } from '@/app/lib/events/sensitive-storage'
 import { sensitiveDocumentFileName } from '@/app/lib/events/sensitive-doc-name'
+import { formatDeleteBy } from '@/app/lib/ops/delete-by'
 
 /* Builds the vendor's download for one batch: a ZIP with a folder per
    speaker (passport, and National ID for UAE residents) plus a manifest.csv.
@@ -27,7 +28,7 @@ function csvCell(v: string | null | undefined): string {
   return `"${s.replace(/"/g, '""')}"`
 }
 
-export async function prepareBatchZip(batchId: string): Promise<PreparedZip> {
+export async function prepareBatchZip(batchId: string, deleteBy?: string | null): Promise<PreparedZip> {
   const { data: batch } = await supabaseAdmin.from('ops_license_batches').select('batch_number').eq('id', batchId).maybeSingle()
   if (!batch) return { ok: false, message: 'Batch not found.' }
 
@@ -65,7 +66,14 @@ export async function prepareBatchZip(batchId: string): Promise<PreparedZip> {
   }
 
   const manifest = new TextEncoder().encode('﻿' + rows.join('\r\n') + '\r\n')
-  return { ok: true, batchNumber: batch.batch_number, speakerCount: items.length, files: [{ name: 'manifest.csv', load: async () => manifest }, ...files] }
+  const readme = new TextEncoder().encode([
+    'CONFIDENTIAL - personal data of speakers.',
+    'Use these documents only to apply for the speakers\' licences/permits. Do not share or forward them.',
+    `Delete EVERY copy (drive, email, devices, downloads) as soon as the permits are approved${deleteBy ? ` - and in any case by ${formatDeleteBy(deleteBy)}` : ''}.`,
+    'Report any loss or exposure to the Trescon Ops team immediately.',
+    '',
+  ].join('\r\n'))
+  return { ok: true, batchNumber: batch.batch_number, speakerCount: items.length, files: [{ name: 'README.txt', load: async () => readme }, { name: 'manifest.csv', load: async () => manifest }, ...files] }
 }
 
 /** Streams the archive. `onComplete` runs only after every file was read successfully (never on abort/failure). */

@@ -2,7 +2,7 @@
 
 /* Small shared pieces for the Vendor Portal pages. */
 
-export type ApiError = { error: string; help?: string; contacts?: { name: string; email: string }[] }
+export type ApiError = { error: string; code?: string; help?: string; contacts?: { name: string; email: string }[] }
 
 export function ErrorBox({ error }: { error: ApiError | null }) {
   if (!error) return null

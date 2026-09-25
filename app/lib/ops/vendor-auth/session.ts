@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { newToken, sha256Hex } from './crypto'
+import { VENDOR_TERMS_VERSION } from './terms'
 
 /* Vendor-portal sessions — completely separate from staff auth.
 
@@ -25,6 +26,8 @@ export type VendorSession = {
   email: string
   vendorId: string
   vendorName: string
+  /** Has this user accepted the CURRENT data-handling terms? (guard.ts blocks everything else until they have) */
+  termsAccepted: boolean
 }
 
 export async function createVendorSession(userId: string, ip: string, userAgent: string | null): Promise<{ token: string; maxAgeSeconds: number }> {
@@ -75,7 +78,9 @@ export async function getVendorSession(req: NextRequest): Promise<VendorSession 
   if (new Date(row.last_seen_at).getTime() + TOUCH_INTERVAL_MS <= now) {
     await supabaseAdmin.from('ops_vendor_sessions').update({ last_seen_at: new Date().toISOString() }).eq('id', row.id)
   }
-  return { sessionId: row.id, userId: row.user_id, name: user.name, email: user.email, vendorId: user.vendor_id, vendorName: vendor.name }
+  const { data: accepted } = await supabaseAdmin.from('ops_vendor_terms_acceptances').select('id')
+    .eq('vendor_user_id', row.user_id).eq('terms_version', VENDOR_TERMS_VERSION).maybeSingle()
+  return { sessionId: row.id, userId: row.user_id, name: user.name, email: user.email, vendorId: user.vendor_id, vendorName: vendor.name, termsAccepted: !!accepted }
 }
 
 export async function revokeSession(sessionId: string): Promise<void> {

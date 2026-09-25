@@ -106,7 +106,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
       const { data: vendor } = await supabaseAdmin.from('ops_vendors').select('active').eq('id', batch.vendor_id).single()
       if (!vendor?.active) return wrongState('This vendor is inactive.')
       const { data: done } = await supabaseAdmin.from('ops_license_batches')
-        .update({ status: batch.downloaded_at ? 'downloaded' : 'sent', completed_at: null, completion_type: null, expires_at: expiresAt, access_days: days })
+        .update({
+          status: batch.downloaded_at ? 'downloaded' : 'sent', completed_at: null, completion_type: null, expires_at: expiresAt, access_days: days,
+          // A reopened batch starts the vendor's data-handling steps again: fresh delete-by acknowledgement and deletion confirmation.
+          delete_by: null, download_ack_at: null, download_ack_user_id: null, deletion_confirmed_at: null, deletion_confirmed_by: null, deletion_confirmed_ip: null,
+        })
         .eq('id', batch.id).in('status', ['completed', 'expired']).select('id')
       if (!done?.length) return wrongState('This batch changed state. Refresh and try again.')
       await audit('batch_reopened', { days })

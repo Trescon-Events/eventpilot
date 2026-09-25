@@ -33,12 +33,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
     return vpError(409, batch.status === 'completed' ? 'Access to this batch has ended because it was completed.' : 'Access to this batch has ended.', { eventIds })
   }
 
-  const prepared = await prepareBatchZip(batch.id)
+  // The delete-by date must have been acknowledged first (see acknowledge/route.ts).
+  if (!batch.download_ack_at) return vpError(409, 'Please confirm the deletion date before downloading.', { eventIds })
+
+  const prepared = await prepareBatchZip(batch.id, batch.delete_by)
   if (!prepared.ok) return vpError(409, prepared.message, { eventIds })
 
   const audited = await logOpsAccess({
     ...auditOwner(scope), actorType: 'vendor', actorId: session.userId, action: 'vendor_batch_download_started',
-    targetType: 'license_batch', targetId: batch.id, meta: { batch_number: batch.batch_number, files: prepared.files.length - 1 }, ip,
+    targetType: 'license_batch', targetId: batch.id, meta: { batch_number: batch.batch_number, files: prepared.files.length - 2 }, ip,
   })
   if (!audited) return vpError(500, 'The download could not be started.', { eventIds })
 
