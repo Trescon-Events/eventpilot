@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getSession as verifiedGetSession } from '@/app/lib/access/session'
 
 /*
   POST /api/activity/heartbeat
@@ -9,16 +10,9 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 */
 
 export async function POST(req: NextRequest) {
-  const raw = req.cookies.get('tcs_session')?.value
-  if (!raw) return NextResponse.json({ ok: false }, { status: 401 })
-
-  let staffId: string | null = null
-  try {
-    const session = JSON.parse(Buffer.from(raw, 'base64').toString('utf-8'))
-    staffId = session?.sid ?? null
-  } catch {
-    return NextResponse.json({ ok: false }, { status: 401 })
-  }
+  const session = verifiedGetSession(req)
+  if (!session) return NextResponse.json({ ok: false }, { status: 401 })
+  const staffId: string | null = session.sid ?? null
 
   if (!staffId || staffId === 'super-admin') {
     return NextResponse.json({ ok: true }) // super-admin synthetic session — skip

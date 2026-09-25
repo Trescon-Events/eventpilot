@@ -23,16 +23,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { sendToolAccessRequest } from '@/app/lib/email'
 import { GRANT_STRATEGY, labelFor } from '@/app/lib/access-requests/grant-map'
+import { getSession as verifiedGetSession } from '@/app/lib/access/session'
 
 const recentEmails = new Map<string, number>()
 const DEDUPE_WINDOW_MS = 24 * 60 * 60 * 1000
 
 export async function POST(req: NextRequest) {
-  const raw = req.cookies.get('tcs_session')?.value
-  if (!raw) return NextResponse.json({ error: 'Not signed in' }, { status: 401 })
-
-  let session: { sid?: string; adm?: boolean } | null = null
-  try { session = JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) } catch {}
+  const session = verifiedGetSession(req)
   if (!session?.sid) return NextResponse.json({ error: 'Not signed in' }, { status: 401 })
 
   const body = await req.json().catch(() => ({}))

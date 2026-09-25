@@ -15,6 +15,7 @@ import LogoTicker          from './sections/LogoTicker'
 import GallerySection      from './sections/GallerySection'
 import VideoEmbed          from './sections/VideoEmbed'
 import ScheduleTimeline    from './sections/ScheduleTimeline'
+import { decodeSession } from '@/app/lib/access/session'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Speaker  = { id: string; name: string; role: string|null; company: string|null; bio: string|null; photo_url: string|null; linkedin_url: string|null; tier: string; session_title: string|null }
@@ -47,9 +48,9 @@ type Website  = {
 async function isAdminPreview(): Promise<boolean> {
   try {
     const store = await cookies()
-    const raw = store.get('tcs_session')?.value
-    if (!raw) return false
-    const s = JSON.parse(Buffer.from(raw, 'base64').toString('utf-8'))
+    // Verified (2026-09-25): this public page used to trust an unsigned cookie here, so a forged cookie could
+    // preview unpublished event sites.
+    const s = decodeSession(store.get('tcs_session')?.value)
     return s?.adm === true || !!s?.sid
   } catch { return false }
 }

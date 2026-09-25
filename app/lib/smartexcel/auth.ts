@@ -31,6 +31,7 @@ import { eq } from "drizzle-orm";
 import { getDb, schema, type DB } from "./db/client";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import { hasPermission, PERMISSIONS, type PermissionKey, type RoleKey } from "./lib/roles";
+import { decodeSession } from '@/app/lib/access/session'
 
 // Matches SmartExcel's own SUPER_ADMIN_EMAIL default (tools/smartexcel/src/lib/env.ts) —
 // intentionally independent of EventPilot's own super-admin flag.
@@ -53,14 +54,9 @@ interface EventPilotSession {
 }
 
 async function readEventPilotSession(): Promise<EventPilotSession | null> {
-  const raw = (await cookies()).get("tcs_session")?.value;
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(Buffer.from(raw, "base64").toString("utf-8"));
-    return parsed?.sid ? parsed : null;
-  } catch {
-    return null;
-  }
+  // Signature-verified (2026-09-25 cookie sweep) — never decode tcs_session by hand.
+  const parsed = decodeSession((await cookies()).get("tcs_session")?.value);
+  return parsed?.sid ? (parsed as unknown as EventPilotSession) : null;
 }
 
 async function getRoleIdByKey(db: DB, key: RoleKey): Promise<string> {

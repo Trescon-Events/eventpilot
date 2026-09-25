@@ -779,7 +779,7 @@ IP Allowlisting (Optional)
 When enabled, staff can only log in from Trescon office IP addresses. Admins (dept_head and above) are exempt and can log in from anywhere.
 
 Password System
-Default password on first login: trescon@2026. Passwords are stored as bcrypt hashes — never plain text. Admins can reset any staff member's password from the Admin Dashboard.
+Staff sign in with Microsoft (single sign-on). Any stored passwords are kept as bcrypt hashes — never plain text. Admins can reset any staff member's password from the Admin Dashboard.
 
 Session Management
 Sessions expire after 8 hours. Stored as httpOnly cookies — cannot be read by browser JavaScript.

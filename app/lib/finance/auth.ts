@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { isAdminRoleSet } from '@/app/lib/access/access-roles'
+import { getSession as verifiedGetSession } from '@/app/lib/access/session'
 
 export type FinanceSession = {
   sid:   string
@@ -35,19 +36,18 @@ type Fail = { ok: false; res: NextResponse }
   app (parseSession in middleware.ts).
 */
 function parseSession(req: NextRequest): FinanceSession | null {
-  const raw = req.cookies.get('tcs_session')?.value
-  if (!raw) return null
-  try {
-    const p = JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) as Record<string, unknown>
-    return {
-      sid:   String(p.sid ?? ''),
-      adm:   Boolean(p.adm),
-      roles: Array.isArray(p.roles) ? (p.roles as string[]) : [],
-      dept:  String(p.dept ?? ''),
-      jl:    p.jl ? String(p.jl) : undefined,
-      name:  p.name ? String(p.name) : undefined,
-    }
-  } catch { return null }
+  // Signature-verified (2026-09-25 cookie sweep) — never decode tcs_session by hand.
+  const v = verifiedGetSession(req)
+  if (!v) return null
+  const p = v as unknown as Record<string, unknown>
+  return {
+    sid:   String(p.sid ?? ''),
+    adm:   Boolean(p.adm),
+    roles: Array.isArray(p.roles) ? (p.roles as string[]) : [],
+    dept:  String(p.dept ?? ''),
+    jl:    p.jl ? String(p.jl) : undefined,
+    name:  p.name ? String(p.name) : undefined,
+  }
 }
 
 /*

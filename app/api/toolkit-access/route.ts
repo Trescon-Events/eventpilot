@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getSession as verifiedGetSession } from '@/app/lib/access/session'
 
 /* GET /api/toolkit-access
    Returns { access: true/false } for the current session user.
    Super admins always get access.
 */
 export async function GET(req: NextRequest) {
-  const raw = req.cookies.get('tcs_session')?.value
-  if (!raw) return NextResponse.json({ access: false })
-
-  let session: { sid: string; adm?: boolean } | null = null
-  try { session = JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) } catch { return NextResponse.json({ access: false }) }
+  const session = verifiedGetSession(req)
   if (!session?.sid) return NextResponse.json({ access: false })
 
   // Super admins get full unrestricted access
@@ -36,11 +33,8 @@ export async function GET(req: NextRequest) {
    Toggles toolkit_access for one staff member. Super admin only.
 */
 export async function PATCH(req: NextRequest) {
-  const raw = req.cookies.get('tcs_session')?.value
-  if (!raw) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
-
-  let session: { adm?: boolean } | null = null
-  try { session = JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) } catch {}
+  // Signature-verified admin session (2026-09-25 cookie sweep).
+  const session = verifiedGetSession(req)
   if (!session?.adm) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
   const { id, toolkit_access } = await req.json().catch(() => ({}))

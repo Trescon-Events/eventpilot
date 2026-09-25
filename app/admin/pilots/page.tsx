@@ -655,7 +655,7 @@ export default function AdminPilotsPage() {
                     <div style={{ background: 'var(--border-light)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 16px', marginBottom: 20, fontSize: 12, color: 'var(--ink3)' }}>
                       <strong>CLI:</strong>{' '}
                       <code style={{ fontSize: 11, background: 'var(--card-hi)', padding: '2px 6px', borderRadius: 4 }}>
-                        curl https://eventpilot.tresconglobal.com/api/build-requests?project_id={activeProject.id}&amp;status=submitted -H &quot;x-setup-key: trescon-weekly-insights-2026&quot;
+                        curl https://eventpilot.tresconglobal.com/api/build-requests?project_id={activeProject.id}&amp;status=submitted -H &quot;x-setup-key: &lt;CRON_SECRET&gt;&quot;
                       </code>
                     </div>
 

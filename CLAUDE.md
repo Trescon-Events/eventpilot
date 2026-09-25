@@ -51,10 +51,7 @@ Railway internal URL: eventpilot-production-90c6.up.railway.app
 
 ## KEY VALUES
 - Super admin email: reachcharan@gmail.com
-- Super admin password: taos2026
-- Admin code: taos2026
-- Staff default password: trescon@2026
-- Cron secret: trescon-weekly-insights-2026
+- **No passwords, codes or secrets are kept in this file.** Real values live in `.env.local` (local) and Railway variables (production). On 26 Sep 2026 the following were removed because they were dead and must never sit in a checked-in file: a stale super-admin password, the retired shared "admin code" (it no longer works anywhere — routes now require a real signed session), a staff default password, and the hardcoded cron-secret literal (also retired; only the env `CRON_SECRET` is accepted).
 - Local port: 3003
 
 ---

@@ -1,11 +1,11 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveReview } from '@/app/lib/review-auto-resolve'
+import { getSession as verifiedGetSession } from '@/app/lib/access/session'
 
 function getSession(req: NextRequest) {
-  const raw = req.cookies.get('tcs_session')?.value
-  if (!raw) return null
-  try { return JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) } catch { return null }
+  // Signature-verified (2026-09-25 cookie sweep) — never decode tcs_session by hand.
+  return verifiedGetSession(req)
 }
 
 const STATUS_LABELS: Record<string, string> = {

@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+import { getSession as verifiedGetSession } from '@/app/lib/access/session'
 
 /*
   GET /api/team-courses?manager_id=X
@@ -14,14 +15,11 @@ export async function GET(req: NextRequest) {
   if (!manager_id) return NextResponse.json({ error: 'manager_id required' }, { status: 400 })
 
   // Verify the requesting session is the manager or an admin
-  const sessionRaw = req.cookies.get('tcs_session')?.value
-  if (sessionRaw) {
-    try {
-      const session = JSON.parse(Buffer.from(sessionRaw, 'base64').toString('utf-8'))
-      if (!session.adm && session.sid !== manager_id) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
-    } catch { /* malformed cookie */ }
+  // Verified session, fail-closed (2026-09-25) — the old hand decode skipped this check whenever it failed to parse.
+  const session = verifiedGetSession(req)
+  if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+  if (!session.adm && session.sid !== manager_id) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   // Fetch direct reports — work-related fields only

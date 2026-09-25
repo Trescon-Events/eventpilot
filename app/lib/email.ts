@@ -639,7 +639,7 @@ export async function sendBuildRequestAlert({
       </div>
 
       <p style="font-size:13px;color:#94A3B8;margin:0;line-height:1.6;">
-        Or via CLI: <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:12px;">curl https://eventpilot.tresconglobal.com/api/build-requests?status=submitted -H "x-setup-key: trescon-weekly-insights-2026"</code>
+        Or via CLI: <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:12px;">curl https://eventpilot.tresconglobal.com/api/build-requests?status=submitted -H "x-setup-key: &lt;CRON_SECRET&gt;"</code>
       </p>
 
       ${emailFooter()}

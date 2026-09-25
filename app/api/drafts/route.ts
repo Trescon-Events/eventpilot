@@ -17,12 +17,11 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getSession as verifiedGetSession } from '@/app/lib/access/session'
 
 function getSession(req: NextRequest) {
-  const raw = req.cookies.get('tcs_session')?.value
-  if (!raw) return null
-  try { return JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) as { sid: string; adm?: boolean } }
-  catch { return null }
+  // Signature-verified (2026-09-25 cookie sweep) — never decode tcs_session by hand.
+  return verifiedGetSession(req)
 }
 
 const CREATE_TABLE_SQL = `

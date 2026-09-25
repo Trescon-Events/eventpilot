@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { getSession as verifiedGetSession } from '@/app/lib/access/session'
 
 // Vendor account creation/deletion/module-grants is platform-admin-only
 // (Madhu/Durga) — a deliberately narrower bar than the general
@@ -8,10 +9,8 @@ import { NextRequest } from 'next/server'
 // task is tagged for) is a separate, narrower surface — see
 // app/api/task-manager/vendor-contacts and _lib/access.ts there.
 export function getVendorAccountsSession(req: NextRequest): { sid: string; adm?: boolean } | null {
-  const raw = req.cookies.get('tcs_session')?.value
-  if (!raw) return null
-  try { return JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) as { sid: string; adm?: boolean } }
-  catch { return null }
+  // Signature-verified (2026-09-25 cookie sweep) — never decode tcs_session by hand.
+  return verifiedGetSession(req)
 }
 
 export function isPlatformAdmin(session: { sid: string; adm?: boolean } | null): boolean {

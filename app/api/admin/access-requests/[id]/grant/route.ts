@@ -19,11 +19,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { GRANT_STRATEGY } from '@/app/lib/access-requests/grant-map'
+import { getSession as verifiedGetSession } from '@/app/lib/access/session'
 
 function parseSession(req: NextRequest): { sid?: string; adm?: boolean } | null {
-  const raw = req.cookies.get('tcs_session')?.value
-  if (!raw) return null
-  try { return JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) } catch { return null }
+  // Signature-verified (2026-09-25 cookie sweep) — never decode tcs_session by hand.
+  return verifiedGetSession(req)
 }
 
 type Ctx = { params: Promise<{ id: string }> }

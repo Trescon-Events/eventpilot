@@ -14,17 +14,14 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getSession as verifiedGetSession } from '@/app/lib/access/session'
 
 const BUCKET = 'corporate-marketing'
 
 type Session = { sid?: string; adm?: boolean }
 
 async function requireAccess(req: NextRequest): Promise<{ ok: true; session: Session } | { ok: false; res: NextResponse }> {
-  const raw = req.cookies.get('tcs_session')?.value
-  if (!raw) return { ok: false, res: NextResponse.json({ error: 'Not signed in' }, { status: 401 }) }
-
-  let session: Session | null = null
-  try { session = JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) } catch {}
+  const session = verifiedGetSession(req)
   if (!session?.sid) return { ok: false, res: NextResponse.json({ error: 'Not signed in' }, { status: 401 }) }
 
   if (session.adm) return { ok: true, session }

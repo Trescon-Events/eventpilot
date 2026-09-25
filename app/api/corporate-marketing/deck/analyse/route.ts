@@ -21,16 +21,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { analyseCorporateDeck } from '@/app/lib/corporate-marketing/analyse-deck'
+import { getSession as verifiedGetSession } from '@/app/lib/access/session'
 
 export const runtime = 'nodejs'
 
 const BUCKET = 'corporate-marketing'
 
 async function requireAccess(req: NextRequest) {
-  const raw = req.cookies.get('tcs_session')?.value
-  if (!raw) return { ok: false as const, res: NextResponse.json({ error: 'Not signed in' }, { status: 401 }) }
-  let session: { sid?: string; adm?: boolean } | null = null
-  try { session = JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) } catch {}
+  const session = verifiedGetSession(req)
   if (!session?.sid) return { ok: false as const, res: NextResponse.json({ error: 'Not signed in' }, { status: 401 }) }
   if (session.adm) return { ok: true as const, session }
   const { data } = await supabaseAdmin.from('staff_members').select('tool_grants').eq('id', session.sid).single()

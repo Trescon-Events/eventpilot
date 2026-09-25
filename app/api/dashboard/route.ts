@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { getCachedCourses, CachedCourse } from '@/app/lib/courseCache'
 import { computeAIRS, getTrack } from '@/app/lib/airs'
+import { getSession as verifiedGetSession } from '@/app/lib/access/session'
 
 /* ── Recommendation engine (pure JS — no external calls) ─────────────── */
 const MGMT_LEVELS    = ['team_lead', 'dept_head', 'office_head', 'super_admin']
@@ -88,15 +89,16 @@ export async function GET(req: NextRequest) {
   // ownership — restricted-access agency logins only see modules explicitly
   // granted to them (see app/dashboard/layout.tsx for the page-level gate;
   // this is defense-in-depth for direct API access).
-  const sessionRaw = req.cookies.get('tcs_session')?.value
-  if (sessionRaw && id !== 'super-admin') {
-    try {
-      const session = JSON.parse(Buffer.from(sessionRaw, 'base64').toString('utf-8'))
-      if (session.vt) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      if (!session.adm && session.sid !== id) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
-    } catch { /* malformed cookie — middleware already validated session exists */ }
+  // Verified session (2026-09-25). This used to decode the cookie by hand inside try/catch and SKIP the
+  // ownership check whenever the decode failed — which it did for valid cookies whose payload had no base64
+  // padding — so those users could read other people's dashboards. Now fail-closed.
+  if (id !== 'super-admin') {
+    const session = verifiedGetSession(req)
+    if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+    if (session.vt) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!session.adm && session.sid !== id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
   }
 
   /* Super-admin synthetic session */
