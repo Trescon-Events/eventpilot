@@ -682,3 +682,7 @@ Now help me write a prompt for: [describe what you want to build]
 *Last updated: 13 Jul 2026 — Pilot Projects (§17) role model extended with Collaborator preset and a dedicated Project Builder field, separate from the Builder member role*
 *Previously updated: 03 Jul 2026 (evening) — added Pilot Projects (§17) and the tools-outside-the-main-app pattern (§18, now covering domain-uniformity via eventpilot-proxy), refreshed the Toolkit grants + module map for everything shipped since June*
 *For questions about the platform, contact Madhu (md@tresconglobal.com) or Durga (dc@tresconglobal.com)*
+
+
+<!-- 2026-09-26 -->
+Storage note: Passport / National ID documents and vendor licence copies are stored in Microsoft Azure (UAE North, Dubai), private, view-only through a watermarked viewer; older documents may still be copied in Supabase until a cleanup is approved.
