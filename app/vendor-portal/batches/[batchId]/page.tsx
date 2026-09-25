@@ -59,6 +59,7 @@ export default function VendorBatchPage({ params }: { params: Promise<{ batchId:
 
   async function upload() {
     if (!file) return
+    if (file.size > 20 * 1024 * 1024) { setError({ error: 'That file is larger than 20 MB. Please choose a smaller file.' }); return }
     setBusy('upload'); setError(null); setNotice(null)
     try {
       const form = new FormData(); form.append('file', file)
@@ -108,8 +109,11 @@ export default function VendorBatchPage({ params }: { params: Promise<{ batchId:
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
                 <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: '8px' }}>When the licence is ready</div>
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <input type="file" accept="application/pdf,image/jpeg,image/png" onChange={e => setFile(e.target.files?.[0] ?? null)} style={{ fontSize: '13px', color: 'var(--ink)' }} />
-                  <button onClick={upload} disabled={!file || busy !== null} style={{ ...ghostBtn, opacity: !file || busy ? 0.5 : 1 }}>{busy === 'upload' ? 'Uploading…' : 'Upload licence (PDF, JPG, PNG · max 20 MB)'}</button>
+                  <input type="file" accept="application/pdf,image/jpeg,image/png" onChange={e => { setError(null); setFile(e.target.files?.[0] ?? null) }} style={{ fontSize: '13px', color: 'var(--ink)' }} />
+                  <button onClick={upload} disabled={!file || busy !== null} style={{ ...ghostBtn, opacity: !file || busy ? 0.5 : 1, cursor: !file || busy ? 'not-allowed' : 'pointer' }}>{busy === 'upload' ? 'Uploading…' : 'Upload licence'}</button>
+                </div>
+                <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--ink3)' }}>
+                  {file ? `Ready to upload: ${file.name}` : '1. Choose the licence file above (PDF, JPG or PNG · max 20 MB), then 2. click Upload licence.'}
                 </div>
                 <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--ink3)' }}>
                   Or, if you only need to confirm approval without a file:{' '}
