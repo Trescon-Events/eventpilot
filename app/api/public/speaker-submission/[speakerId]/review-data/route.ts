@@ -47,8 +47,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ spea
     // to ask "Are you a UAE resident?" at all — only when this is still
     // genuinely unknown (2026-09-24, per Madhu: never ask a question the
     // record already has an answer to).
-    current_short_bio: speaker.bio ?? '',
-    current_country: speaker.country ?? '',
+    // Only when that field was actually requested — a token unlocks nothing beyond what was asked for.
+    current_short_bio: requestedFields.includes('short_bio') ? (speaker.bio ?? '') : '',
+    current_country: requestedFields.includes('country') ? (speaker.country ?? '') : '',
     is_uae_resident: speaker.is_uae_resident,
   })
 }

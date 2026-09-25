@@ -145,6 +145,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
   let retentionExpiresAt: string | null = null
   for (const docType of docTypes) {
     if (!requestedFields.has(docType)) continue
+    // National ID is only ever for UAE residents (same rule as the form) — never store one for a confirmed non-resident.
+    if (docType === 'national_id' && (speakerPatch.is_uae_resident ?? speaker.is_uae_resident) === false) continue
     const file = form.get(docType) as File | null
     if (!file || file.size === 0) continue
     const ext = ALLOWED_DOC_TYPES[file.type]

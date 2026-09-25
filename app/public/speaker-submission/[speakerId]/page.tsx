@@ -146,16 +146,22 @@ export default function SpeakerSubmissionPage({ params }: { params: Promise<{ sp
   const showNationalId = licenseItems.includes('national_id') && (data.is_uae_resident === true || uaeAnswer === 'yes')
 
   async function submit() {
-    const hasAnyFile = Object.values(files).some(f => f)
+    // Only what this form actually SHOWS the speaker counts — the fields the producer picked when
+    // composing the request. State for anything not shown (a pre-filled bio/country, a file chosen
+    // before switching the UAE answer) is never validated or sent.
+    const shownFileKeys = [
+      ...profileItems.filter(k => k === 'photo' || k === 'bio_full'),
+      ...(showLicenseUploads && licenseItems.includes('passport') ? ['passport'] : []),
+      ...(showLicenseUploads && showNationalId ? ['national_id'] : []),
+    ]
+    const shownFiles = shownFileKeys.filter(k => files[k])
     const hasShortBio = profileItems.includes('short_bio') && shortBio.trim().length > 0
     const hasCountry = profileItems.includes('country') && country.trim().length > 0
-    if (!hasAnyFile && !hasShortBio && !hasCountry) { setSubmitError('Please add at least one item before submitting.'); return }
-    // Only when Short Bio is actually being asked for: the state is pre-filled from the speaker's
-    // existing bio, which can be over the limit on a form that only asks for documents.
+    if (shownFiles.length === 0 && !hasShortBio && !hasCountry) { setSubmitError('Please add at least one item before submitting.'); return }
     if (hasShortBio && shortBio.trim().length > MAX_SHORT_BIO_CHARS) { setSubmitError(`Short Bio must be ${MAX_SHORT_BIO_CHARS} characters or less.`); return }
     setSubmitting(true); setSubmitError(null)
     const form = new FormData()
-    for (const [key, file] of Object.entries(files)) if (file) form.append(key, file)
+    for (const key of shownFiles) form.append(key, files[key] as File)
     if (hasShortBio) form.append('short_bio', shortBio.trim())
     if (hasCountry) form.append('country', country.trim())
     if (needsUaeQuestion && uaeAnswer) form.append('is_uae_resident', uaeAnswer)
