@@ -219,9 +219,9 @@ async function uploadLicense(scopeBody: Record<string, string>, batchIds: string
 
 async function openLicenseFile(fileId: string, onError: (e: string) => void) {
   const res = await fetch(`/api/events/operations/licenses/files/${fileId}`)
-  const body = await res.json().catch(() => null)
-  if (!res.ok) { onError(body?.error ?? 'Could not open the file.'); return }
-  window.open(body.url, '_blank', 'noopener,noreferrer')
+  if (!res.ok) { onError((await res.json().catch(() => null))?.error ?? 'Could not open the file.'); return }
+  // The server streams the file (no storage link exists); open it from a local blob URL.
+  window.open(URL.createObjectURL(await res.blob()), '_blank', 'noopener')
 }
 
 function BatchCard({ batch: b, onCancel, onChanged, onError }: { batch: Batch; onCancel: () => void; onChanged: () => void; onError: (e: string | null) => void }) {
