@@ -106,29 +106,49 @@ export default function VendorBatchPage({ params }: { params: Promise<{ batchId:
                 </button>
                 <span style={{ fontSize: '12px', color: 'var(--ink3)', marginLeft: '12px' }}>Includes a manifest.csv and a folder per speaker. You can download again while access remains.</span>
               </div>
-              <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: '8px' }}>When the licence is ready</div>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <input type="file" accept="application/pdf,image/jpeg,image/png" onChange={e => { setError(null); setFile(e.target.files?.[0] ?? null) }} style={{ fontSize: '13px', color: 'var(--ink)' }} />
-                  <button onClick={upload} disabled={!file || busy !== null} style={{ ...ghostBtn, opacity: !file || busy ? 0.5 : 1, cursor: !file || busy ? 'not-allowed' : 'pointer' }}>{busy === 'upload' ? 'Uploading…' : 'Upload licence'}</button>
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px', display: 'grid', gap: '12px' }}>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)' }}>When the licence is ready</div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '2px' }}>Choose one of the two options below. Either one completes the batch and ends your access to its documents.</div>
                 </div>
-                <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--ink3)' }}>
-                  {file ? `Ready to upload: ${file.name}` : '1. Choose the licence file above (PDF, JPG or PNG · max 20 MB), then 2. click Upload licence.'}
-                </div>
-                <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--ink3)' }}>
-                  Or, if you only need to confirm approval without a file:{' '}
-                  {confirmApprove ? (
-                    <span>
-                      This ends your access to this batch.{' '}
-                      <button onClick={approve} disabled={busy !== null} style={linkBtn}>{busy === 'approve' ? 'Sending…' : 'Yes, confirm approved'}</button>{' · '}
-                      <button onClick={() => setConfirmApprove(false)} style={linkBtn}>Cancel</button>
-                    </span>
-                  ) : (
-                    <button onClick={() => setConfirmApprove(true)} style={linkBtn}>Mark this batch as approved</button>
-                  )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
+                  <div style={{ padding: '14px', borderRadius: '10px', border: '1px solid var(--border)', display: 'grid', gap: '10px', alignContent: 'start' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>Option 1 · Upload the licence</div>
+                    <label style={{ display: 'block', padding: '18px 14px', borderRadius: '8px', border: `2px dashed ${file ? 'var(--teal)' : 'var(--border)'}`, textAlign: 'center', cursor: 'pointer', color: 'var(--ink2)', fontSize: '13px', fontWeight: 600 }}>
+                      <input type="file" accept="application/pdf,image/jpeg,image/png" style={{ display: 'none' }}
+                        onChange={e => { setError(null); setFile(e.target.files?.[0] ?? null) }} />
+                      {file ? file.name : 'Click here to choose the licence file'}
+                      <div style={{ fontSize: '11.5px', fontWeight: 500, color: 'var(--ink3)', marginTop: '4px' }}>
+                        {file ? 'Click again to choose a different file' : 'PDF, JPG or PNG · max 20 MB'}
+                      </div>
+                    </label>
+                    <button onClick={upload} disabled={!file || busy !== null}
+                      style={{ padding: '11px 16px', borderRadius: '8px', border: 'none', background: 'var(--teal)', color: 'var(--teal-light)', fontSize: '14px', fontWeight: 700, cursor: !file || busy ? 'not-allowed' : 'pointer', opacity: !file || busy ? 0.45 : 1 }}>
+                      {busy === 'upload' ? 'Uploading…' : 'Upload licence and complete batch'}
+                    </button>
+                    {!file && <div style={{ fontSize: '11.5px', color: 'var(--ink3)' }}>Choose a file first — the button turns on once a file is selected.</div>}
+                  </div>
+
+                  <div style={{ padding: '14px', borderRadius: '10px', border: '1px solid var(--border)', display: 'grid', gap: '10px', alignContent: 'start' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>Option 2 · Confirm approval without a file</div>
+                    <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>Use this if you only need to tell Trescon Ops that the licences have been approved.</div>
+                    {confirmApprove ? (
+                      <div style={{ display: 'grid', gap: '8px' }}>
+                        <div style={{ fontSize: '12.5px', color: 'var(--ink)', fontWeight: 600 }}>This ends your access to this batch. Confirm?</div>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                          <button onClick={approve} disabled={busy !== null} style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', background: 'var(--teal)', color: 'var(--teal-light)', fontSize: '13.5px', fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+                            {busy === 'approve' ? 'Sending…' : 'Yes, confirm approved'}
+                          </button>
+                          <button onClick={() => setConfirmApprove(false)} style={ghostBtn}>Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button onClick={() => setConfirmApprove(true)} disabled={busy !== null} style={{ ...ghostBtn, padding: '10px 16px', fontWeight: 700 }}>Mark batch as approved</button>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>Uploading a licence or marking the batch approved completes it and ends your access to its documents.</div>
             </div>
           ) : (
             <div style={{ padding: '14px 16px', borderRadius: '8px', background: 'var(--border-light)', color: 'var(--ink3)', fontSize: '13px', marginBottom: '22px' }}>
