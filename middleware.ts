@@ -270,6 +270,8 @@ export async function middleware(req: NextRequest) {
     /^\/admin\/events\/[^/]+\/(website|brand|market-intel|creative-templates|stakeholders|plan|execution|brief|details|announcements|messaging|operations)/.test(pathname) ||
     // 2026-09-25: umbrella-level Operations (licence processing for a whole umbrella, e.g. DFFW). Auth-only here; app/admin/umbrellas/[id]/operations/layout.tsx does the real check.
     /^\/admin\/umbrellas\/[^/]+\/operations(\/|$)/.test(pathname) ||
+    // The umbrella's own URL is reachable by any signed-in person too, so an Operations user can enter its workspace: app/admin/umbrellas/[id]/page.tsx sends non-admins on to /operations, and the layout refuses anyone with neither admin nor ops.view.
+    /^\/admin\/umbrellas\/[^/]+\/?$/.test(pathname) ||
     // 2026-08-17: the workspace hub itself (no sub-segment) — auth-only,
     // app/admin/events/[id]/layout.tsx does the real hasAnyEventAccess
     // check. Deliberately excludes /access (RBAC assignment management),

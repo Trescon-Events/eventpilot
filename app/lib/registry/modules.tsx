@@ -56,7 +56,7 @@ export type ModuleAccess =
   // "Tool Permissions" drawer (or a tool's own Settings→Access tab) grant a
   // specific person access without changing their role or department.
 
-export type ModuleHrefCtx = { staffId?: string; eventId?: string }
+export type ModuleHrefCtx = { staffId?: string; eventId?: string; umbrellaId?: string }
 
 // Closed union, deliberately not `string` — only these five sections exist
 // in the new persistent sidebar as of 2026-08-17. Adding a 6th (e.g.
@@ -1024,6 +1024,46 @@ export function getModuleRegistry(): ModuleDef[] {
       href: '/admin?tab=events',
       access: { kind: 'always' },
       sidebar: { section: 'events', order: 0 },
+    },
+    {
+      key: 'admin-umbrellas', label: 'Umbrellas',
+      description: 'Umbrella events (groupings such as Dubai Future Finance Week).',
+      icon: I.dashboard, color: '#009C89',
+      href: '/admin/umbrellas',
+      breadcrumbPattern: '/admin/umbrellas', breadcrumbParent: 'admin',
+      access: { kind: 'admin_only' },
+    },
+    {
+      key: 'admin-umbrella-workspace', label: 'Umbrella Workspace',
+      description: 'Workspace for one umbrella event — details, reference documents and Operations. The trail shows its real name.',
+      icon: I.dashboard, color: '#009C89',
+      href: ctx => `/admin/umbrellas/${ctx.umbrellaId}`,
+      breadcrumbPattern: '/admin/umbrellas/:umbrellaId', breadcrumbParent: 'admin-umbrellas',
+      access: { kind: 'admin_only' },
+    },
+    {
+      key: 'admin-umbrella-operations', label: 'Operations',
+      description: 'Umbrella-level Operations — vendors and speaker-licence processing for every event in the umbrella. Real gate: app/admin/umbrellas/[id]/operations/layout.tsx.',
+      icon: I.dashboard, color: '#009C89',
+      href: ctx => `/admin/umbrellas/${ctx.umbrellaId}/operations`,
+      breadcrumbPattern: '/admin/umbrellas/:umbrellaId/operations', breadcrumbParent: 'admin-umbrella-workspace',
+      access: { kind: 'admin_only' },
+    },
+    {
+      key: 'admin-umbrella-operations-vendors', label: 'Vendors',
+      description: 'Umbrella Operations — vendor directory.',
+      icon: I.dashboard, color: '#009C89',
+      href: ctx => `/admin/umbrellas/${ctx.umbrellaId}/operations/vendors`,
+      breadcrumbPattern: '/admin/umbrellas/:umbrellaId/operations/vendors', breadcrumbParent: 'admin-umbrella-operations',
+      access: { kind: 'admin_only' },
+    },
+    {
+      key: 'admin-umbrella-operations-licenses', label: 'Licences',
+      description: 'Umbrella Operations — speaker-licence batches.',
+      icon: I.dashboard, color: '#009C89',
+      href: ctx => `/admin/umbrellas/${ctx.umbrellaId}/operations/licenses`,
+      breadcrumbPattern: '/admin/umbrellas/:umbrellaId/operations/licenses', breadcrumbParent: 'admin-umbrella-operations',
+      access: { kind: 'admin_only' },
     },
     {
       key: 'admin-event-workspace', label: 'Event Workspace',

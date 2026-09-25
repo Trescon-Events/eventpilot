@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { getAccessibleEventIds } from '@/app/lib/access/event-access'
+import { umbrellasForStaff } from '@/app/lib/ops/my-umbrellas'
 import { TRACKED_EVENT_FIELDS, logEventFieldChanges } from '@/app/lib/events/detail-field-log'
 
 /* GET /api/events — list all events with staff count and doc count */
@@ -56,7 +57,8 @@ export async function GET(req: NextRequest) {
           `)
           .order('created_at', { ascending: false })
         if (error) throw error
-        return NextResponse.json((data ?? []).map(ev => ({ ...ev, my_role: null, has_workspace_access: true })))
+        const umbrellas = await umbrellasForStaff(staffId, true)
+        return NextResponse.json([...umbrellas, ...(data ?? []).map(ev => ({ ...ev, my_role: null, has_workspace_access: true }))])
       }
 
       // Events assigned to this staff member (roster, event_staff — the
@@ -70,11 +72,12 @@ export async function GET(req: NextRequest) {
         .select('event_id, role, events(id, name, type, status, event_date, venue, city, client_name, description)')
         .eq('staff_id', staffId)
       const accessibleEventIds = new Set(access.eventIds)
-      return NextResponse.json((assignments ?? []).map(a => ({
+      const umbrellas = await umbrellasForStaff(staffId, false)
+      return NextResponse.json([...umbrellas, ...(assignments ?? []).map(a => ({
         ...a.events,
         my_role: a.role,
         has_workspace_access: accessibleEventIds.has(a.event_id),
-      })))
+      }))])
     }
 
     // Admin — all events

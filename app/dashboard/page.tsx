@@ -161,7 +161,7 @@ function DashboardContent() {
   const [teamCourses,    setTeamCourses]    = useState<TeamMember[]>([])
   // Knowledge base + events
   type DocItem   = { id: string; title: string; type: string; word_count: number; events?: { name: string } | null }
-  type EventItem = { id: string; name: string; type: string; status: string; event_date: string | null; city: string | null; my_role: string | null; has_workspace_access?: boolean }
+  type EventItem = { id: string; name: string; type: string; status: string; event_date: string | null; city: string | null; my_role: string | null; has_workspace_access?: boolean; kind?: 'umbrella'; href?: string }
   type MyChecklistItem = {
     id: string; department: string; title: string; status: string
     due_date: string | null; notes: string | null
@@ -1331,6 +1331,7 @@ function DashboardContent() {
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' }}>
                     <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>{ev.name}</span>
+                    {ev.kind === 'umbrella' && <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: 'var(--teal-light)', color: 'var(--teal)' }}>Umbrella</span>}
                     <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: ev.status === 'active' ? 'rgba(192,244,60,0.15)' : 'var(--card)', color: ev.status === 'active' ? 'var(--teal)' : 'var(--ink2)' }}>{ev.status}</span>
                   </div>
                   <div style={{ fontSize: '13px', color: 'var(--ink)', display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
@@ -1341,11 +1342,12 @@ function DashboardContent() {
                 </div>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   {ev.has_workspace_access && (
-                    <Link href={`/admin/events/${ev.id}`}
+                    <Link href={ev.href ?? `/admin/events/${ev.id}`}
                       style={{ padding: '8px 16px', borderRadius: '16px', border: '1px solid var(--teal-border)', background: 'var(--teal)', color: 'var(--card)', fontSize: '13px', fontWeight: 700, fontFamily: 'inherit', whiteSpace: 'nowrap', textDecoration: 'none' }}>
                       Open Workspace →
                     </Link>
                   )}
+                  {ev.kind !== 'umbrella' && (
                   <button
                     onClick={() => {
                       const chat = document.querySelector('[data-pilot-trigger]') as HTMLElement
@@ -1354,6 +1356,7 @@ function DashboardContent() {
                     style={{ padding: '8px 16px', borderRadius: '16px', border: '1px solid rgba(0,165,163,0.4)', background: 'rgba(0,165,163,0.1)', color: 'var(--teal)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
                     Talk to Pilot about this event
                   </button>
+                  )}
                 </div>
               </div>
             ))}
