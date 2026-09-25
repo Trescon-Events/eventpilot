@@ -685,4 +685,4 @@ Now help me write a prompt for: [describe what you want to build]
 
 
 <!-- 2026-09-26 -->
-Storage note: Passport / National ID documents and vendor licence copies are stored in Microsoft Azure (UAE North, Dubai), private, view-only through a watermarked viewer; older documents may still be copied in Supabase until a cleanup is approved.
+Sensitive documents note: speakers' Passport / National ID copies are stored only in Microsoft Azure (UAE North, Dubai), private and encrypted, viewable by staff only through a watermarked view-only screen (every view logged), and deleted automatically 30 days after the last event day. A speaker must tick a consent box on the upload form (recorded with time/version/IP). The licence vendor receives documents only through the Vendor Portal, must accept data-handling terms, acknowledge a delete-by date before downloading, and confirm deletion of all copies when submitting the licence. Documents are never accepted by email or any other channel.
