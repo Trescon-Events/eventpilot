@@ -3,6 +3,7 @@
 import { use, useCallback, useEffect, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
+import SensitiveDocViewer from '@/app/components/SensitiveDocViewer'
 
 type Doc = { id: string; file_name: string; mime_type: string }
 type Candidate = {
@@ -22,7 +23,6 @@ type Batch = {
 }
 type Vendor = { id: string; name: string }
 type Data = { ready: Candidate[]; notReadyCount: number; batches: Batch[]; vendors: Vendor[] }
-type Preview = { title: string; url: string; mime: string } | { error: string } | 'loading'
 
 const STATUS: Record<string, { label: string; color: string; bg: string }> = {
   draft:      { label: 'Draft',      color: 'var(--ink3)',  bg: 'var(--border-light)' },
@@ -43,7 +43,7 @@ export default function LicensesPage({ params }: { params: Promise<{ id: string 
   const [vendorId, setVendorId] = useState('')
   const [days, setDays] = useState(7)
   const [creating, setCreating] = useState(false)
-  const [preview, setPreview] = useState<Preview | null>(null)
+  const [viewer, setViewer] = useState<{ docId: string; title: string } | null>(null)
   const [reloadTick, setReloadTick] = useState(0)
   const reload = useCallback(() => setReloadTick(t => t + 1), [])
 
@@ -72,13 +72,6 @@ export default function LicensesPage({ params }: { params: Promise<{ id: string 
 
   function toggle(id: string) {
     setSelected(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
-  }
-
-  async function openDoc(title: string, docId: string) {
-    setPreview('loading')
-    const res = await fetch(`/api/events/operations/licenses/document?doc_id=${docId}`)
-    const body = await res.json().catch(() => null)
-    setPreview(res.ok ? { title, url: body.url, mime: body.mime_type } : { error: body?.error ?? 'Could not open the document.' })
   }
 
   async function createBatch() {
@@ -145,8 +138,8 @@ export default function LicensesPage({ params }: { params: Promise<{ id: string 
                       <div style={cell}>{c.country || '—'}</div>
                       <div><span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '999px', background: c.is_uae_resident ? 'var(--teal-light)' : 'var(--border-light)', color: c.is_uae_resident ? 'var(--teal)' : 'var(--ink3)' }}>{c.is_uae_resident ? 'Yes' : 'No'}</span></div>
                       <div style={{ display: 'flex', gap: '6px' }}>
-                        <DocIcon label="Passport" onClick={() => openDoc(`${c.name} — Passport`, c.passport.id)} />
-                        {c.national_id && <DocIcon label="National ID" onClick={() => openDoc(`${c.name} — National ID`, c.national_id!.id)} />}
+                        <DocIcon label="Passport" onClick={() => setViewer({ docId: c.passport.id, title: `${c.name} — Passport` })} />
+                        {c.national_id && <DocIcon label="National ID" onClick={() => setViewer({ docId: c.national_id!.id, title: `${c.name} — National ID` })} />}
                       </div>
                     </div>
                   ))}
@@ -190,7 +183,7 @@ export default function LicensesPage({ params }: { params: Promise<{ id: string 
         )}
       </div>
 
-      {preview && <PreviewModal preview={preview} onClose={() => setPreview(null)} />}
+      {viewer && <SensitiveDocViewer docId={viewer.docId} title={viewer.title} onClose={() => setViewer(null)} />}
     </div>
   )
 }
@@ -378,28 +371,6 @@ function DocIcon({ label, onClick }: { label: string; onClick: () => void }) {
       <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
       {label === 'Passport' ? 'Passport' : 'ID'}
     </button>
-  )
-}
-
-function PreviewModal({ preview, onClose }: { preview: Preview; onClose: () => void }) {
-  const ok = typeof preview === 'object' && 'url' in preview ? preview : null
-  return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'var(--overlay-scrim)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card)', borderRadius: '12px', width: 'min(900px, 100%)', height: 'min(85vh, 900px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>{ok ? ok.title : 'Document preview'}</div>
-          <button onClick={onClose} style={btnGhost}>Close</button>
-        </div>
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface)' }}>
-          {preview === 'loading' && <span style={{ color: 'var(--ink3)', fontSize: '13px' }}>Opening…</span>}
-          {typeof preview === 'object' && 'error' in preview && <span style={{ color: 'var(--amber)', fontSize: '13px' }}>{preview.error}</span>}
-          {ok && (ok.mime.startsWith('image/')
-            // eslint-disable-next-line @next/next/no-img-element
-            ? <img src={ok.url} alt={ok.title} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-            : <iframe src={ok.url} title={ok.title} style={{ width: '100%', height: '100%', border: 0 }} />)}
-        </div>
-      </div>
-    </div>
   )
 }
 

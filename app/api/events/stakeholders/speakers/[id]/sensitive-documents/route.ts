@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
-import { uploadSensitiveDocument, getSensitiveDocumentSignedUrl, deleteSensitiveDocument } from '@/app/lib/events/sensitive-storage'
+import { uploadSensitiveDocument, deleteSensitiveDocument } from '@/app/lib/events/sensitive-storage'
 
 /* GET  /api/events/stakeholders/speakers/[id]/sensitive-documents
    POST /api/events/stakeholders/speakers/[id]/sensitive-documents  (multipart: file, document_type)
@@ -58,7 +58,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     file_size: r.file_size,
     uploaded_at: r.uploaded_at,
     retention_expires_at: r.retention_expires_at,
-    signed_url: r.storage_path ? await getSensitiveDocumentSignedUrl(r.storage_path) : null,
     reviewed_at: r.reviewed_at,
     reviewed_by_name: r.reviewed_by ? (reviewerNameById.get(r.reviewed_by) ?? null) : null,
   })))
@@ -159,11 +158,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const signedUrl = await getSensitiveDocumentSignedUrl(storagePath)
   return NextResponse.json({
     document: {
       id: row.id, document_type: row.document_type, file_name: row.file_name, file_size: row.file_size,
-      uploaded_at: row.uploaded_at, retention_expires_at: row.retention_expires_at, signed_url: signedUrl,
+      uploaded_at: row.uploaded_at, retention_expires_at: row.retention_expires_at,
     },
   })
 }

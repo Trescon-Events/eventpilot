@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Card, Button, Badge } from '@/app/components/ui'
 import DeleteSensitiveDocumentModal from './DeleteSensitiveDocumentModal'
+import SensitiveDocViewer from '@/app/components/SensitiveDocViewer'
 
 /* Passport / National ID storage — isolated from the general speaker
    record (see app/lib/events/sensitive-storage.ts's doc comment for the
@@ -20,7 +21,6 @@ type ActiveDoc = {
   file_size: number | null
   uploaded_at: string
   retention_expires_at: string
-  signed_url: string | null
   reviewed_at: string | null
   reviewed_by_name: string | null
 }
@@ -73,6 +73,7 @@ export default function SensitiveDocumentsTab({
   const [showHistory, setShowHistory] = useState(false)
   const [savingUaeResident, setSavingUaeResident] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<ActiveDoc | null>(null)
+  const [viewing, setViewing] = useState<{ docId: string; title: string } | null>(null)
   const [deleting, setDeleting] = useState(false)
   const fileInputs = { passport: useRef<HTMLInputElement>(null), national_id: useRef<HTMLInputElement>(null) }
 
@@ -244,10 +245,8 @@ export default function SensitiveDocumentsTab({
                   <Badge color={badgeColor}>{badgeLabel}</Badge>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '14px' }}>
-                  {doc?.signed_url && (
-                    <a href={doc.signed_url} target="_blank" rel="noopener noreferrer">
-                      <Button variant="ghost">View</Button>
-                    </a>
+                  {doc && (
+                    <Button variant="ghost" onClick={() => setViewing({ docId: doc.id, title: DOC_LABELS[type] })}>View</Button>
                   )}
                   {canManage && (
                     <>
@@ -302,6 +301,7 @@ export default function SensitiveDocumentsTab({
         )}
       </div>
 
+      {viewing && <SensitiveDocViewer docId={viewing.docId} title={viewing.title} onClose={() => setViewing(null)} />}
       {deleteTarget && (
         <DeleteSensitiveDocumentModal
           docLabel={DOC_LABELS[deleteTarget.document_type]}
