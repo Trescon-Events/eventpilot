@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
+import { computeRetention } from '@/app/lib/events/sensitive-retention'
 import { sensitiveDocumentFileName, publicNameForFile, type SensitiveDocType } from '@/app/lib/events/sensitive-doc-name'
 import { uploadSensitiveDocument, deleteSensitiveDocument } from '@/app/lib/events/sensitive-storage'
 
@@ -108,14 +109,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!ext) return NextResponse.json({ error: `Unsupported file type ${file.type}` }, { status: 400 })
   if (file.size > MAX_SIZE) return NextResponse.json({ error: `File too large (max ${MAX_SIZE / (1024 * 1024)} MB)` }, { status: 413 })
 
-  const { data: event } = await supabaseAdmin
-    .from('events')
-    .select('end_date, sensitive_document_retention_days')
-    .eq('id', speaker.event_id)
-    .single()
-  const retentionDays = event?.sensitive_document_retention_days ?? 30
-  const baseDate = event?.end_date ? new Date(event.end_date) : new Date()
-  const retentionExpiresAt = new Date(baseDate.getTime() + retentionDays * 24 * 60 * 60 * 1000).toISOString()
+  const retentionExpiresAt = (await computeRetention(speaker.event_id)).expiresAt
 
   const staffId = session?.sid && session.sid !== 'super-admin' ? session.sid : null
 

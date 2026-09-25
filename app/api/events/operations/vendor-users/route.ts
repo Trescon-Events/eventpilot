@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
-import { hasEventPermission } from '@/app/lib/access/event-access'
+import { resolveScope, scopeFromParams, hasScopePermission, ownerColumn, auditOwner, type OpsScope } from '@/app/lib/ops/scope'
 import { normalizeEmail } from '@/app/lib/ops/vendor-auth/preflight'
 import { issueSetPasswordLink, INVITE_HOURS } from '@/app/lib/ops/vendor-auth/account'
 import { sendVendorInvite } from '@/app/lib/ops/vendor-auth/mail'
@@ -16,19 +16,20 @@ import { logOpsAccess, clientIp } from '@/app/lib/ops/audit'
    Gated by ops.vendor_accounts.manage on the event, and the vendor must be
    assigned to that event (so ops on one event can't manage another event's vendor). */
 
-async function authorize(req: NextRequest, eventId: string, vendorId: string) {
+async function authorize(req: NextRequest, input: { event_id?: string | null; umbrella_id?: string | null }, vendorId: string): Promise<{ scope: OpsScope; staffId: string | null } | { error: NextResponse }> {
+  const scope = await resolveScope(scopeFromParams(input))
+  if (!scope) return { error: NextResponse.json({ error: 'event_id (or umbrella_id) required' }, { status: 400 }) }
   const session = getSession(req)
-  const allowed = !!session?.adm || (await hasEventPermission(session?.sid, eventId, 'ops.vendor_accounts.manage'))
-  if (!allowed) return { error: NextResponse.json({ error: 'Not authorized.' }, { status: 403 }) }
-  const { data: link } = await supabaseAdmin.from('ops_event_vendors').select('vendor_id').eq('event_id', eventId).eq('vendor_id', vendorId).limit(1).maybeSingle()
-  if (!link) return { error: NextResponse.json({ error: 'That vendor is not assigned to this event.' }, { status: 400 }) }
-  return { staffId: session?.sid ?? null }
+  if (!(await hasScopePermission(session, scope, 'ops.vendor_accounts.manage'))) return { error: NextResponse.json({ error: 'Not authorized.' }, { status: 403 }) }
+  const { data: link } = await supabaseAdmin.from('ops_event_vendors').select('vendor_id').eq(ownerColumn(scope), scope.id).eq('vendor_id', vendorId).limit(1).maybeSingle()
+  if (!link) return { error: NextResponse.json({ error: 'That vendor is not assigned here.' }, { status: 400 }) }
+  return { scope, staffId: session?.sid ?? null }
 }
 
 export async function GET(req: NextRequest) {
-  const eventId = req.nextUrl.searchParams.get('event_id'), vendorId = req.nextUrl.searchParams.get('vendor_id')
-  if (!eventId || !vendorId) return NextResponse.json({ error: 'event_id and vendor_id required' }, { status: 400 })
-  const auth = await authorize(req, eventId, vendorId)
+  const vendorId = req.nextUrl.searchParams.get('vendor_id')
+  if (!vendorId) return NextResponse.json({ error: 'vendor_id required' }, { status: 400 })
+  const auth = await authorize(req, { event_id: req.nextUrl.searchParams.get('event_id'), umbrella_id: req.nextUrl.searchParams.get('umbrella_id') }, vendorId)
   if ('error' in auth) return auth.error
 
   const { data, error } = await supabaseAdmin.from('ops_vendor_users')
@@ -38,9 +39,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => null) as { event_id?: string; vendor_id?: string; name?: string; email?: string; contact_id?: string } | null
-  if (!body?.event_id || !body.vendor_id) return NextResponse.json({ error: 'event_id and vendor_id required' }, { status: 400 })
-  const auth = await authorize(req, body.event_id, body.vendor_id)
+  const body = await req.json().catch(() => null) as { event_id?: string; umbrella_id?: string; vendor_id?: string; name?: string; email?: string; contact_id?: string } | null
+  if (!body?.vendor_id) return NextResponse.json({ error: 'vendor_id required' }, { status: 400 })
+  const auth = await authorize(req, body, body.vendor_id)
   if ('error' in auth) return auth.error
 
   const email = normalizeEmail(body.email)
@@ -67,6 +68,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `The invitation email could not be sent. ${e instanceof Error ? e.message : ''}`.trim() }, { status: 502 })
   }
 
-  await logOpsAccess({ eventId: body.event_id, actorType: 'staff', actorId: auth.staffId, action: 'vendor_user_invited', targetType: 'vendor_user', targetId: user.id, meta: { vendor_id: body.vendor_id }, ip: clientIp(req) })
+  await logOpsAccess({ ...auditOwner(auth.scope), actorType: 'staff', actorId: auth.staffId, action: 'vendor_user_invited', targetType: 'vendor_user', targetId: user.id, meta: { vendor_id: body.vendor_id }, ip: clientIp(req) })
   return NextResponse.json({ id: user.id })
 }

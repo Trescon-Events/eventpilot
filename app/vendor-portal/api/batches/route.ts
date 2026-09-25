@@ -16,16 +16,17 @@ export async function GET(req: NextRequest) {
 
   await expireDueBatches({ vendorId: session.vendorId })
   const { data, error } = await supabaseAdmin.from('ops_license_batches')
-    .select('id, batch_number, status, sent_at, expires_at, downloaded_at, completed_at, completion_type, events(name), ops_license_batch_items(active)')
+    .select('id, batch_number, status, sent_at, expires_at, downloaded_at, completed_at, completion_type, events(name), event_umbrellas(name), ops_license_batch_items(active)')
     .eq('vendor_id', session.vendorId).in('status', [...VENDOR_VISIBLE])
     .order('sent_at', { ascending: false })
   if (error) return NextResponse.json({ error: 'Could not load your batches.', help: 'If this continues, please check with the Trescon Ops team for help.' }, { status: 500 })
 
   const batches = (data ?? []).map(b => {
     const event = Array.isArray(b.events) ? b.events[0] : b.events
+    const umbrella = Array.isArray(b.event_umbrellas) ? b.event_umbrellas[0] : b.event_umbrellas
     const accessible = isBatchAccessible(b)
     return {
-      id: b.id, batch_number: b.batch_number, event_name: event?.name ?? '', status: b.status,
+      id: b.id, batch_number: b.batch_number, event_name: umbrella?.name ?? event?.name ?? '', status: b.status,
       speaker_count: (b.ops_license_batch_items ?? []).filter((i: { active: boolean }) => i.active).length,
       sent_at: b.sent_at, expires_at: b.expires_at, downloaded_at: b.downloaded_at, completed_at: b.completed_at, completion_type: b.completion_type,
       can_download: accessible, can_respond: accessible,

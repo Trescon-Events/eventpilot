@@ -8,6 +8,7 @@ import { Button, Card, Input } from '@/app/components/ui'
 import { FORM_TITLES, FormType } from '@/app/lib/forms/types'
 import { TRACKED_EVENT_FIELDS, FIELD_LABELS, TrackedEventField } from '@/app/lib/events/detail-fields'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
+import EventDaysCard from '@/app/admin/operations-shared/EventDaysCard'
 
 /* Event Details — the single place a producer manages "everything about
    this event": Overview (Common Details — public name, dates/venue as
@@ -760,6 +761,9 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
                 </div>
               )}
             </Card>
+
+            {/* Real event days (2026-09-25) — a separate, proper-date field from the public text dates above. */}
+            <EventDaysCard kind="event" id={eventId} canEdit={canManage} />
 
             <Card padded>
               <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '4px' }}>Content Approval</div>

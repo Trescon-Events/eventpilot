@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { toStoredBioPdf } from '@/app/lib/events/full-bio-upload'
 import { uploadSensitiveDocument } from '@/app/lib/events/sensitive-storage'
+import { computeRetention } from '@/app/lib/events/sensitive-retention'
 import { sensitiveDocumentFileName, publicNameForFile } from '@/app/lib/events/sensitive-doc-name'
 import { sendGraphMail } from '@/app/lib/email/graph-mail'
 import { renderEmailTemplate } from '@/app/lib/email/render-template'
@@ -150,12 +151,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
     if (!ext) return NextResponse.json({ error: `Unsupported file type for ${docType}: ${file.type}` }, { status: 400 })
     if (file.size > MAX_DOC_SIZE) return NextResponse.json({ error: `${docType} file too large (max ${MAX_DOC_SIZE / (1024 * 1024)} MB)` }, { status: 413 })
 
-    if (retentionExpiresAt === null) {
-      const { data: event } = await supabaseAdmin.from('events').select('end_date, sensitive_document_retention_days').eq('id', speaker.event_id).single()
-      const retentionDays = event?.sensitive_document_retention_days ?? 30
-      const baseDate = event?.end_date ? new Date(event.end_date) : new Date()
-      retentionExpiresAt = new Date(baseDate.getTime() + retentionDays * 24 * 60 * 60 * 1000).toISOString()
-    }
+    if (retentionExpiresAt === null) retentionExpiresAt = (await computeRetention(speaker.event_id)).expiresAt
 
     const { data: prior } = await supabaseAdmin
       .from('speaker_sensitive_documents')

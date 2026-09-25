@@ -273,6 +273,8 @@ export async function middleware(req: NextRequest) {
     // Scoped to /fonts only, not the sibling /admin/branding/corporate page.
     pathname.startsWith('/admin/branding/fonts') ||
     /^\/admin\/events\/[^/]+\/(website|brand|market-intel|creative-templates|stakeholders|plan|execution|brief|details|announcements|messaging|operations)/.test(pathname) ||
+    // 2026-09-25: umbrella-level Operations (licence processing for a whole umbrella, e.g. DFFW). Auth-only here; app/admin/umbrellas/[id]/operations/layout.tsx does the real check.
+    /^\/admin\/umbrellas\/[^/]+\/operations(\/|$)/.test(pathname) ||
     // 2026-08-17: the workspace hub itself (no sub-segment) — auth-only,
     // app/admin/events/[id]/layout.tsx does the real hasAnyEventAccess
     // check. Deliberately excludes /access (RBAC assignment management),

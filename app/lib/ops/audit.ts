@@ -12,6 +12,7 @@ export function clientIp(req: NextRequest): string {
 
 export async function logOpsAccess(entry: {
   eventId: string | null
+  umbrellaId?: string | null
   actorType: 'staff' | 'vendor' | 'system'
   actorId: string | null
   action: string
@@ -21,7 +22,7 @@ export async function logOpsAccess(entry: {
   ip?: string
 }): Promise<boolean> {
   const { error } = await supabaseAdmin.from('ops_access_audit').insert({
-    event_id: entry.eventId, actor_type: entry.actorType, actor_id: entry.actorId, action: entry.action,
+    event_id: entry.eventId, umbrella_id: entry.umbrellaId ?? null, actor_type: entry.actorType, actor_id: entry.actorId, action: entry.action,
     target_type: entry.targetType ?? null, target_id: entry.targetId ?? null, meta: entry.meta ?? null, ip: entry.ip ?? null,
   })
   if (error) console.error('[ops-audit] insert failed:', error.message)

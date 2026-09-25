@@ -3,6 +3,7 @@ import sharp from 'sharp'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { uploadSensitiveDocument } from '@/app/lib/events/sensitive-storage'
+import { computeRetention } from '@/app/lib/events/sensitive-retention'
 import { sensitiveDocumentFileName, publicNameForFile } from '@/app/lib/events/sensitive-doc-name'
 import { toStoredBioPdf } from '@/app/lib/events/full-bio-upload'
 import { detectHeadBox } from '@/app/lib/media/face-alignment'
@@ -333,10 +334,7 @@ export async function POST(req: NextRequest) {
   const docTypes: ('passport' | 'national_id')[] = ['passport', 'national_id']
   const submittedDocTypes = docTypes.filter(t => fileUrls[t])
   if (submittedDocTypes.length > 0) {
-    const { data: event } = await supabaseAdmin.from('events').select('end_date, sensitive_document_retention_days').eq('id', body.event_id).single()
-    const retentionDays = event?.sensitive_document_retention_days ?? 30
-    const baseDate = event?.end_date ? new Date(event.end_date) : new Date()
-    const retentionExpiresAt = new Date(baseDate.getTime() + retentionDays * 24 * 60 * 60 * 1000).toISOString()
+    const retentionExpiresAt = (await computeRetention(body.event_id)).expiresAt
 
     for (const docType of submittedDocTypes) {
       try {

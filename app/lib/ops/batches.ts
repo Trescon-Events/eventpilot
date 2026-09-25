@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { ownerColumn, type OpsScope } from '@/app/lib/ops/scope'
 
 /* Operations Hub — read side of licence batches. Each batch item is a
    frozen snapshot (see supabase/ops_license_batches_migration.sql); this
@@ -37,11 +38,11 @@ export type BatchView = {
   items: BatchItemView[]
 }
 
-export async function loadBatches(eventId: string): Promise<BatchView[]> {
+export async function loadBatches(scope: OpsScope): Promise<BatchView[]> {
   const { data: batches, error } = await supabaseAdmin
     .from('ops_license_batches')
     .select('*, ops_vendors(name), ops_license_batch_items(*)')
-    .eq('event_id', eventId)
+    .eq(ownerColumn(scope), scope.id)
     .order('batch_number', { ascending: false })
   if (error) throw new Error(error.message)
   if (!batches?.length) return []

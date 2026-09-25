@@ -2,6 +2,8 @@
 
 import { useState, useEffect, use } from 'react'
 import PageHeader from '@/app/components/PageHeader'
+import Link from 'next/link'
+import EventDaysCard from '@/app/admin/operations-shared/EventDaysCard'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
 import { Button, Card } from '@/app/components/ui'
 import {
@@ -183,6 +185,16 @@ export default function UmbrellaPage({ params }: { params: Promise<{ id: string 
           })}
         </div>
       </Card>
+
+      <Card padded>
+        <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '10px' }}>Operations</div>
+        <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '12px', lineHeight: 1.6 }}>
+          Speaker licences for every event in {umbrella.name} are processed together here — one list, one set of vendors and batches.
+        </div>
+        <Link href={`/admin/umbrellas/${umbrella.id}/operations`} style={{ textDecoration: 'none' }}><Button variant="teal">Open Operations</Button></Link>
+      </Card>
+
+      <EventDaysCard kind="umbrella" id={umbrella.id} canEdit />
 
       {umbrella.children.length > 0 && (
         <Card padded>

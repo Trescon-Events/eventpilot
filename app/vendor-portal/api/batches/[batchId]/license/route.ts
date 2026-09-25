@@ -7,6 +7,7 @@ import { loadOwnBatch } from '@/app/lib/ops/vendor-batch'
 import { isBatchAccessible, completeBatch, notifyOps } from '@/app/lib/ops/batch-lifecycle'
 import { LICENSE_ALLOWED, LICENSE_MAX_BYTES, sniffLicenseType, uploadLicenseFile, removeLicenseFile } from '@/app/lib/ops/license-storage'
 import { logOpsAccess } from '@/app/lib/ops/audit'
+import { scopeOfRow, ownerFields, auditOwner } from '@/app/lib/ops/scope'
 
 /* POST /vendor-portal/api/batches/[batchId]/license   (multipart: file)
    The vendor uploads the licence copy for their batch. The file's type is
@@ -24,7 +25,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
 
   const batch = await loadOwnBatch(session.vendorId, batchId)
   if (!batch) return vpError(404, 'We could not find that batch.')
-  const eventIds = [batch.event_id]
+  const scope = await scopeOfRow(batch)
+  if (!scope) return vpError(404, 'We could not find that batch.')
+  const eventIds = scope.eventIds
   if (!isBatchAccessible(batch)) return vpError(409, 'This batch can no longer accept a licence.', { eventIds })
 
   const form = await req.formData().catch(() => null)
@@ -36,7 +39,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
   const type = sniffLicenseType(bytes)
   if (!type) return vpError(400, 'Only PDF, JPG or PNG files can be uploaded.', { eventIds })
 
-  const storagePath = `${batch.event_id}/${batch.id}/${randomUUID()}.${LICENSE_ALLOWED[type]}`
+  const storagePath = `${scope.id}/${batch.id}/${randomUUID()}.${LICENSE_ALLOWED[type]}`
   const cleanName = file.name.replace(/[^\p{L}\p{N} ._()-]/gu, '_').slice(0, 120) || `licence.${LICENSE_ALLOWED[type]}`
 
   try { await uploadLicenseFile(storagePath, bytes, type) }
@@ -44,7 +47,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
 
   const { data: vendorRow } = await supabaseAdmin.from('ops_license_batches').select('vendor_id').eq('id', batch.id).single()
   const { data: fileRow, error: fileErr } = await supabaseAdmin.from('ops_license_files').insert({
-    event_id: batch.event_id, vendor_id: vendorRow!.vendor_id, storage_path: storagePath, file_name: cleanName, mime_type: type,
+    ...ownerFields(scope), vendor_id: vendorRow!.vendor_id, storage_path: storagePath, file_name: cleanName, mime_type: type,
     file_size: file.size, uploaded_by_type: 'vendor', uploaded_by_id: session.userId,
   }).select('id').single()
   if (fileErr || !fileRow) { await removeLicenseFile(storagePath); return vpError(500, 'The upload failed. Please try again.', { eventIds }) }
@@ -59,8 +62,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
     return vpError(409, 'This batch can no longer accept a licence.', { eventIds })
   }
 
-  await logOpsAccess({ eventId: batch.event_id, actorType: 'vendor', actorId: session.userId, action: 'vendor_license_uploaded', targetType: 'license_batch', targetId: batch.id, meta: { file_id: fileRow.id, size: file.size }, ip })
-  await notifyOps(batch.event_id, `Licence uploaded for Batch ${batch.batch_number}`, 'Licence uploaded',
+  await logOpsAccess({ ...auditOwner(scope), actorType: 'vendor', actorId: session.userId, action: 'vendor_license_uploaded', targetType: 'license_batch', targetId: batch.id, meta: { file_id: fileRow.id, size: file.size }, ip })
+  await notifyOps(scope, `Licence uploaded for Batch ${batch.batch_number}`, 'Licence uploaded',
     `${session.name} (${session.vendorName}) uploaded the licence for Batch ${batch.batch_number}. The batch is now complete and vendor access to it has ended.`)
   return NextResponse.json({ ok: true }, { headers: { 'Cache-Control': 'no-store' } })
 }

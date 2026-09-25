@@ -20,6 +20,11 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 export type CandidateDoc = { id: string; file_name: string; mime_type: string }
 export type Candidate = {
   id: string
+  event_id: string
+  event_name: string
+  // Other events in this scope where the SAME person (same CRM contact) is also a speaker —
+  // they should be put in a batch once, not once per event.
+  also_in: string[]
   name: string
   job_title: string | null
   company: string | null
@@ -36,15 +41,17 @@ export type InBatchSpeaker = Omit<Candidate, 'passport' | 'national_id' | 'is_ua
   batch_status: string
 }
 
-export async function loadLicenseCandidates(eventId: string): Promise<{
+/** `eventIds` = the events in scope: one event, or every child event of an umbrella. */
+export async function loadLicenseCandidates(eventIds: string[]): Promise<{
   ready: Candidate[]
   inBatch: InBatchSpeaker[]
   notReadyCount: number
 }> {
+  if (eventIds.length === 0) return { ready: [], inBatch: [], notReadyCount: 0 }
   const { data: speakers, error } = await supabaseAdmin
     .from('event_speakers')
-    .select('id, name, public_name, role, company, country, is_uae_resident')
-    .eq('event_id', eventId)
+    .select('id, event_id, crm_contact_id, name, public_name, role, company, country, is_uae_resident')
+    .in('event_id', eventIds)
     .or('announcement_status.is.null,announcement_status.neq.archived')
     .or('confirmation_status.is.null,confirmation_status.neq.Cancelled')
     .order('name', { ascending: true })
@@ -52,6 +59,17 @@ export async function loadLicenseCandidates(eventId: string): Promise<{
 
   const ids = (speakers ?? []).map(s => s.id)
   if (ids.length === 0) return { ready: [], inBatch: [], notReadyCount: 0 }
+
+  const { data: eventRows } = await supabaseAdmin.from('events').select('id, name').in('id', eventIds)
+  const eventName = new Map((eventRows ?? []).map(e => [e.id, e.name]))
+  // Same person listed under more than one event of the scope (matched by CRM contact).
+  const eventsByContact = new Map<string, Set<string>>()
+  for (const sp of speakers ?? []) {
+    if (!sp.crm_contact_id) continue
+    eventsByContact.set(sp.crm_contact_id, (eventsByContact.get(sp.crm_contact_id) ?? new Set()).add(sp.event_id))
+  }
+  const alsoIn = (sp: { event_id: string; crm_contact_id: string | null }) =>
+    sp.crm_contact_id ? [...(eventsByContact.get(sp.crm_contact_id) ?? [])].filter(id => id !== sp.event_id).map(id => eventName.get(id) ?? '').filter(Boolean) : []
 
   const [{ data: docs }, { data: items }] = await Promise.all([
     supabaseAdmin
@@ -83,7 +101,8 @@ export async function loadLicenseCandidates(eventId: string): Promise<{
 
   for (const s of speakers ?? []) {
     const base = {
-      id: s.id, name: s.public_name || s.name, job_title: s.role, company: s.company, country: s.country || null,
+      id: s.id, event_id: s.event_id, event_name: eventName.get(s.event_id) ?? '', also_in: alsoIn(s),
+      name: s.public_name || s.name, job_title: s.role, company: s.company, country: s.country || null,
     }
     const batch = batchBySpeaker.get(s.id)
     const passport = reviewedDoc.get(`${s.id}:passport`)

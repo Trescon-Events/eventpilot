@@ -4,10 +4,9 @@ import { use } from 'react'
 import { OpsScopeProvider } from '@/app/admin/operations-shared/scope-context'
 import LicensesView from '@/app/admin/operations-shared/LicensesView'
 
-/* Event-level Operations page. The work itself lives in the shared view so the same
-   screens serve an umbrella's workspace too (an event under an umbrella is lifted to
-   the umbrella by the API). */
+/* Umbrella-level Operations (e.g. Dubai Future Finance Week): licence processing for every
+   child event happens here, not per event. */
 export default function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  return <OpsScopeProvider kind="event" id={id}><LicensesView /></OpsScopeProvider>
+  return <OpsScopeProvider kind="umbrella" id={id}><LicensesView /></OpsScopeProvider>
 }

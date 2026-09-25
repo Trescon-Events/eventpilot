@@ -140,6 +140,8 @@ export const ACCESS_REGISTRY: AccessModule[] = [
       // Vendor Portal accounts (2026-09-25): creating vendor logins, sending
       // invite/reset links, disabling accounts. Deliberately its own key —
       // it controls who from OUTSIDE Trescon can reach the portal at all.
+      // Real event days (2026-09-25) — drive when Passport/National ID documents are auto-deleted.
+      { key: 'ops.event_days.manage', label: 'Set the real event days (drives when Passport / National ID documents are deleted)', enforced: true },
       { key: 'ops.vendor_accounts.manage', label: 'Create and manage Vendor Portal logins (invite, reset link, disable)', enforced: true },
     ],
   },

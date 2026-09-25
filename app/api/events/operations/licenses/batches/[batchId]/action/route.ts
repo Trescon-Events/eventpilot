@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
-import { hasEventPermission } from '@/app/lib/access/event-access'
+import { scopeOfRow, hasScopePermission, ownerColumn, auditOwner, scopeSupportContacts } from '@/app/lib/ops/scope'
 import { loadBatches } from '@/app/lib/ops/batches'
 import { completeBatch, expireDueBatches, MAX_ACCESS_DAYS } from '@/app/lib/ops/batch-lifecycle'
-import { getSupportContacts } from '@/app/lib/ops/vendor-auth/support'
 import { sendVendorBatchAvailable } from '@/app/lib/ops/vendor-auth/mail'
 import { logOpsAccess, clientIp } from '@/app/lib/ops/audit'
 
@@ -32,14 +31,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
   if (!body?.action || !ACTIONS.includes(body.action)) return NextResponse.json({ error: 'A valid action is required.' }, { status: 400 })
 
   const { data: batch } = await supabaseAdmin.from('ops_license_batches')
-    .select('id, event_id, vendor_id, batch_number, status, access_days, expires_at, downloaded_at').eq('id', batchId).maybeSingle()
+    .select('id, event_id, umbrella_id, vendor_id, batch_number, status, access_days, expires_at, downloaded_at').eq('id', batchId).maybeSingle()
   if (!batch) return NextResponse.json({ error: 'Batch not found.' }, { status: 404 })
 
+  const scope = await scopeOfRow(batch)
   const session = getSession(req)
-  if (!session?.adm && !(await hasEventPermission(session?.sid, batch.event_id, 'ops.licenses.manage'))) {
+  if (!scope || !(await hasScopePermission(session, scope, 'ops.licenses.manage'))) {
     return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   }
-  await expireDueBatches({ eventId: batch.event_id })
+  await expireDueBatches({ owner: scope })
   const { data: fresh } = await supabaseAdmin.from('ops_license_batches').select('status').eq('id', batch.id).single()
   const status = fresh?.status ?? batch.status
 
@@ -49,23 +49,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
   }
   const expiresAt = new Date(Date.now() + days * 86_400_000).toISOString()
   const audit = (action: string, meta?: Record<string, unknown>) =>
-    logOpsAccess({ eventId: batch.event_id, actorType: 'staff', actorId: session?.sid ?? null, action, targetType: 'license_batch', targetId: batch.id, meta: { batch_number: batch.batch_number, ...meta }, ip: clientIp(req) })
+    logOpsAccess({ ...auditOwner(scope), actorType: 'staff', actorId: session?.sid ?? null, action, targetType: 'license_batch', targetId: batch.id, meta: { batch_number: batch.batch_number, ...meta }, ip: clientIp(req) })
   const wrongState = (msg: string) => NextResponse.json({ error: msg }, { status: 409 })
 
   switch (body.action) {
     case 'send': {
       if (status !== 'draft') return wrongState('Only a draft batch can be sent.')
-      const view = (await loadBatches(batch.event_id)).find(b => b.id === batch.id)
+      const view = (await loadBatches(scope)).find(b => b.id === batch.id)
       const changed = view?.items.filter(i => i.flags.length).length ?? 0
       if (changed) return wrongState(`${changed} speaker${changed === 1 ? ' has' : 's have'} changed since this batch was created (documents replaced or speaker cancelled). Cancel this draft and create a new batch.`)
 
-      const [{ data: vendor }, { data: link }, { data: users }, { data: event }] = await Promise.all([
+      const [{ data: vendor }, { data: link }, { data: users }] = await Promise.all([
         supabaseAdmin.from('ops_vendors').select('active').eq('id', batch.vendor_id).single(),
-        supabaseAdmin.from('ops_event_vendors').select('vendor_id').eq('event_id', batch.event_id).eq('vendor_id', batch.vendor_id).eq('purpose', 'speaker_license').maybeSingle(),
+        supabaseAdmin.from('ops_event_vendors').select('vendor_id').eq(ownerColumn(scope), scope.id).eq('vendor_id', batch.vendor_id).eq('purpose', 'speaker_license').maybeSingle(),
         supabaseAdmin.from('ops_vendor_users').select('name, email').eq('vendor_id', batch.vendor_id).neq('status', 'disabled'),
-        supabaseAdmin.from('events').select('name').eq('id', batch.event_id).single(),
       ])
-      if (!vendor?.active || !link) return wrongState('This vendor is not active on this event.')
+      if (!vendor?.active || !link) return wrongState('This vendor is not active here.')
       if (!users?.length) return wrongState('This vendor has no Vendor Portal login yet. Create one under Vendors first.')
 
       const { data: sent } = await supabaseAdmin.from('ops_license_batches')
@@ -73,11 +72,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
         .eq('id', batch.id).eq('status', 'draft').select('id')
       if (!sent?.length) return wrongState('This batch is no longer a draft.')
 
-      const contacts = await getSupportContacts([batch.event_id])
+      const contacts = await scopeSupportContacts(scope)
       let emailed = 0
       for (const u of users) {
         try {
-          await sendVendorBatchAvailable({ to: u.email, name: u.name, eventName: event?.name ?? 'your event', batchNumber: batch.batch_number, speakerCount: view?.items.length ?? 0, expiresAt: new Date(expiresAt), contacts })
+          await sendVendorBatchAvailable({ to: u.email, name: u.name, eventName: scope.name, batchNumber: batch.batch_number, speakerCount: view?.items.length ?? 0, expiresAt: new Date(expiresAt), contacts })
           emailed++
         } catch (e) { console.error('[ops] batch notice email failed:', e instanceof Error ? e.message : e) }
       }

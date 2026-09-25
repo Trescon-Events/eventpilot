@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
-import { hasEventPermission } from '@/app/lib/access/event-access'
+import { scopeOfRow, hasScopePermission, auditOwner } from '@/app/lib/ops/scope'
 import { logOpsAccess, clientIp } from '@/app/lib/ops/audit'
 
 /* POST /api/events/operations/licenses/batches/[batchId]/cancel
@@ -11,11 +11,12 @@ import { logOpsAccess, clientIp } from '@/app/lib/ops/audit'
    flow (Phase 3) that also ends their access. Gated by ops.licenses.manage. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ batchId: string }> }) {
   const { batchId } = await params
-  const { data: batch } = await supabaseAdmin.from('ops_license_batches').select('id, event_id, status, batch_number').eq('id', batchId).maybeSingle()
+  const { data: batch } = await supabaseAdmin.from('ops_license_batches').select('id, event_id, umbrella_id, status, batch_number').eq('id', batchId).maybeSingle()
   if (!batch) return NextResponse.json({ error: 'Batch not found.' }, { status: 404 })
 
+  const scope = await scopeOfRow(batch)
   const session = getSession(req)
-  if (!session?.adm && !(await hasEventPermission(session?.sid, batch.event_id, 'ops.licenses.manage'))) {
+  if (!scope || !(await hasScopePermission(session, scope, 'ops.licenses.manage'))) {
     return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   }
   if (batch.status !== 'draft') {
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
   if (releaseErr) return NextResponse.json({ error: releaseErr.message }, { status: 500 })
 
   await logOpsAccess({
-    eventId: batch.event_id, actorType: 'staff', actorId: session?.sid ?? null, action: 'batch_cancelled',
+    ...auditOwner(scope), actorType: 'staff', actorId: session?.sid ?? null, action: 'batch_cancelled',
     targetType: 'license_batch', targetId: batchId, meta: { batch_number: batch.batch_number }, ip: clientIp(req),
   })
   return NextResponse.json({ ok: true })
