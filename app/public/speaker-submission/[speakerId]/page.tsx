@@ -150,7 +150,9 @@ export default function SpeakerSubmissionPage({ params }: { params: Promise<{ sp
     const hasShortBio = profileItems.includes('short_bio') && shortBio.trim().length > 0
     const hasCountry = profileItems.includes('country') && country.trim().length > 0
     if (!hasAnyFile && !hasShortBio && !hasCountry) { setSubmitError('Please add at least one item before submitting.'); return }
-    if (shortBio.trim().length > MAX_SHORT_BIO_CHARS) { setSubmitError(`Short Bio must be ${MAX_SHORT_BIO_CHARS} characters or less.`); return }
+    // Only when Short Bio is actually being asked for: the state is pre-filled from the speaker's
+    // existing bio, which can be over the limit on a form that only asks for documents.
+    if (hasShortBio && shortBio.trim().length > MAX_SHORT_BIO_CHARS) { setSubmitError(`Short Bio must be ${MAX_SHORT_BIO_CHARS} characters or less.`); return }
     setSubmitting(true); setSubmitError(null)
     const form = new FormData()
     for (const [key, file] of Object.entries(files)) if (file) form.append(key, file)
