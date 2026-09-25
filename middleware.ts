@@ -56,6 +56,7 @@ const PUBLIC_PREFIXES = [
   '/profile',             // AIRS assessment — staff arrive here before they have a session
   '/events',              // public event websites
   '/public',              // public stakeholder onboarding forms (SAE) — no session, external submitters
+  '/vendor-portal',       // external licence vendors (Operations Hub). NOT staff-authenticated: every route under here (pages AND /vendor-portal/api/*) checks its own separate vendor session (app/lib/ops/vendor-auth). The vendor cookie is Path-scoped to this prefix, so it is never sent to any other route.
   '/welcome',
   '/_next',
   '/favicon',
@@ -271,7 +272,7 @@ export async function middleware(req: NextRequest) {
     // platform.branding.manage — see app/admin/branding/fonts/layout.tsx.
     // Scoped to /fonts only, not the sibling /admin/branding/corporate page.
     pathname.startsWith('/admin/branding/fonts') ||
-    /^\/admin\/events\/[^/]+\/(website|brand|market-intel|creative-templates|stakeholders|plan|execution|brief|details|announcements|messaging)/.test(pathname) ||
+    /^\/admin\/events\/[^/]+\/(website|brand|market-intel|creative-templates|stakeholders|plan|execution|brief|details|announcements|messaging|operations)/.test(pathname) ||
     // 2026-08-17: the workspace hub itself (no sub-segment) — auth-only,
     // app/admin/events/[id]/layout.tsx does the real hasAnyEventAccess
     // check. Deliberately excludes /access (RBAC assignment management),

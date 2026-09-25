@@ -126,6 +126,24 @@ export const ACCESS_REGISTRY: AccessModule[] = [
     ],
   },
   {
+    // Operations Hub (2026-09-24) — per-event ops tooling. First tool is
+    // speaker licence procurement (Phase 2/3); Phase 1 is the shared Vendor
+    // Directory. Ops staff who also need to see Passport/National ID files
+    // hold sae.sensitive_documents.view alongside these (granted the same
+    // individual-assignment way, per that module's own rule).
+    key: 'ops', label: 'Operations',
+    items: [
+      { key: 'ops.view',           label: 'Open the Operations workspace for this event',                 enforced: true },
+      { key: 'ops.vendors.manage', label: 'Add / edit vendors and their contacts, assign vendors to this event', enforced: true },
+      { key: 'ops.licenses.view',   label: 'View the Speaker Licences list and batches',                enforced: true },
+      { key: 'ops.licenses.manage', label: 'Create, send, extend, revoke and reopen licence batches; upload licences',                         enforced: true },
+      // Vendor Portal accounts (2026-09-25): creating vendor logins, sending
+      // invite/reset links, disabling accounts. Deliberately its own key —
+      // it controls who from OUTSIDE Trescon can reach the portal at all.
+      { key: 'ops.vendor_accounts.manage', label: 'Create and manage Vendor Portal logins (invite, reset link, disable)', enforced: true },
+    ],
+  },
+  {
     key: 'commercial', label: 'Commercial P&L',
     items: [
       { key: 'commercial.view',    label: 'View budget, deals & expenses', enforced: false },

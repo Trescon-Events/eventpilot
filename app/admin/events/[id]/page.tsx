@@ -22,6 +22,7 @@ const LIFECYCLE_PHASES = (eventId: string) => [
       { label: 'Planning Board', href: `/admin/events/${eventId}/plan` },
       { label: 'Commercial P&L', href: `/admin/commercial/${eventId}` },
       { label: 'Brand Studio', href: `/admin/events/${eventId}/brand` },
+      { label: 'Operations', href: `/admin/events/${eventId}/operations` },
     ],
   },
   {
