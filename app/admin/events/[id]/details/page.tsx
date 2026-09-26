@@ -43,6 +43,28 @@ export type Section = {
 export type DocRole = 'style_guide' | 'messaging' | 'production_pack'
 export type Provenance = 'client_approved' | 'trescon_authored'
 export const DOC_ROLE_LABELS: Record<DocRole, string> = { style_guide: 'Style Guide', messaging: 'Messaging Doc', production_pack: 'Production Pack' }
+
+// Copy for each Reference Docs panel (2026-09-27). Same panel layout for all three; only the wording differs.
+const REF_DOC_META: Record<DocRole, { nav: string; title: string; blurb: string; empty: string }> = {
+  messaging: {
+    nav: 'Topline Messaging',
+    title: 'Topline Messaging Doc',
+    blurb: 'Uploading a PDF automatically pulls out the public name, dates, venue, and links (reviewed below before it applies), plus a structured write-up split into sections.',
+    empty: "Upload the event's topline messaging PDF to get started. It'll be split into sections here, ready for post-copy generation and conversational updates — and Common Details on the Overview tab will populate automatically.",
+  },
+  style_guide: {
+    nav: 'Style Guide',
+    title: 'Style Guide',
+    blurb: "Uploading a PDF splits the style guide into sections and extracts its rules for content checks (reviewed below before it goes live). It doesn't change this event's Overview details.",
+    empty: "Upload the event's style guide PDF to get started. It'll be split into sections here, ready for review — its rules then apply to content generated for this event, together with any umbrella-level style guide.",
+  },
+  production_pack: {
+    nav: 'Production Pack',
+    title: 'Production Pack',
+    blurb: "Uploading a PDF splits the production pack into sections (reviewed below before it goes live). Like the style guide, it feeds content generation and checks and doesn't change this event's Overview details.",
+    empty: "Upload the event's production pack PDF to get started. It'll be split into sections here, ready for review before it goes live.",
+  },
+}
 export const PROVENANCE_LABELS: Record<Provenance, string> = { client_approved: 'Client Approved', trescon_authored: 'Trescon Authored' }
 
 export type MessagingDoc = {
@@ -410,9 +432,20 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
   const router = useRouter()
 
   const [tab, setTabState] = useState<'overview' | 'messaging'>(searchParams.get('tab') === 'messaging' ? 'messaging' : 'overview')
+  // Reference Docs sub-navigation (2026-09-27) — one panel per document type (Topline Messaging / Style Guide /
+  // Production Pack), addressable as ?tab=messaging&doc=<role>. The tab= value is unchanged so old links still work.
+  const [docRole, setDocRoleState] = useState<DocRole>(
+    (['messaging', 'style_guide', 'production_pack'] as DocRole[]).find(r => r === searchParams.get('doc')) ?? 'messaging'
+  )
+  function refDocsUrl(role: DocRole) { return `/admin/events/${eventId}/details?tab=messaging${role !== 'messaging' ? `&doc=${role}` : ''}` }
   function setTab(t: 'overview' | 'messaging') {
     setTabState(t)
-    router.replace(`/admin/events/${eventId}/details${t === 'messaging' ? '?tab=messaging' : ''}`, { scroll: false })
+    router.replace(t === 'messaging' ? refDocsUrl(docRole) : `/admin/events/${eventId}/details`, { scroll: false })
+  }
+  function setDocRole(r: DocRole) {
+    setDocRoleState(r)
+    setShowVersions(false)
+    router.replace(refDocsUrl(r), { scroll: false })
   }
 
   const [permissions, setPermissions] = useState<Set<string>>(new Set())
@@ -431,7 +464,8 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
   const [docs, setDocs] = useState<MessagingDoc[]>([])
   const [versions, setVersions] = useState<MessagingDoc[]>([])
   const [showVersions, setShowVersions] = useState(false)
-  const [uploadRole, setUploadRole] = useState<DocRole>('messaging')
+  // The umbrella this event belongs to, and its live style guide (inherited, read-only here) — see visibleRoles below.
+  const [umbrella, setUmbrella] = useState<{ id: string; name: string; styleGuide: MessagingDoc | null } | null>(null)
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -441,6 +475,17 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
   const [syncProposals, setSyncProposals] = useState<Proposal[] | null>(null)
   const [syncReply, setSyncReply] = useState<string | null>(null)
   const [syncLoading, setSyncLoading] = useState(false)
+
+  useEffect(() => {
+    const uid = event?.umbrella_id
+    if (!uid) { setUmbrella(null); return }
+    let cancelled = false
+    Promise.all([
+      fetch(`/api/events/umbrellas?id=${uid}`).then(r => (r.ok ? r.json() : null)).catch(() => null),
+      fetch(`/api/events/stakeholders/messaging?event_id=${uid}&owner_type=umbrella&role=style_guide`).then(r => (r.ok ? r.json() : null)).catch(() => null),
+    ]).then(([u, sg]) => { if (!cancelled) setUmbrella({ id: uid, name: u?.name ?? 'its umbrella event', styleGuide: sg && sg.id ? (sg as MessagingDoc) : null }) })
+    return () => { cancelled = true }
+  }, [event?.umbrella_id])
 
   const can = (key: string) => permissionSetSatisfies(permissions, key)
   const canManage = can('sae.forms.manage')
@@ -456,11 +501,24 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
   // behaviorally identical to the old unscoped lookup for every event that
   // only ever had one document.
   const liveDoc = docs.find(d => d.status === 'live' && d.role === 'messaging') ?? null
-  const draftDoc = docs.filter(d => d.status === 'draft' && d.role === 'messaging').sort((a, b) => b.version - a.version)[0] ?? null
-  const otherRoleDocs = docs.filter(d => d.role !== 'messaging' && d.status !== 'superseded')
-  // Tab indicator (2026-09-27) — ANY draft awaiting review, whatever its role. draftDoc above is messaging-only (it drives the
-  // Messaging Doc block); a style_guide / production_pack draft used to leave the tab with no indicator at all.
+  // Tab indicator (2026-09-27) — ANY draft awaiting review, whatever its role (a style_guide / production_pack draft used to
+  // leave the tab with no indicator at all).
   const anyDraftPending = docs.some(d => d.status === 'draft')
+  // Which reference-document panels this event has (2026-09-27, per Madhu). The Style Guide and Production Pack belong to
+  // grouped events — an umbrella such as DFFW, or a series such as World AI Show (a series is simply an umbrella): a child event
+  // inherits the style guide from its parent (nothing to upload here), while every other event just has its Messaging Doc,
+  // which carries all its guides. So an event with no umbrella only shows the extra
+  // panels if it already holds such a document (legacy data); with nothing extra, the sub-navigation isn't shown at all.
+  const hasOwnDoc = (role: DocRole) => docs.some(d => d.role === role && d.status !== 'superseded')
+  const visibleRoles: DocRole[] = event?.umbrella_id
+    ? ['messaging', 'style_guide', 'production_pack']
+    : (['messaging', 'style_guide', 'production_pack'] as DocRole[]).filter(r => r === 'messaging' || hasOwnDoc(r))
+  const activeRole: DocRole = visibleRoles.includes(docRole) ? docRole : 'messaging'
+  const inheritsStyleGuide = activeRole === 'style_guide' && !!event?.umbrella_id
+  // The panel currently selected in the Reference Docs sub-navigation.
+  const roleLiveDoc = docs.find(d => d.status === 'live' && d.role === activeRole) ?? null
+  const roleDraftDoc = docs.filter(d => d.status === 'draft' && d.role === activeRole).sort((a, b) => b.version - a.version)[0] ?? null
+  const docMeta = REF_DOC_META[activeRole]
 
   const lastAiSyncAt = useMemo(() => {
     const rows = (history ?? []).filter(h => h.change_source === 'ai_extraction')
@@ -819,14 +877,56 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
 
         {tab === 'messaging' && (
           <>
+            {/* Sub-navigation (2026-09-27, per Madhu) — one panel per reference document type, all laid out identically:
+                header bar (status, version history, upload) → draft review → sectioned document with chat editing. */}
+            {visibleRoles.length > 1 && (
+            <div role="tablist" aria-label="Reference documents" style={{ display: 'inline-flex', gap: '4px', padding: '4px', borderRadius: '12px', background: 'var(--card)', border: '1px solid var(--border-light)', flexWrap: 'wrap' }}>
+              {visibleRoles.map(role => {
+                const live = docs.find(d => d.status === 'live' && d.role === role)
+                const draft = docs.some(d => d.status === 'draft' && d.role === role)
+                const active = activeRole === role
+                return (
+                  <button key={role} role="tab" aria-selected={active} onClick={() => setDocRole(role)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '9px', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                      fontSize: '13px', fontWeight: 800,
+                      background: active ? 'var(--teal-light)' : 'transparent', color: active ? 'var(--teal-mid)' : 'var(--ink3)',
+                    }}>
+                    {REF_DOC_META[role].nav}
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: active ? 'var(--teal-mid)' : 'var(--ink4)' }}>{live ? `v${live.version} live` : role === 'style_guide' && event?.umbrella_id ? 'from umbrella' : 'not uploaded'}</span>
+                    {draft && <span title="A draft is waiting for review" style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--amber)', display: 'inline-block' }} />}
+                  </button>
+                )
+              })}
+            </div>
+            )}
+
+            {inheritsStyleGuide && (
+              <Card padded>
+                <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)' }}>Style Guide</div>
+                <div style={{ fontSize: '14px', color: 'var(--ink)', marginTop: '8px', lineHeight: 1.5 }}>
+                  This event follows the style guide of <strong>{umbrella?.name ?? 'its umbrella event'}</strong>, so there is nothing to upload here. Any change is made once on {umbrella?.name ?? 'the parent'}’s page and applies to every event under it.
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '6px' }}>
+                  {umbrella?.styleGuide ? `Currently live: v${umbrella.styleGuide.version}, last updated ${fmtDate(umbrella.styleGuide.updated_at)}.` : 'No style guide is live there yet.'}
+                </div>
+                {event?.umbrella_id && (
+                  <a href={`/admin/umbrellas/${event.umbrella_id}`} style={{ display: 'inline-block', marginTop: '12px', fontSize: '13px', fontWeight: 800, color: 'var(--teal-mid)', textDecoration: 'none' }}>
+                    Open {umbrella?.name ?? 'the parent'}’s style guide →
+                  </a>
+                )}
+              </Card>
+            )}
+
+            {!(inheritsStyleGuide && !roleLiveDoc && !roleDraftDoc) && (
             <Card padded>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
                 <div>
-                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)' }}>Topline Messaging Doc</div>
-                  {liveDoc ? (
-                    <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '4px' }}>v{liveDoc.version} · Live · Last updated {fmtDate(liveDoc.updated_at)}</div>
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)' }}>{docMeta.title}</div>
+                  {roleLiveDoc ? (
+                    <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '4px' }}>v{roleLiveDoc.version} · Live · Last updated {fmtDate(roleLiveDoc.updated_at)}</div>
                   ) : (
-                    <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '4px' }}>No live version yet</div>
+                    <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '4px' }}>{roleDraftDoc ? 'No live version yet — a draft is waiting for review' : 'No live version yet'}</div>
                   )}
                 </div>
                 <div style={{ display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center' }}>
@@ -834,33 +934,25 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
                     {showVersions ? 'Hide versions' : 'Version history'}
                   </Button>
                   {canUploadHere && (
-                    <>
-                      <select value={uploadRole} onChange={e => setUploadRole(e.target.value as DocRole)}
-                        style={{ fontSize: '12px', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontFamily: 'inherit' }}>
-                        {(Object.keys(DOC_ROLE_LABELS) as DocRole[]).map(r => <option key={r} value={r}>{DOC_ROLE_LABELS[r]}</option>)}
-                      </select>
-                      <label style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.6 : 1 }}>
-                        {saving ? 'Uploading…' : 'Upload PDF ▲'}
-                        <input type="file" accept="application/pdf" disabled={saving} style={{ display: 'none' }}
-                          onChange={e => { const f = e.target.files?.[0]; if (f) uploadMessagingDoc(f, uploadRole); e.target.value = '' }} />
-                      </label>
-                    </>
+                    <label style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.6 : 1 }}>
+                      {saving ? 'Uploading…' : 'Upload PDF ▲'}
+                      <input type="file" accept="application/pdf" disabled={saving} style={{ display: 'none' }}
+                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadMessagingDoc(f, activeRole); e.target.value = '' }} />
+                    </label>
                   )}
                 </div>
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--ink4)', marginTop: '6px' }}>
-                Uploading a PDF automatically pulls out the public name, dates, venue, and links (reviewed below before it applies), plus a structured write-up split into sections.
-              </div>
+              <div style={{ fontSize: '11px', color: 'var(--ink4)', marginTop: '6px' }}>{docMeta.blurb}</div>
 
               {showVersions && (
                 <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border-light)', display: 'grid', gap: '6px' }}>
-                  {versions.length === 0 && <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>No versions yet.</div>}
-                  {versions.map(v => (
+                  {versions.filter(v => v.role === activeRole).length === 0 && <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>No versions yet.</div>}
+                  {versions.filter(v => v.role === activeRole).map(v => (
                     <div key={v.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: '8px', background: v.status === 'live' ? 'var(--teal-light)' : 'transparent' }}>
                       <div style={{ fontSize: '12.5px', color: 'var(--ink)' }}>
                         v{v.version} · {v.title} · {fmtDate(v.created_at)}
-                        <span style={{ marginLeft: '8px', fontSize: '10.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: v.status === 'live' ? 'var(--teal-mid)' : v.status === 'draft' ? 'var(--amber)' : 'var(--ink3)' }}>{v.status}</span>
-                        <span style={{ marginLeft: '8px', fontSize: '10.5px', color: 'var(--ink4)' }}>{DOC_ROLE_LABELS[v.role]} · rank {v.authority_rank} · {PROVENANCE_LABELS[v.provenance]}</span>
+                        <span style={{ marginLeft: '8px', fontSize: '10.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: v.status === 'live' ? 'var(--teal-mid)' : v.status === 'draft' ? 'var(--amber)' : 'var(--ink4)' }}>{v.status}</span>
+                        <span style={{ marginLeft: '8px', fontSize: '10.5px', color: 'var(--ink4)' }}>rank {v.authority_rank} · {PROVENANCE_LABELS[v.provenance]}</span>
                       </div>
                       {v.status === 'superseded' && (
                         <Button variant="ghost" onClick={() => makeLive(v)}>Make live</Button>
@@ -870,56 +962,26 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
                 </div>
               )}
             </Card>
+            )}
 
-            {draftDoc && (
+            {roleDraftDoc && (
               <Card padded color="amber">
                 <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--amber)', letterSpacing: '0.6px', textTransform: 'uppercase', marginBottom: '8px' }}>
-                  Draft v{draftDoc.version} — review before it goes live
+                  Draft v{roleDraftDoc.version} — review before it goes live
                 </div>
-                <DraftReview doc={draftDoc} canManage={canManage} session={session} onApproved={loadAll} />
+                <DraftReview key={roleDraftDoc.id} doc={roleDraftDoc} canManage={canManage} session={session} onApproved={loadAll} />
               </Card>
             )}
 
-            {!draftDoc && !liveDoc && (
+            {!roleDraftDoc && !roleLiveDoc && !inheritsStyleGuide && (
               <Card padded>
-                <div style={{ padding: '10px', fontSize: '13px', color: 'var(--ink3)', textAlign: 'center' }}>
-                  Upload the event&apos;s topline messaging PDF to get started. It&apos;ll be split into sections here, ready for post-copy generation and conversational updates — and Common Details on the Overview tab will populate automatically.
-                </div>
+                <div style={{ padding: '10px', fontSize: '13px', color: 'var(--ink3)', textAlign: 'center' }}>{docMeta.empty}</div>
               </Card>
             )}
 
-            {liveDoc && !draftDoc && (
-              <LiveDocView doc={liveDoc} canManage={canManage} session={session} onUpdated={loadAll} />
+            {roleLiveDoc && !roleDraftDoc && (
+              <LiveDocView key={roleLiveDoc.id} doc={roleLiveDoc} canManage={canManage} session={session} onUpdated={loadAll} />
             )}
-
-            {/* Reference Documents spec, Stage 1 (2026-09-10) — style_guide
-                and production_pack docs share this table/pipeline but are
-                a separate concern from the Topline Messaging Doc above;
-                shown here so an uploaded draft has somewhere to be
-                reviewed and approved, not just visible in Version history. */}
-            {(['style_guide', 'production_pack'] as DocRole[]).map(role => {
-              const roleLive = otherRoleDocs.find(d => d.role === role && d.status === 'live') ?? null
-              const roleDraft = otherRoleDocs.filter(d => d.role === role && d.status === 'draft').sort((a, b) => b.version - a.version)[0] ?? null
-              if (!roleLive && !roleDraft) return null
-              return (
-                <div key={role}>
-                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginTop: '8px', marginBottom: '8px' }}>
-                    {DOC_ROLE_LABELS[role]}
-                  </div>
-                  {roleDraft && (
-                    <Card padded color="amber">
-                      <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--amber)', letterSpacing: '0.6px', textTransform: 'uppercase', marginBottom: '8px' }}>
-                        Draft v{roleDraft.version} — review before it goes live
-                      </div>
-                      <DraftReview doc={roleDraft} canManage={canManage} session={session} onApproved={loadAll} />
-                    </Card>
-                  )}
-                  {roleLive && !roleDraft && (
-                    <LiveDocView doc={roleLive} canManage={canManage} session={session} onUpdated={loadAll} />
-                  )}
-                </div>
-              )
-            })}
           </>
         )}
       </div>
