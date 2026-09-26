@@ -358,6 +358,8 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   const [fullBioUploading, setFullBioUploading] = useState(false)
   const [generatingShortBio, setGeneratingShortBio] = useState(false)
   const [shortBioUndoSnapshot, setShortBioUndoSnapshot] = useState<string | null>(null)
+  // Short Bio integrity findings (2026-09-26) — report-only; shown only while the field still holds the text that was checked.
+  const [bioIntegrity, setBioIntegrity] = useState<{ text: string; findings: { code: string; message: string }[] } | null>(null)
 
   // Creative Headline (2026-09-22)
   const [headlineVariants, setHeadlineVariants] = useState<HeadlineVariant[]>([])
@@ -438,6 +440,13 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       }
       setValues(fields)
       setStatus(data.announcement_status)
+      if (kind === 'speaker' && typeof fields.bio === 'string' && fields.bio.trim()) {
+        const checked = fields.bio
+        fetch(`${base}/${stakeholderId}/check-bio`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bio: checked }) })
+          .then(r => r.ok ? r.json() : null)
+          .then(d => { if (d?.findings) setBioIntegrity({ text: checked, findings: d.findings }) })
+          .catch(() => {})
+      }
       if (kind === 'partner') setPartnerType(data.partner_type ?? 'sponsor')
       if (kind === 'speaker') {
         setPublicName(data.public_name ?? '')
@@ -887,6 +896,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       if (!res.ok) { setMsg(data?.error ?? 'Could not generate a short bio.'); return }
       setShortBioUndoSnapshot((values.bio as string) ?? '')
       updateValue('bio', data.short_bio)
+      setBioIntegrity({ text: data.short_bio, findings: data.integrity ?? [] })
     } catch (e) {
       setMsg(`Could not generate a short bio: ${(e as Error).message}`)
     } finally {
@@ -1726,6 +1736,12 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                           size="large"
                           rows={3}
                         />
+                        {bioIntegrity && bioIntegrity.findings.length > 0 && bioIntegrity.text === values.bio && (
+                          <div style={{ marginTop: '8px', padding: '9px 12px', borderRadius: '8px', background: 'color-mix(in srgb, var(--amber) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--amber) 30%, transparent)', fontSize: '12.5px', color: 'var(--ink2)' }}>
+                            <div style={{ fontWeight: 700, color: 'var(--amber)', marginBottom: '3px' }}>Worth a quick look — this check only flags, it never changes the text</div>
+                            {bioIntegrity.findings.map((f, i) => <div key={i}>• {f.message}</div>)}
+                          </div>
+                        )}
                       </div>
                       <div style={{ display: 'grid', gap: '8px', flex: '0 0 auto', marginTop: '29px' }}>
                         <Button variant="ghost" onClick={generateShortBio} disabled={generatingShortBio || !record.bio_full_url || !canEdit}>

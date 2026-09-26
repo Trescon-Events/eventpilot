@@ -7,6 +7,7 @@ import { extractPdfText } from '@/app/lib/pdf-text'
 import { isQuotaError, QUOTA_ERROR_MESSAGE } from '@/app/lib/gemini-error'
 import { getLatestCompiledReference } from '@/app/lib/content/compile-reference'
 import { enforceMaxChars } from '@/app/lib/content/text-limits'
+import { fullBioCheck } from '@/app/lib/content/bio-integrity'
 
 /* POST /api/events/stakeholders/speakers/[id]/generate-short-bio
 
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: speaker } = await supabaseAdmin
     .from('event_speakers')
-    .select('event_id, name, bio_full_url, bio_full_text')
+    .select('event_id, name, public_name, role, company, country, salutation, custom_fields, bio_full_url, bio_full_text')
     .eq('id', speakerId)
     .single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
@@ -117,7 +118,12 @@ ${fullBioText.slice(0, 20000)}
     const result = await model.generateContent([{ text: prompt }])
     const shortBio = result.response.text().trim()
     if (!shortBio) throw new Error('Empty response from Gemini')
-    return NextResponse.json({ short_bio: enforceMaxChars(shortBio, SHORT_BIO_MAX_CHARS) })
+    const finalBio = enforceMaxChars(shortBio, SHORT_BIO_MAX_CHARS)
+    // Integrity check (2026-09-26) — report-only accident detection (cut-off text, mixed-up bio), NOT the
+    // event's content rules: see app/lib/content/bio-integrity.ts. Failure to check never blocks the bio.
+    const salutation = speaker.salutation || ((speaker.custom_fields ?? {}) as Record<string, unknown>).salutation
+    const integrity = await fullBioCheck(finalBio, { ...speaker, salutation: typeof salutation === 'string' ? salutation : null }, SHORT_BIO_MAX_CHARS).catch(() => [])
+    return NextResponse.json({ short_bio: finalBio, integrity })
   } catch (e) {
     if (isQuotaError(e)) return NextResponse.json({ error: QUOTA_ERROR_MESSAGE }, { status: 429 })
     console.error('generate-short-bio failed:', e)

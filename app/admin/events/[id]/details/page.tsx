@@ -458,6 +458,9 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
   const liveDoc = docs.find(d => d.status === 'live' && d.role === 'messaging') ?? null
   const draftDoc = docs.filter(d => d.status === 'draft' && d.role === 'messaging').sort((a, b) => b.version - a.version)[0] ?? null
   const otherRoleDocs = docs.filter(d => d.role !== 'messaging' && d.status !== 'superseded')
+  // Tab indicator (2026-09-27) — ANY draft awaiting review, whatever its role. draftDoc above is messaging-only (it drives the
+  // Messaging Doc block); a style_guide / production_pack draft used to leave the tab with no indicator at all.
+  const anyDraftPending = docs.some(d => d.status === 'draft')
 
   const lastAiSyncAt = useMemo(() => {
     const rows = (history ?? []).filter(h => h.change_source === 'ai_extraction')
@@ -629,13 +632,13 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
       <PageHeader
         eyebrow="Event Workspace / Event Details"
         title={event.name}
-        description="Everything the rest of EventPilot reads for external content — invite emails, announcement copy, brand generation, the public onboarding form — plus the Topline Messaging Doc it's derived from."
+        description="Everything the rest of EventPilot reads for external content — invite emails, announcement copy, brand generation, the public onboarding form — plus the event's reference documents (Topline Messaging Doc, Style Guide and Production Pack) on the Reference Docs tab."
         backHref={`/admin/events/${eventId}`}
         backLabel="Back to Workspace"
       />
 
       <div style={{ padding: '20px 32px 0', display: 'flex', gap: '4px', borderBottom: '1px solid var(--border-light)' }}>
-        {([['overview', 'Overview'], ['messaging', 'Messaging Doc']] as const).map(([key, label]) => (
+        {([['overview', 'Overview'], ['messaging', 'Reference Docs']] as const).map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             style={{
               padding: '10px 18px', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit',
@@ -643,7 +646,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
               borderBottom: tab === key ? '2px solid var(--teal-mid)' : '2px solid transparent', marginBottom: '-1px',
             }}>
             {label}
-            {key === 'messaging' && (draftDoc || needsSync) && (
+            {key === 'messaging' && (anyDraftPending || needsSync) && (
               <span style={{ marginLeft: '6px', width: '6px', height: '6px', borderRadius: '50%', background: 'var(--amber)', display: 'inline-block' }} />
             )}
           </button>
