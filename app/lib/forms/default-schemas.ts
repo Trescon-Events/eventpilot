@@ -31,9 +31,9 @@ export const DEFAULT_SPEAKER_FIELDS: FieldSchema[] = [
   // itself shown anywhere public.
   { id: 'speaker-bio', key: 'bio', label: 'Short Bio', type: 'textarea', required: true, locked: false, help: 'Under 500 characters, including spaces' },
   {
-    id: 'speaker-bio_full', key: 'bio_full', label: 'Full Bio (PDF or Word document)', type: 'file', required: false, locked: false,
-    accept: 'application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    help: 'Optional — PDF or Word doc, max 10MB. A Word doc is automatically converted to PDF; only the PDF is kept.',
+    id: 'speaker-bio_full', key: 'bio_full', label: 'Full Bio (PDF, Word or PowerPoint)', type: 'file', required: false, locked: false,
+    accept: 'application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    help: 'Optional — PDF, Word or PowerPoint, max 10MB. Word and PowerPoint files are automatically converted to PDF; only the PDF is kept.',
     max_size_mb: 10,
   },
   {

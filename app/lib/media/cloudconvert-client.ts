@@ -107,7 +107,16 @@ export async function convertEpsToPng(buffer: Buffer): Promise<Buffer | null> {
 // the "never store the Word doc" requirement this function exists for, so
 // there's no safe null-fallback the way EPS has a "just keep the raw file"
 // fallback elsewhere.
-export async function convertDocxToPdf(buffer: Buffer, inputFormat: 'doc' | 'docx'): Promise<Buffer> {
+// PowerPoint (ppt/pptx) added 2026-09-26 — same conversion, only the input format/MIME differ.
+export type OfficeInputFormat = 'doc' | 'docx' | 'ppt' | 'pptx'
+const OFFICE_MIME: Record<OfficeInputFormat, string> = {
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ppt: 'application/vnd.ms-powerpoint',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+}
+
+export async function convertDocxToPdf(buffer: Buffer, inputFormat: OfficeInputFormat): Promise<Buffer> {
   const apiKey = process.env.CLOUDCONVERT_API_KEY
   if (!apiKey) throw new Error('CLOUDCONVERT_API_KEY not configured')
 
@@ -128,9 +137,7 @@ export async function convertDocxToPdf(buffer: Buffer, inputFormat: 'doc' | 'doc
 
   const formData = new FormData()
   for (const [key, value] of Object.entries(uploadForm.parameters)) formData.append(key, value)
-  const mimeType = inputFormat === 'docx'
-    ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    : 'application/msword'
+  const mimeType = OFFICE_MIME[inputFormat]
   formData.append('file', new Blob([new Uint8Array(buffer)], { type: mimeType }), `bio.${inputFormat}`)
   const uploadRes = await fetch(uploadForm.url, { method: 'POST', body: formData })
   if (!uploadRes.ok) throw new Error(`CloudConvert file upload failed: ${uploadRes.status}`)

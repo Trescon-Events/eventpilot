@@ -1,12 +1,15 @@
-import { convertDocxToPdf } from '@/app/lib/media/cloudconvert-client'
+import { convertDocxToPdf, type OfficeInputFormat } from '@/app/lib/media/cloudconvert-client'
 import { extractPdfText } from '@/app/lib/pdf-text'
 
 /* Shared by every "Full Bio" upload entry point (the public onboarding
    form's file field, the public speaker-submission portal, from-submission
    processing, and the Details page's manual upload) — a PDF is stored
-   as-is; a Word doc (.doc/.docx) is converted via CloudConvert and ONLY
+   as-is; a Word doc (.doc/.docx) or PowerPoint (.ppt/.pptx, added 2026-09-26 —
+   a real speaker's bio arrived as a deck) is converted via CloudConvert and ONLY
    the resulting PDF is ever stored (per Madhu, 2026-09-04: the original
-   Word bytes must never touch storage). Extension checked first, MIME
+   Word/PowerPoint bytes must never touch storage; `source` stays 'docx_converted'
+   for both, since bio_full_source's DB check only allows pdf/docx_converted).
+   Extension checked first, MIME
    type as fallback — same convention as upload-asset/route.ts's
    ALLOWED_LOGO_TYPES, since browsers inconsistently report MIME for
    legacy/office formats.
@@ -31,15 +34,19 @@ export async function toStoredBioPdf(buffer: Buffer, filename: string, mimeType:
     pdfBuffer = buffer
     source = 'pdf'
   } else {
-    const inputFormat: 'doc' | 'docx' | null =
+    const inputFormat: OfficeInputFormat | null =
       ext === 'docx' ? 'docx'
       : ext === 'doc' ? 'doc'
+      : ext === 'pptx' ? 'pptx'
+      : ext === 'ppt' ? 'ppt'
       : mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ? 'docx'
       : mimeType === 'application/msword' ? 'doc'
+      : mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ? 'pptx'
+      : mimeType === 'application/vnd.ms-powerpoint' ? 'ppt'
       : null
 
     if (!inputFormat) {
-      throw new Error(`Unsupported file type for Full Bio (expected PDF or Word document): ${mimeType || ext || 'unknown'}`)
+      throw new Error(`Unsupported file type for Full Bio (expected PDF, Word or PowerPoint): ${mimeType || ext || 'unknown'}`)
     }
 
     pdfBuffer = await convertDocxToPdf(buffer, inputFormat)

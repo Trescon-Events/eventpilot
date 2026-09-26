@@ -1601,11 +1601,11 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                 <div>
                   <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Full Bio</div>
                   <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '4px', maxWidth: '480px' }}>
-                    A source document (PDF or Word), never shown publicly — only used to generate the Short Bio below. A Word upload is automatically converted to PDF; the original file isn&apos;t kept.
+                    A source document (PDF, Word or PowerPoint), never shown publicly — only used to generate the Short Bio below. A Word or PowerPoint upload is automatically converted to PDF; the original file isn&apos;t kept.
                   </div>
                   {record.bio_full_url && (
                     <div style={{ fontSize: '12px', color: 'var(--ink4)', marginTop: '8px' }}>
-                      {record.bio_full_source === 'docx_converted' ? 'Converted from Word doc' : 'PDF on file'}
+                      {record.bio_full_source === 'docx_converted' ? 'Converted to PDF (Word/PowerPoint)' : 'PDF on file'}
                     </div>
                   )}
                 </div>
@@ -1620,7 +1620,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                 <Button variant="ghost" onClick={() => fullBioInputRef.current?.click()} disabled={fullBioUploading || !canEdit}>
                   {fullBioUploading ? 'Uploading…' : record.bio_full_url ? 'Replace' : 'Upload'}
                 </Button>
-                <input ref={fullBioInputRef} type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                <input ref={fullBioInputRef} type="file" accept=".pdf,.doc,.docx,.ppt,.pptx,application/pdf,application/msword,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                   style={{ display: 'none' }} disabled={fullBioUploading}
                   onChange={e => { const f = e.target.files?.[0]; if (f) uploadFullBio(f); e.target.value = '' }} />
               </div>

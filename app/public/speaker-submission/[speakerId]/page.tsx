@@ -72,7 +72,7 @@ const PAGE_STYLES = `
 `
 
 const ACCEPT: Record<string, string> = {
-  bio_full: 'application/pdf,.doc,.docx',
+  bio_full: 'application/pdf,.doc,.docx,.ppt,.pptx',
   photo: 'image/jpeg,image/png',
   passport: 'application/pdf,image/jpeg,image/png',
   national_id: 'application/pdf,image/jpeg,image/png',
@@ -80,7 +80,7 @@ const ACCEPT: Record<string, string> = {
 
 const HELP_TEXT: Record<string, string> = {
   photo: 'High-resolution JPG or PNG photo. Upper-body shot without cropping the head, neck, or torso. Max file size: 5MB.',
-  bio_full: 'Upload a Word document or PDF, less than 5MB in size.',
+  bio_full: 'Upload a Word document, PowerPoint or PDF, less than 5MB in size.',
   passport: 'Upload a clear, legible scanned copy of your passport (photo page) — make sure all information is clearly visible. Accepted formats: JPG, PNG, or PDF.',
   national_id: 'Upload a clear, legible scanned copy of your UAE National ID (front and back) — make sure all information is clearly visible. Accepted formats: JPG, PNG, or PDF.',
 }
