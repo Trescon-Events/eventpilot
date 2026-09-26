@@ -956,11 +956,22 @@ function AdminPageInner() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: 'var(--card)', border: '1px dashed var(--border)', borderRadius: '10px', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink4)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Testing shortcuts</span>
           {/* 2026-09-07, per Madhu: pared down to just Stakeholder Hub on
-              DFS (Dubai FinTech Summit 2026) to start with — more will be
-              added back here as needed. */}
-          <Link href="/admin/events/293bde73-22c0-40f0-b621-6306c9266d6a/stakeholders" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, padding: '6px 11px', borderRadius: '8px', textDecoration: 'none' }}>
-            Stakeholder Hub (DFS)
-          </Link>
+              DFS to start with. 2026-09-26, per Madhu: added the DFFW
+              umbrella workspace, Stakeholder Hub for every DFFW child
+              event, and BSS (Bengaluru Skill Summit 2026). */}
+          {[
+            { href: '/admin/umbrellas/d4c7c680-2618-4159-bfa6-5bcd0701ca22', label: 'DFFW Workspace' },
+            { href: '/admin/events/90199234-7e43-498e-88e0-e08223b5fa35/stakeholders', label: 'Stakeholder Hub (FTF)' },
+            { href: '/admin/events/186a86e4-6842-492d-8070-5507cc6d1023/stakeholders', label: 'Stakeholder Hub (DFWS)' },
+            { href: '/admin/events/293bde73-22c0-40f0-b621-6306c9266d6a/stakeholders', label: 'Stakeholder Hub (DFS)' },
+            { href: '/admin/events/b470ee7f-77d9-4985-a5e3-f3c1ebb349c8/stakeholders', label: 'Stakeholder Hub (FSF)' },
+            { href: '/admin/events/06f62069-37d3-4699-9871-16709fa1540e/stakeholders', label: 'Stakeholder Hub (FIFF)' },
+            { href: '/admin/events/27edfe37-ab45-4656-922d-0503012c75a7/stakeholders', label: 'Stakeholder Hub (BSS)' },
+          ].map(link => (
+            <Link key={link.href} href={link.href} style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, padding: '6px 11px', borderRadius: '8px', textDecoration: 'none' }}>
+              {link.label}
+            </Link>
+          ))}
         </div>
       </div>
 

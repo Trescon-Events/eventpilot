@@ -427,6 +427,14 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       if (kind === 'speaker') {
         if (!('email' in fields) && typeof customFields.email === 'string') fields.email = customFields.email
         if (!('phone_number' in fields) && typeof customFields.phone_number === 'string') fields.phone_number = customFields.phone_number
+        // Salutation — same reason as email/phone_number above: a HubSpot-
+        // connected event's schema never declares it, so recordToFields
+        // leaves it out and the value (custom_fields.salutation, or the
+        // column if a producer ever set it there) was invisible here.
+        if (!('salutation' in fields)) {
+          const sal = typeof data.salutation === 'string' && data.salutation ? data.salutation : typeof customFields.salutation === 'string' ? customFields.salutation : ''
+          if (sal) fields.salutation = sal
+        }
       }
       setValues(fields)
       setStatus(data.announcement_status)
@@ -1095,7 +1103,17 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   // unchanged). Everything else in the schema renders after, unchanged in
   // relative order.
   const detailNamePriority = ['salutation', 'first_name', 'last_name']
-  const detailFields = schema.filter(f => f.type !== 'file' && f.key !== 'full_name')
+  // Salutation (2026-09-26, per Madhu) — leads the card before First Name on
+  // every speaker record. HubSpot-connected events (DFS, FIFF) never declare
+  // it in their schema (crm_property mappings create no schema field), so it
+  // is synthesized here, exactly like email/phone_number on the Registration
+  // tab. Saves through the normal fields payload: an undeclared key lands in
+  // custom_fields.salutation (merged, see the speakers PATCH route). Options =
+  // the HubSpot speaker form's own Salutation list.
+  const SALUTATION_OPTIONS = ['Amb.', 'Dr.', 'Eng.', 'HE', 'HH', 'HRH', 'Hon.', 'Mr.', 'Mrs.', 'Ms.', 'Prof.', 'Sheikh', 'Sheikha', 'Sir']
+  const salutationField: FieldSchema = { id: '__synthetic_salutation', key: 'salutation', label: 'Salutation', type: 'select', required: false, locked: false, options: SALUTATION_OPTIONS }
+  const schemaDetailFields = schema.filter(f => f.type !== 'file' && f.key !== 'full_name')
+  const detailFields = kind === 'speaker' && !schemaDetailFields.some(f => f.key === 'salutation') ? [salutationField, ...schemaDetailFields] : schemaDetailFields
   const priorityDetailFields = detailNamePriority
     .map(key => detailFields.find(f => f.key === key))
     .filter((f): f is FieldSchema => !!f)
