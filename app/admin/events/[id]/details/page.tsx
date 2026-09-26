@@ -943,6 +943,11 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
                 </div>
               </div>
               <div style={{ fontSize: '11px', color: 'var(--ink4)', marginTop: '6px' }}>{docMeta.blurb}</div>
+              {canUploadHere && roleLiveDoc && (
+                <div style={{ fontSize: '11px', color: 'var(--amber)', marginTop: '4px' }}>
+                  Uploading a new file creates a draft; once approved it replaces the live v{roleLiveDoc.version}.
+                </div>
+              )}
 
               {showVersions && (
                 <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border-light)', display: 'grid', gap: '6px' }}>
