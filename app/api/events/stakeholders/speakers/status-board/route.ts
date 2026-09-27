@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
-import { hasEventPermission } from '@/app/lib/access/event-access'
+import { hasEventPermission, isEventFeatureEnabled } from '@/app/lib/access/event-access'
 import { websiteStatus, fetchAnnouncementStatus } from '@/app/lib/events/speaker-status'
 
 /* GET /api/events/stakeholders/speakers/status-board?event_id=X
@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   const speakerIds = (speakers ?? []).map(s => s.id)
+  const uaeFieldEnabled = await isEventFeatureEnabled(eventId, 'uae-resident-field')
 
   // Passport/National ID (2026-09-24) — 'missing' | 'in_progress' |
   // 'reviewed'. A document merely being uploaded isn't enough to count as
@@ -115,7 +116,10 @@ export async function GET(req: NextRequest) {
     // resident — unknown still counts as potentially needing it, so it
     // isn't silently excused just because nobody's checked yet.
     is_uae_resident: s.is_uae_resident,
-    national_id_applicable: s.is_uae_resident !== false,
+    // Per-event UAE Resident Question toggle (2026-09-27) — if this event
+    // doesn't ask the question at all, National ID isn't tied to residency
+    // for it either; see app/lib/registry/feature-flags.ts.
+    national_id_applicable: uaeFieldEnabled && s.is_uae_resident !== false,
     // Production stage
     // Short Bio (2026-09-24) — 'missing' | 'in_progress' | 'approved'.
     // in_progress = text present but the speaker hasn't been Approved for

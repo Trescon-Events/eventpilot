@@ -51,7 +51,7 @@ function fmtSize(bytes: number | null) {
 }
 
 export default function SensitiveDocumentsTab({
-  speakerId, canManage, isUaeResident, canEditUaeResident, onUaeResidentChange,
+  speakerId, canManage, isUaeResident, canEditUaeResident, onUaeResidentChange, uaeFieldEnabled,
 }: {
   speakerId: string
   canManage: boolean
@@ -64,6 +64,12 @@ export default function SensitiveDocumentsTab({
   isUaeResident: boolean | null
   canEditUaeResident: boolean
   onUaeResidentChange: (value: boolean | null) => Promise<boolean>
+  // Per-event UAE Resident Question toggle (2026-09-27) — see
+  // app/lib/registry/feature-flags.ts. When off, this event doesn't track
+  // UAE residency at all: hide the toggle card, and National ID stops
+  // being conditionally "Not Applicable" (there's no residency basis left
+  // to exempt anyone on).
+  uaeFieldEnabled: boolean
 }) {
   const [documents, setDocuments] = useState<ActiveDoc[]>([])
   const [history, setHistory] = useState<HistoryDoc[]>([])
@@ -188,28 +194,30 @@ export default function SensitiveDocumentsTab({
           </div>
         )}
 
-        <Card padded>
-          <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>UAE Resident?</div>
-          <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '4px', marginBottom: '12px' }}>
-            Determines what&apos;s actually required below — a UAE resident needs both Passport and National ID; everyone else only needs Passport. Not yet asked on the onboarding form for anyone confirmed before it existed, so this is set by hand.
-          </div>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {([
-              { value: true, label: 'UAE Resident' },
-              { value: false, label: 'Not a UAE Resident' },
-              { value: null, label: 'Not determined yet' },
-            ] as const).map(opt => (
-              <Button
-                key={String(opt.value)}
-                variant={isUaeResident === opt.value ? 'teal' : 'ghost'}
-                onClick={() => setUaeResident(opt.value)}
-                disabled={!canEditUaeResident || savingUaeResident}
-              >
-                {opt.label}
-              </Button>
-            ))}
-          </div>
-        </Card>
+        {uaeFieldEnabled && (
+          <Card padded>
+            <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>UAE Resident?</div>
+            <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '4px', marginBottom: '12px' }}>
+              Determines what&apos;s actually required below — a UAE resident needs both Passport and National ID; everyone else only needs Passport. Not yet asked on the onboarding form for anyone confirmed before it existed, so this is set by hand.
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {([
+                { value: true, label: 'UAE Resident' },
+                { value: false, label: 'Not a UAE Resident' },
+                { value: null, label: 'Not determined yet' },
+              ] as const).map(opt => (
+                <Button
+                  key={String(opt.value)}
+                  variant={isUaeResident === opt.value ? 'teal' : 'ghost'}
+                  onClick={() => setUaeResident(opt.value)}
+                  disabled={!canEditUaeResident || savingUaeResident}
+                >
+                  {opt.label}
+                </Button>
+              ))}
+            </div>
+          </Card>
+        )}
 
         {loading ? (
           <div style={{ fontSize: '13px', color: 'var(--ink4)' }}>Loading…</div>
@@ -221,7 +229,7 @@ export default function SensitiveDocumentsTab({
             // excuses it; still not on file for an undetermined residency
             // reads as ordinary "Missing," same as before this flag
             // existed, since it might still turn out to be required.
-            const notApplicable = type === 'national_id' && isUaeResident === false && !doc
+            const notApplicable = uaeFieldEnabled && type === 'national_id' && isUaeResident === false && !doc
             const reviewed = !!doc?.reviewed_at
             const badgeLabel = !doc ? (notApplicable ? 'Not Applicable' : 'Missing') : reviewed ? 'Reviewed' : 'On file — not reviewed'
             const badgeColor = !doc ? (notApplicable ? 'grey' : 'amber') : reviewed ? 'teal' : 'amber'

@@ -9,7 +9,7 @@ import { toStoredBioPdf } from '@/app/lib/events/full-bio-upload'
 import { detectHeadBox } from '@/app/lib/media/face-alignment'
 import { MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine'
 import { getSession } from '@/app/lib/access/session'
-import { hasEventPermission } from '@/app/lib/access/event-access'
+import { hasEventPermission, isEventFeatureEnabled } from '@/app/lib/access/event-access'
 import { resolveFormSchema } from '@/app/lib/forms/resolve-schema'
 import { mapFieldsToRecord } from '@/app/lib/forms/map-to-stakeholder-record'
 import { SubmittedValue } from '@/app/lib/forms/types'
@@ -60,7 +60,8 @@ export async function POST(req: NextRequest) {
   const fileUrls  = (submission.file_urls ?? {}) as { photo?: string; company_logo?: string; bio_full?: string; bio_full_source?: string; passport?: string; national_id?: string }
 
   const schema = await resolveFormSchema(body.event_id, 'speaker')
-  const { columns, customFields } = mapFieldsToRecord('speaker', schema, submitted, fileUrls, { defaultSpeakerPublicName: true })
+  const uaeResidentFieldEnabled = await isEventFeatureEnabled(body.event_id, 'uae-resident-field')
+  const { columns, customFields } = mapFieldsToRecord('speaker', schema, submitted, fileUrls, { defaultSpeakerPublicName: true, uaeResidentFieldEnabled })
 
   // CRM layer (Phase 1) — cross-event Contact identity, deduped by email.
   // No company link attempted here: the speaker schema has no website/

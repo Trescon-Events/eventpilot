@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
-import { hasEventPermission } from '@/app/lib/access/event-access'
+import { hasEventPermission, getEventFeatures } from '@/app/lib/access/event-access'
 import { renderEmailTemplate } from '@/app/lib/email/render-template'
 import { resolveSenderIdentity } from '@/app/lib/email/sender-identity'
 import { generateSecureToken } from '@/app/lib/security/generate-token'
@@ -56,8 +56,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .eq('speaker_id', speakerId)
     .is('deleted_at', null)
   const docTypes = new Set((docs ?? []).map(d => d.document_type as 'passport' | 'national_id'))
+  const features = await getEventFeatures(speaker.event_id)
 
-  const allMissing = computeMissingItems(speaker, docTypes)
+  const allMissing = computeMissingItems(speaker, docTypes, {
+    sensitiveDocuments: features.has('sensitive-documents'),
+    uaeResidentField: features.has('uae-resident-field'),
+  })
   const chosen = body?.item_keys?.length
     ? allMissing.filter(m => body.item_keys!.includes(m.key))
     : allMissing

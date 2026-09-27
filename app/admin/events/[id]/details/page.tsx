@@ -9,6 +9,7 @@ import { FORM_TITLES, FormType } from '@/app/lib/forms/types'
 import { TRACKED_EVENT_FIELDS, FIELD_LABELS, TrackedEventField } from '@/app/lib/events/detail-fields'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import EventDaysCard from '@/app/admin/operations-shared/EventDaysCard'
+import { FEATURE_REGISTRY, type FeatureKey, type FeatureGroup } from '@/app/lib/registry/feature-flags'
 
 /* Event Details — the single place a producer manages "everything about
    this event": Overview (Common Details — public name, dates/venue as
@@ -23,7 +24,7 @@ import EventDaysCard from '@/app/admin/operations-shared/EventDaysCard'
    Overview stale, so Overview offers "Sync with Messaging Doc" to re-
    derive just the fields that drifted. */
 
-type EventRow = { id: string; name: string; type: string | null; umbrella_id?: string | null; requires_client_approval: boolean | null } & Record<TrackedEventField, string | null>
+type EventRow = { id: string; name: string; type: string | null; umbrella_id?: string | null; requires_client_approval: boolean | null; country?: string | null; enabled_features?: Record<string, boolean> | null } & Record<TrackedEventField, string | null>
 
 type PageLink = { form_type: string; hubspot_form_name: string | null; public_page_url: string | null }
 
@@ -597,6 +598,23 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
     else { setMsg(data.error ?? 'Save failed.'); setMsgIsError(true) }
   }
 
+  // Per-event feature toggles (2026-09-27) — generalizes the pattern
+  // above (requires_client_approval) into a registry-backed set. Always
+  // resolved directly off this event's own row, no umbrella inheritance —
+  // see app/lib/registry/feature-flags.ts's header comment for why.
+  async function saveFeatureFlag(key: FeatureKey, value: boolean) {
+    if (!event) return
+    setSaving(true); setMsg(null)
+    const nextFeatures = { ...(event.enabled_features ?? {}), [key]: value }
+    const res = await fetch(`/api/events?id=${eventId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled_features: nextFeatures }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSaving(false)
+    if (res.ok) { setEvent(data); setMsg('Saved.'); setMsgIsError(false) }
+    else { setMsg(data.error ?? 'Save failed.'); setMsgIsError(true) }
+  }
+
   async function savePageLink(formType: string) {
     setSaving(true); setMsg(null)
     const res = await fetch('/api/events/stakeholders/hubspot/public-page-link', {
@@ -847,6 +865,48 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
                     </button>
                   )
                 })}
+              </div>
+            </Card>
+
+            <Card padded>
+              <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '4px' }}>Feature Toggles</div>
+              <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '14px' }}>
+                Which modules, sections, and fields apply to this event. Off just hides them here — nothing is deleted, and turning one back on restores exactly what was there before.
+              </div>
+              <div style={{ display: 'grid', gap: '18px' }}>
+                {(['compliance', 'integrations', 'modules'] as FeatureGroup[]).map(group => (
+                  <div key={group}>
+                    <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: '8px' }}>
+                      {group === 'compliance' ? 'Compliance' : group === 'integrations' ? 'Integrations' : 'Modules'}
+                    </div>
+                    <div style={{ display: 'grid', gap: '10px' }}>
+                      {FEATURE_REGISTRY.filter(f => f.group === group).map(f => {
+                        const stored = event.enabled_features?.[f.key]
+                        const on = stored ?? f.defaultForNewEvent({ country: event.country ?? null })
+                        return (
+                          <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink)' }}>{f.label}</div>
+                              <div style={{ fontSize: '11px', color: 'var(--ink3)' }}>{f.description}</div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                              {([['on', 'On'], ['off', 'Off']] as const).map(([key, label]) => {
+                                const selected = (key === 'on') === on
+                                return (
+                                  <button key={key} disabled={!canManage || saving}
+                                    onClick={() => saveFeatureFlag(f.key, key === 'on')}
+                                    style={{ padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: canManage ? 'pointer' : 'default', fontFamily: 'inherit', border: selected ? '1.5px solid var(--teal-mid)' : '1px solid var(--border)', background: selected ? 'var(--teal-light)' : 'var(--card)', color: selected ? 'var(--teal-mid)' : 'var(--ink2)' }}>
+                                    {label}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             </Card>
 

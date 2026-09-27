@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
-import { hasEventPermission } from '@/app/lib/access/event-access'
+import { hasEventPermission, getEventFeatures } from '@/app/lib/access/event-access'
 import { computeMissingItems } from '@/app/lib/stakeholders/missing-items'
 
 /* GET /api/events/stakeholders/speakers/[id]/communications
@@ -35,7 +35,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   const docTypes = new Set((docs ?? []).map(d => d.document_type as 'passport' | 'national_id'))
-  const missingItems = computeMissingItems(speaker, docTypes)
+  const features = await getEventFeatures(speaker.event_id)
+  const missingItems = computeMissingItems(speaker, docTypes, {
+    sensitiveDocuments: features.has('sensitive-documents'),
+    uaeResidentField: features.has('uae-resident-field'),
+  })
 
   return NextResponse.json({ requests: rows ?? [], missing_items: missingItems })
 }

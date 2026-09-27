@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Card, Input, Select } from '@/app/components/ui'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
+import { getFeatureDef } from '@/app/lib/registry/feature-flags'
 
 /* Speaker Onboarding Status Board (2026-09-04) — a dedicated, dense,
    full-width view of every collection/production/publish signal per
@@ -89,10 +90,10 @@ const TRISTATE_COLUMNS: { key: 'website_status' | 'social_post_status' | 'self_p
   { key: 'self_promo_status', label: 'Self Promo' },
 ]
 // Speaker, Producer, REF, Confirmation Status (4) + Collection's own bool
-// columns + UAE Resident + Passport + National ID (3, hand-rendered) +
-// Short Bio + Website Photo (2, hand-rendered) + the 3-state Publish
-// columns.
-const TOTAL_TABLE_COLUMNS = 4 + COLLECTION_BOOL_COLUMNS.length + 3 + 2 + TRISTATE_COLUMNS.length
+// columns + UAE Resident + Passport + National ID (up to 3, hand-rendered,
+// each individually hideable per this event's feature toggles — see
+// docColumnCount below) + Short Bio + Website Photo (2, hand-rendered) +
+// the 3-state Publish columns.
 
 // One accent color per column group (2026-09-08, per Madhu — make the
 // three groups visually distinct, not just via the header labels). A
@@ -166,16 +167,19 @@ function websitePhotoState(r: Row): { label: string; color: string } {
   return { label: 'Pending', color: STATUS_RED }
 }
 
-const MISSING_FILTER_OPTIONS: { value: string; label: string }[] = [
+// Sensitive-documents/UAE-field-gated entries are filtered out at render
+// time based on this event's feature toggles — see MISSING_FILTER_OPTIONS
+// usage below.
+const MISSING_FILTER_OPTIONS: { value: string; label: string; requires?: 'sensitiveDocs' | 'uaeField' }[] = [
   { value: 'all', label: 'Show all' },
   { value: 'anything', label: 'Missing anything' },
   { value: 'email', label: 'Missing Email' },
   { value: 'assistant_email', label: 'Missing Assistant Email' },
   { value: 'full_bio', label: 'Missing Full Bio' },
   { value: 'photo', label: 'Missing Photo' },
-  { value: 'passport', label: 'Passport Not Reviewed' },
-  { value: 'national_id', label: 'National ID Not Reviewed' },
-  { value: 'uae_not_determined', label: 'UAE Residency Not Set' },
+  { value: 'passport', label: 'Passport Not Reviewed', requires: 'sensitiveDocs' },
+  { value: 'national_id', label: 'National ID Not Reviewed', requires: 'sensitiveDocs' },
+  { value: 'uae_not_determined', label: 'UAE Residency Not Set', requires: 'uaeField' },
   { value: 'short_bio', label: 'Short Bio Not Approved' },
   { value: 'website_photo', label: 'Website Photo Not Cleaned' },
 ]
@@ -190,6 +194,13 @@ function nationalIdMissing(r: Row) {
 export default function StatusBoardPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = use(params)
   const [eventName, setEventName] = useState('')
+  // Per-event feature toggles (2026-09-27) — sensitiveDocsEnabled gates the
+  // whole Passport/National ID pair, uaeFieldEnabled gates the UAE
+  // Resident column specifically (see app/lib/registry/feature-flags.ts).
+  // Missing key in enabled_features falls back to the registry default,
+  // same rule as the server-side resolver in event-access.ts.
+  const [sensitiveDocsEnabled, setSensitiveDocsEnabled] = useState(true)
+  const [uaeFieldEnabled, setUaeFieldEnabled] = useState(true)
   const [rows, setRows] = useState<Row[]>([])
   const [producers, setProducers] = useState<Producer[]>([])
   const [loading, setLoading] = useState(true)
@@ -240,6 +251,10 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
     const eventData = await eventRes.json().catch(() => null)
     const ev = Array.isArray(eventData) ? eventData[0] : eventData
     setEventName(ev?.public_name || ev?.name || '')
+    const stored = (ev?.enabled_features ?? {}) as Record<string, boolean>
+    const country = ev?.country ?? null
+    setSensitiveDocsEnabled(stored['sensitive-documents'] ?? getFeatureDef('sensitive-documents')?.defaultForNewEvent({ country }) ?? true)
+    setUaeFieldEnabled(stored['uae-resident-field'] ?? getFeatureDef('uae-resident-field')?.defaultForNewEvent({ country }) ?? true)
     setLoading(false)
   }
 
@@ -262,12 +277,13 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
       if (search.trim() && !r.name.toLowerCase().includes(search.trim().toLowerCase())) return false
       if (selectedProducerIds.size > 0 && !(r.producer_staff_id && selectedProducerIds.has(r.producer_staff_id))) return false
       if (missingFilter === 'anything') {
-        return BOOL_COLUMNS.some(c => r[c.key] === false) || nationalIdMissing(r)
-          || r.passport_status !== 'reviewed' || r.short_bio_status !== 'approved' || !r.website_photo
+        return BOOL_COLUMNS.some(c => r[c.key] === false)
+          || (sensitiveDocsEnabled && (nationalIdMissing(r) || r.passport_status !== 'reviewed'))
+          || r.short_bio_status !== 'approved' || !r.website_photo
       }
-      if (missingFilter === 'passport') return r.passport_status !== 'reviewed'
-      if (missingFilter === 'national_id') return nationalIdMissing(r)
-      if (missingFilter === 'uae_not_determined') return r.is_uae_resident === null
+      if (missingFilter === 'passport') return sensitiveDocsEnabled && r.passport_status !== 'reviewed'
+      if (missingFilter === 'national_id') return sensitiveDocsEnabled && nationalIdMissing(r)
+      if (missingFilter === 'uae_not_determined') return uaeFieldEnabled && r.is_uae_resident === null
       if (missingFilter === 'short_bio') return r.short_bio_status !== 'approved'
       if (missingFilter === 'website_photo') return !r.website_photo
       if (missingFilter !== 'all') {
@@ -276,7 +292,7 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
       }
       return true
     })
-  }, [rows, search, selectedProducerIds, missingFilter])
+  }, [rows, search, selectedProducerIds, missingFilter, sensitiveDocsEnabled, uaeFieldEnabled])
 
   const summary = useMemo(() => {
     const total = filteredRows.length
@@ -293,6 +309,13 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
     const uaeDeterminedCount = filteredRows.filter(r => r.is_uae_resident !== null).length
     return { total, boolCounts, nationalIdCount, passportCount, shortBioCount, websitePhotoCount, uaeDeterminedCount }
   }, [filteredRows])
+
+  // How many of {UAE Resident, Passport, National ID} are actually
+  // rendered right now — drives the Collection group header's colSpan and
+  // the empty-state row's colSpan, since either can be hidden per this
+  // event's feature toggles.
+  const docColumnCount = (uaeFieldEnabled ? 1 : 0) + (sensitiveDocsEnabled ? 2 : 0)
+  const totalTableColumns = 4 + COLLECTION_BOOL_COLUMNS.length + docColumnCount + 2 + TRISTATE_COLUMNS.length
 
   function toggleProducer(id: string) {
     setSelectedProducerIds(prev => {
@@ -323,9 +346,11 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
       'Assistant Email': r.assistant_email ? 'Done' : 'Pending',
       'Full Bio': r.full_bio ? 'Done' : 'Pending',
       'Photo': r.photo ? 'Done' : 'Pending',
-      'UAE Resident': r.is_uae_resident === true ? 'YES' : r.is_uae_resident === false ? 'NO' : 'UNKNOWN',
-      'Passport': r.passport_status === 'reviewed' ? 'Reviewed' : r.passport_status === 'in_progress' ? 'In Progress' : 'Pending',
-      'National ID': !r.national_id_applicable ? 'Not Applicable' : r.national_id_status === 'reviewed' ? 'Reviewed' : r.national_id_status === 'in_progress' ? 'In Progress' : 'Pending',
+      ...(uaeFieldEnabled ? { 'UAE Resident': r.is_uae_resident === true ? 'YES' : r.is_uae_resident === false ? 'NO' : 'UNKNOWN' } : {}),
+      ...(sensitiveDocsEnabled ? {
+        'Passport': r.passport_status === 'reviewed' ? 'Reviewed' : r.passport_status === 'in_progress' ? 'In Progress' : 'Pending',
+        'National ID': !r.national_id_applicable ? 'Not Applicable' : r.national_id_status === 'reviewed' ? 'Reviewed' : r.national_id_status === 'in_progress' ? 'In Progress' : 'Pending',
+      } : {}),
       'Short Bio': r.short_bio_status === 'approved' ? 'Approved' : r.short_bio_status === 'in_progress' ? 'In Progress' : 'Pending',
       'Website Photo': websitePhotoState(r).label,
       'Website': TRISTATE_LABEL[r.website_status],
@@ -368,25 +393,31 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
                 </div>
               </Card>
             ))}
-            <Card padded>
-              <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink3)' }}>UAE Residency Set</div>
-              <div style={{ fontSize: '22px', fontWeight: 900, color: summary.uaeDeterminedCount === summary.total ? 'var(--success)' : 'var(--ink)', marginTop: '2px' }}>
-                {summary.uaeDeterminedCount}/{summary.total}
-              </div>
-            </Card>
-            <Card padded>
-              <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink3)' }}>Passport Reviewed</div>
-              <div style={{ fontSize: '22px', fontWeight: 900, color: summary.passportCount.count === summary.passportCount.total ? 'var(--success)' : 'var(--ink)', marginTop: '2px' }}>
-                {summary.passportCount.count}/{summary.passportCount.total}
-              </div>
-            </Card>
-            <Card padded>
-              <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink3)' }}>National ID Reviewed</div>
-              <div style={{ fontSize: '22px', fontWeight: 900, color: summary.nationalIdCount.total > 0 && summary.nationalIdCount.count === summary.nationalIdCount.total ? 'var(--success)' : 'var(--ink)', marginTop: '2px' }}>
-                {summary.nationalIdCount.count}/{summary.nationalIdCount.total}
-              </div>
-              <div style={{ fontSize: '10.5px', color: 'var(--ink4)', marginTop: '2px' }}>of UAE residents</div>
-            </Card>
+            {uaeFieldEnabled && (
+              <Card padded>
+                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink3)' }}>UAE Residency Set</div>
+                <div style={{ fontSize: '22px', fontWeight: 900, color: summary.uaeDeterminedCount === summary.total ? 'var(--success)' : 'var(--ink)', marginTop: '2px' }}>
+                  {summary.uaeDeterminedCount}/{summary.total}
+                </div>
+              </Card>
+            )}
+            {sensitiveDocsEnabled && (
+              <Card padded>
+                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink3)' }}>Passport Reviewed</div>
+                <div style={{ fontSize: '22px', fontWeight: 900, color: summary.passportCount.count === summary.passportCount.total ? 'var(--success)' : 'var(--ink)', marginTop: '2px' }}>
+                  {summary.passportCount.count}/{summary.passportCount.total}
+                </div>
+              </Card>
+            )}
+            {sensitiveDocsEnabled && (
+              <Card padded>
+                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink3)' }}>National ID Reviewed</div>
+                <div style={{ fontSize: '22px', fontWeight: 900, color: summary.nationalIdCount.total > 0 && summary.nationalIdCount.count === summary.nationalIdCount.total ? 'var(--success)' : 'var(--ink)', marginTop: '2px' }}>
+                  {summary.nationalIdCount.count}/{summary.nationalIdCount.total}
+                </div>
+                <div style={{ fontSize: '10.5px', color: 'var(--ink4)', marginTop: '2px' }}>of UAE residents</div>
+              </Card>
+            )}
             <Card padded>
               <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink3)' }}>Short Bio Approved</div>
               <div style={{ fontSize: '22px', fontWeight: 900, color: summary.shortBioCount.count === summary.total ? 'var(--success)' : 'var(--ink)', marginTop: '2px' }}>
@@ -459,7 +490,9 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
           </div>
 
           <Select value={missingFilter} onChange={e => setMissingFilter(e.target.value)} style={{ width: '220px' }}>
-            {MISSING_FILTER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {MISSING_FILTER_OPTIONS
+              .filter(o => (o.requires !== 'sensitiveDocs' || sensitiveDocsEnabled) && (o.requires !== 'uaeField' || uaeFieldEnabled))
+              .map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </Select>
 
           <Button variant="ghost" onClick={downloadExcel}>Download Excel</Button>
@@ -524,10 +557,11 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
                   <Th rowSpan={2} cellStyle={{ ...stickyStyle({ top: 0, z: 3 }), minWidth: '70px', width: '70px' }} contentStyle={thContentStyle('left')}>Ref</Th>
                   <Th rowSpan={2} cellStyle={{ ...stickyStyle({ top: 0, z: 3 }), minWidth: '110px', width: '110px' }} contentStyle={{ ...thContentStyle('left'), whiteSpace: 'normal' }}>Producer</Th>
                   <Th rowSpan={2} cellStyle={{ ...stickyStyle({ top: 0, z: 3 }), minWidth: '90px', width: '90px' }} contentStyle={{ ...thContentStyle('center'), whiteSpace: 'normal' }}>Confirmation Status</Th>
-                  {/* +3 for UAE Resident, Passport, National ID —
-                      hand-placed below, not in COLLECTION_BOOL_COLUMNS (see
-                      that array's own comment). */}
-                  <Th colSpan={COLLECTION_BOOL_COLUMNS.length + 3} cellStyle={{ ...stickyStyle({ top: 0, z: 3 }), ...groupHeaderStyle('Collection'), ...groupStartStyle('Collection') }} contentStyle={thContentStyle('center')}>Collection</Th>
+                  {/* +docColumnCount for UAE Resident, Passport, National
+                      ID — hand-placed below, not in COLLECTION_BOOL_COLUMNS
+                      (see that array's own comment); each is individually
+                      hideable per this event's feature toggles. */}
+                  <Th colSpan={COLLECTION_BOOL_COLUMNS.length + docColumnCount} cellStyle={{ ...stickyStyle({ top: 0, z: 3 }), ...groupHeaderStyle('Collection'), ...groupStartStyle('Collection') }} contentStyle={thContentStyle('center')}>Collection</Th>
                   <Th colSpan={2} cellStyle={{ ...stickyStyle({ top: 0, z: 3 }), ...groupHeaderStyle('Production'), ...groupStartStyle('Production') }} contentStyle={thContentStyle('center')}>Production</Th>
                   <Th colSpan={3} cellStyle={{ ...stickyStyle({ top: 0, z: 3 }), ...groupHeaderStyle('Publish'), ...groupStartStyle('Publish') }} contentStyle={thContentStyle('center')}>Publish</Th>
                 </tr>
@@ -545,9 +579,9 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
                   <Th cellStyle={stickyStyle({ top: headerRow1Height, z: 3 })} contentStyle={{ ...thContentStyle('center'), whiteSpace: 'normal' }}>Assistant<br />Email</Th>
                   <Th cellStyle={stickyStyle({ top: headerRow1Height, z: 3 })} contentStyle={thContentStyle('center')}>Full Bio</Th>
                   <Th cellStyle={stickyStyle({ top: headerRow1Height, z: 3 })} contentStyle={thContentStyle('center')}>Photo</Th>
-                  <Th cellStyle={stickyStyle({ top: headerRow1Height, z: 3 })} contentStyle={thContentStyle('center')}>UAE Resident</Th>
-                  <Th cellStyle={stickyStyle({ top: headerRow1Height, z: 3 })} contentStyle={thContentStyle('center')}>Passport</Th>
-                  <Th cellStyle={stickyStyle({ top: headerRow1Height, z: 3 })} contentStyle={thContentStyle('center')}>National ID</Th>
+                  {uaeFieldEnabled && <Th cellStyle={stickyStyle({ top: headerRow1Height, z: 3 })} contentStyle={thContentStyle('center')}>UAE Resident</Th>}
+                  {sensitiveDocsEnabled && <Th cellStyle={stickyStyle({ top: headerRow1Height, z: 3 })} contentStyle={thContentStyle('center')}>Passport</Th>}
+                  {sensitiveDocsEnabled && <Th cellStyle={stickyStyle({ top: headerRow1Height, z: 3 })} contentStyle={thContentStyle('center')}>National ID</Th>}
                   <Th cellStyle={{ ...groupStartStyle('Production'), ...stickyStyle({ top: headerRow1Height, z: 3 }) }} contentStyle={thContentStyle('center')}>Short Bio</Th>
                   <Th cellStyle={stickyStyle({ top: headerRow1Height, z: 3 })} contentStyle={thContentStyle('center')}>Website Photo</Th>
                   {TRISTATE_COLUMNS.map((c, i) => (
@@ -557,7 +591,7 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
               </thead>
               <tbody>
                 {filteredRows.length === 0 ? (
-                  <tr><td colSpan={TOTAL_TABLE_COLUMNS} style={{ padding: '32px', textAlign: 'center', color: 'var(--ink4)' }}>No speakers match these filters.</td></tr>
+                  <tr><td colSpan={totalTableColumns} style={{ padding: '32px', textAlign: 'center', color: 'var(--ink4)' }}>No speakers match these filters.</td></tr>
                 ) : filteredRows.map(r => (
                   <tr key={r.id}
                     className="sb-row"
@@ -593,20 +627,26 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
                     <td style={tdStyle('center')}>
                       <BoolCell value={r.photo} />
                     </td>
-                    <td style={tdStyle('center')}>
-                      <StatusText
-                        label={r.is_uae_resident === true ? 'YES' : r.is_uae_resident === false ? 'NO' : 'UNKNOWN'}
-                        color={r.is_uae_resident === null ? STATUS_RED : STATUS_GREEN}
-                      />
-                    </td>
-                    <td style={tdStyle('center')}>
-                      <StatusText label={DOC_STATUS_LABEL[r.passport_status]} color={DOC_STATUS_COLOR[r.passport_status]} />
-                    </td>
-                    <td style={tdStyle('center')}>
-                      {r.national_id_applicable
-                        ? <StatusText label={DOC_STATUS_LABEL[r.national_id_status]} color={DOC_STATUS_COLOR[r.national_id_status]} />
-                        : <StatusText label="N/A" color="var(--ink4)" />}
-                    </td>
+                    {uaeFieldEnabled && (
+                      <td style={tdStyle('center')}>
+                        <StatusText
+                          label={r.is_uae_resident === true ? 'YES' : r.is_uae_resident === false ? 'NO' : 'UNKNOWN'}
+                          color={r.is_uae_resident === null ? STATUS_RED : STATUS_GREEN}
+                        />
+                      </td>
+                    )}
+                    {sensitiveDocsEnabled && (
+                      <td style={tdStyle('center')}>
+                        <StatusText label={DOC_STATUS_LABEL[r.passport_status]} color={DOC_STATUS_COLOR[r.passport_status]} />
+                      </td>
+                    )}
+                    {sensitiveDocsEnabled && (
+                      <td style={tdStyle('center')}>
+                        {r.national_id_applicable
+                          ? <StatusText label={DOC_STATUS_LABEL[r.national_id_status]} color={DOC_STATUS_COLOR[r.national_id_status]} />
+                          : <StatusText label="N/A" color="var(--ink4)" />}
+                      </td>
+                    )}
                     <td style={{ ...tdStyle('center'), ...groupStartStyle('Production') }}>
                       <StatusText label={SHORT_BIO_STATUS_LABEL[r.short_bio_status]} color={SHORT_BIO_STATUS_COLOR[r.short_bio_status]} />
                     </td>

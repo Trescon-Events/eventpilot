@@ -19,9 +19,17 @@ const LABELS: Record<MissingItemKey, string> = {
   national_id: 'National ID',
 }
 
+// Per-event feature toggles (2026-09-27) — Sensitive Documents and the
+// UAE Resident question can each be off for a given event (see
+// app/lib/registry/feature-flags.ts), so this stays a pure function and
+// takes the resolved flags as a parameter rather than querying for them
+// itself; callers resolve them once per request via getEventFeatures().
+export type MissingItemFeatures = { sensitiveDocuments: boolean; uaeResidentField: boolean }
+
 export function computeMissingItems(
   speaker: { bio_full_url?: string | null; photo_url?: string | null; bio?: string | null; country?: string | null; is_uae_resident?: boolean | null },
-  sensitiveDocTypes: Set<'passport' | 'national_id'>
+  sensitiveDocTypes: Set<'passport' | 'national_id'>,
+  features: MissingItemFeatures
 ): MissingItem[] {
   const items: MissingItem[] = []
   if (!speaker.bio_full_url) items.push({ key: 'bio_full', label: LABELS.bio_full })
@@ -33,9 +41,11 @@ export function computeMissingItems(
   // field here (this never claims the default is *correct*, only that it
   // isn't blank).
   if (!speaker.country?.trim()) items.push({ key: 'country', label: LABELS.country })
-  if (!sensitiveDocTypes.has('passport')) items.push({ key: 'passport', label: LABELS.passport })
-  const nationalIdApplicable = speaker.is_uae_resident !== false
-  if (nationalIdApplicable && !sensitiveDocTypes.has('national_id')) items.push({ key: 'national_id', label: LABELS.national_id })
+  if (features.sensitiveDocuments) {
+    if (!sensitiveDocTypes.has('passport')) items.push({ key: 'passport', label: LABELS.passport })
+    const nationalIdApplicable = features.uaeResidentField && speaker.is_uae_resident !== false
+    if (nationalIdApplicable && !sensitiveDocTypes.has('national_id')) items.push({ key: 'national_id', label: LABELS.national_id })
+  }
   return items
 }
 

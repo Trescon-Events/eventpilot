@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, use } from 'react'
 import Link from 'next/link'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
+import { FEATURE_REGISTRY, type FeatureKey } from '@/app/lib/registry/feature-flags'
 
 // Left-panel workspace nav (2026-09-07, per Madhu) — this page used to be a
 // long scroll with no way to jump around. "Event Lifecycle" is the one
@@ -22,15 +23,15 @@ const LIFECYCLE_PHASES = (eventId: string) => [
       { label: 'Planning Board', href: `/admin/events/${eventId}/plan` },
       { label: 'Commercial P&L', href: `/admin/commercial/${eventId}` },
       { label: 'Brand Studio', href: `/admin/events/${eventId}/brand` },
-      { label: 'Operations', href: `/admin/events/${eventId}/operations` },
+      { label: 'Operations', href: `/admin/events/${eventId}/operations`, featureKey: 'operations' as FeatureKey },
     ],
   },
   {
     label: 'Public-Facing Assets', color: 'var(--teal)', links: [
-      { label: 'Website Builder', href: `/admin/events/${eventId}/website` },
+      { label: 'Website Builder', href: `/admin/events/${eventId}/website`, featureKey: 'website-builder' as FeatureKey },
       { label: 'Content Campaigns', href: `/content?event_id=${eventId}` },
       { label: 'Stakeholder Hub', href: `/admin/events/${eventId}/stakeholders` },
-      { label: 'Press Release Studio', href: `/admin/events/${eventId}/press-releases` },
+      { label: 'Press Release Studio', href: `/admin/events/${eventId}/press-releases`, featureKey: 'press-releases' as FeatureKey },
     ],
   },
 ]
@@ -61,7 +62,7 @@ const SETTINGS_LINKS = (eventId: string) => [
 ]
 
 function WorkspaceLeftNav({
-  eventId, active, lifecycleOpen, setLifecycleOpen, settingsOpen, setSettingsOpen, onAnchorClick,
+  eventId, active, lifecycleOpen, setLifecycleOpen, settingsOpen, setSettingsOpen, onAnchorClick, enabledFeatures,
 }: {
   eventId: string
   active: string
@@ -70,6 +71,10 @@ function WorkspaceLeftNav({
   settingsOpen: boolean
   setSettingsOpen: (fn: (v: boolean) => boolean) => void
   onAnchorClick: (id: string) => void
+  // Per-event feature toggles (2026-09-27) — see app/lib/registry/feature-flags.ts.
+  // A link with no featureKey is core/always shown (Stakeholder Hub, Brand
+  // Studio, etc. aren't in the registry at all — every event needs them).
+  enabledFeatures: Set<FeatureKey>
 }) {
   return (
     <nav style={{ width: '212px', flexShrink: 0, position: 'sticky', top: '20px' }}>
@@ -95,7 +100,7 @@ function WorkspaceLeftNav({
                     {phase.label}
                   </div>
                   <div style={{ display: 'grid', gap: '1px' }}>
-                    {phase.links.map(l => (
+                    {phase.links.filter(l => !('featureKey' in l) || enabledFeatures.has((l as { featureKey: FeatureKey }).featureKey)).map(l => (
                       <Link key={l.label} href={l.href} style={{ display: 'block', padding: '6px 10px', borderRadius: '6px', fontSize: '12.5px', fontWeight: 600, color: 'var(--ink3)', textDecoration: 'none' }}>
                         {l.label}
                       </Link>
@@ -186,6 +191,8 @@ type Event = {
   client_contact_name: string | null
   client_contact_job_title: string | null
   client_contact_email: string | null
+  // Per-event feature toggles (2026-09-27) — see app/lib/registry/feature-flags.ts.
+  enabled_features: Record<string, boolean> | null
 }
 
 type StaffMember = { id: string; name: string; department: string }
@@ -796,11 +803,17 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
     </div>
   )
 
+  // Per-event feature toggles (2026-09-27) — see app/lib/registry/feature-flags.ts.
+  const storedFeatures = (event.enabled_features ?? {}) as Record<string, boolean>
+  const enabledFeatures = new Set<FeatureKey>(
+    FEATURE_REGISTRY.filter(f => storedFeatures[f.key] ?? f.defaultForNewEvent({ country: event.country })).map(f => f.key)
+  )
+
   return (
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: 'var(--surface)', minHeight: '100vh', color: 'var(--ink)' }}>
 
       <div style={{ maxWidth: '1460px', margin: '0 auto', padding: '40px 32px', display: 'flex', gap: '32px', alignItems: 'flex-start' }}>
-        <WorkspaceLeftNav eventId={eventId} active={navActive} lifecycleOpen={lifecycleOpen} setLifecycleOpen={setLifecycleOpen} settingsOpen={settingsOpen} setSettingsOpen={setSettingsOpen} onAnchorClick={scrollToAnchor} />
+        <WorkspaceLeftNav eventId={eventId} active={navActive} lifecycleOpen={lifecycleOpen} setLifecycleOpen={setLifecycleOpen} settingsOpen={settingsOpen} setSettingsOpen={setSettingsOpen} onAnchorClick={scrollToAnchor} enabledFeatures={enabledFeatures} />
 
       <div style={{ flex: 1, minWidth: 0, maxWidth: '1200px' }}>
 

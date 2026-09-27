@@ -4,6 +4,7 @@ import { getSession } from '@/app/lib/access/session'
 import { getAccessibleEventIds } from '@/app/lib/access/event-access'
 import { umbrellasForStaff } from '@/app/lib/ops/my-umbrellas'
 import { TRACKED_EVENT_FIELDS, logEventFieldChanges } from '@/app/lib/events/detail-field-log'
+import { FEATURE_REGISTRY } from '@/app/lib/registry/feature-flags'
 
 /* GET /api/events — list all events with staff count and doc count */
 export async function GET(req: NextRequest) {
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest) {
           social_linkedin, social_x, social_instagram, social_facebook, social_youtube,
           venue_map_url, postiz_profile_key, creative_template_config,
           client_contact_name, client_contact_job_title, client_contact_email,
-          umbrella_id, requires_client_approval,
+          umbrella_id, requires_client_approval, enabled_features,
           event_staff(count),
           documents(count)
         `)
@@ -118,6 +119,14 @@ export async function POST(req: NextRequest) {
       client_name: body.client_name || null,
       description: body.description || null,
       created_by:  body.created_by  || null,
+      // Per-event feature toggles (2026-09-27) — sensible defaults for a
+      // brand-new event, per app/lib/registry/feature-flags.ts. country is
+      // rarely known at creation time (set afterward on the Details page),
+      // so most defaults fall back to their country-independent value;
+      // producers adjust from Details → Feature Toggles once it's known.
+      enabled_features: Object.fromEntries(
+        FEATURE_REGISTRY.map(f => [f.key, f.defaultForNewEvent({ country: body.country ?? null })])
+      ),
     })
     .select()
     .single()

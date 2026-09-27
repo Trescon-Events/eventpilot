@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
+import { FEATURE_REGISTRY, getFeatureDef, type FeatureKey } from '@/app/lib/registry/feature-flags'
 
 // Per-EVENT permission checks — mirrors hasModuleAccess()'s shape
 // (app/lib/access/module-access.ts) with an eventId added. Backed by
@@ -210,4 +211,38 @@ export async function hasPlatformPermission(
     .select('permission_key')
     .in('role_id', roleIds)
   return permissionSetSatisfies(new Set((perms ?? []).map(p => p.permission_key)), permissionKey)
+}
+
+// Per-EVENT feature toggles (2026-09-27) — answers "does THIS event have
+// this module turned on," never "can this staffer use it" (that's still
+// hasEventPermission/hasAnyModulePermission above; a route that gates on
+// both should check permission AND this). Backed by events.enabled_features
+// (jsonb) — see supabase/event_feature_flags_migration.sql and the
+// registry at app/lib/registry/feature-flags.ts. A key absent from the
+// stored jsonb (only possible for an event created before this system, or
+// one that predates a newly-added registry key) falls back to the
+// registry's defaultForNewEvent — every pre-existing event was backfilled
+// to an explicit `true` for every key that existed at migration time, so
+// this fallback is a safety net, not the normal path.
+export async function isEventFeatureEnabled(eventId: string, key: FeatureKey): Promise<boolean> {
+  const { data } = await supabaseAdmin.from('events').select('country, enabled_features').eq('id', eventId).single()
+  if (!data) return false
+  const stored = (data.enabled_features as Record<string, boolean> | null)?.[key]
+  if (stored !== undefined) return stored
+  return getFeatureDef(key)?.defaultForNewEvent({ country: data.country ?? null }) ?? false
+}
+
+// Bulk form of isEventFeatureEnabled — one query for a page that gates
+// several features per load (nav, Integrations page) instead of one
+// round trip per key.
+export async function getEventFeatures(eventId: string): Promise<Set<FeatureKey>> {
+  const { data } = await supabaseAdmin.from('events').select('country, enabled_features').eq('id', eventId).single()
+  if (!data) return new Set()
+  const stored = (data.enabled_features as Record<string, boolean> | null) ?? {}
+  const enabled = new Set<FeatureKey>()
+  for (const def of FEATURE_REGISTRY) {
+    const value = stored[def.key] ?? def.defaultForNewEvent({ country: data.country ?? null })
+    if (value) enabled.add(def.key)
+  }
+  return enabled
 }

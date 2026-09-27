@@ -16,7 +16,8 @@
 
 import { redirect } from 'next/navigation'
 import { getServerSession } from '@/app/lib/registry/access'
-import { hasEventPermission } from '@/app/lib/access/event-access'
+import { hasEventPermission, isEventFeatureEnabled } from '@/app/lib/access/event-access'
+import FeatureDisabled from '@/app/components/FeatureDisabled'
 
 export default async function WebsiteBuilderLayout({ children, params }: { children: React.ReactNode; params: Promise<{ id: string }> }) {
   const session = await getServerSession()
@@ -26,6 +27,11 @@ export default async function WebsiteBuilderLayout({ children, params }: { child
   const isPlatformAdmin = !!session.adm
   const ok = isPlatformAdmin || (await hasEventPermission(session.sid, eventId, 'website-builder.view'))
   if (!ok) redirect('/no-access?tool=website-builder')
+
+  // Per-event feature toggle (2026-09-27) — see app/lib/registry/feature-flags.ts.
+  if (!isPlatformAdmin && !(await isEventFeatureEnabled(eventId, 'website-builder'))) {
+    return <FeatureDisabled label="Website Builder" eventId={eventId} />
+  }
 
   return <>{children}</>
 }

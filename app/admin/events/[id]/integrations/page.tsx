@@ -6,6 +6,7 @@ import PageHeader from '@/app/components/PageHeader'
 import { Card, Button, Input, Select, Badge } from '@/app/components/ui'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import { FORM_TYPES, FORM_TITLES, type FormType } from '@/app/lib/forms/types'
+import { FEATURE_REGISTRY, getFeatureDef, type FeatureKey } from '@/app/lib/registry/feature-flags'
 
 // Left-panel section nav (2026-09-07, per Madhu) — this page used to be one
 // long scroll of cards with no way to jump between them. Sections are
@@ -186,6 +187,14 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
   const [eventName, setEventName] = useState('')
   const [loading, setLoading] = useState(true)
   const [canManage, setCanManage] = useState(false)
+  // Per-event feature toggles (2026-09-27) — see app/lib/registry/feature-flags.ts.
+  // Client Approval Contacts isn't in that registry (it's downstream of the
+  // existing events.requires_client_approval, not a new key) — hidden only
+  // when that's explicitly false; null (inherit from umbrella) and true both
+  // keep it visible, since resolving the umbrella's own value here would need
+  // a second fetch for one nav item.
+  const [enabledFeatures, setEnabledFeatures] = useState<Set<FeatureKey>>(new Set(FEATURE_REGISTRY.map(f => f.key)))
+  const [clientApprovalOn, setClientApprovalOn] = useState(true)
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
 
   const [settings, setSettings] = useState<Settings | null>(null)
@@ -338,6 +347,14 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
     const eventData = await eventRes.json().catch(() => null)
     const ev = Array.isArray(eventData) ? eventData[0] : eventData
     setEventName(ev?.public_name || ev?.name || '')
+    const storedFeatures = (ev?.enabled_features ?? {}) as Record<string, boolean>
+    const evCountry = ev?.country ?? null
+    setEnabledFeatures(new Set(
+      FEATURE_REGISTRY
+        .filter(f => storedFeatures[f.key] ?? f.defaultForNewEvent({ country: evCountry }))
+        .map(f => f.key)
+    ))
+    setClientApprovalOn(ev?.requires_client_approval !== false)
     const permData = await permRes.json().catch(() => ({ permissions: [] }))
     const perms: string[] = permData.permissions ?? []
     setCanManage(perms.includes('*') || perms.some(p => p === 'sae.integrations.manage' || p === 'sae.*'))
@@ -809,12 +826,27 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
 
   if (loading) return <div style={{ minHeight: '100vh', background: 'var(--surface)', padding: '32px', color: 'var(--ink3)' }}>Loading…</div>
 
+  // Per-event feature toggles (2026-09-27) — which of this page's sections
+  // even apply to this event; see the enabledFeatures/clientApprovalOn
+  // state comment above. Kept as one map so the side nav filter and each
+  // section's own render guard can't drift out of sync.
+  const sectionEnabled: Record<(typeof NAV_SECTIONS)[number]['id'], boolean> = {
+    konfhub: enabledFeatures.has('integration-konfhub'),
+    'agenda-structure': enabledFeatures.has('integration-agenda-structure'),
+    hubspot: enabledFeatures.has('integration-hubspot-forms'),
+    postiz: enabledFeatures.has('integration-postiz'),
+    'client-approval': clientApprovalOn,
+    'content-guidelines': enabledFeatures.has('integration-content-guidelines-api'),
+    'site-registry': enabledFeatures.has('site-ops'),
+    'health-checks': enabledFeatures.has('site-ops'),
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--surface)' }}>
       <PageHeader eyebrow="Event Workspace" title="Integrations" backHref={`/admin/events/${eventId}`} backLabel="Back to Event Overview" />
 
       <div style={{ maxWidth: '1140px', margin: '0 auto', padding: '20px 28px 60px', display: 'flex', gap: '32px', alignItems: 'flex-start' }}>
-        <IntegrationsSideNav active={activeSection} sections={NAV_SECTIONS.filter(s => s.id !== 'agenda-structure' || agendaSource === 'konfhub_authoritative')} />
+        <IntegrationsSideNav active={activeSection} sections={NAV_SECTIONS.filter(s => sectionEnabled[s.id] && (s.id !== 'agenda-structure' || agendaSource === 'konfhub_authoritative'))} />
 
         <div style={{ flex: 1, minWidth: 0, maxWidth: '900px' }}>
         {msg && (
@@ -834,6 +866,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
           </div>
         )}
 
+        {sectionEnabled.konfhub && (
         <section id="konfhub" ref={el => { sectionRefs.current.konfhub = el }} style={{ scrollMarginTop: '20px' }}>
         <Card padded>
           <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>KonfHub — Credentials</div>
@@ -981,8 +1014,9 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
           )}
         </Card></div>
         </section>
+        )}
 
-        {agendaSource === 'konfhub_authoritative' && (
+        {sectionEnabled['agenda-structure'] && agendaSource === 'konfhub_authoritative' && (
         <section id="agenda-structure" ref={el => { sectionRefs.current['agenda-structure'] = el }} style={{ scrollMarginTop: '20px', marginTop: '16px' }}>
         <Card padded>
           <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Agenda Structure</div>
@@ -1106,6 +1140,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
         </section>
         )}
 
+        {sectionEnabled.hubspot && (
         <section id="hubspot" ref={el => { sectionRefs.current.hubspot = el }} style={{ scrollMarginTop: '20px' }}>
         <div style={{ marginTop: '16px' }}><Card padded>
           <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>HubSpot Forms</div>
@@ -1136,7 +1171,9 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
           </div>
         </Card></div>
         </section>
+        )}
 
+        {sectionEnabled.postiz && (
         <section id="postiz" ref={el => { sectionRefs.current.postiz = el }} style={{ scrollMarginTop: '20px' }}>
         <div style={{ marginTop: '16px' }}><Card padded>
           <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Postiz</div>
@@ -1205,7 +1242,9 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
           )}
         </Card></div>
         </section>
+        )}
 
+        {sectionEnabled['client-approval'] && (
         <section id="client-approval" ref={el => { sectionRefs.current['client-approval'] = el }} style={{ scrollMarginTop: '20px' }}>
         <div style={{ marginTop: '16px' }}><Card padded>
           <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Client Approval Contacts</div>
@@ -1259,7 +1298,9 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
           )}
         </Card></div>
         </section>
+        )}
 
+        {sectionEnabled['content-guidelines'] && (
         <section id="content-guidelines" ref={el => { sectionRefs.current['content-guidelines'] = el }} style={{ scrollMarginTop: '20px' }}>
         <div style={{ marginTop: '16px' }}><Card padded>
           <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Content Guidelines API</div>
@@ -1324,7 +1365,9 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
           )}
         </Card></div>
         </section>
+        )}
 
+        {sectionEnabled['site-registry'] && (
         <section id="site-registry" ref={el => { sectionRefs.current['site-registry'] = el }} style={{ scrollMarginTop: '20px' }}>
         <div style={{ marginTop: '16px' }}><Card padded>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
@@ -1467,7 +1510,9 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
           </Card></div>
         )}
         </section>
+        )}
 
+        {sectionEnabled['health-checks'] && (
         <section id="health-checks" ref={el => { sectionRefs.current['health-checks'] = el }} style={{ scrollMarginTop: '20px' }}>
         <div style={{ marginTop: '16px' }}><Card padded>
           <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Health Checks</div>
@@ -1503,6 +1548,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
           )}
         </Card></div>
         </section>
+        )}
 
         <div style={{ marginTop: '16px' }}><Card padded>
           <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Legacy / Other</div>

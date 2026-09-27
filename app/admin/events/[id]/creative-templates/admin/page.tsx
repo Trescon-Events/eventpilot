@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useRef, use } from 'react'
 import Link from 'next/link'
+import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Badge, Input, Select, ProcessingOverlay, Toast, type ToastType } from '@/app/components/ui'
 import AccessTab from '@/app/components/AccessTab'
@@ -165,6 +168,10 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   const variants = activeType === 'speaker' ? speakerVariants : partnerVariants
   const setVariants = activeType === 'speaker' ? setSpeakerVariants : setPartnerVariants
   const activeVariant = variants.find(v => v.id === activeVariantId) ?? null
+
+  // Drag-to-reorder layers (2026-09-27, replacing ▲▼ buttons per Madhu —
+  // same @dnd-kit/sortable pattern as FormSchemaEditor.tsx/speaker-order.
+  const layerSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   async function fetchAll() {
     setLoading(true)
@@ -492,15 +499,19 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     updateActiveVariant({ layers: activeVariant.layers.filter(l => l.id !== layerId) })
   }
 
-  function moveLayer(layerId: string, delta: 1 | -1) {
-    if (!activeVariant) return
-    const layers = [...activeVariant.layers]
-    const idx = layers.findIndex(l => l.id === layerId)
-    const swapIdx = idx + delta
-    if (idx < 0 || swapIdx < 0 || swapIdx >= layers.length) return
+  function reorderLayers(activeId: string, overId: string) {
+    if (!activeVariant || activeId === overId) return
+    const layers = activeVariant.layers
+    const oldIdx = layers.findIndex(l => l.id === activeId)
+    const newIdx = layers.findIndex(l => l.id === overId)
+    if (oldIdx === -1 || newIdx === -1) return
     pushUndo()
-    ;[layers[idx], layers[swapIdx]] = [layers[swapIdx], layers[idx]]
-    updateActiveVariant({ layers })
+    updateActiveVariant({ layers: arrayMove(layers, oldIdx, newIdx) })
+  }
+
+  function onLayerDragEnd(e: DragEndEvent) {
+    if (!e.over || e.active.id === e.over.id) return
+    reorderLayers(String(e.active.id), String(e.over.id))
   }
 
   async function savePlaceholder(profile: PlaceholderProfile) {
@@ -734,33 +745,36 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                         Layers, bottom to top — the last one renders on top of everything above it.
                       </div>
 
-                      <div style={{ display: 'grid', gap: '8px', marginBottom: '14px' }}>
-                        {activeVariant.layers.map((layer, i) => (
-                          <LayerRow
-                            key={layer.id}
-                            layer={layer}
-                            index={i}
-                            total={activeVariant.layers.length}
-                            activeType={activeType}
-                            brandFonts={brandFonts}
-                            expanded={expandedLayerId === layer.id}
-                            onToggleExpand={() => setExpandedLayerId(id => id === layer.id ? null : layer.id)}
-                            diagnostics={layer.type === 'text' ? textDiagnostics[layer.id] : undefined}
-                            onChange={patch => updateLayer(layer.id, patch)}
-                            onDelete={() => deleteLayer(layer.id)}
-                            onMove={delta => moveLayer(layer.id, delta)}
-                            pushUndo={pushUndo}
-                            discardLastUndo={discardLastUndo}
-                            eventId={eventId}
-                            allLayers={activeVariant.layers}
-                            canvasWidth={activeVariant.canvas_width}
-                            canvasHeight={activeVariant.canvas_height}
-                          />
-                        ))}
-                        {activeVariant.layers.length === 0 && (
-                          <div style={{ color: 'var(--ink3)', fontSize: '12.5px', padding: '10px 0' }}>No layers yet.</div>
-                        )}
-                      </div>
+                      <DndContext sensors={layerSensors} onDragEnd={onLayerDragEnd}>
+                        <SortableContext items={activeVariant.layers.map(l => l.id)} strategy={verticalListSortingStrategy}>
+                          <div style={{ display: 'grid', gap: '8px', marginBottom: '14px' }}>
+                            {activeVariant.layers.map((layer, i) => (
+                              <LayerRow
+                                key={layer.id}
+                                layer={layer}
+                                index={i}
+                                total={activeVariant.layers.length}
+                                activeType={activeType}
+                                brandFonts={brandFonts}
+                                expanded={expandedLayerId === layer.id}
+                                onToggleExpand={() => setExpandedLayerId(id => id === layer.id ? null : layer.id)}
+                                diagnostics={layer.type === 'text' ? textDiagnostics[layer.id] : undefined}
+                                onChange={patch => updateLayer(layer.id, patch)}
+                                onDelete={() => deleteLayer(layer.id)}
+                                pushUndo={pushUndo}
+                                discardLastUndo={discardLastUndo}
+                                eventId={eventId}
+                                allLayers={activeVariant.layers}
+                                canvasWidth={activeVariant.canvas_width}
+                                canvasHeight={activeVariant.canvas_height}
+                              />
+                            ))}
+                            {activeVariant.layers.length === 0 && (
+                              <div style={{ color: 'var(--ink3)', fontSize: '12.5px', padding: '10px 0' }}>No layers yet.</div>
+                            )}
+                          </div>
+                        </SortableContext>
+                      </DndContext>
 
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                         <Button variant="ghost" title="Static art, identical on every announcement — backgrounds, decorative overlays, branding blocks. Not this speaker/partner's own photo or logo." onClick={() => addLayer('image')}>+ Image Layer</Button>
@@ -908,7 +922,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   )
 }
 
-function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onToggleExpand, diagnostics, onChange, onDelete, onMove, pushUndo, discardLastUndo, eventId, allLayers, canvasWidth, canvasHeight }: {
+function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onToggleExpand, diagnostics, onChange, onDelete, pushUndo, discardLastUndo, eventId, allLayers, canvasWidth, canvasHeight }: {
   layer: Layer
   index: number
   total: number
@@ -919,7 +933,6 @@ function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onTog
   diagnostics?: TextLayerDiagnostics
   onChange: (patch: Partial<Layer>) => void
   onDelete: () => void
-  onMove: (delta: 1 | -1) => void
   pushUndo: () => void
   discardLastUndo: () => void
   eventId: string
@@ -927,28 +940,35 @@ function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onTog
   canvasWidth: number
   canvasHeight: number
 }) {
-  return (
-    <div style={{ border: expanded ? '1px solid var(--lime)' : '1px solid var(--border-light)', borderRadius: '8px', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', background: 'var(--surface)' }}>
-        <Badge color={layer.type === 'image' ? 'purple' : layer.type === 'photo_slot' ? 'amber' : 'teal'}>{LAYER_TYPE_LABEL[layer.type]}</Badge>
-        <button onClick={onToggleExpand} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '12.5px', color: 'var(--ink)', fontWeight: 700 }}>
-          {layerSummary(layer)}
-        </button>
-        {diagnostics?.did_truncate && <span title="Text was shrunk and still had to be cut off with an ellipsis to fit its box" style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--red)' }}>⚠ truncated</span>}
-        {diagnostics?.did_shrink && !diagnostics.did_truncate && <span title="Font size was auto-shrunk to fit its box" style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--amber)' }}>shrunk to fit</span>}
-        <span style={{ fontSize: '10.5px', color: 'var(--ink4)' }}>{index + 1}/{total}</span>
-        <button onClick={() => onMove(1)} disabled={index === total - 1} title="Bring forward" style={{ background: 'none', border: 'none', cursor: index === total - 1 ? 'default' : 'pointer', color: index === total - 1 ? 'var(--ink4)' : 'var(--ink2)', fontSize: '13px' }}>▲</button>
-        <button onClick={() => onMove(-1)} disabled={index === 0} title="Send backward" style={{ background: 'none', border: 'none', cursor: index === 0 ? 'default' : 'pointer', color: index === 0 ? 'var(--ink4)' : 'var(--ink2)', fontSize: '13px' }}>▼</button>
-        <button onClick={onDelete} title="Delete layer" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red)', fontSize: '13px' }}>✕</button>
-      </div>
+  // Drag handle only gets the dnd-kit listeners (not the whole row) so the
+  // expand toggle and delete button underneath keep working normally —
+  // same split used by FormSchemaEditor.tsx's SortableField.
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: layer.id })
+  const dragStyle = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.6 : 1 }
 
-      {expanded && (
-        <div style={{ padding: '12px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-          {layer.type === 'image' && <ImageLayerFields layer={layer} onChange={onChange as (patch: Partial<ImageLayer>) => void} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} />}
-          {layer.type === 'photo_slot' && <PhotoSlotLayerFields layer={layer} activeType={activeType} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} canvasWidth={canvasWidth} canvasHeight={canvasHeight} />}
-          {layer.type === 'text' && <TextLayerFields layer={layer} activeType={activeType} brandFonts={brandFonts} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} allLayers={allLayers} />}
+  return (
+    <div ref={setNodeRef} style={dragStyle}>
+      <div style={{ border: expanded ? '1px solid var(--lime)' : '1px solid var(--border-light)', borderRadius: '8px', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', background: 'var(--surface)' }}>
+          <span {...attributes} {...listeners} title="Drag to reorder" style={{ cursor: 'grab', color: 'var(--ink4)', fontSize: '15px', lineHeight: 1, touchAction: 'none', flexShrink: 0 }}>⠿</span>
+          <Badge color={layer.type === 'image' ? 'purple' : layer.type === 'photo_slot' ? 'amber' : 'teal'}>{LAYER_TYPE_LABEL[layer.type]}</Badge>
+          <button onClick={onToggleExpand} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '12.5px', color: 'var(--ink)', fontWeight: 700 }}>
+            {layerSummary(layer)}
+          </button>
+          {diagnostics?.did_truncate && <span title="Text was shrunk and still had to be cut off with an ellipsis to fit its box" style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--red)' }}>⚠ truncated</span>}
+          {diagnostics?.did_shrink && !diagnostics.did_truncate && <span title="Font size was auto-shrunk to fit its box" style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--amber)' }}>shrunk to fit</span>}
+          <span style={{ fontSize: '10.5px', color: 'var(--ink4)' }}>{index + 1}/{total}</span>
+          <button onClick={onDelete} title="Delete layer" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red)', fontSize: '13px' }}>✕</button>
         </div>
-      )}
+
+        {expanded && (
+          <div style={{ padding: '12px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            {layer.type === 'image' && <ImageLayerFields layer={layer} onChange={onChange as (patch: Partial<ImageLayer>) => void} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} />}
+            {layer.type === 'photo_slot' && <PhotoSlotLayerFields layer={layer} activeType={activeType} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} canvasWidth={canvasWidth} canvasHeight={canvasHeight} />}
+            {layer.type === 'text' && <TextLayerFields layer={layer} activeType={activeType} brandFonts={brandFonts} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} allLayers={allLayers} />}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

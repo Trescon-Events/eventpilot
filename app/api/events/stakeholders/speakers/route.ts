@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
-import { hasEventPermission } from '@/app/lib/access/event-access'
+import { hasEventPermission, isEventFeatureEnabled } from '@/app/lib/access/event-access'
 import { resolveFormSchema } from '@/app/lib/forms/resolve-schema'
 import { mapFieldsToRecord, recordToFields } from '@/app/lib/forms/map-to-stakeholder-record'
 import { SubmittedValue } from '@/app/lib/forms/types'
@@ -117,7 +117,8 @@ export async function POST(req: NextRequest) {
   // NOT NULL at the DB level — mapFieldsToRecord's own fallback (see that
   // file) synthesizes it from first_name/last_name when full_name itself
   // isn't submitted, so the insert below still can't produce a nameless row.
-  const { columns, customFields } = mapFieldsToRecord('speaker', schema, body.fields, {}, { defaultSpeakerPublicName: true })
+  const uaeResidentFieldEnabled = await isEventFeatureEnabled(body.event_id, 'uae-resident-field')
+  const { columns, customFields } = mapFieldsToRecord('speaker', schema, body.fields, {}, { defaultSpeakerPublicName: true, uaeResidentFieldEnabled })
   if (body.public_name?.trim()) columns.public_name = body.public_name.trim()
 
   // CRM layer (2026-09-19) — a manually-added speaker gets the same CRM

@@ -11,6 +11,7 @@ import { FieldSchema, FormType, SubmittedValue } from '@/app/lib/forms/types'
 import { downloadFile } from '@/app/lib/download-file'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import { PRONOUN_STYLES } from '@/app/lib/events/pronoun-styles'
+import { getFeatureDef } from '@/app/lib/registry/feature-flags'
 import LogoApprovalModal from '../LogoApprovalModal'
 import PhotoCleaningWizard from '../PhotoCleaningWizard'
 import KonfhubPushConfirmModal from '../KonfhubPushConfirmModal'
@@ -233,6 +234,9 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
 
   const [record, setRecord] = useState<StakeholderRecord | null>(null)
   const [eventName, setEventName] = useState<string | null>(null)
+  // Per-event feature toggles (2026-09-27) — see app/lib/registry/feature-flags.ts.
+  const [sensitiveDocsEnabled, setSensitiveDocsEnabled] = useState(true)
+  const [uaeFieldEnabled, setUaeFieldEnabled] = useState(true)
   const [schema, setSchema] = useState<FieldSchema[]>([])
   const [values, setValues] = useState<Record<string, SubmittedValue>>({})
   // Registration tab curation (2026-09-23, per Madhu — see registrationFields
@@ -469,6 +473,10 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     setPermissions(new Set(permData.permissions ?? []))
     const eventData = await eventRes.json().catch(() => null)
     setEventName(eventData?.name ?? null)
+    const storedFeatures = (eventData?.enabled_features ?? {}) as Record<string, boolean>
+    const eventCountry = eventData?.country ?? null
+    setSensitiveDocsEnabled(storedFeatures['sensitive-documents'] ?? getFeatureDef('sensitive-documents')?.defaultForNewEvent({ country: eventCountry }) ?? true)
+    setUaeFieldEnabled(storedFeatures['uae-resident-field'] ?? getFeatureDef('uae-resident-field')?.defaultForNewEvent({ country: eventCountry }) ?? true)
     if (kind === 'speaker') {
       const roleRes = await fetch(`/api/events/access/role-holders?event_id=${eventId}&role=producer`).catch(() => null)
       const roleData = await roleRes?.json().catch(() => ({ staff: [] }))
@@ -1210,7 +1218,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
               "don't even reveal it exists" treatment as every other
               permission-gated surface in this app. */}
           {(kind === 'speaker'
-            ? (['overview', 'registration', 'secondary', ...(can('sae.sensitive_documents.view') ? ['documents' as const] : []), 'communications', 'announcements'] as const)
+            ? (['overview', 'registration', 'secondary', ...(can('sae.sensitive_documents.view') && sensitiveDocsEnabled ? ['documents' as const] : []), 'communications', 'announcements'] as const)
             : (['overview', 'announcements'] as const)
           ).map(t => (
             <button key={t} onClick={() => setTab(t)}
@@ -1366,11 +1374,12 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
         </div>
       )}
 
-      {activeTab === 'documents' && kind === 'speaker' && can('sae.sensitive_documents.view') && (
+      {activeTab === 'documents' && kind === 'speaker' && can('sae.sensitive_documents.view') && sensitiveDocsEnabled && (
         <SensitiveDocumentsTab
           speakerId={stakeholderId}
           canManage={can('sae.sensitive_documents.manage')}
           isUaeResident={record?.is_uae_resident ?? null}
+          uaeFieldEnabled={uaeFieldEnabled}
           // Goes through the same general PATCH route/permission
           // (sae.stakeholders.edit) as every other producer-editable field
           // on this page (Producer, Reference, Confirmation Status) — NOT

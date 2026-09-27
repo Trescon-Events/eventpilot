@@ -81,7 +81,14 @@ export function mapFieldsToRecord(
   // public_name default below for why it must never be set on an edit
   // path (PATCH .../speakers/[id] calls this same function on every
   // autosave with the record's whole current fields map).
-  opts: { collapsePartnerContactIntoNotes?: boolean; defaultSpeakerPublicName?: boolean } = {}
+  // uaeResidentFieldEnabled (2026-09-27) — per-event toggle (see
+  // app/lib/registry/feature-flags.ts); callers resolve it once via
+  // isEventFeatureEnabled() and pass it through, same pattern as
+  // missing-items.ts's computeMissingItems(). Defaults false (not true) —
+  // an event that predates this system but never exercises this creation
+  // path again is fine either way, and "don't write a field this event
+  // doesn't track" is the safer default than "write it anyway."
+  opts: { collapsePartnerContactIntoNotes?: boolean; defaultSpeakerPublicName?: boolean; uaeResidentFieldEnabled?: boolean } = {}
 ): { columns: Record<string, unknown>; customFields: Record<string, SubmittedValue> } {
   const isSpeaker = formType === 'speaker'
   const collapseNotes = !isSpeaker && !!opts.collapsePartnerContactIntoNotes
@@ -186,7 +193,7 @@ export function mapFieldsToRecord(
     // the public_name default above) — never re-derived on a later PATCH
     // autosave, so a producer's own manual UAE Resident / Not a UAE
     // Resident toggle on the Documents tab is never silently overwritten.
-    if (opts.defaultSpeakerPublicName) {
+    if (opts.defaultSpeakerPublicName && opts.uaeResidentFieldEnabled) {
       const uaeRaw = asStr(data.are_you_a_uae_resident)?.trim().toLowerCase()
       if (uaeRaw === 'true' || uaeRaw === 'yes') columns.is_uae_resident = true
       else if (uaeRaw === 'false' || uaeRaw === 'no') columns.is_uae_resident = false
