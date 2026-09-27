@@ -366,10 +366,18 @@ Return JSON only, no markdown fences: { "copy": "...", "hashtags": ["#...", "...
 // TextLayer.field values 'headline_lead'/'headline_emphasis'/
 // 'headline_trail' — see buildCompositeInputs' callers for how a selected
 // variant's segments get merged into a composite's `texts`.
+//
+// full (2026-09-27) — the same headline content as one continuous line,
+// for templates that want a single text box instead of three. Auto-
+// derived in parseHeadlineResponse() as the join of lead/emphasis/trail
+// (same words, not a second AI call), then independently editable — a
+// producer can hand-polish it afterward without it having to track the
+// split fields verbatim. Maps onto TextLayer.field 'headline_full'.
 export type HeadlineSegments = {
   lead?: string
   emphasis: string
   trail?: string
+  full?: string
 }
 
 // A stored, pickable option — the route wraps each of generateHeadlines()'s
@@ -414,11 +422,12 @@ function parseHeadlineResponse(text: string): HeadlineSegments[] {
   }
   return (parsed.headlines ?? [])
     .filter(h => h && typeof h.emphasis === 'string' && h.emphasis.trim())
-    .map(h => ({
-      lead: h.lead?.trim() ? enforceMaxChars(h.lead.trim(), HEADLINE_LEAD_TRAIL_MAX_CHARS) : undefined,
-      emphasis: enforceMaxChars(h.emphasis!.trim(), HEADLINE_EMPHASIS_MAX_CHARS),
-      trail: h.trail?.trim() ? enforceMaxChars(h.trail.trim(), HEADLINE_LEAD_TRAIL_MAX_CHARS) : undefined,
-    }))
+    .map(h => {
+      const lead = h.lead?.trim() ? enforceMaxChars(h.lead.trim(), HEADLINE_LEAD_TRAIL_MAX_CHARS) : undefined
+      const emphasis = enforceMaxChars(h.emphasis!.trim(), HEADLINE_EMPHASIS_MAX_CHARS)
+      const trail = h.trail?.trim() ? enforceMaxChars(h.trail.trim(), HEADLINE_LEAD_TRAIL_MAX_CHARS) : undefined
+      return { lead, emphasis, trail, full: [lead, emphasis, trail].filter(Boolean).join(' ') }
+    })
 }
 
 // Propose-only — returns raw segment candidates (expect 5, tolerates fewer
@@ -578,10 +587,12 @@ export function buildCompositeInputs(
   // Creative Headline (2026-09-22, speaker record, not per-announcement) —
   // generated once on the speaker's own page and reused by every
   // announcement for them, same as name/title/company already are. A
-  // variant with a headline_emphasis layer is unusable for a speaker who
-  // hasn't generated/selected one yet — same "requires X" gate as the
-  // missing-photo/logo checks above, not a silent blank render.
-  const usesHeadline = stakeholderType === 'speaker' && variant.layers.some(l => l.type === 'text' && l.field === 'headline_emphasis')
+  // variant with any headline_* layer (split or full) is unusable for a
+  // speaker who hasn't generated/selected one yet — same "requires X" gate
+  // as the missing-photo/logo checks above, not a silent blank render.
+  // startsWith (2026-09-27) — was field === 'headline_emphasis' only, which
+  // missed a variant using ONLY the new headline_full field.
+  const usesHeadline = stakeholderType === 'speaker' && variant.layers.some(l => l.type === 'text' && l.field.startsWith('headline_'))
   const selectedHeadline = usesHeadline
     ? (speaker?.headline_variants as HeadlineVariant[] | null)?.find(v => v.id === speaker?.selected_headline_variant_id)
     : undefined
@@ -596,6 +607,11 @@ export function buildCompositeInputs(
           headline_lead: selectedHeadline.segments.lead || undefined,
           headline_emphasis: selectedHeadline.segments.emphasis || undefined,
           headline_trail: selectedHeadline.segments.trail || undefined,
+          // Falls back to a fresh join for any variant saved before `full`
+          // existed on HeadlineSegments (2026-09-27) — same content either way.
+          headline_full: selectedHeadline.segments.full
+            || [selectedHeadline.segments.lead, selectedHeadline.segments.emphasis, selectedHeadline.segments.trail].filter(Boolean).join(' ')
+            || undefined,
         } : {}),
       }
     : {}

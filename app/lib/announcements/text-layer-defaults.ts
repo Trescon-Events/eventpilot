@@ -20,6 +20,10 @@ export const DEFAULT_MAX_LINES: Record<TextLayer['field'], number> = {
   // Generous — headline layers are authored with allow_shrink: false, so a
   // longer AI-generated clause needs room to wrap rather than fit-or-shrink.
   headline_lead: 2, headline_emphasis: 3, headline_trail: 2,
+  // Full (2026-09-27) — a single box carrying what used to be spread across
+  // the 3 layers above (2+3+2 lines combined), for templates that want the
+  // headline as one continuous line instead of split.
+  headline_full: 4,
 }
 const DEFAULT_LINE_HEIGHT_RATIO = 1.2
 const DEFAULT_BOX_WIDTH_RATIO = 0.4 // of canvas width — a reasonable starting guess for a migrated layer, not a design decision

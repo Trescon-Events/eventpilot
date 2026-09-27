@@ -253,6 +253,7 @@ function resolveGhostTextRaw(layer: TextLayer, activeType: StakeholderKind, reco
   if (layer.field === 'headline_lead') return textSource?.headline_lead || 'THE'
   if (layer.field === 'headline_emphasis') return textSource?.headline_emphasis || 'TECHNOLOGY BEHIND'
   if (layer.field === 'headline_trail') return textSource?.headline_trail || 'MODERN BANKING'
+  if (layer.field === 'headline_full') return textSource?.headline_full || 'THE TECHNOLOGY BEHIND MODERN BANKING'
   return ''
 }
 

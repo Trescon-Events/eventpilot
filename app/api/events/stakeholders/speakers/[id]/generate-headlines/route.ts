@@ -77,7 +77,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     id: crypto.randomUUID(),
     segments: s,
     edited: false,
-    compliance: validateText([s.lead, s.emphasis, s.trail].filter(Boolean).join(' '), effectiveRules),
+    compliance: validateText([s.lead, s.emphasis, s.trail, s.full].filter(Boolean).join(' '), effectiveRules),
   }))
 
   return NextResponse.json({ headline_variants })

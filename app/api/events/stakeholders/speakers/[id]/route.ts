@@ -200,7 +200,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const effectiveRules = await resolveEffectiveRules(existing.event_id).catch(() => [])
     row.headline_variants = body.headline_variants.map(v => ({
       ...v,
-      compliance: validateText([v.segments.lead, v.segments.emphasis, v.segments.trail].filter(Boolean).join(' '), effectiveRules),
+      compliance: validateText([v.segments.lead, v.segments.emphasis, v.segments.trail, v.segments.full].filter(Boolean).join(' '), effectiveRules),
     }))
   }
 

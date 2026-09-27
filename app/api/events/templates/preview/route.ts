@@ -62,6 +62,7 @@ import { compositeOnBackground } from '@/app/lib/media/composite-on-background'
 const PLACEHOLDER_TEXT = {
   name: 'Jane Doe', title: 'Chief Officer', company: 'Acme Corp', country: 'United Arab Emirates', tier: 'LEAD SPONSOR',
   headline_lead: 'THE', headline_emphasis: 'TECHNOLOGY BEHIND', headline_trail: 'MODERN BANKING',
+  headline_full: 'THE TECHNOLOGY BEHIND MODERN BANKING',
 }
 const PLACEHOLDER_COLOR = { r: 140, g: 140, b: 150, alpha: 1 }
 const DRAFT_SCALE = 0.5
@@ -236,6 +237,7 @@ export async function POST(req: NextRequest) {
     headline_lead: textSource?.headline_lead || PLACEHOLDER_TEXT.headline_lead,
     headline_emphasis: textSource?.headline_emphasis || PLACEHOLDER_TEXT.headline_emphasis,
     headline_trail: textSource?.headline_trail || PLACEHOLDER_TEXT.headline_trail,
+    headline_full: textSource?.headline_full || PLACEHOLDER_TEXT.headline_full,
   }
 
   // Any layers beyond the required Image + speaker-photo Photo/Logo Slot

@@ -76,7 +76,7 @@ export type TextLayerFont = {
 export type TextLayer = {
   id: string
   type: 'text'
-  field: 'name' | 'title' | 'company' | 'tier' | 'country' | 'custom' | 'headline_lead' | 'headline_emphasis' | 'headline_trail'
+  field: 'name' | 'title' | 'company' | 'tier' | 'country' | 'custom' | 'headline_lead' | 'headline_emphasis' | 'headline_trail' | 'headline_full'
   value?: string             // static text for 'custom', or a fallback for 'tier'
   x: number                  // box top-left (SAE Phase C v5, 2026-07-29) — was a single SVG baseline
   y: number                  // point before this; see withTextLayerDefaults() for the migration from that shape
@@ -156,6 +156,7 @@ export type ResolvedTexts = {
   headline_lead?: string
   headline_emphasis?: string
   headline_trail?: string
+  headline_full?: string
 }
 
 export type Layer = ImageLayer | PhotoSlotLayer | TextLayer
@@ -290,6 +291,7 @@ export type PlaceholderProfile = {
   headline_lead?: string
   headline_emphasis?: string
   headline_trail?: string
+  headline_full?: string
   // Explicit source switch (2026-08-29) — real bug, caught live: the old
   // implicit rule ("blank field falls back to the global default") used
   // `??`, which only skips null/undefined, not an EMPTY STRING — clearing
@@ -322,6 +324,7 @@ export type GlobalPlaceholderDefault = {
   headline_lead: string | null
   headline_emphasis: string | null
   headline_trail: string | null
+  headline_full: string | null
   photo_url: string | null
   // Detected once, at photo upload time (2026-08-29 — real bug: without
   // this, alignAndCropPhoto had no idea where the head sits in this
@@ -518,6 +521,7 @@ function resolveTextValue(layer: TextLayer, texts: ResolvedTexts): string | unde
     : layer.field === 'headline_lead' ? texts.headline_lead
     : layer.field === 'headline_emphasis' ? texts.headline_emphasis
     : layer.field === 'headline_trail' ? texts.headline_trail
+    : layer.field === 'headline_full' ? texts.headline_full
     : (texts.tier ?? layer.value) // 'tier' — runtime value wins, falls back to the layer's own hardcoded label
   return layer.uppercase && raw ? raw.toUpperCase() : raw
 }

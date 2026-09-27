@@ -33,7 +33,7 @@ export function missingAssetLabels(v: Variant, stakeholderType: StakeholderKind,
     // record page (a "Requires headline" gate mirrors buildCompositeInputs'
     // own server-side check in announcements.ts), not something a producer
     // can supply at announcement-creation time.
-    const usesHeadline = v.layers.some(l => l.type === 'text' && l.field === 'headline_emphasis')
+    const usesHeadline = v.layers.some(l => l.type === 'text' && l.field.startsWith('headline_'))
     if (usesHeadline && !sp.selected_headline_variant_id) missing.push('headline')
   } else {
     const p = s as Partner

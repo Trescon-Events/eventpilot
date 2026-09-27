@@ -1,6 +1,6 @@
 'use client'
 
-import { Button, Input } from '@/app/components/ui'
+import { Button, Input, Textarea } from '@/app/components/ui'
 import type { HeadlineVariant } from '@/app/lib/events/announcements'
 
 /* Speaker creative headline picker (2026-09-22) — up to 5 AI-generated
@@ -24,7 +24,7 @@ export default function HeadlinePicker({
   disabled?: boolean
   onGenerate: () => void
   onSelect: (id: string) => void
-  onSegmentChange: (id: string, field: 'lead' | 'emphasis' | 'trail', value: string) => void
+  onSegmentChange: (id: string, field: 'lead' | 'emphasis' | 'trail' | 'full', value: string) => void
   onSegmentBlur: (id: string) => void
 }) {
   return (
@@ -61,33 +61,50 @@ export default function HeadlinePicker({
                     type="radio" name="headline-variant" checked={isSelected} disabled={disabled}
                     onChange={() => onSelect(v.id)} style={{ marginTop: '4px' }}
                   />
-                  <div style={{ flex: 1, display: 'grid', gap: '5px' }}>
-                    <Input
-                      value={v.segments.lead ?? ''}
-                      placeholder="Lead (optional)"
-                      disabled={disabled}
-                      onChange={e => onSegmentChange(v.id, 'lead', e.target.value)}
-                      onBlur={() => onSegmentBlur(v.id)}
-                      style={{ fontSize: '12px' }}
-                    />
-                    <Input
-                      value={v.segments.emphasis}
-                      placeholder="Emphasis"
-                      disabled={disabled}
-                      onChange={e => onSegmentChange(v.id, 'emphasis', e.target.value)}
-                      onBlur={() => onSegmentBlur(v.id)}
-                      style={{ fontSize: '13px', fontWeight: 700, color: 'var(--teal-mid)' }}
-                    />
-                    <Input
-                      value={v.segments.trail ?? ''}
-                      placeholder="Trail (optional)"
-                      disabled={disabled}
-                      onChange={e => onSegmentChange(v.id, 'trail', e.target.value)}
-                      onBlur={() => onSegmentBlur(v.id)}
-                      style={{ fontSize: '12px' }}
-                    />
+                  <div style={{ flex: 1, display: 'grid', gap: '10px' }}>
+                    {/* Split (left) / continuous (right) — same headline content,
+                        two representations (2026-09-27). Right's "full" is
+                        auto-derived from the left's 3 segments at generation
+                        time, then independently editable — see HeadlineSegments'
+                        own doc comment in announcements.ts. */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                      <div style={{ display: 'grid', gap: '5px' }}>
+                        <Input
+                          value={v.segments.lead ?? ''}
+                          placeholder="Lead (optional)"
+                          disabled={disabled}
+                          onChange={e => onSegmentChange(v.id, 'lead', e.target.value)}
+                          onBlur={() => onSegmentBlur(v.id)}
+                          style={{ fontSize: '12px' }}
+                        />
+                        <Input
+                          value={v.segments.emphasis}
+                          placeholder="Emphasis"
+                          disabled={disabled}
+                          onChange={e => onSegmentChange(v.id, 'emphasis', e.target.value)}
+                          onBlur={() => onSegmentBlur(v.id)}
+                          style={{ fontSize: '13px', fontWeight: 700, color: 'var(--teal-mid)' }}
+                        />
+                        <Input
+                          value={v.segments.trail ?? ''}
+                          placeholder="Trail (optional)"
+                          disabled={disabled}
+                          onChange={e => onSegmentChange(v.id, 'trail', e.target.value)}
+                          onBlur={() => onSegmentBlur(v.id)}
+                          style={{ fontSize: '12px' }}
+                        />
+                      </div>
+                      <Textarea
+                        value={v.segments.full ?? [v.segments.lead, v.segments.emphasis, v.segments.trail].filter(Boolean).join(' ')}
+                        placeholder="Full headline (continuous)"
+                        disabled={disabled}
+                        onChange={e => onSegmentChange(v.id, 'full', e.target.value)}
+                        onBlur={() => onSegmentBlur(v.id)}
+                        style={{ fontSize: '13px', fontWeight: 700, height: '100%', width: '100%', resize: 'none', boxSizing: 'border-box' }}
+                      />
+                    </div>
                     {findings.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '2px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         {findings.map((f, i) => (
                           <div key={i} style={{
                             fontSize: '11px', padding: '5px 8px', borderRadius: '6px',

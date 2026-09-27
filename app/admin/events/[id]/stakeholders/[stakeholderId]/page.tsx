@@ -987,7 +987,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     setStatus(data.announcement_status)
   }
 
-  function editHeadlineSegment(headlineId: string, field: 'lead' | 'emphasis' | 'trail', value: string) {
+  function editHeadlineSegment(headlineId: string, field: 'lead' | 'emphasis' | 'trail' | 'full', value: string) {
     setHeadlineVariants(prev => prev.map(v => (v.id === headlineId ? { ...v, segments: { ...v.segments, [field]: value }, edited: true } : v)))
   }
 

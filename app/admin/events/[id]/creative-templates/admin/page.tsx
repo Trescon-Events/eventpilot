@@ -46,7 +46,7 @@ const LAYER_TYPE_LABEL: Record<Layer['type'], string> = { image: 'Image', photo_
 // runtime fallback; the two are allowed to diverge without breaking anything.
 const DEFAULT_MAX_LINES_BY_FIELD: Record<TextLayer['field'], number> = {
   name: 3, title: 2, company: 2, country: 1, tier: 2, custom: 2,
-  headline_lead: 2, headline_emphasis: 3, headline_trail: 2,
+  headline_lead: 2, headline_emphasis: 3, headline_trail: 2, headline_full: 4,
 }
 
 // Editor-local — maps a text layer's `field` to the content-type slug the
@@ -56,7 +56,7 @@ const DEFAULT_MAX_LINES_BY_FIELD: Record<TextLayer['field'], number> = {
 // than in the shared library.
 const FIELD_TO_CONTENT_TYPE: Record<TextLayer['field'], string> = {
   name: 'heading', title: 'subheading', company: 'body', country: 'body', tier: 'body', custom: 'body',
-  headline_lead: 'heading', headline_emphasis: 'heading', headline_trail: 'heading',
+  headline_lead: 'heading', headline_emphasis: 'heading', headline_trail: 'heading', headline_full: 'heading',
 }
 
 function newLayer(type: Layer['type'], activeType: StakeholderKind, canvasWidth: number, canvasHeight: number, fontSuggestion?: ResolvedFont | null, category?: Variant['category']): Layer {
@@ -1075,6 +1075,7 @@ function PlaceholderOverrideFields({ activeType, profile, onSave }: {
           <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Headline — Lead (optional, white)<Input value={draft.headline_lead ?? ''} onChange={e => setDraft(d => ({ ...d, headline_lead: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
           <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Headline — Emphasis (accent color)<Input value={draft.headline_emphasis ?? ''} onChange={e => setDraft(d => ({ ...d, headline_emphasis: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
           <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Headline — Trail (optional, white)<Input value={draft.headline_trail ?? ''} onChange={e => setDraft(d => ({ ...d, headline_trail: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
+          <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Headline — Full (continuous)<Input value={draft.headline_full ?? ''} onChange={e => setDraft(d => ({ ...d, headline_full: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
         </>
       ) : (
         <>
@@ -1418,7 +1419,7 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
 }) {
   const snapCandidates = allLayers.filter((l): l is TextLayer => l.type === 'text' && l.id !== layer.id)
   const fieldOptions: TextLayer['field'][] = activeType === 'speaker'
-    ? ['name', 'title', 'company', 'country', 'tier', 'headline_lead', 'headline_emphasis', 'headline_trail', 'custom']
+    ? ['name', 'title', 'company', 'country', 'tier', 'headline_lead', 'headline_emphasis', 'headline_trail', 'headline_full', 'custom']
     : ['tier', 'custom']
   const [analyzing, setAnalyzing] = useState(false)
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
