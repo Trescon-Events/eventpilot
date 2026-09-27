@@ -51,6 +51,72 @@ function measure(text: string, size: number, weight: number, family: string): nu
   return measureCtx.measureText(text).width
 }
 
+// Natural break characters (2026-09-27) — real bug found live: "Shariah-
+// compliant" got ellipsis-truncated mid-word ("SHARIAH-COMP…") even though
+// its box had two whole lines of budget to spare, because the old
+// greedyWordWrap treated any whitespace-delimited token as atomic and only
+// had one fallback for "too wide to fit" — cut it and append "…". A
+// hyphenated compound word already has a grammatically correct break point;
+// this list is deliberately extensible (e.g. '/' for "and/or", "24/7")
+// rather than hardcoded to just '-', so a future text type with its own
+// natural break character doesn't need new wrapping logic, just an addition
+// here.
+const NATURAL_BREAK_CHARS = ['-', '/']
+
+// Breaks a single token too wide to fit boxWidth on its own into fragments
+// that each fit (except possibly a final one handed back to the caller to
+// keep trying to combine with subsequent words — see greedyWordWrap).
+// Prefers splitting at an existing natural break character (kept with the
+// preceding fragment, standard hyphenation convention — no bare leading
+// hyphen on the continuation line); falls back to inserting a hyphen at a
+// measured-safe character boundary via the same bisection approach
+// truncateToWidth() already uses below, only now continuing onto a new
+// line instead of appending "…" and stopping. This is why a genuinely
+// unbreakable token (a URL, a long number) still degrades gracefully:
+// real glyph widths from measureCtx.measureText() make the cut point exact
+// regardless of the text's script or content, not just for English prose.
+function splitOverlongWord(word: string, boxWidth: number, size: number, weight: number, family: string): string[] {
+  if (measure(word, size, weight, family) <= boxWidth) return [word]
+
+  for (const breakChar of NATURAL_BREAK_CHARS) {
+    let bestSplit = -1
+    let searchFrom = 0
+    while (true) {
+      const idx = word.indexOf(breakChar, searchFrom)
+      if (idx === -1) break
+      // Prefixes only grow as idx increases, so the first one that doesn't
+      // fit means every later one won't either — stop scanning this char.
+      if (measure(word.slice(0, idx + 1), size, weight, family) <= boxWidth) {
+        bestSplit = idx
+        searchFrom = idx + 1
+      } else break
+    }
+    if (bestSplit >= 0 && bestSplit + 1 < word.length) {
+      const first = word.slice(0, bestSplit + 1) // keeps the break char itself
+      const rest = word.slice(bestSplit + 1)
+      return [first, ...splitOverlongWord(rest, boxWidth, size, weight, family)]
+    }
+  }
+
+  // No usable natural break char (or the box is too narrow for even the
+  // first fragment) — bisect by real glyph width, same approach as
+  // truncateToWidth(), inserting our own hyphen and continuing to a new
+  // line rather than stopping with an ellipsis.
+  let lo = 1
+  let hi = word.length
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2)
+    const candidate = word.slice(0, mid) + '-'
+    if (measure(candidate, size, weight, family) <= boxWidth) lo = mid
+    else hi = mid - 1
+  }
+  const cut = Math.max(1, lo) // always consume at least 1 char so recursion terminates
+  const first = word.slice(0, cut) + '-'
+  const rest = word.slice(cut)
+  if (!rest) return [word]
+  return [first, ...splitOverlongWord(rest, boxWidth, size, weight, family)]
+}
+
 function greedyWordWrap(text: string, boxWidth: number, size: number, weight: number, family: string): string[] {
   const words = text.split(/\s+/).filter(Boolean)
   const lines: string[] = []
@@ -59,13 +125,22 @@ function greedyWordWrap(text: string, boxWidth: number, size: number, weight: nu
     const candidate = current ? `${current} ${word}` : word
     if (measure(candidate, size, weight, family) <= boxWidth) {
       current = candidate
-    } else {
-      if (current) lines.push(current)
-      // `word` alone may still be wider than boxWidth (an unbreakable long
-      // token, e.g. a company name with no spaces) — start a new line with
-      // it anyway; the caller's truncation step handles the over-wide case.
-      current = word
+      continue
     }
+    if (current) lines.push(current)
+    if (measure(word, size, weight, family) <= boxWidth) {
+      current = word
+      continue
+    }
+    // `word` alone is still wider than boxWidth even on its own fresh line
+    // (e.g. "Shariah-compliant") — break it into fragments instead of
+    // deferring to ellipsis-truncation later. Every fragment but the last
+    // already fits and becomes its own line; the last fragment keeps
+    // trying to combine with whatever word comes next, same as normal
+    // greedy wrapping.
+    const fragments = splitOverlongWord(word, boxWidth, size, weight, family)
+    for (let i = 0; i < fragments.length - 1; i++) lines.push(fragments[i])
+    current = fragments[fragments.length - 1]
   }
   if (current) lines.push(current)
   return lines
@@ -115,8 +190,12 @@ export function wrapAndFit(text: string, opts: WrapAndFitOptions): WrapAndFitRes
   // ellipsis: (a) whole trailing lines got dropped by the maxLines cap —
   // the last VISIBLE line gets a forced ellipsis even if its own text
   // already fits, since it's what signals more content existed; (b) a
-  // single line (commonly an unbreakable long token) is itself still
-  // wider than the box even alone — cut mid-word with an ellipsis.
+  // single line is itself still wider than the box even alone — now a rare
+  // edge case rather than the common one (2026-09-27): greedyWordWrap's
+  // splitOverlongWord already breaks any word too wide to fit across
+  // multiple lines (at an existing hyphen/slash, or a measured-safe
+  // character boundary otherwise) before ever reaching here, so this only
+  // still fires when the box is too narrow for even a single character.
   const lineHeight = floor * LINE_HEIGHT_RATIO
   const fullyWrapped = greedyWordWrap(trimmed, width, floor, fontWeight, fontFamily)
   let wrapped = fullyWrapped.slice(0, Math.max(1, maxLines))
