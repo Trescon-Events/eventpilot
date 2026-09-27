@@ -82,7 +82,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // Same compiled-reference-then-raw-doc-fallback as announcements/
   // generate/route.ts — see this route's own top comment for why.
-  const compiledRef = await getLatestCompiledReference(speaker.event_id)
+  const [compiledRef, { data: eventRow }] = await Promise.all([
+    getLatestCompiledReference(speaker.event_id),
+    supabaseAdmin.from('events').select('sae_copy_mode').eq('id', speaker.event_id).single(),
+  ])
   let messagingSections = compiledRef?.sections ?? null
   if (!messagingSections) {
     const { data: rawDoc } = await supabaseAdmin
@@ -91,8 +94,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .order('version', { ascending: false }).limit(1).maybeSingle()
     messagingSections = (rawDoc?.structured_json as { sections?: unknown } | null)?.sections as typeof messagingSections ?? null
   }
+  // deterministic-copy-spec Stage 6 (2026-09-28), 'assembled' mode only —
+  // per Madhu, a 'legacy' event (every existing event) keeps the exact
+  // original wording below untouched. 'assembled' events (BSS only for
+  // now) get the facts-only-scope carve-out: the messaging doc's "facts"
+  // sections gate claims about the EVENT, not the speaker's own career
+  // details/figures given in their own bio — see
+  // docs/build_suggestions/speaker-own-facts-and-indian-honorifics.md
+  // section 1 for the bug this fixes (figures dropped/generalised from
+  // condensed bios because the two rules collided).
+  const assembledMode = eventRow?.sae_copy_mode === 'assembled'
   const messagingContext = messagingSections
-    ? `Messaging doc context (use for voice/tone/style — do not invent facts beyond this). Any section with "kind":"rules" is a hard constraint (naming/style rules, verbatim lines, things that must never appear) — never violate it. Any section with "kind":"facts" is the ONLY permitted source for a statistic, figure, or scale claim — never state a number that isn't grounded there:\n${JSON.stringify(messagingSections)}`
+    ? assembledMode
+      ? `Messaging doc context (use for voice/tone/style — do not invent facts beyond this). Any section with "kind":"rules" is a hard constraint (naming/style rules, verbatim lines, things that must never appear) — never violate it. Any section with "kind":"facts" is the ONLY permitted source for a statistic, figure, or scale claim about the EVENT — never state a number that isn't grounded there. This does not apply to the speaker's own credentials: career details, years of experience, and achievements given in the speaker data or source bio above may be used as written.\n${JSON.stringify(messagingSections)}`
+      : `Messaging doc context (use for voice/tone/style — do not invent facts beyond this). Any section with "kind":"rules" is a hard constraint (naming/style rules, verbatim lines, things that must never appear) — never violate it. Any section with "kind":"facts" is the ONLY permitted source for a statistic, figure, or scale claim — never state a number that isn't grounded there:\n${JSON.stringify(messagingSections)}`
     : 'No topline messaging doc uploaded for this event yet — write in a neutral, professional Trescon voice.'
 
   const prompt = `You are writing a short professional speaker bio for an event website and speaker listing, based on a longer source bio below.

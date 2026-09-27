@@ -75,7 +75,7 @@ type StakeholderRecord = {
   company_website?: string | null; company_description?: string | null
   partner_type?: string
   public_name?: string | null; salutation?: string | null
-  pronoun_style?: 'he_him' | 'she_her' | 'his_excellency' | 'her_excellency' | 'his_highness' | 'her_highness' | null
+  pronoun_style?: 'he_him' | 'she_her' | 'his_excellency' | 'her_excellency' | 'his_highness' | 'her_highness' | 'honble' | null
   key_talking_points?: string | null
   logo_url?: string | null; logo_raw_url?: string | null
   email?: string | null

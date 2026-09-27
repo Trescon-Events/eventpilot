@@ -4,10 +4,10 @@ import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { compositeAnnouncement } from '@/app/lib/announcements/composite'
-import { generatePostCopy, generateSelfPromoPostCopy, describeGeminiError, buildCompositeInputs, type CreativeTemplateConfig, type NeededAsset } from '@/app/lib/events/announcements'
+import { generateAnnouncementCopy, describeGeminiError, buildCompositeInputs, type CreativeTemplateConfig, type NeededAsset } from '@/app/lib/events/announcements'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 import { resolveEffectiveRules } from '@/app/lib/content/resolve-validation-rules'
-import { validateText } from '@/app/lib/content/validate'
+import type { ValidationFinding } from '@/app/lib/content/validate'
 import { getLatestCompiledReference } from '@/app/lib/content/compile-reference'
 
 /* POST /api/events/stakeholders/announcements/generate
@@ -66,12 +66,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Self Promo is only available for speakers' }, { status: 400 })
   }
 
-  // Four independent reads (2026-08-04 perf pass) — none depends on
+  // Five independent reads (2026-08-04 perf pass; effectiveRules joined in
+  // 2026-09-28 for the deterministic-copy-spec build) — none depends on
   // another's result, but were previously awaited one after another.
-  const [eventRes, speakerRes, partnerRes, compiledRef] = await Promise.all([
+  const [eventRes, speakerRes, partnerRes, compiledRef, effectiveRules] = await Promise.all([
     supabaseAdmin
       .from('events')
-      .select('name, venue, city, event_hashtag, registration_url, creative_template_config, public_name, public_dates_display, public_venue_display')
+      .select('name, venue, city, country, event_hashtag, registration_url, creative_template_config, public_name, public_dates_display, public_venue_display, sae_copy_mode, announcement_line_emojis, announcement_cta_label')
       .eq('id', body.event_id)
       .single(),
     body.stakeholder_type === 'speaker'
@@ -84,6 +85,11 @@ export async function POST(req: NextRequest) {
     // compiled reference (umbrella + event docs merged, rank-ordered,
     // conflicts flagged), not the raw live doc directly.
     getLatestCompiledReference(body.event_id),
+    // deterministic-copy-spec (2026-09-28) — needed BEFORE generation now,
+    // not just after: 'assembled' mode's hashtag filter and validate-
+    // and-retry both need the rule set mid-generation, not only for the
+    // findings stored alongside the finished draft.
+    resolveEffectiveRules(body.event_id).catch(() => []),
   ])
 
   const event = eventRes.data
@@ -121,12 +127,13 @@ export async function POST(req: NextRequest) {
   // generates were taking ~20s); this collapses wall-clock time to
   // whichever of the two is slower instead of their sum.
   const [postCopyResult, creativeUrl] = await Promise.all([
-    (async (): Promise<{ ok: true; copy: string; xCopy: string } | { ok: false; error: unknown }> => {
+    (async (): Promise<
+      | { ok: true; copy: string; xCopy: string; validationFindings: { post_copy: ValidationFinding[]; post_copy_x: ValidationFinding[] }; attempts: 1 | 2 }
+      | { ok: false; error: unknown }
+    > => {
       try {
-        const { copy, xCopy } = kind === 'self_promo'
-          ? await generateSelfPromoPostCopy(event, speaker!, messagingDoc?.structured_json ?? null)
-          : await generatePostCopy(event, speaker, partner, messagingDoc?.structured_json ?? null)
-        return { ok: true, copy, xCopy }
+        const result = await generateAnnouncementCopy(event, speaker, partner, messagingDoc?.structured_json ?? null, effectiveRules, kind)
+        return { ok: true, ...result }
       } catch (e) {
         console.error('Post copy generation failed:', e)
         return { ok: false, error: e }
@@ -165,17 +172,14 @@ export async function POST(req: NextRequest) {
   if (!postCopyResult.ok) {
     return NextResponse.json({ error: describeGeminiError(postCopyResult.error) }, { status: 502 })
   }
-  const { copy: postCopy, xCopy: postCopyX } = postCopyResult
-
   // Reference Documents spec, Stage 3 (2026-09-10) — deterministic
-  // validation against the event's effective rule set (its own +
-  // its umbrella's). Never blocks generation — findings are stored
-  // alongside the draft for the reviewer to see, not enforced.
-  const effectiveRules = await resolveEffectiveRules(body.event_id).catch(() => [])
-  const validationFindings = {
-    post_copy: validateText(postCopy, effectiveRules),
-    post_copy_x: validateText(postCopyX, effectiveRules),
-  }
+  // validation against the event's effective rule set (its own + its
+  // umbrella's), computed above (before generation, deterministic-copy-spec
+  // 2026-09-28) and already applied inside generateAnnouncementCopy —
+  // never blocks generation; findings are stored alongside the draft for
+  // the reviewer to see, not enforced. 'legacy' events always get
+  // attempts=1 (no retry there); 'assembled' events may retry once.
+  const { copy: postCopy, xCopy: postCopyX, validationFindings, attempts } = postCopyResult
 
   // ── 3. Create the draft announcement ─────────────────────────────────────
   const { data: announcement, error: insertErr } = await supabaseAdmin
@@ -192,6 +196,7 @@ export async function POST(req: NextRequest) {
       status: 'draft',
       announcement_kind: kind,
       validation_findings: validationFindings,
+      validation_attempts: attempts,
     })
     .select()
     .single()

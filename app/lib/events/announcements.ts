@@ -6,7 +6,7 @@ import type { Variant, PhotoSlotLayer, CreativeTemplateConfig, ResolvedTexts } f
 import type { HeadBox } from '@/app/lib/media/face-alignment'
 import { FLASH_MODEL } from '@/app/lib/content/press-release-access'
 import { enforceMaxChars } from '@/app/lib/content/text-limits'
-import type { ValidationFinding } from '@/app/lib/content/validate'
+import { validateText, type ValidationFinding, type ValidationRule } from '@/app/lib/content/validate'
 
 let _gemini: GoogleGenerativeAI | null = null
 function getGemini() {
@@ -14,10 +14,31 @@ function getGemini() {
   return _gemini
 }
 
+/* deterministic-copy-spec (docs/build_suggestions/sae-deterministic-copy-spec.md,
+   2026-09-28) — gated behind events.sae_copy_mode ('legacy' default | 'assembled').
+   Per Madhu's explicit change of approach: every existing event stays on the
+   ORIGINAL, untouched code path (generatePostCopy, the original
+   messagingContext wording, the unconditional normalizeTitle fold) — this
+   is not "the same behavior via new code," it is literally the pre-build
+   functions left alone. Only BSS is set to 'assembled' (see
+   supabase/sae_deterministic_copy_migration.sql).
+
+   Two things ship globally regardless of mode, per Madhu:
+   - Stage 4's graceful X trim (gracefulTrim, replacing the old blind
+     279-char clampToX slice) — every event's X copy benefits from not
+     being cut mid-word/mid-hashtag.
+   - The 'honble' pronoun/honorific option — purely additive, doesn't
+     change anything for a speaker not using it.
+
+   generateAnnouncementCopy() at the bottom of this file is the one shared
+   entry point both announcements/generate/route.ts and regenerate-copy/
+   route.ts call — it does the kind (org_promo/self_promo) × mode
+   (legacy/assembled) branching so neither route needs to duplicate it. */
+
 // Third-person reference guidance for org-promo copy — matches
 // event_speakers.pronoun_style's CHECK constraint exactly (see
-// supabase/sae_migration.sql). Self-promo copy is first-person and never
-// needs this.
+// supabase/sae_migration.sql + supabase/sae_deterministic_copy_migration.sql
+// for 'honble'). Self-promo copy is first-person and never needs this.
 const PRONOUN_GUIDANCE: Record<string, string> = {
   he_him: 'he/him',
   she_her: 'she/her',
@@ -25,16 +46,41 @@ const PRONOUN_GUIDANCE: Record<string, string> = {
   her_excellency: '"Her Excellency" (not "she/her")',
   his_highness: '"His Highness" (not "he/him")',
   her_highness: '"Her Highness" (not "she/her")',
+  // Indian government speakers (shipped globally, 2026-09-28 — purely
+  // additive, a speaker not set to this value is unaffected) — a
+  // minister/official is referred to by office + honorific, e.g. "Hon'ble
+  // Minister will…", never by a personal pronoun.
+  honble: '"Hon’ble" plus their office, e.g. "Hon’ble Minister", "Hon’ble Chief Minister" (not "he/him"/"she/her")',
 }
 
-// 2026-09-11: event_speakers.role often carries a dual title straight from
-// Staff Portal/HR data (e.g. "Chief Executive Officer & Co-Founder") — an
-// "&" flowing into generated copy trips the DIFC style guide's
-// difc-ampersand validation rule on every single generation for that
-// speaker. Normalizing at the point a title enters prompt context is
-// cheaper and more reliable than asking the model to catch it itself.
-function normalizeTitle(title: unknown): string {
-  return String(title ?? '').replace(/&/g, 'and')
+function effectiveMode(event: EventContext): 'legacy' | 'assembled' {
+  return event.sae_copy_mode === 'assembled' ? 'assembled' : 'legacy'
+}
+
+// normalizeTitle — Madhu, 2026-09-28: legacy events must NOT change
+// behaviour at all, so the unconditional fold below is the exact original
+// function body, untouched. Only an 'assembled' event gets the new,
+// rule-aware behaviour: skip the "&"->"and" fold only when the event has
+// NO ampersand rule of ANY severity (not error-only) — so an official name
+// that legitimately contains "&" (e.g. BSS's "Karnataka Vocational
+// Training & Skill Development Corporation") survives when there's no
+// ampersand rule active at all for that event.
+function hasAmpersandRule(rules: ValidationRule[]): boolean {
+  return rules.some(r => /ampersand/i.test(r.rule_key))
+}
+function normalizeTitle(title: unknown, mode: 'legacy' | 'assembled', rules: ValidationRule[]): string {
+  const s = String(title ?? '')
+  if (mode === 'legacy') return s.replace(/&/g, 'and') // original, unconditional — never change for legacy
+  return hasAmpersandRule(rules) ? s.replace(/&/g, 'and') : s
+}
+
+// Facts-only scope (deterministic-copy-spec Stage 6, 'assembled' mode
+// only) — the messaging doc's "facts" sections are the only permitted
+// source for a claim about the EVENT (attendance, scale, forecasts); they
+// were never meant to gate the speaker's/partner's own career details,
+// which come from their own record/bio instead.
+function factsScopeLine(subject: 'speaker' | 'partner'): string {
+  return `This does not apply to the ${subject}'s own credentials: career details, years of experience, and achievements given in the ${subject} data or source bio above may be used as written.`
 }
 
 export type EventContext = {
@@ -48,8 +94,332 @@ export type EventContext = {
   // event's actual dates (Madhu, 2026-08-13), and would be actively wrong
   // if surfaced as "the event's dates" in generated copy.
   public_name?: string | null; public_dates_display?: string | null; public_venue_display?: string | null
+  // deterministic-copy-spec — 'assembled'-mode-only fields. All optional/
+  // nullable so a legacy event's row needs no values at all.
+  country?: string | null
+  sae_copy_mode?: 'legacy' | 'assembled' | null
+  announcement_line_emojis?: boolean | null
+  // NULL (the default) means "keep today's model-written CTA paragraph" —
+  // the fixed CTA line only replaces it once an event explicitly sets a
+  // label (Madhu, 2026-09-28).
+  announcement_cta_label?: string | null
 }
 
+// ── Stage 4 (global) — graceful X trim ─────────────────────────────────
+// Replaces the old clampToX() hard byte-slice (which produced
+// "#BengaluruSkillS…", cutting mid-hashtag). Cuts at the last complete
+// sentence that fits; if none fits, cuts at the last word boundary and
+// appends "…"; never cuts inside a "#hashtag" or a URL token. Applies to
+// every event, legacy and assembled alike.
+const PROTECTED_TOKEN = /(#\S+|https?:\/\/\S+)/g
+function gracefulTrim(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text
+  const spans: [number, number][] = []
+  let m: RegExpExecArray | null
+  const re = new RegExp(PROTECTED_TOKEN)
+  while ((m = re.exec(text)) !== null) spans.push([m.index, m.index + m[0].length])
+  const insideProtected = (i: number) => spans.some(([s, e]) => i > s && i < e)
+
+  let safeMax = maxLen
+  while (safeMax > 0 && insideProtected(safeMax)) safeMax--
+
+  const head = text.slice(0, safeMax + 1)
+  const sentenceEnds = [...head.matchAll(/[.!?](?=\s|$)/g)]
+  if (sentenceEnds.length > 0) {
+    const cut = (sentenceEnds[sentenceEnds.length - 1].index ?? 0) + 1
+    if (cut > 0) return text.slice(0, cut).trim()
+  }
+
+  let cut = safeMax
+  while (cut > 0 && !/\s/.test(text[cut])) cut--
+  if (cut === 0) cut = safeMax // no whitespace at all — degenerate, hard cut as last resort
+  const trimmed = text.slice(0, cut).trim()
+  const withEllipsis = `${trimmed}…`
+  return withEllipsis.length <= maxLen ? withEllipsis : `${trimmed.slice(0, Math.max(0, maxLen - 1)).trim()}…`
+}
+
+// ── 'assembled' mode only — Stages 1-3 ─────────────────────────────────
+
+// dates/venue reused VERBATIM from the event record — the model never
+// rewrites them (the bug this build exists to fix: "3-5 November 2026"
+// vs. the event's actual "3–5 November 2026"). Omitted entirely if either
+// value is empty, never invented.
+function buildDateVenueLine(event: EventContext): string | null {
+  const dates = event.public_dates_display?.trim() || null
+  const venueLine = event.public_venue_display?.trim() || (event.venue ? `${event.venue}${event.city ? `, ${event.city}` : ''}` : null)
+  if (!dates && !venueLine) return null
+  if (event.announcement_line_emojis) {
+    return [dates && `📅 ${dates}`, venueLine && `📍 ${venueLine}`].filter(Boolean).join(' | ')
+  }
+  return [dates, venueLine].filter(Boolean).join(' | ')
+}
+
+// Only used when the event has an explicit announcement_cta_label — when
+// null, the model's own "cta" field (see PostCopyDraft) is used instead,
+// preserving today's model-written CTA exactly (Madhu, 2026-09-28).
+function buildFixedCtaLine(event: EventContext): string | null {
+  if (!event.registration_url) return null
+  const label = event.announcement_cta_label?.trim()
+  if (!label) return null
+  return `${label} ${event.registration_url}`
+}
+
+// Stage 2 — the speaker's name/title/company line, built in code and
+// handed to the model as a hard "use this exact wording" instruction
+// rather than letting it paraphrase the shape itself (the
+// "role at company, country" bug this build exists to fix).
+// - Comma-separated, no "at" ("<Name>, <Role>, <Company>").
+// - Company omitted when empty (fixes a dangling "at" for a speaker with
+//   no company, e.g. an independent artist).
+// - Country included only when it differs from the event's own country
+//   (foreign speakers only, per spec DECISION) — omitted whenever the
+//   event has no country on record, never guessed.
+function buildSpeakerLine(speaker: Record<string, unknown>, eventCountry: string | null | undefined, rules: ValidationRule[]): string {
+  const name = String(speaker.public_name || speaker.name || '')
+  const role = normalizeTitle(speaker.role, 'assembled', rules)
+  const company = String(speaker.company ?? '').trim()
+  const speakerCountry = String(speaker.country ?? '').trim()
+  const isForeign = !!eventCountry?.trim() && !!speakerCountry && speakerCountry.toLowerCase() !== eventCountry.trim().toLowerCase()
+  const parts = [name, role, company || null, isForeign ? speakerCountry : null].filter(Boolean)
+  return parts.join(', ')
+}
+
+// Stage 3 — event_hashtag always first (never dropped/filtered — it's the
+// one hashtag every post must carry), followed by the model's own picks,
+// each run through the event's effective validation rules; any hashtag
+// that produces an error-level finding is dropped (this is how an
+// approved-hashtag-list rule is enforced without hard-coding the list into
+// the app itself). De-duplicated case-insensitively.
+function filterHashtags(modelHashtags: string[], eventHashtag: string | null | undefined, rules: ValidationRule[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  const add = (tag: string) => {
+    const t = tag.trim()
+    if (!t || seen.has(t.toLowerCase())) return
+    seen.add(t.toLowerCase())
+    out.push(t)
+  }
+  if (eventHashtag) add(eventHashtag)
+  for (const tag of modelHashtags) {
+    const t = tag.trim()
+    if (!t || seen.has(t.toLowerCase())) continue
+    if (validateText(t, rules).some(f => f.severity === 'error')) continue
+    add(t)
+  }
+  return out
+}
+
+// Org-promo X assembly (Stage 4, 'assembled' mode) — the event hashtag is
+// appended AFTER trimming, so it can never itself be cut; x_body is
+// trimmed to whatever budget remains, only if it's still over after the
+// model's own budget instruction + optional reprompt (see
+// generatePostCopyDraft) didn't land it under.
+function assembleXForOrgPromo(xBody: string, eventHashtag: string | null | undefined): string {
+  const suffix = eventHashtag ? ` ${eventHashtag}` : ''
+  const budget = 280 - suffix.length
+  const body = xBody.length <= budget ? xBody : gracefulTrim(xBody, budget)
+  return `${body}${suffix}`.trim()
+}
+
+function findingsAddendum(findings: ValidationFinding[]): string {
+  const errors = findings.filter(f => f.severity === 'error')
+  if (!errors.length) return ''
+  return `\n\nYour previous draft had these problems — rewrite ONLY the variable parts of your response to remove them, keep everything else the same:\n${errors.map(f => `- ${f.message} (matched: "${f.match}")`).join('\n')}`
+}
+
+export type PostCopyDraft = { hook: string; announcement: string; credibility: string; cta: string; hashtags: string[]; x_body: string }
+
+function parseDraftResponse(text: string): PostCopyDraft | null {
+  const match = text.match(/\{[\s\S]*\}/)
+  if (!match) return null
+  try {
+    const parsed = JSON.parse(sanitizeJsonControlChars(match[0])) as Partial<PostCopyDraft>
+    if (!parsed.hook || !parsed.announcement || !parsed.credibility) return null
+    return {
+      hook: parsed.hook, announcement: parsed.announcement, credibility: parsed.credibility,
+      cta: parsed.cta?.trim() || '',
+      hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags : [],
+      x_body: parsed.x_body?.trim() || '',
+    }
+  } catch {
+    return null
+  }
+}
+
+// 'assembled' mode only — one Gemini call producing the three variable
+// paragraphs + a CTA paragraph (used only as a fallback when the event has
+// no fixed announcement_cta_label, see assembleOrgPromoCopy) + hashtag
+// candidates + X body. The model no longer writes the date/venue line at
+// all — that's always fixed-assembled in this mode. retryAddendum (Stage
+// 5) appends a short corrective block asking the model to rewrite only the
+// variable parts to clear specific validation findings from the previous
+// attempt.
+//
+// x_body budget retry (Stage 4, "optional, recommended") — if the model's
+// x_body still doesn't fit the stated budget, one extra reprompt asks it to
+// shorten just that field before falling back to gracefulTrim() as the
+// guarantee of last resort. Independent of, and can stack with, Stage 5's
+// own single retry (each fires only when actually needed, not on every
+// call).
+export async function generatePostCopyDraft(
+  event: EventContext,
+  speaker: Record<string, unknown> | null,
+  partner: Record<string, unknown> | null,
+  messagingJson: Record<string, unknown> | null,
+  rules: ValidationRule[],
+  retryAddendum = ''
+): Promise<PostCopyDraft> {
+  const dates = event.public_dates_display ?? ''
+  const venueLine = event.public_venue_display || (event.venue ? `${event.venue}${event.city ? `, ${event.city}` : ''}` : null)
+  const eventContext = [
+    `Event: ${event.public_name || event.name}`,
+    dates && `Dates: ${dates}`,
+    venueLine && `Venue: ${venueLine}`,
+    event.event_hashtag && `Hashtag: ${event.event_hashtag}`,
+    event.registration_url && `Registration: ${event.registration_url}`,
+  ].filter(Boolean).join('\n')
+
+  const messagingContext = messagingJson
+    ? `Messaging doc context (use for positioning/tone/themes — do not invent facts beyond this). Any section with "kind":"rules" is a hard constraint (naming/style rules, verbatim lines, things that must never appear) — never violate it, even if it conflicts with your default instincts. If multiple sections carry an "authority_rank", lower always outranks higher on any conflict. Any section with "kind":"facts" is the ONLY permitted source for a statistic, figure, attendance number, or scale claim about the EVENT; never state an event number that isn't grounded there, even one that sounds plausible or was true for a past edition. ${factsScopeLine(speaker ? 'speaker' : 'partner')}\n${JSON.stringify(messagingJson)}`
+    : 'No topline messaging doc uploaded for this event yet — write in a neutral, professional Trescon voice.'
+
+  const speakerLine = speaker ? buildSpeakerLine(speaker, event.country, rules) : null
+  const pronounGuidance = speaker?.pronoun_style ? `\nRefer to this speaker as: ${PRONOUN_GUIDANCE[speaker.pronoun_style as string] ?? ''}` : ''
+  const talkingPoints = speaker?.key_talking_points
+    ? `\nKey talking points (ground the copy in these specifically when relevant, don't just restate them verbatim): ${speaker.key_talking_points}`
+    : ''
+
+  const stakeholderContext = speaker
+    ? `Speaker — use this EXACT wording whenever you name them (do not rephrase the shape, e.g. never turn it back into "<role> at <company>"): "${speakerLine}"\nBio: ${speaker.bio ?? '(not provided)'}${talkingPoints}${pronounGuidance}`
+    : `Partner: ${partner!.name}${partner!.country ? `, ${partner!.country}` : ''}, category: ${String(partner!.partner_type).replace(/_/g, ' ')}.\nDescription: ${partner!.company_description ?? '(not provided)'}`
+
+  const eventHashtagLen = event.event_hashtag?.length ?? 0
+  const xBudget = 280 - (eventHashtagLen > 0 ? eventHashtagLen + 1 : 0)
+
+  const prompt = `You are writing social media announcement posts for Trescon events.
+You write in the established Trescon voice: confident, data-driven, forward-looking.
+Grounded only in the provided data — never fabricate credentials, statistics, or event details not given below.
+
+${eventContext}
+
+${stakeholderContext}
+
+Generate LinkedIn post copy as separate short paragraphs (1-2 sentences
+each). Do NOT write the event dates/venue line or a hashtag line — those
+are assembled separately and must not appear in any field below.
+
+1. "hook" — one punchy line grounded in the ${speaker ? "speaker's topic/expertise" : "partner's relevance"} (a bold claim, a sharp question, or a trend statement). Do NOT name the ${speaker ? 'speaker' : 'partner'} yet — save the name for "announcement".
+2. "announcement" — a paragraph that names the ${speaker ? 'speaker' : 'partner'} (using the exact wording given above) and explicitly, unambiguously states they ARE speaking at / joining the event — this must be stated outright as fact, never left implied only through a bio. This is the single most important paragraph; do not bury or soften it. Use whatever register the rules below establish for this event — do not default to generic announcement-boilerplate phrasing unless the rules explicitly allow it.
+3. "credibility" — why this ${speaker ? 'speaker' : 'partner'} matters: one line grounded in their real, given experience (years, scale, a notable achievement) tied to the event's themes.
+4. "cta" — a short call to action with the registration link, if given above (empty string "" if none given). This may be discarded and replaced by a fixed line — write it anyway, as a normal closing paragraph.
+
+Tone: confident by default — genuine enthusiasm about a great
+${speaker ? 'speaker' : 'partner'} joining, not a formal press release —
+but this is the DEFAULT register only; the rules below may call for
+something more formal or restrained for this event, and when they do,
+follow them instead. Short, punchy sentences beat long, descriptive ones
+regardless of register. Favor shorter over longer; do not pad toward any
+length ceiling.
+
+Plain text only — no markdown syntax of any kind (no **bold**, no #
+headings, no - or * bullet markers) in any field. LinkedIn and every other
+social platform renders a caption as plain text.
+
+Hashtags: propose 4-6 relevant topic hashtags in "hashtags" (do not
+include the event's own hashtag — that is added separately). Pick from the
+messaging doc's approved list when one exists.
+
+Also write a SEPARATE, SHORT version for X (Twitter) in "x_body" — the
+same announcement, own voice, but a completely different shape: ONE tight
+paragraph (no paragraph breaks), using the exact speaker/partner wording
+given above, hard max ${xBudget} characters (this budget already excludes
+the event hashtag, which is appended separately — do NOT include any
+hashtag yourself in "x_body"). Keep the name and the single most important
+fact (who + what + event name); drop secondary detail if there's no room.
+Punchy and complete on its own — never a truncated fragment.
+
+${messagingContext}
+
+Where the messaging-doc rules above conflict with any generic structural
+or tone guidance given earlier in this prompt, the rules always win —
+adapt the structure and tone to comply with them, do not follow the
+earlier guidance literally.${retryAddendum}
+
+Return JSON only, no markdown fences: { "hook": "...", "announcement": "...", "credibility": "...", "cta": "...", "hashtags": ["#...", "..."], "x_body": "..." }`
+
+  const model = getGemini().getGenerativeModel({ model: 'gemini-2.5-flash', generationConfig: { responseMimeType: 'application/json' } })
+  const result = await model.generateContent([{ text: prompt }], { timeout: 60_000 })
+  let draft = parseDraftResponse(result.response.text().trim())
+  if (!draft) throw new Error('Could not parse post copy response')
+
+  if (draft.x_body.length > xBudget) {
+    try {
+      const reprompt = `Your X copy was ${draft.x_body.length} characters; rewrite ONLY it in under ${xBudget} characters, same voice and facts, still using the exact speaker/partner wording given, no hashtags inlined. Return JSON only: { "x_body": "..." }`
+      const retryModel = getGemini().getGenerativeModel({ model: 'gemini-2.5-flash', generationConfig: { responseMimeType: 'application/json' } })
+      const retryResult = await retryModel.generateContent([{ text: `${prompt}\n\n${reprompt}` }], { timeout: 30_000 })
+      const match = retryResult.response.text().trim().match(/\{[\s\S]*\}/)
+      const parsed = match ? JSON.parse(sanitizeJsonControlChars(match[0])) as { x_body?: string } : null
+      if (parsed?.x_body?.trim()) draft = { ...draft, x_body: parsed.x_body.trim() }
+    } catch (e) {
+      console.error('x_body budget retry failed (falling back to trim):', e)
+    }
+  }
+
+  return draft
+}
+
+// Stages 1-4 assembly ('assembled' mode) — pure, no Gemini call. Joins the
+// model's variable paragraphs with the code-owned fixed lines (date/venue,
+// hashtags) into the final LinkedIn copy. CTA: the fixed line only when
+// the event has an explicit announcement_cta_label; otherwise the model's
+// own "cta" paragraph is kept, preserving today's model-written CTA
+// exactly (Madhu, 2026-09-28).
+export function assembleOrgPromoCopy(draft: PostCopyDraft, event: EventContext, rules: ValidationRule[]): GeneratedCopy {
+  const dateVenueLine = buildDateVenueLine(event)
+  const ctaLine = buildFixedCtaLine(event) ?? (draft.cta || null)
+  const hashtags = filterHashtags(draft.hashtags, event.event_hashtag, rules)
+  const hashtagLine = hashtags.join(' ')
+
+  const copy = [draft.hook, draft.announcement, draft.credibility, dateVenueLine, ctaLine, hashtagLine]
+    .filter((s): s is string => !!s && s.trim().length > 0)
+    .join('\n\n')
+
+  const xCopy = assembleXForOrgPromo(draft.x_body, event.event_hashtag)
+  return { copy, xCopy }
+}
+
+// Stage 5 ('assembled' mode only) — draft, assemble, validate; on an
+// error-level finding on either LinkedIn or X, regenerate once with the
+// findings appended, reassemble, revalidate. Warnings never trigger a
+// retry. Never blocks: if the retry still has errors, the caller stores
+// that draft with its findings exactly as before this build.
+async function generateAndValidateOrgPromoCopy(
+  event: EventContext,
+  speaker: Record<string, unknown> | null,
+  partner: Record<string, unknown> | null,
+  messagingJson: Record<string, unknown> | null,
+  rules: ValidationRule[]
+): Promise<CopyResult> {
+  const draft1 = await generatePostCopyDraft(event, speaker, partner, messagingJson, rules)
+  const assembled1 = assembleOrgPromoCopy(draft1, event, rules)
+  const findings1 = { post_copy: validateText(assembled1.copy, rules), post_copy_x: validateText(assembled1.xCopy, rules) }
+  const hasError1 = findings1.post_copy.some(f => f.severity === 'error') || findings1.post_copy_x.some(f => f.severity === 'error')
+  if (!hasError1) return { ...assembled1, validationFindings: findings1, attempts: 1 }
+
+  const addendum = findingsAddendum([...findings1.post_copy, ...findings1.post_copy_x])
+  const draft2 = await generatePostCopyDraft(event, speaker, partner, messagingJson, rules, addendum)
+  const assembled2 = assembleOrgPromoCopy(draft2, event, rules)
+  const findings2 = { post_copy: validateText(assembled2.copy, rules), post_copy_x: validateText(assembled2.xCopy, rules) }
+  return { ...assembled2, validationFindings: findings2, attempts: 2 }
+}
+
+// ── ORIGINAL org-promo generator — legacy mode, untouched ──────────────
+// This is the pre-2026-09-28 generatePostCopy() function body, left
+// exactly as it was (Madhu, 2026-09-28: "every existing event stays
+// 'legacy' and must produce copy exactly as today, via today's code
+// path"). The ONLY change versus the original is that parseGeminiCopyResponse
+// (shared, below) now uses gracefulTrim() instead of clampToX() for the X
+// copy — Stage 4 ships globally, not gated.
 export async function generatePostCopy(
   event: EventContext,
   speaker: Record<string, unknown> | null,
@@ -83,7 +453,7 @@ export async function generatePostCopy(
     : ''
 
   const stakeholderContext = speaker
-    ? `Speaker: ${speakerName}, ${normalizeTitle(speaker.role)} at ${speaker.company}${speaker.country ? `, ${speaker.country}` : ''}.\nBio: ${speaker.bio ?? '(not provided)'}${talkingPoints}${pronounGuidance}`
+    ? `Speaker: ${speakerName}, ${normalizeTitle(speaker.role, 'legacy', [])} at ${speaker.company}${speaker.country ? `, ${speaker.country}` : ''}.\nBio: ${speaker.bio ?? '(not provided)'}${talkingPoints}${pronounGuidance}`
     : `Partner: ${partner!.name}${partner!.country ? `, ${partner!.country}` : ''}, category: ${String(partner!.partner_type).replace(/_/g, ' ')}.\nDescription: ${partner!.company_description ?? '(not provided)'}`
 
   const prompt = `You are writing social media announcement posts for Trescon events.
@@ -205,13 +575,12 @@ export function sanitizeJsonControlChars(s: string): string {
 }
 
 export type GeneratedCopy = { copy: string; xCopy: string }
+type CopyResult = GeneratedCopy & { validationFindings: { post_copy: ValidationFinding[]; post_copy_x: ValidationFinding[] }; attempts: 1 | 2 }
 
-// Shared by generatePostCopy and generateSelfPromoPostCopy — both call
-// Gemini in JSON mode and want the same { copy, hashtags, x_copy } →
-// { copy, xCopy } extraction, with the same raw-text fallback if parsing
-// ever fails. xCopy falls back to a hard-truncated slice of the main copy
-// (2026-08-27) rather than an empty string — better than a blank X post if
-// Gemini ever omits the field, though the prompt asks for it every time.
+// Shared by generatePostCopy (legacy) and generateSelfPromoPostCopy (both
+// modes) — both call Gemini in JSON mode and want the same
+// { copy, hashtags, x_copy } → { copy, xCopy } extraction, with the same
+// raw-text fallback if parsing ever fails.
 //
 // Fixed 2026-08-29 (real bug, caught live) — two things:
 // 1. hashtags used to be spread into the copy array and joined with the
@@ -220,16 +589,13 @@ export type GeneratedCopy = { copy: string; xCopy: string }
 //    should read as one normal hashtag line — joined with spaces into a
 //    single string, then that single string appended as the copy's last
 //    paragraph.
-// 2. x_copy is now hard-clamped to 280 chars UNCONDITIONALLY, not just
-//    when Gemini omits the field — the prompt already asks for "hard max
-//    280," but a live case proved the model doesn't always comply, and
-//    Postiz silently rejects the whole publish with no visible error when
-//    that happens (see AnnouncementDetailPanel.tsx's client-side
-//    pre-flight check, which is the other half of this fix — this
-//    server-side clamp is the guarantee of last resort).
-function clampToX(s: string): string {
-  return s.length <= 280 ? s : s.slice(0, 279) + '…'
-}
+// 2. x_copy is hard-clamped UNCONDITIONALLY, not just when Gemini omits
+//    the field — the prompt already asks for "hard max 280," but a live
+//    case proved the model doesn't always comply, and Postiz silently
+//    rejects the whole publish with no visible error when that happens.
+// gracefulTrim (2026-09-28, Stage 4, shipped globally) replaces the old
+// clampToX() hard byte-slice here — this is the one behavior change legacy
+// events DO get, by Madhu's explicit instruction.
 function parseGeminiCopyResponse(text: string): GeneratedCopy {
   try {
     const match = text.match(/\{[\s\S]*\}/)
@@ -238,39 +604,39 @@ function parseGeminiCopyResponse(text: string): GeneratedCopy {
       if (parsed.copy) {
         const hashtagLine = (parsed.hashtags ?? []).join(' ')
         const copy = [parsed.copy, hashtagLine].filter(Boolean).join('\n\n')
-        const xCopy = clampToX(parsed.x_copy?.trim() || copy)
+        const xCopy = gracefulTrim(parsed.x_copy?.trim() || copy, 280)
         return { copy, xCopy }
       }
     }
   } catch {
     // fall through to raw text
   }
-  return { copy: text, xCopy: clampToX(text) }
+  return { copy: text, xCopy: gracefulTrim(text, 280) }
 }
 
 // Self Promo module (2026-08-18): a creative + post copy emailed TO the
 // speaker so THEY can post it themselves, rather than the org posting on
 // its own channels. The copy must therefore read as genuinely theirs —
 // first person, reflective, no third-person references and no hard-sell
-// CTA energy (that belongs to generatePostCopy's org voice, not this one).
-// Speaker-only signature, deliberately no partner branch — self-promo is
-// speaker-only per product decision, so a narrower type here is more
-// honest than mirroring generatePostCopy's dual-stakeholder shape.
+// CTA energy (that belongs to the org-promo generators, not this one).
+// Speaker-only signature, deliberately no partner branch.
 //
-// 2026-08-28 fix, per Madhu, live: the generated copy read well but gave a
-// reader no way to actually act on it — registration_url was already on
-// EventContext and already passed in by every caller (same as
-// generatePostCopy gets it), just never included in THIS function's own
-// eventContext, so the model had no way to reference it even softly. Fixed
-// by adding it below and letting the closing line work it in naturally as
-// a practical detail (never a command) — still no "Register now!" energy,
-// just giving the reader an actual next step, which is the whole point of
-// routing this copy through a speaker's own network in the first place.
+// deterministic-copy-spec Stage 1-4's fixed-line assembly does NOT apply
+// here — self-promo's paragraph structure is unchanged in either mode.
+// What DOES vary by event.sae_copy_mode (Madhu, 2026-09-28): the
+// messagingContext facts-only-scope wording (Stage 6) and normalizeTitle's
+// ampersand handling — both read straight off `event`/`rules`, so this
+// function's own signature doesn't need a separate mode parameter.
+// retryAddendum (Stage 5, 'assembled' only) — the same findings-corrective
+// block as generatePostCopyDraft, appended on a validate-and-retry pass.
 export async function generateSelfPromoPostCopy(
   event: EventContext,
   speaker: Record<string, unknown>,
-  messagingJson: Record<string, unknown> | null
+  messagingJson: Record<string, unknown> | null,
+  rules: ValidationRule[] = [],
+  retryAddendum = ''
 ): Promise<GeneratedCopy> {
+  const mode = effectiveMode(event)
   const dates = event.public_dates_display ?? ''
   const venueLine = event.public_venue_display || (event.venue ? `${event.venue}${event.city ? `, ${event.city}` : ''}` : null)
   const eventContext = [
@@ -282,7 +648,9 @@ export async function generateSelfPromoPostCopy(
   ].filter(Boolean).join('\n')
 
   const messagingContext = messagingJson
-    ? `Messaging doc context (use for positioning/tone/themes only — do not invent facts beyond this). Any "kind":"rules" section is a hard constraint, never violate it — lower "authority_rank" outranks higher on any conflict. Any "kind":"facts" section is the ONLY permitted source for a statistic, figure, or scale claim:\n${JSON.stringify(messagingJson)}`
+    ? mode === 'assembled'
+      ? `Messaging doc context (use for positioning/tone/themes only — do not invent facts beyond this). Any "kind":"rules" section is a hard constraint, never violate it — lower "authority_rank" outranks higher on any conflict. Any "kind":"facts" section is the ONLY permitted source for a statistic, figure, or scale claim about the EVENT. ${factsScopeLine('speaker')}\n${JSON.stringify(messagingJson)}`
+      : `Messaging doc context (use for positioning/tone/themes only — do not invent facts beyond this). Any "kind":"rules" section is a hard constraint, never violate it — lower "authority_rank" outranks higher on any conflict. Any "kind":"facts" section is the ONLY permitted source for a statistic, figure, or scale claim:\n${JSON.stringify(messagingJson)}`
     : 'No topline messaging doc uploaded for this event yet.'
 
   const publicName = speaker.public_name || speaker.name
@@ -302,7 +670,7 @@ or claims not given.
 
 ${eventContext}
 
-Speaker: ${publicName}, ${normalizeTitle(speaker.role)} at ${speaker.company}.
+Speaker: ${publicName}, ${normalizeTitle(speaker.role, mode, rules)} at ${speaker.company}.
 Bio: ${speaker.bio ?? '(not provided)'}
 Session: ${speaker.session_title ?? '(not provided)'}
 ${talkingPoints}
@@ -346,15 +714,60 @@ ${messagingContext}
 Where the messaging-doc rules above conflict with any generic structural
 or tone guidance given earlier in this prompt, the rules always win —
 adapt the structure and tone to comply with them, do not follow the
-earlier guidance literally.
+earlier guidance literally.${retryAddendum}
 
 Return JSON only, no markdown fences: { "copy": "...", "hashtags": ["#...", "..."], "x_copy": "..." }`
 
   const model  = getGemini().getGenerativeModel({ model: 'gemini-2.5-flash', generationConfig: { responseMimeType: 'application/json' } })
-  // Bounded (2026-08-24) — see generatePostCopy's identical timeout above
-  // for why.
   const result = await model.generateContent([{ text: prompt }], { timeout: 60_000 })
   return parseGeminiCopyResponse(result.response.text().trim())
+}
+
+// Stage 5 for self-promo, 'assembled' mode only.
+async function generateAndValidateSelfPromoCopy(
+  event: EventContext,
+  speaker: Record<string, unknown>,
+  messagingJson: Record<string, unknown> | null,
+  rules: ValidationRule[]
+): Promise<CopyResult> {
+  const draft1 = await generateSelfPromoPostCopy(event, speaker, messagingJson, rules)
+  const findings1 = { post_copy: validateText(draft1.copy, rules), post_copy_x: validateText(draft1.xCopy, rules) }
+  const hasError1 = findings1.post_copy.some(f => f.severity === 'error') || findings1.post_copy_x.some(f => f.severity === 'error')
+  if (!hasError1) return { ...draft1, validationFindings: findings1, attempts: 1 }
+
+  const addendum = findingsAddendum([...findings1.post_copy, ...findings1.post_copy_x])
+  const draft2 = await generateSelfPromoPostCopy(event, speaker, messagingJson, rules, addendum)
+  const findings2 = { post_copy: validateText(draft2.copy, rules), post_copy_x: validateText(draft2.xCopy, rules) }
+  return { ...draft2, validationFindings: findings2, attempts: 2 }
+}
+
+// ── Shared entry point — both announcements/generate/route.ts and
+// regenerate-copy/route.ts call this one function. Does the kind
+// (org_promo/self_promo) × mode (legacy/assembled) branching so neither
+// route needs to duplicate it. `rules` should be this event's effective
+// validation rule set (resolveEffectiveRules) — fetched once by the
+// caller and reused here for filtering/validation, never refetched. ─────
+export async function generateAnnouncementCopy(
+  event: EventContext,
+  speaker: Record<string, unknown> | null,
+  partner: Record<string, unknown> | null,
+  messagingJson: Record<string, unknown> | null,
+  rules: ValidationRule[],
+  kind: 'org_promo' | 'self_promo'
+): Promise<CopyResult> {
+  const mode = effectiveMode(event)
+
+  if (kind === 'self_promo') {
+    if (mode === 'assembled') return generateAndValidateSelfPromoCopy(event, speaker!, messagingJson, rules)
+    const draft = await generateSelfPromoPostCopy(event, speaker!, messagingJson, rules)
+    const validationFindings = { post_copy: validateText(draft.copy, rules), post_copy_x: validateText(draft.xCopy, rules) }
+    return { ...draft, validationFindings, attempts: 1 }
+  }
+
+  if (mode === 'assembled') return generateAndValidateOrgPromoCopy(event, speaker, partner, messagingJson, rules)
+  const draft = await generatePostCopy(event, speaker, partner, messagingJson)
+  const validationFindings = { post_copy: validateText(draft.copy, rules), post_copy_x: validateText(draft.xCopy, rules) }
+  return { ...draft, validationFindings, attempts: 1 }
 }
 
 // Speaker announcement HEADLINE (2026-09-22) — the bold on-image phrase
@@ -434,13 +847,21 @@ function parseHeadlineResponse(text: string): HeadlineSegments[] {
 // if Gemini under-delivers rather than hard-failing). The caller
 // (generate-headlines/route.ts) wraps each into a full HeadlineVariant
 // (id, edited, compliance) — this function stays pure generation logic,
-// same division of responsibility as generatePostCopy/parseGeminiCopyResponse
+// same division of responsibility as generatePostCopyDraft/assembleOrgPromoCopy
 // above (compliance validation lives in the route, not here).
+//
+// event.sae_copy_mode (2026-09-28) governs the same two things it does for
+// generateSelfPromoPostCopy: messagingContext facts-scope wording and
+// normalizeTitle's ampersand handling. `rules` defaults to [] so every
+// existing call site keeps working unchanged (an event never resolved to
+// 'assembled' mode never reads it anyway).
 export async function generateHeadlines(
   event: EventContext,
   speaker: Record<string, unknown>,
-  messagingJson: Record<string, unknown> | null
+  messagingJson: Record<string, unknown> | null,
+  rules: ValidationRule[] = []
 ): Promise<HeadlineSegments[]> {
+  const mode = effectiveMode(event)
   const dates = event.public_dates_display ?? ''
   const venueLine = event.public_venue_display || (event.venue ? `${event.venue}${event.city ? `, ${event.city}` : ''}` : null)
   const eventContext = [
@@ -462,10 +883,12 @@ export async function generateHeadlines(
   // Short Bio alone is thin or generic.
   const fullBioText = (speaker.bio_full_text as string | null | undefined)?.trim()
   const fullBioContext = fullBioText ? `\nFull bio (richer source material — mine this for specific, concrete details a punchy headline can use):\n${fullBioText.slice(0, 20000)}` : ''
-  const stakeholderContext = `Speaker: ${speakerName}, ${normalizeTitle(speaker.role)} at ${speaker.company}${speaker.country ? `, ${speaker.country}` : ''}.\nBio: ${speaker.bio ?? '(not provided)'}${talkingPoints}${fullBioContext}`
+  const stakeholderContext = `Speaker: ${speakerName}, ${normalizeTitle(speaker.role, mode, rules)} at ${speaker.company}${speaker.country ? `, ${speaker.country}` : ''}.\nBio: ${speaker.bio ?? '(not provided)'}${talkingPoints}${fullBioContext}`
 
   const messagingContext = messagingJson
-    ? `Messaging doc context (use for positioning/tone/themes — do not invent facts beyond this). Any section with "kind":"rules" is a hard constraint, never violate it. Any section with "kind":"facts" is the ONLY permitted source for a statistic, figure, or scale claim — never state a number that isn't grounded there:\n${JSON.stringify(messagingJson)}`
+    ? mode === 'assembled'
+      ? `Messaging doc context (use for positioning/tone/themes — do not invent facts beyond this). Any section with "kind":"rules" is a hard constraint, never violate it. Any section with "kind":"facts" is the ONLY permitted source for a statistic, figure, or scale claim about the EVENT — never state a number that isn't grounded there. ${factsScopeLine('speaker')}\n${JSON.stringify(messagingJson)}`
+      : `Messaging doc context (use for positioning/tone/themes — do not invent facts beyond this). Any section with "kind":"rules" is a hard constraint, never violate it. Any section with "kind":"facts" is the ONLY permitted source for a statistic, figure, or scale claim — never state a number that isn't grounded there:\n${JSON.stringify(messagingJson)}`
     : 'No topline messaging doc uploaded for this event yet — write in a neutral, professional Trescon voice.'
 
   const examplesText = HEADLINE_EXAMPLES

@@ -7,6 +7,10 @@ export const PRONOUN_STYLES: { value: string; label: string }[] = [
   { value: 'her_excellency', label: 'Her Excellency' },
   { value: 'his_highness', label: 'His Highness' },
   { value: 'her_highness', label: 'Her Highness' },
+  // Indian government speakers (2026-09-28, deterministic-copy-spec Stage
+  // 6) — a minister/official is referred to by office + honorific after
+  // first mention ("Hon'ble Minister will…"), never he/him or she/her.
+  { value: 'honble', label: "Hon'ble (Indian ministers)" },
 ]
 
 export function pronounLabel(value: string | null | undefined): string | null {

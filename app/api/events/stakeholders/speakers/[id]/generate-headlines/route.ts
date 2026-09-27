@@ -36,7 +36,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const [eventRes, compiledRef, effectiveRules] = await Promise.all([
     supabaseAdmin
       .from('events')
-      .select('name, venue, city, event_hashtag, registration_url, public_name, public_dates_display, public_venue_display')
+      .select('name, venue, city, event_hashtag, registration_url, public_name, public_dates_display, public_venue_display, sae_copy_mode')
       .eq('id', speaker.event_id)
       .single(),
     getLatestCompiledReference(speaker.event_id),
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   let segments: Awaited<ReturnType<typeof generateHeadlines>>
   try {
-    segments = await generateHeadlines(event, speaker, messagingJson)
+    segments = await generateHeadlines(event, speaker, messagingJson, effectiveRules)
   } catch (e) {
     console.error('Headline generation failed:', e)
     return NextResponse.json({ error: describeGeminiError(e) }, { status: 502 })
