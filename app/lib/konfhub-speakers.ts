@@ -130,6 +130,29 @@ export async function listKonfhubSpeakers(konfhubEventId: string, token: string)
     .map(s => ({ ...s, speaker_id: String(s.speaker_id) }))
 }
 
+export type KonfhubSpeakerCategory = { category_id: string; category_name: string }
+
+// Same GET /speakers endpoint listKonfhubSpeakers already calls (2026-09-27)
+// — this event's own real speaker-category groups are right there in the
+// `categorized` array, listKonfhubSpeakers just discards category_id/
+// category_name while flattening down to speakers. Lets the Integrations
+// page auto-populate a picker for konfhub_speaker_category_id instead of a
+// producer having to go find and copy the id by hand from KonfHub's own
+// dashboard. Empty array is the normal, expected result for a plain (non-
+// umbrella) KonfHub event — this field only applies when several
+// EventPilot events share one KonfHub event_id.
+export async function fetchKonfhubSpeakerCategories(konfhubEventId: string, token: string): Promise<KonfhubSpeakerCategory[]> {
+  const res = await fetch(`${API_BASE}/${konfhubEventId}/speakers`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const data = await res.json().catch(() => ({})) as
+    { categorized?: KonfhubSpeakerGroupOrSpeaker[]; error?: string }
+  if (!res.ok) throw new KonfhubApiError(data.error || 'Failed to fetch KonfHub speaker categories', res.status)
+  return (data.categorized ?? [])
+    .filter(g => g.category_id !== undefined && g.category_name !== undefined)
+    .map(g => ({ category_id: String(g.category_id), category_name: g.category_name as string }))
+}
+
 // speaker_category_id is kept as `string | null` everywhere in this file's
 // own types (matches event_websites.konfhub_speaker_category_id, a plain
 // text column) — but KonfHub's own Speakers API schema requires it as a

@@ -141,6 +141,7 @@ type KonfhubTag = { id: string; name: string }
 type KonfhubTicketForm = { form_id: number; form_name: string }
 type KonfhubTicket = { ticket_id: number; ticket_name: string; forms: KonfhubTicketForm[] }
 type KonfhubTicketCategory = { category_id: number; category_name: string; tickets: KonfhubTicket[] }
+type KonfhubSpeakerCategory = { category_id: string; category_name: string }
 type RegistrationField = { key: string; label: string }
 
 type PostizGroup = { id: string; name: string }
@@ -213,6 +214,14 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
   const [selectedSpeakerTagId, setSelectedSpeakerTagId] = useState('')
   const [selectedModeratorTagId, setSelectedModeratorTagId] = useState('')
   const [savingTags, setSavingTags] = useState(false)
+
+  // Speaker Category ID (2026-09-27) — auto-fetched from the same GET
+  // /speakers KonfHub call listKonfhubSpeakers already trusts, instead of
+  // a producer copying the id by hand from KonfHub's own dashboard. Empty
+  // result is normal/expected for a plain (non-umbrella) KonfHub event.
+  const [fetchedSpeakerCategories, setFetchedSpeakerCategories] = useState<KonfhubSpeakerCategory[] | null>(null)
+  const [fetchingSpeakerCategories, setFetchingSpeakerCategories] = useState(false)
+  const [savingSpeakerCategory, setSavingSpeakerCategory] = useState(false)
 
   const [fetchedCategories, setFetchedCategories] = useState<KonfhubTicketCategory[] | null>(null)
   const [fetchingTickets, setFetchingTickets] = useState(false)
@@ -451,6 +460,30 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
     if (!res.ok) { setMsg({ text: data.error ?? 'Could not save tags.', ok: false }); return }
     setSettings(prev => prev ? { ...prev, konfhub_speaker_tag_id: data.konfhub_speaker_tag_id, konfhub_moderator_tag_id: data.konfhub_moderator_tag_id } : prev)
     setMsg({ text: 'Tags saved.', ok: true })
+  }
+
+  async function fetchSpeakerCategories() {
+    setFetchingSpeakerCategories(true)
+    setMsg(null)
+    const res = await fetch(`/api/events/konfhub/fetch-categories?event_id=${eventId}`)
+    const data = await res.json().catch(() => ({}))
+    setFetchingSpeakerCategories(false)
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not fetch speaker categories.', ok: false }); return }
+    setFetchedSpeakerCategories(data.categories ?? [])
+  }
+
+  async function saveSpeakerCategory() {
+    setSavingSpeakerCategory(true)
+    setMsg(null)
+    const res = await fetch(`/api/events/konfhub/settings?event_id=${eventId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ konfhub_speaker_category_id: manualFields.konfhub_speaker_category_id || null }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSavingSpeakerCategory(false)
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not save speaker category.', ok: false }); return }
+    setSettings(prev => prev ? { ...prev, konfhub_speaker_category_id: data.konfhub_speaker_category_id } : prev)
+    setMsg({ text: 'Speaker category saved.', ok: true })
   }
 
   async function fetchTickets() {
@@ -884,10 +917,6 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
               <label style={labelStyle}>Client Secret</label>
               <Input type="password" value={manualFields.konfhub_client_secret} disabled={!canManage} onChange={e => setManualFields(p => ({ ...p, konfhub_client_secret: e.target.value }))} />
             </div>
-            <div>
-              <label style={labelStyle}>Speaker Category ID <span style={{ fontWeight: 400, color: 'var(--ink4)' }}>(shared/umbrella KonfHub events only)</span></label>
-              <Input value={manualFields.konfhub_speaker_category_id} disabled={!canManage} onChange={e => setManualFields(p => ({ ...p, konfhub_speaker_category_id: e.target.value }))} />
-            </div>
           </div>
           {canManage && <Button variant="teal" onClick={saveManualFields} disabled={savingManual}>{savingManual ? 'Saving…' : 'Save Credentials'}</Button>}
         </Card>
@@ -933,6 +962,45 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
               <div style={{ display: 'flex', gap: '8px' }}>
                 {canManage && <Button variant="teal" onClick={saveTags} disabled={savingTags}>{savingTags ? 'Saving…' : 'Save Tags'}</Button>}
                 {canManage && <Button variant="ghost" onClick={fetchTags} disabled={fetchingTags}>{fetchingTags ? 'Fetching…' : 'Re-fetch'}</Button>}
+              </div>
+            </div>
+          )}
+        </Card></div>
+
+        <div style={{ marginTop: '16px' }}><Card padded>
+          <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Speaker Category <span style={{ fontWeight: 400, color: 'var(--ink4)', fontSize: '12px' }}>(shared/umbrella KonfHub events only)</span></div>
+          <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
+            Only needed when several EventPilot events share one KonfHub event_id (e.g. Dubai Future Finance Week&apos;s sub-events) — tags this event&apos;s speaker pushes under the right KonfHub-native category so they show up under the correct sub-event, not mixed in with every other one. A plain, non-shared KonfHub event has no categories to fetch — that&apos;s expected, leave it unset.
+          </div>
+          {!fetchedSpeakerCategories ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              {settings?.konfhub_speaker_category_id ? (
+                <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>
+                  Currently saved — <code>{settings.konfhub_speaker_category_id}</code>
+                </div>
+              ) : (
+                <Badge color="grey">Not set</Badge>
+              )}
+              {canManage && <Button variant="ghost" onClick={fetchSpeakerCategories} disabled={fetchingSpeakerCategories}>{fetchingSpeakerCategories ? 'Fetching…' : 'Fetch Categories from KonfHub'}</Button>}
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: '12px' }}>
+              {fetchedSpeakerCategories.length === 0 ? (
+                <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>
+                  No speaker categories found for this KonfHub event — this is a plain, non-shared event, so there&apos;s nothing to select. Leave this unset.
+                </div>
+              ) : (
+                <div style={{ maxWidth: '360px' }}>
+                  <label style={labelStyle}>Category</label>
+                  <Select value={manualFields.konfhub_speaker_category_id} disabled={!canManage} onChange={e => setManualFields(p => ({ ...p, konfhub_speaker_category_id: e.target.value }))}>
+                    <option value="">— None —</option>
+                    {fetchedSpeakerCategories.map(c => <option key={c.category_id} value={c.category_id}>{c.category_name} ({c.category_id})</option>)}
+                  </Select>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {canManage && fetchedSpeakerCategories.length > 0 && <Button variant="teal" onClick={saveSpeakerCategory} disabled={savingSpeakerCategory}>{savingSpeakerCategory ? 'Saving…' : 'Save Category'}</Button>}
+                {canManage && <Button variant="ghost" onClick={fetchSpeakerCategories} disabled={fetchingSpeakerCategories}>{fetchingSpeakerCategories ? 'Fetching…' : 'Re-fetch'}</Button>}
               </div>
             </div>
           )}
