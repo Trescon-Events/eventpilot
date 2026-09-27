@@ -41,6 +41,15 @@ const MAX_UNDO_ENTRIES = 50
 
 const LAYER_TYPE_LABEL: Record<Layer['type'], string> = { image: 'Image', photo_slot: 'Photo/Logo Slot', text: 'Text' }
 
+// Speaker text-layer fields that are actually backed by a PlaceholderProfile/
+// GlobalPlaceholderDefault value (2026-09-27) — 'tier' and 'custom' are
+// deliberately excluded, they never read from either (see resolveTextValue in
+// composite.ts: 'custom' always uses the layer's own static value, 'tier'
+// falls back to it too). Used to auto-filter the "Edit Placeholder" panel
+// down to just the fields THIS variant's own layers actually use, instead of
+// always showing all 8 regardless of what the variant is built from.
+const SPEAKER_PLACEHOLDER_FIELDS = ['name', 'title', 'company', 'country', 'headline_lead', 'headline_emphasis', 'headline_trail', 'headline_full'] as const
+
 // Mirrors composite.ts's DEFAULT_MAX_LINES — kept here too (not imported)
 // since it's just the starting value for a freshly-added layer, not a
 // runtime fallback; the two are allowed to diverge without breaking anything.
@@ -827,6 +836,12 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       profile={placeholderProfiles[activeType]}
                       globalValue={globalDefaults[activeType]}
                       onSave={savePlaceholder}
+                      usedFields={new Set(
+                        (activeVariant?.layers ?? [])
+                          .filter((l): l is TextLayer => l.type === 'text')
+                          .map(l => l.field)
+                          .filter((f): f is (typeof SPEAKER_PLACEHOLDER_FIELDS)[number] => (SPEAKER_PLACEHOLDER_FIELDS as readonly string[]).includes(f))
+                      )}
                     />
                   )}
                   {/* maxWidth: 80% (2026-08-02, per Madhu) — on smaller
@@ -994,9 +1009,14 @@ function layerSummary(layer: Layer): string {
 // Toggling saves immediately (same convention as the approval-bypass
 // checkboxes elsewhere in this app) — editing the override FIELDS still
 // needs its own explicit Save, same as before.
-function PlaceholderSourceControl({ activeType, profile, globalValue, onSave }: {
+function PlaceholderSourceControl({ activeType, profile, globalValue, onSave, usedFields }: {
   activeType: StakeholderKind; profile: PlaceholderProfile; globalValue: GlobalPlaceholderDefault | null
   onSave: (profile: PlaceholderProfile) => Promise<void>
+  // Which placeholder-backed fields this VARIANT's own layers actually use
+  // (2026-09-27) — see SPEAKER_PLACEHOLDER_FIELDS' own comment. Filters both
+  // this panel's "Use Global Default" summary line and the override fields
+  // below down to just what's relevant, instead of always showing all 8.
+  usedFields: Set<(typeof SPEAKER_PLACEHOLDER_FIELDS)[number]>
 }) {
   const [togglingOverride, setTogglingOverride] = useState(false)
   const useOverride = !!profile.use_override
@@ -1007,9 +1027,13 @@ function PlaceholderSourceControl({ activeType, profile, globalValue, onSave }: 
     setTogglingOverride(false)
   }
 
-  const globalFields = activeType === 'speaker'
-    ? [['Name', globalValue?.name], ['Job Title', globalValue?.job_title], ['Company', globalValue?.company_name], ['Country', globalValue?.country]]
-    : [['Company Name', globalValue?.company_name], ['Country', globalValue?.country]]
+  const globalFields = (activeType === 'speaker'
+    ? ([
+        ['name', 'Name', globalValue?.name], ['title', 'Job Title', globalValue?.job_title],
+        ['company', 'Company', globalValue?.company_name], ['country', 'Country', globalValue?.country],
+      ] as const)
+    : ([['company', 'Company Name', globalValue?.company_name], ['country', 'Country', globalValue?.country]] as const)
+  ).filter(([key]) => activeType !== 'speaker' || usedFields.has(key as (typeof SPEAKER_PLACEHOLDER_FIELDS)[number]))
 
   return (
     <div style={{ marginBottom: '10px', display: 'grid', gap: '8px' }}>
@@ -1025,8 +1049,10 @@ function PlaceholderSourceControl({ activeType, profile, globalValue, onSave }: 
             <img src={globalValue.photo_url} alt="Global placeholder" style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover', border: '1px solid var(--border)', flexShrink: 0 }} />
           )}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px' }}>
-            {globalFields.map(([label, val]) => (
-              <span key={label} style={{ fontSize: '11px', color: 'var(--ink3)' }}>
+            {globalFields.length === 0 ? (
+              <span style={{ fontSize: '11px', color: 'var(--ink4)' }}>This variant&apos;s layers don&apos;t use any placeholder-backed fields.</span>
+            ) : globalFields.map(([key, label, val]) => (
+              <span key={key} style={{ fontSize: '11px', color: 'var(--ink3)' }}>
                 <span style={{ color: 'var(--ink4)' }}>{label}: </span>{val || <span style={{ color: 'var(--ink4)' }}>not set</span>}
               </span>
             ))}
@@ -1041,7 +1067,7 @@ function PlaceholderSourceControl({ activeType, profile, globalValue, onSave }: 
         </label>
         {useOverride && (
           <div style={{ marginTop: '10px' }}>
-            <PlaceholderOverrideFields activeType={activeType} profile={profile} onSave={onSave} />
+            <PlaceholderOverrideFields activeType={activeType} profile={profile} onSave={onSave} usedFields={usedFields} />
           </div>
         )}
       </div>
@@ -1049,9 +1075,10 @@ function PlaceholderSourceControl({ activeType, profile, globalValue, onSave }: 
   )
 }
 
-function PlaceholderOverrideFields({ activeType, profile, onSave }: {
+function PlaceholderOverrideFields({ activeType, profile, onSave, usedFields }: {
   activeType: StakeholderKind; profile: PlaceholderProfile
   onSave: (profile: PlaceholderProfile) => Promise<void>
+  usedFields: Set<(typeof SPEAKER_PLACEHOLDER_FIELDS)[number]>
 }) {
   const [draft, setDraft] = useState<PlaceholderProfile>(profile)
   const [saving, setSaving] = useState(false)
@@ -1067,16 +1094,22 @@ function PlaceholderOverrideFields({ activeType, profile, onSave }: {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
       {activeType === 'speaker' ? (
-        <>
-          <label style={fieldStyle}>Name<Input value={draft.name ?? ''} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
-          <label style={fieldStyle}>Job Title<Input value={draft.job_title ?? ''} onChange={e => setDraft(d => ({ ...d, job_title: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
-          <label style={fieldStyle}>Company<Input value={draft.company_name ?? ''} onChange={e => setDraft(d => ({ ...d, company_name: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
-          <label style={fieldStyle}>Country<Input value={draft.country ?? ''} onChange={e => setDraft(d => ({ ...d, country: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
-          <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Headline — Lead (optional, white)<Input value={draft.headline_lead ?? ''} onChange={e => setDraft(d => ({ ...d, headline_lead: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
-          <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Headline — Emphasis (accent color)<Input value={draft.headline_emphasis ?? ''} onChange={e => setDraft(d => ({ ...d, headline_emphasis: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
-          <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Headline — Trail (optional, white)<Input value={draft.headline_trail ?? ''} onChange={e => setDraft(d => ({ ...d, headline_trail: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
-          <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Headline — Full (continuous)<Input value={draft.headline_full ?? ''} onChange={e => setDraft(d => ({ ...d, headline_full: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
-        </>
+        usedFields.size === 0 ? (
+          <div style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--ink4)' }}>
+            This variant&apos;s layers don&apos;t use any placeholder-backed fields yet — add a Name/Title/Company/Country or Headline text layer first.
+          </div>
+        ) : (
+          <>
+            {usedFields.has('name') && <label style={fieldStyle}>Name<Input value={draft.name ?? ''} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>}
+            {usedFields.has('title') && <label style={fieldStyle}>Job Title<Input value={draft.job_title ?? ''} onChange={e => setDraft(d => ({ ...d, job_title: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>}
+            {usedFields.has('company') && <label style={fieldStyle}>Company<Input value={draft.company_name ?? ''} onChange={e => setDraft(d => ({ ...d, company_name: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>}
+            {usedFields.has('country') && <label style={fieldStyle}>Country<Input value={draft.country ?? ''} onChange={e => setDraft(d => ({ ...d, country: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>}
+            {usedFields.has('headline_lead') && <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Headline — Lead (optional, white)<Input value={draft.headline_lead ?? ''} onChange={e => setDraft(d => ({ ...d, headline_lead: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>}
+            {usedFields.has('headline_emphasis') && <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Headline — Emphasis (accent color)<Input value={draft.headline_emphasis ?? ''} onChange={e => setDraft(d => ({ ...d, headline_emphasis: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>}
+            {usedFields.has('headline_trail') && <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Headline — Trail (optional, white)<Input value={draft.headline_trail ?? ''} onChange={e => setDraft(d => ({ ...d, headline_trail: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>}
+            {usedFields.has('headline_full') && <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Headline — Full (continuous)<Input value={draft.headline_full ?? ''} onChange={e => setDraft(d => ({ ...d, headline_full: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>}
+          </>
+        )
       ) : (
         <>
           <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Company Name<Input value={draft.company_name ?? ''} onChange={e => setDraft(d => ({ ...d, company_name: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>

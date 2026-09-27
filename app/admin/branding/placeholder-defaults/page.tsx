@@ -165,6 +165,7 @@ function FieldsForm({ activeType, value, onSave }: {
   const [draft, setDraft] = useState<PlaceholderProfile>({
     name: value?.name ?? undefined, job_title: value?.job_title ?? undefined, company_name: value?.company_name ?? undefined, country: value?.country ?? undefined,
     headline_lead: value?.headline_lead ?? undefined, headline_emphasis: value?.headline_emphasis ?? undefined, headline_trail: value?.headline_trail ?? undefined,
+    headline_full: value?.headline_full ?? undefined,
   })
   const [saving, setSaving] = useState(false)
 
@@ -191,6 +192,7 @@ function FieldsForm({ activeType, value, onSave }: {
           <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Headline — Lead (optional, white)<Input value={draft.headline_lead ?? ''} onChange={e => setDraft(d => ({ ...d, headline_lead: e.target.value }))} style={{ width: '100%', marginTop: '4px' }} /></label>
           <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Headline — Emphasis (accent color)<Input value={draft.headline_emphasis ?? ''} onChange={e => setDraft(d => ({ ...d, headline_emphasis: e.target.value }))} style={{ width: '100%', marginTop: '4px' }} /></label>
           <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Headline — Trail (optional, white)<Input value={draft.headline_trail ?? ''} onChange={e => setDraft(d => ({ ...d, headline_trail: e.target.value }))} style={{ width: '100%', marginTop: '4px' }} /></label>
+          <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Headline — Full (continuous)<Input value={draft.headline_full ?? ''} onChange={e => setDraft(d => ({ ...d, headline_full: e.target.value }))} style={{ width: '100%', marginTop: '4px' }} /></label>
         </>
       ) : (
         <>
