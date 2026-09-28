@@ -42,6 +42,24 @@ export const PAGEHEADER_EXEMPT: NavExclusion[] = [
     path: '/admin/events/[id]/creative-templates',
     reason: 'Retired SAE main workspace (2026-08-18, SAE-into-Hub merge) — this route is now just a client-side redirect into the Stakeholder Hub, kept only so old bookmarks/links resolve somewhere instead of 404ing. It never renders real page content, so no PageHeader.',
   },
+  {
+    path: '/admin/events/[id]/press-releases/[prId]',
+    reason: 'Press Release Studio workspace — a full-bleed two-pane chat + document builder (see app/admin/events/[id]/press-releases/[prId]/page.tsx), same category as the Agenda/Creative full-bleed canvases. No room for the standard header chrome by design.',
+  },
+  {
+    path: '/admin/umbrellas/[id]',
+    reason: 'Thin server-component wrapper (app/admin/umbrellas/[id]/page.tsx) that only session-checks and delegates to UmbrellaOverview.tsx, which already renders <PageHeader eyebrow="Umbrella Event" .../> itself — the check greps the page.tsx file only, it can\'t see through the import.',
+  },
+  ...(['', '/licenses', '/vendors'] as const).flatMap(sub => ([
+    {
+      path: `/admin/events/[id]/operations${sub}`,
+      reason: `Thin wrapper (OpsScopeProvider kind="event") delegating to the shared ${sub === '' ? 'OperationsHubView' : sub === '/licenses' ? 'LicensesView' : 'VendorsView'} component, which already renders <PageHeader/> itself — same event/umbrella shared-view split as the sibling below. The check greps the page.tsx file only, it can't see through the import.`,
+    },
+    {
+      path: `/admin/umbrellas/[id]/operations${sub}`,
+      reason: `Thin wrapper (OpsScopeProvider kind="umbrella") delegating to the shared ${sub === '' ? 'OperationsHubView' : sub === '/licenses' ? 'LicensesView' : 'VendorsView'} component, which already renders <PageHeader/> itself — an umbrella's Operations screens are the same shared view as its child events', just scoped differently. The check greps the page.tsx file only, it can't see through the import.`,
+    },
+  ])),
 ]
 export const PAGEHEADER_EXEMPT_PREFIXES: NavExclusionPrefix[] = []
 

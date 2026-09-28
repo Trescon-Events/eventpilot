@@ -3,6 +3,7 @@ import { useEffect, useState, use } from 'react'
 import Link from 'next/link'
 import { Card, Button, Input, Textarea, Select, Badge, SearchableSelect } from '@/app/components/ui'
 import type { BadgeColor } from '@/app/components/ui'
+import PageHeader from '@/app/components/PageHeader'
 
 /* Agenda Builder (2026-09-15) — replaces the old free-text event_agenda
    tab (app/admin/events/[id]/website/page.tsx, contentTab==='agenda') for
@@ -154,13 +155,17 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
   const sessionsForTrack = sessions.filter(s => s.track_id === activeTrackId).sort((a, b) => a.order_index - b.order_index)
 
   return (
-    <div style={{ padding: '24px', maxWidth: '980px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink)' }}>Agenda</h1>
-        <Badge color={agendaSource === 'konfhub_authoritative' ? 'grey' : 'teal'}>
-          {agendaSource === 'konfhub_authoritative' ? 'Structure from KonfHub' : 'EventPilot native'}
-        </Badge>
-      </div>
+    <div>
+      <PageHeader
+        eyebrow="Agenda Builder"
+        title="Agenda"
+        actions={
+          <Badge color={agendaSource === 'konfhub_authoritative' ? 'grey' : 'teal'}>
+            {agendaSource === 'konfhub_authoritative' ? 'Structure from KonfHub' : 'EventPilot native'}
+          </Badge>
+        }
+      />
+      <div style={{ padding: '24px', maxWidth: '980px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px' }}>
 
       {msg && <div style={{ fontSize: '13px', color: 'var(--teal)' }}>{msg}</div>}
 
@@ -256,6 +261,7 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
           </Card>
         </>
       )}
+      </div>
     </div>
   )
 }
