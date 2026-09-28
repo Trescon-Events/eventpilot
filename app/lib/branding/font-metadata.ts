@@ -46,7 +46,24 @@ export function parseFontMetadata(buffer: Buffer): ParsedFontFile {
   const font = 'fonts' in parsed ? parsed.fonts[0] : parsed
   if (!font) throw new Error('Could not read any font face from this file')
 
-  const familyName = font.familyName?.trim()
+  // Preferred (Typographic) Family — OpenType 'name' table ID 16 — BEFORE
+  // the legacy family (.familyName, ID 1) (2026-09-28, real bug found live:
+  // Lufga's own files). ID 1 exists for old software that only ever
+  // supported four styles per family (Regular/Bold/Italic/BoldItalic), so
+  // many professionally-built families with more than four weights set a
+  // DIFFERENT legacy family per weight (e.g. "Lufga Thin", "Lufga Medium")
+  // while ID 16 correctly says "Lufga" for every one of them — confirmed
+  // directly against the real files: 14 of Lufga's 18 have preferredFamily
+  // "Lufga", the other 4 (Regular/Bold/Italic/BoldItalic) have none set at
+  // all but their legacy name already happens to be "Lufga" too, so this
+  // unifies all 18 under one family either way. Falls back to the legacy
+  // name when ID 16 is absent, same as before this fix, for every font
+  // that never had this problem in the first place.
+  // @types/fontkit marks `lang` as required even though the JS
+  // implementation defaults it — 'en' matches getName()'s own internal
+  // fallback chain regardless of what's actually passed.
+  const preferredFamily = typeof font.getName === 'function' ? font.getName('preferredFamily', 'en')?.trim() : null
+  const familyName = preferredFamily || font.familyName?.trim()
   if (!familyName) throw new Error('This font file has no family name in its metadata')
 
   const subfamilyName = font.subfamilyName?.trim() ?? ''
