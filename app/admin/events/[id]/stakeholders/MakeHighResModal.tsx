@@ -61,7 +61,13 @@ const POLL_MAX_ATTEMPTS = 200 // ~10 min ceiling, same backstop as PhotoCleaning
 // PhotoRoom), hence its own slightly longer phrase set.
 const WORKING_PHRASES = ['Upscaling the photo…', 'Sharpening details…', 'Re-checking the background…', 'Almost there…']
 const PHRASE_INTERVAL_MS = 4000
-const LONG_WAIT_THRESHOLD_SEC = 45
+// 45s (copied from PhotoCleaningWizard's own single-call threshold without
+// adjusting) was way too low here — per Madhu, testing live, a normal run
+// of this step (gpt-image-2's own 30-90s+ call, THEN a separate PhotoRoom
+// re-segmentation call, sequential not parallel) took ~150s and still hit
+// "taking longer than usual." 120s is a more honest floor for a normal run
+// of this specific two-call pipeline.
+const LONG_WAIT_THRESHOLD_SEC = 120
 
 export default function MakeHighResModal({ speakerId, currentPhotoUrl, onApplied, onSaved, onClose }: Props) {
   const [state, setState] = useState<State>({ phase: 'confirm' })

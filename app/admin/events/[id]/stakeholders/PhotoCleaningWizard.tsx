@@ -117,7 +117,16 @@ const WORKING_PHRASES: Record<'uploading' | 'cleaning' | 'website-photo' | 'proc
   processing: ['Finishing up the photo…', 'Saving…', 'Almost there…'],
 }
 const PHRASE_INTERVAL_MS = 4000
-const LONG_WAIT_THRESHOLD_SEC = 45
+// 45s (original) turned out well under real 'cleaning' (AI Fill) timings —
+// this file's OWN generateAIFilledPhoto doc comment already documents
+// gpt-image-2 edit calls at 30-90s, with the 'high'-quality Regenerate
+// re-run at ~120s — so a run in that normal range was tripping "taking
+// longer than usual" almost every time (per Madhu, testing live). 90s
+// covers the documented common case; 'uploading'/'website-photo'/
+// 'processing' are all genuinely fast (well under this), so they're
+// unaffected in practice — this only changes when the SLOW step's own
+// false-positive fires.
+const LONG_WAIT_THRESHOLD_SEC = 90
 
 const STEP_LABELS: { key: Phase; label: string }[] = [
   { key: 'uploading', label: 'Upload Photo' },

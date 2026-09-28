@@ -947,7 +947,13 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   async function generateHeadlinesAction() {
     setGeneratingHeadlines(true)
     setMsg(null)
-    setProcessing({ label: 'Generating headlines…', estimatedMs: 6000 })
+    // 6000 (2026-09-22's original estimate) turned out way under real timings
+    // once Full Bio text (up to 20000 chars) got folded into this prompt —
+    // per Madhu, testing live: it was hitting the "taking longer than usual"
+    // amber state on almost every single run, which reads as something
+    // being wrong when it isn't. 16000 matches what a real run with a
+    // sizeable Full Bio actually takes.
+    setProcessing({ label: 'Generating headlines…', estimatedMs: 16000 })
     try {
       const res = await fetch(`${base}/${stakeholderId}/generate-headlines`, { method: 'POST' })
       const data = await res.json().catch(() => ({}))
