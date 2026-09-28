@@ -270,6 +270,78 @@ ${bottomInstruction}
   return Buffer.from(b64, 'base64')
 }
 
+// "Make it High-Res" (2026-09-28, per Madhu) — an optional, standalone step
+// for a raw photo that's genuinely low-resolution (or low-res AND cropped/
+// missing body parts at once, e.g. a tight WhatsApp thumbnail) — run on the
+// RAW photo, BEFORE Clean Photo, so the rest of the pipeline (Compose/AI
+// Fill+Enhance/Website Photo) then has better source material to work from
+// instead of trying to fix sharpness as a side effect of a completely
+// different job (positioning + gap-filling). Real incident this exists for:
+// a low-res raw photo still looked soft after several AI Fill + Enhance
+// attempts, because that step was never asked to (and isn't prompted to)
+// fix resolution — it fills transparent gaps and applies only a "light"
+// enhancement by design (see generateAIFilledPhoto's own prompt).
+//
+// No mask (whole-image edit, same as refineWithInstruction) — there's no
+// gap to fill here, every pixel needs the same treatment. 'high' quality
+// unconditionally (unlike generateAIFilledPhoto's medium-by-default): this
+// is an explicit, occasional producer action whose entire point is maximum
+// fidelity, not a step that runs on every speaker by default.
+//
+// Same OpenAI-documented caveat as generateAIFilledPhoto above applies here
+// too — gpt-image-2's edit endpoint regenerates the whole image as a new
+// output, it is not a literal pixel-preserving upscale (that would be a
+// dedicated super-resolution model, e.g. Real-ESRGAN/GFPGAN via Replicate —
+// noted as the fallback option if this doesn't hold up on real photos).
+// This prompt is the strongest instruction this endpoint allows toward
+// "clarity only, nothing else" — Madhu is testing real output quality
+// against real low-res speaker photos before this is trusted further.
+export async function generateHighResPhoto(sourceBuffer: Buffer): Promise<Buffer> {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) throw new Error('OPENAI_API_KEY not configured')
+
+  // Closest fixed enum size to the source's own aspect ratio — gpt-image-2
+  // takes one of exactly three concrete sizes for an edit (no free-form
+  // output resolution), so this picks whichever preserves the source
+  // photo's orientation instead of always forcing the Cleaning Cycle's own
+  // square canvas (wrong here: a raw photo can be any aspect ratio, and
+  // this step runs BEFORE the deterministic crop, not after it).
+  const meta = await sharp(sourceBuffer).metadata()
+  const ratio = (meta.width ?? 1) / (meta.height ?? 1)
+  const size = ratio > 1.15 ? '1536x1024' : ratio < 0.87 ? '1024x1536' : '1024x1024'
+
+  // Flattened onto white, not green (2026-08-22's green-screen convention is
+  // specific to the masked-fill pipeline's own despill step downstream —
+  // this result is never composited through that step, it goes straight
+  // back to being the speaker's own raw photo_url).
+  const imageBuffer = await sharp(sourceBuffer).flatten({ background: { r: 255, g: 255, b: 255 } }).png().toBuffer()
+
+  const prompt = `This is a real photograph that needs ONLY its resolution and clarity improved — nothing else about it should change. Increase sharpness and fine detail, and reduce blur, pixelation, compression artifacts, and graininess, as if the exact same photo had been captured with a much higher-resolution camera.
+
+Absolutely do not change anything about what is depicted: do not alter the person's face, expression, pose, body proportions, skin tone, hair, clothing (exact color/pattern/style), accessories, jewelry, or the background in any way. Do not add, remove, invent, retouch, smooth, beautify, or reinterpret any detail — do not "improve" their appearance, only the image's clarity. Do not crop, reframe, resize, or change the composition. The result must be unmistakably the exact same photograph, just clearer and higher resolution.`
+
+  const form = new FormData()
+  form.append('model', 'gpt-image-2')
+  form.append('prompt', prompt)
+  form.append('size', size)
+  form.append('quality', 'high')
+  form.append('image[]', new Blob([new Uint8Array(imageBuffer)], { type: 'image/png' }), 'source.png')
+
+  const res = await fetch('https://api.openai.com/v1/images/edits', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: form,
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`GPT Image 2 high-res pass failed (${res.status}): ${text.slice(0, 300)}`)
+  }
+  const json = await res.json()
+  const b64 = json?.data?.[0]?.b64_json
+  if (!b64) throw new Error('GPT Image 2 returned no image')
+  return Buffer.from(b64, 'base64')
+}
+
 // Chat-based refine (2026-09-08, per Madhu) — a producer-authored free-text
 // fix for whatever a prompt tweak can't anticipate (e.g. the ghutra/fake-
 // hair case above), used from the wizard's dedicated "Refine with AI" step
