@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/app/components/ui'
 
 /* "Make it High-Res" (2026-09-28, per Madhu) — the Clean Photo sequence's
@@ -52,9 +52,33 @@ type State =
 const POLL_INTERVAL_MS = 3000
 const POLL_MAX_ATTEMPTS = 200 // ~10 min ceiling, same backstop as PhotoCleaningWizard's clean-photo poll
 
+// Same validated long-wait pattern as PhotoCleaningWizard's own
+// WORKING_PHRASES/elapsedSec (2026-09-28) — an elapsed counter that keeps
+// climbing reads as "still working," unlike a spinner that loops back to
+// 0 and could look hung on a genuinely slow (30-90s+) AI call; a plain
+// static sentence with no motion at all (what this modal had before) is
+// worse still. Two calls run in sequence here (gpt-image-2, then
+// PhotoRoom), hence its own slightly longer phrase set.
+const WORKING_PHRASES = ['Upscaling the photo…', 'Sharpening details…', 'Re-checking the background…', 'Almost there…']
+const PHRASE_INTERVAL_MS = 4000
+const LONG_WAIT_THRESHOLD_SEC = 45
+
 export default function MakeHighResModal({ speakerId, currentPhotoUrl, onApplied, onSaved, onClose }: Props) {
   const [state, setState] = useState<State>({ phase: 'confirm' })
   const jobIdRef = useRef<string | null>(null)
+  const [elapsedSec, setElapsedSec] = useState(0)
+  const [phraseIndex, setPhraseIndex] = useState(0)
+  const working = state.phase === 'starting' || state.phase === 'processing'
+  useEffect(() => {
+    if (!working) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the elapsed-timer display alongside entering the working phase, not a response to another render (same pattern as PhotoCleaningWizard's own identical effect)
+    setElapsedSec(0)
+    setPhraseIndex(0)
+    const tick = setInterval(() => setElapsedSec(s => s + 1), 1000)
+    const rotate = setInterval(() => setPhraseIndex(i => i + 1), PHRASE_INTERVAL_MS)
+    return () => { clearInterval(tick); clearInterval(rotate) }
+  }, [working])
+  const longWait = elapsedSec >= LONG_WAIT_THRESHOLD_SEC
 
   async function poll(jobId: string, attempt: number) {
     if (jobIdRef.current !== jobId) return
@@ -141,9 +165,14 @@ export default function MakeHighResModal({ speakerId, currentPhotoUrl, onApplied
           </>
         )}
 
-        {(state.phase === 'starting' || state.phase === 'processing') && (
-          <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--ink3)', fontSize: '13px' }}>
-            Generating a higher-resolution version… this can take a minute or two.
+        {working && (
+          <div style={{ padding: '40px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ fontSize: '30px', fontWeight: 800, color: longWait ? 'var(--amber)' : 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>{elapsedSec}s</div>
+            <div style={{ fontSize: '13px', color: longWait ? 'var(--amber)' : 'var(--ink3)', marginTop: '8px', minHeight: '18px' }}>
+              {longWait
+                ? "Still working — this one's taking a bit longer than usual, hang tight…"
+                : WORKING_PHRASES[phraseIndex % WORKING_PHRASES.length]}
+            </div>
           </div>
         )}
 
