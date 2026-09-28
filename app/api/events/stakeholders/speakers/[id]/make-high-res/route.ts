@@ -26,10 +26,19 @@ import { processSpeakerPhoto, MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media
    Propose-only, same "nothing commits until the producer approves it"
    contract as every other photo step in this module: returns
    { job_id }, and once done the job's result is
-   { pending_photo_url, pending_processed_url } — the caller applies
-   whichever it wants via the ordinary PATCH .../speakers/[id] route
-   (photo_url/photo_processed_url are plain SAE-owned fields, no bespoke
-   "apply" route needed), or just discards the result entirely.
+   { pending_photo_url, pending_processed_url } — the caller applies via
+   this same route's own PATCH (below), or just discards the result
+   entirely.
+
+   PATCH here, not the generic .../speakers/[id] route (2026-09-28, real
+   bug caught live: that route only accepts its own closed, explicit
+   SpeakerPatchBody shape — public_name/pronoun_style/fields/etc — and
+   400s with "no valid fields" for anything outside it, including
+   photo_url/photo_processed_url; wrongly assumed it was a raw pass-through
+   without checking). Every OTHER route that writes photo_url/
+   photo_processed_url (upload-asset, head-box, clean-photo/finalize) is
+   its own small dedicated endpoint for exactly this reason — this follows
+   that same convention instead of fighting the generic route's allowlist.
 
    Sourced from the RAW photo_url (background intact), not any already
    background-removed version (2026-09-28, per Madhu, real question raised
@@ -77,6 +86,44 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     })
 
   return NextResponse.json({ job_id: job.id })
+}
+
+/* PATCH /api/events/stakeholders/speakers/[id]/make-high-res
+   Body: { photo_url: string, photo_processed_url?: string }
+   Applies a job's result (or any known-good pair of URLs) — see this
+   file's own top comment for why this exists instead of the generic
+   route. Same reapproval-reset + Cleaning Cycle invalidation convention
+   as upload-asset/head-box (the underlying pixels changed, so any prior
+   Cleaning Cycle result was standardized against a now-stale source).
+   photo_head_box is deliberately left untouched — generateHighResPhoto is
+   explicitly instructed not to move/resize/reframe the person, so the
+   existing head-box ratios stay valid against the new image. */
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id: speakerId } = await params
+  const body = await req.json().catch(() => null) as { photo_url?: string; photo_processed_url?: string } | null
+  if (!body?.photo_url) return NextResponse.json({ error: 'photo_url required' }, { status: 400 })
+
+  const { data: existing } = await supabaseAdmin.from('event_speakers').select('event_id, announcement_status').eq('id', speakerId).single()
+  if (!existing) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
+
+  const session = getSession(req)
+  if (!session?.adm && !(await hasEventPermission(session?.sid, existing.event_id, 'sae.stakeholders.edit'))) {
+    return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
+  }
+
+  const reapprovalReset: Record<string, unknown> = existing.announcement_status === 'ready' ? { announcement_status: 'pending_review' } : {}
+  const update: Record<string, unknown> = { photo_url: body.photo_url, photo_cleaning_cycle_done: false, updated_at: new Date().toISOString(), ...reapprovalReset }
+  if (body.photo_processed_url) update.photo_processed_url = body.photo_processed_url
+
+  const { data, error } = await supabaseAdmin
+    .from('event_speakers')
+    .update(update)
+    .eq('id', speakerId)
+    .select('photo_url, photo_processed_url')
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data)
 }
 
 async function runHighResJob(jobId: string, speakerId: string, eventId: string, sourceUrl: string) {

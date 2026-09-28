@@ -104,7 +104,11 @@ export default function MakeHighResModal({ speakerId, currentPhotoUrl, onApplied
     setState({ phase: 'applying' })
     const body: Record<string, string> = { photo_url: pendingUrl }
     if (pendingProcessedUrl) body.photo_processed_url = pendingProcessedUrl
-    const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}`, {
+    // This route's own PATCH, not the generic .../speakers/[id] one — see
+    // make-high-res/route.ts's own doc comment for why (that route only
+    // accepts its own closed field allowlist and 400s on anything else,
+    // real bug caught live testing this).
+    const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/make-high-res`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     })
     if (!res.ok) {
