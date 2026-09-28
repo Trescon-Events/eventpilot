@@ -14,7 +14,6 @@ import { PRONOUN_STYLES } from '@/app/lib/events/pronoun-styles'
 import { getFeatureDef } from '@/app/lib/registry/feature-flags'
 import LogoApprovalModal from '../LogoApprovalModal'
 import PhotoCleaningWizard from '../PhotoCleaningWizard'
-import MakeHighResModal from '../MakeHighResModal'
 import KonfhubPushConfirmModal from '../KonfhubPushConfirmModal'
 import KonfhubRegistrationPushConfirmModal from '../KonfhubRegistrationPushConfirmModal'
 import RemoveFromKonfhubListingModal from '../RemoveFromKonfhubListingModal'
@@ -352,7 +351,6 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   // See PhotoCleaningWizard's own top comment for why it's a full refetch
   // rather than a hand-maintained patch.
   const [wizardEntry, setWizardEntry] = useState<{ kind: 'existing'; url: string; headBox: NonNullable<StakeholderRecord['photo_head_box']> | null } | { kind: 'upload'; file: File } | null>(null)
-  const [showHighResModal, setShowHighResModal] = useState(false)
   const rawPhotoInputRef = useRef<HTMLInputElement | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
 
@@ -1558,17 +1556,10 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                       <Button variant={record.photo_cleaning_cycle_done ? 'ghost' : 'lime'} onClick={startCleanPhoto}>
                         {record.photo_cleaning_cycle_done ? '✓ Clean Photo' : 'Clean Photo'}
                       </Button>
-                      {/* Make it High-Res (2026-09-28) — optional, runs on the RAW
-                          photo BEFORE Clean Photo (see MakeHighResModal's own doc
-                          comment). Needs a raw photo to work from at all, same
-                          gate as Clean Photo itself. */}
-                      {record.photo_url && (
-                        <Button variant="ghost" onClick={() => setShowHighResModal(true)}>Make it High-Res</Button>
-                      )}
                     </div>
                     {record.photo_low_resolution && (
                       <div style={{ fontSize: '11.5px', color: 'var(--amber)', marginTop: '10px', maxWidth: '260px' }}>
-                        ⚠ Lower resolution than ideal — creatives may look soft. Ask for a higher-res original if possible, or try &quot;Make it High-Res&quot; above.
+                        ⚠ Lower resolution than ideal — creatives may look soft. Ask for a higher-res original if possible, or use &quot;✨ Make it High-Res&quot; at the start of Clean Photo.
                       </div>
                     )}
                   </div>
@@ -2003,14 +1994,6 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
           entry={wizardEntry}
           onSaved={load}
           onClose={() => setWizardEntry(null)}
-        />
-      )}
-      {showHighResModal && record.photo_url && (
-        <MakeHighResModal
-          speakerId={stakeholderId}
-          currentPhotoUrl={record.photo_url}
-          onSaved={load}
-          onClose={() => setShowHighResModal(false)}
         />
       )}
     </div>

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/app/components/ui'
 import type { HeadBox } from '@/app/lib/media/face-alignment'
 import PhotoFitEditor from './PhotoFitEditor'
+import MakeHighResModal from './MakeHighResModal'
 
 /* The guided Photo Cleaning flow (2026-08-21, replaces CleanPhotoWizard +
    HeadBoxEditorModal's standalone "Fix Head Position" use) — one modal that
@@ -145,6 +146,7 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
   const [uploadProgress, setUploadProgress] = useState(0)
 
   const [rawPhotoUrl, setRawPhotoUrl] = useState<string | null>(entry.kind === 'existing' ? entry.url : null)
+  const [showHighRes, setShowHighRes] = useState(false)
   const [composeBox, setComposeBox] = useState<HeadBox>(entry.kind === 'existing' ? (entry.headBox ?? DEFAULT_BOX) : DEFAULT_BOX)
   // The Cleaning Cycle template's own target ratios — fetched once on
   // mount so the Compose step's fixed ring can render before the producer
@@ -875,6 +877,16 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
           <div style={{ display: 'grid', gap: '7px' }}>
             {phase === 'compose' && !templateError && cleaningTarget && (
               <>
+                {/* Make it High-Res (2026-09-28) — the sequence's own first
+                    OPTIONAL step, deliberately separate from the three real
+                    Compose actions below (it doesn't decide anything about
+                    framing/fill, it just optionally improves the source
+                    those actions then work from) — see MakeHighResModal's
+                    own doc comment for the confirm-first warning it shows
+                    before any API call runs. */}
+                {rawPhotoUrl && (
+                  <Button variant="ghost" onClick={() => setShowHighRes(true)} disabled={busy}>✨ Make it High-Res</Button>
+                )}
                 <Button variant="lime" onClick={() => chooseComposeAction('good')} disabled={busy || !composePhotoReachesBottom}>Looks Good, Continue</Button>
                 <Button variant="teal" onClick={() => chooseComposeAction('enhance')} disabled={busy || !composePhotoReachesBottom}>Enhance Only</Button>
                 <Button variant="indigo" onClick={() => chooseComposeAction('ai_fill')} disabled={busy}>AI Fill + Enhance</Button>
@@ -1211,6 +1223,15 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
           )}
         </div>
       </div>
+      {showHighRes && rawPhotoUrl && (
+        <MakeHighResModal
+          speakerId={speakerId}
+          currentPhotoUrl={rawPhotoUrl}
+          onApplied={(photoUrl, photoProcessedUrl) => setRawPhotoUrl(photoProcessedUrl || photoUrl)}
+          onSaved={onSaved}
+          onClose={() => setShowHighRes(false)}
+        />
+      )}
     </div>
   )
 }

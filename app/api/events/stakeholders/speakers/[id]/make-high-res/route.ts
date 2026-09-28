@@ -5,7 +5,7 @@ import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { generateHighResPhoto } from '@/app/lib/media/photo-cleaning-pipeline'
-import { MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine'
+import { processSpeakerPhoto, MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine'
 
 /* POST /api/events/stakeholders/speakers/[id]/make-high-res
 
@@ -25,13 +25,24 @@ import { MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine
 
    Propose-only, same "nothing commits until the producer approves it"
    contract as every other photo step in this module: returns
-   { job_id }, and once done the job's result is { pending_photo_url } —
-   the caller applies it via the ordinary PATCH .../speakers/[id] route
-   (photo_url is a plain SAE-owned field, no bespoke "apply" route
-   needed) if they like the result, or just discards it if they don't.
-   Never touches photo_processed_url/photo_head_box/photo_cleaning_cycle_done
-   — this only ever replaces the RAW source; Clean Photo still runs
-   exactly as it does today afterward, now against better source material. */
+   { job_id }, and once done the job's result is
+   { pending_photo_url, pending_processed_url } — the caller applies
+   whichever it wants via the ordinary PATCH .../speakers/[id] route
+   (photo_url/photo_processed_url are plain SAE-owned fields, no bespoke
+   "apply" route needed), or just discards the result entirely.
+
+   Sourced from the RAW photo_url (background intact), not any already
+   background-removed version (2026-09-28, per Madhu, real question raised
+   testing this live: if a low-res source photo made PhotoRoom's own
+   original segmentation imperfect, upscaling THAT imperfect cutout would
+   only compound the problem. Using the one true original avoids that —
+   and per Madhu's own suggestion, PhotoRoom likely does a BETTER job
+   segmenting a sharper, higher-resolution image than it did on the
+   original low-res upload, so this step also re-runs it (processSpeakerPhoto,
+   the same Speaker Photo Engine a raw upload already uses) on the
+   upscaled result, producing a fresh photo_processed_url candidate
+   alongside the upscaled photo_url candidate — one step improves both
+   together instead of leaving them to drift out of sync. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: speakerId } = await params
 
@@ -86,9 +97,19 @@ async function runHighResJob(jobId: string, speakerId: string, eventId: string, 
     'image/png'
   )
 
+  // Best-effort, same as processSpeakerPhoto's own contract (no-ops to
+  // null on a PhotoRoom failure/missing key, never throws) — a bg-removal
+  // hiccup here must not fail the whole high-res pass; the caller still
+  // gets a usable pending_photo_url either way, just no
+  // pending_processed_url to offer alongside it.
+  const processed = await processSpeakerPhoto(resized, 'high-res.png', 'image/png').catch(() => null)
+  const pendingProcessedUrl = processed
+    ? await uploadPublicAsset(`events/${eventId}/speakers/${speakerId}/high-res-processed-pending-${Date.now()}.png`, processed, 'image/png')
+    : null
+
   await supabaseAdmin.from('speaker_photo_clean_jobs').update({
     status: 'done',
     completed_at: new Date().toISOString(),
-    result: { pending_photo_url: pendingPhotoUrl },
+    result: { pending_photo_url: pendingPhotoUrl, pending_processed_url: pendingProcessedUrl },
   }).eq('id', jobId)
 }
