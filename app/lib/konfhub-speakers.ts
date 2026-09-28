@@ -153,6 +153,32 @@ export async function fetchKonfhubSpeakerCategories(konfhubEventId: string, toke
     .map(g => ({ category_id: String(g.category_id), category_name: g.category_name as string }))
 }
 
+// "Append to the bottom" helper for a first push (konfhub-push/route.ts,
+// 2026-09-28) — speaker_order turned out to be scoped PER CATEGORY on
+// KonfHub's side, not globally: confirmed live against DFS's real
+// umbrella event, each of its 4 sub-event categories independently runs
+// its own clean 1..N range (e.g. one at 1-19, another at 1-65), never
+// overlapping or sharing a sequence with the others. listKonfhubSpeakers()
+// flattens that structure away entirely (by design, for its own simpler
+// callers), so this reads the raw categorized/uncategorized shape
+// directly instead, scoped to only the ONE category (or the uncategorized
+// bucket, for a plain non-umbrella event) a new speaker is actually being
+// pushed into — using a global max across every category would still sort
+// correctly, but would hand out needlessly large, non-contiguous numbers
+// for any category smaller than the event's biggest one.
+export async function maxSpeakerOrderInCategory(konfhubEventId: string, token: string, categoryId: string | null): Promise<number> {
+  const res = await fetch(`${API_BASE}/${konfhubEventId}/speakers`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const data = await res.json().catch(() => ({})) as
+    { categorized?: KonfhubSpeakerGroupOrSpeaker[]; uncategorized?: KonfhubSpeakerGroupOrSpeaker[]; error?: string }
+  if (!res.ok) throw new KonfhubApiError(data.error || 'Failed to fetch KonfHub speakers', res.status)
+  const bucket = categoryId
+    ? (data.categorized ?? []).find(c => String(c.category_id) === String(categoryId))?.speakers ?? []
+    : flattenKonfhubSpeakerGroups(data.uncategorized ?? [])
+  return bucket.reduce((max, s) => Math.max(max, s.speaker_order ?? 0), 0)
+}
+
 // speaker_category_id is kept as `string | null` everywhere in this file's
 // own types (matches event_websites.konfhub_speaker_category_id, a plain
 // text column) — but KonfHub's own Speakers API schema requires it as a

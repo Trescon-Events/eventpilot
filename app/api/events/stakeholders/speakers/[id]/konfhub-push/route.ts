@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
-import { getKonfhubToken, createKonfhubSpeaker, updateKonfhubSpeaker, KonfhubApiError } from '@/app/lib/konfhub-speakers'
+import { getKonfhubToken, createKonfhubSpeaker, updateKonfhubSpeaker, maxSpeakerOrderInCategory, KonfhubApiError } from '@/app/lib/konfhub-speakers'
 
 /* POST /api/events/stakeholders/speakers/[id]/konfhub-push
    Publishes (or updates) this speaker on KonfHub's Speakers-management API
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: speaker } = await supabaseAdmin
     .from('event_speakers')
-    .select('event_id, public_name, pronoun_style, photo_cleaning_cycle_done, website_card_url, company_logo_url, bio, role, company, country, linkedin_url, order_index, konfhub_speaker_id, konfhub_tag_speaker, konfhub_tag_moderator')
+    .select('event_id, public_name, pronoun_style, photo_cleaning_cycle_done, website_card_url, company_logo_url, bio, role, company, country, linkedin_url, konfhub_speaker_id, konfhub_tag_speaker, konfhub_tag_moderator')
     .eq('id', speakerId)
     .single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
@@ -121,7 +121,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const wasFirstPush = !speaker.konfhub_speaker_id
     let konfhubSpeakerId: string
     if (wasFirstPush) {
-      konfhubSpeakerId = await createKonfhubSpeaker(website.konfhub_event_id, token, { ...fields, speaker_order: speaker.order_index ?? 0 })
+      // Append to the BOTTOM of KonfHub's own live order (2026-09-28, per
+      // Madhu — real friction: every new push was landing at the very top,
+      // forcing a manual reorder every time). The old code sent
+      // event_speakers.order_index here, which is a completely different
+      // column — EventPilot's OWN public Website Builder speaker-order
+      // (app/api/events/speakers/route.ts), never meant to represent a
+      // position in KonfHub's own list at all. A fresh speaker's
+      // order_index defaults to unset/0, and KonfHub's speaker_order is a
+      // plain ascending integer (1 = first — confirmed via the Speaker
+      // Order page/reorderKonfhubSpeakers), so sending 0 always sorted
+      // ahead of every real speaker. Reading the CURRENT live max instead,
+      // scoped to this event's own category (maxSpeakerOrderInCategory —
+      // see its own doc comment for why: order is per-category, not
+      // global), and adding 1 guarantees a genuine append to the bottom of
+      // THIS event's own list specifically.
+      const maxOrder = await maxSpeakerOrderInCategory(website.konfhub_event_id, token, website.konfhub_speaker_category_id).catch(() => 0)
+      konfhubSpeakerId = await createKonfhubSpeaker(website.konfhub_event_id, token, { ...fields, speaker_order: maxOrder + 1 })
     } else {
       konfhubSpeakerId = speaker.konfhub_speaker_id!
       await updateKonfhubSpeaker(website.konfhub_event_id, konfhubSpeakerId, token, fields)
