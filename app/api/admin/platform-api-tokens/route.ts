@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from('platform_api_tokens')
-    .select('id, label, domains, event_scope, event_ids, created_at, last_used_at, revoked_at, created_by, staff_members(name)')
+    .select('id, label, domains, event_scope, event_ids, created_at, last_used_at, revoked_at, created_by, staff_members!platform_api_tokens_created_by_fkey(name)')
     .order('created_at', { ascending: false })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data ?? [])

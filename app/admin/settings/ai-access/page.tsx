@@ -75,8 +75,16 @@ export default function AiAccessPage() {
       fetch('/api/admin/platform-api-tokens'),
       fetch('/api/events'),
     ])
-    setTokens(await tokensRes.json().catch(() => []))
-    const evData = await eventsRes.json().catch(() => [])
+    if (tokensRes.ok) {
+      const data = await tokensRes.json().catch(() => [])
+      setTokens(Array.isArray(data) ? data : [])
+    } else {
+      setTokens([])
+      const err = await tokensRes.json().catch(() => null)
+      setMsg(err?.error ?? 'Could not load tokens.')
+      setMsgIsError(true)
+    }
+    const evData = eventsRes.ok ? await eventsRes.json().catch(() => []) : []
     setEvents((Array.isArray(evData) ? evData : []).map((e: { id: string; name: string }) => ({ id: e.id, name: e.name })))
     setLoading(false)
   }
