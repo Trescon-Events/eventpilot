@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getEventGuidelines, renderGuidelinesJson } from '@/app/lib/content/guidelines-api'
 import type { TokenScope } from './auth'
 
 /* Curated, read-only query layer for /api/public/v1/knowledge/* — every
@@ -106,33 +107,47 @@ export async function getEventAgenda(eventId: string) {
   return data ?? []
 }
 
-// visibility='public' is the WHOLE filter here — see this session's own
-// plan doc: only 3 doc_types exist (post_event_report=public by default,
-// bd_proposal/hr_policy=internal by default), so this one column already
-// draws exactly the line Madhu asked for, and stays correct automatically
-// if a new internal doc type is ever added later.
+// Explicit doc_type allowlist (2026-09-29, per Madhu — this token type is
+// used internally by Trescon's own marketing/production teams, so
+// bd_proposal is in scope alongside post_event_report). hr_policy is
+// excluded by construction, not by a visibility flag: it's simply not in
+// this list, and a new internal doc_type added later stays excluded by
+// default (opt-in, not opt-out) unless someone deliberately adds it here.
+const ALLOWED_DOC_TYPE_KEYS = ['post_event_report', 'bd_proposal']
+const REFERENCE_DOC_ROLES = ['style_guide', 'messaging', 'production_pack'] as const
+
 export async function getEventDocuments(eventId: string) {
   const { data, error } = await supabaseAdmin
     .from('docuhub_documents')
-    .select('id, title, description, format, external_url, object_key, created_at, doc_types(label)')
+    .select('id, title, description, format, external_url, object_key, created_at, doc_types!inner(key, label)')
     .eq('event_id', eventId)
-    .eq('visibility', 'public')
+    .in('doc_types.key', ALLOWED_DOC_TYPE_KEYS)
     .eq('is_active', true)
     .is('deleted_at', null)
   if (error) throw new Error('query_failed')
-  return (data ?? []).map(d => ({
+  const files = (data ?? []).map(d => ({
     id: d.id, title: d.title, description: d.description,
     type: (d.doc_types as unknown as { label?: string } | null)?.label ?? null,
     url: d.external_url || d.object_key,
     created_at: d.created_at,
   }))
+
+  // Reuses the Content Guidelines API's own compiler (app/lib/content/
+  // guidelines-api.ts) rather than re-querying event_messaging_docs here —
+  // it already merges an event's own live style guide/messaging/production
+  // docs with whatever's inherited from its umbrella, exactly the "borrow
+  // best practices from past events" shape this domain wants.
+  const guidelines = await getEventGuidelines(eventId)
+  const reference_docs = guidelines ? renderGuidelinesJson(guidelines, [...REFERENCE_DOC_ROLES]) : null
+
+  return { files, reference_docs }
 }
 
 export async function searchDocuments(scope: TokenScope, q: string | null) {
   let query = supabaseAdmin
     .from('docuhub_documents')
-    .select('id, title, description, format, external_url, object_key, event_id, event_label, created_at, doc_types(label)')
-    .eq('visibility', 'public')
+    .select('id, title, description, format, external_url, object_key, event_id, event_label, created_at, doc_types!inner(key, label)')
+    .in('doc_types.key', ALLOWED_DOC_TYPE_KEYS)
     .eq('is_active', true)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })

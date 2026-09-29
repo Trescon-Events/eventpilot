@@ -20,9 +20,100 @@ const DOMAIN_INFO: { key: Domain; label: string; description: string }[] = [
   { key: 'event_overview', label: 'Event Overview', description: 'Name, dates, venue, description, status, type for each accessible event. No financial fields.' },
   { key: 'speakers_partners', label: 'Speakers & Partners', description: 'Public, approved speaker and partner profiles — name, role, company, bio, photo. No contact details.' },
   { key: 'agenda', label: 'Agenda', description: 'Public session schedule — day, time, title, description, track.' },
-  { key: 'documents_reports', label: 'Documents & Reports', description: 'Post-event reports and other documents explicitly marked public. Never HR policy or BD proposal documents — those default to internal and are never included.' },
+  { key: 'documents_reports', label: 'Documents & Reports', description: 'Post-event reports, BD proposals, and each event’s live style guide / messaging document / production pack (including inherited umbrella-level style guides). Never HR policy documents.' },
   { key: 'news_and_intel', label: 'News & Press Coverage', description: 'Published external coverage of Trescon and its events, from the Knowledge Base Intel pipeline.' },
 ]
+
+const BASE_URL = 'https://eventpilot.tresconglobal.com/api/public/v1/knowledge'
+
+const DOMAIN_ENDPOINTS: Record<Domain, { method: string; path: string; note?: string }[]> = {
+  event_overview: [
+    { method: 'GET', path: '/events', note: 'every event this token can see' },
+    { method: 'GET', path: '/events/{id}', note: 'one event in detail' },
+  ],
+  speakers_partners: [
+    { method: 'GET', path: '/events/{id}/speakers' },
+    { method: 'GET', path: '/events/{id}/partners' },
+  ],
+  agenda: [{ method: 'GET', path: '/events/{id}/agenda' }],
+  documents_reports: [
+    { method: 'GET', path: '/events/{id}/documents', note: 'returns { files, reference_docs } — files are post-event reports & BD proposals, reference_docs is that event’s live style guide / messaging document / production pack' },
+    { method: 'GET', path: '/documents?q=<keyword>', note: 'search post-event reports & BD proposals across every event in scope' },
+  ],
+  news_and_intel: [{ method: 'GET', path: '/intel?q=<keyword>&event=<name>', note: 'published external coverage of Trescon and its events' }],
+}
+
+/* Per-token, shown-once usage guide — built client-side since the
+   plaintext token only ever exists transiently in this component's state
+   (never persisted server-side, see platform-api-tokens/route.ts), so
+   there's no server route that could regenerate this later. Written for
+   whoever configures the receiving AI tool (Antigravity, a custom GPT,
+   etc.), not for the app itself to consume. */
+function buildUsageGuide(token: string, label: string, domains: Domain[]): string {
+  const enabled = DOMAIN_INFO.filter(d => domains.includes(d.key))
+  const lines: string[] = []
+  lines.push(`# EventPilot AI Access — Usage Guide`, '', `Token: **${label}**`, `Generated: ${new Date().toISOString().slice(0, 10)}`, '')
+  lines.push(
+    '## What this is',
+    'EventPilot is Trescon’s event management platform. This token gives an AI tool scoped, read-only access to real Trescon/event data — so it can ground answers in Trescon’s actual history and current work instead of guessing, without a human re-explaining company context every time.',
+    ''
+  )
+  lines.push(
+    '## Authentication',
+    '```',
+    `Authorization: Bearer ${token}`,
+    '```',
+    `Base URL: \`${BASE_URL}\``,
+    '',
+    'Keep this token out of any file, repo, or chat that isn’t private to your team. If it leaks, revoke it in EventPilot’s AI Access panel and issue a new one.',
+    ''
+  )
+  lines.push('## What this token can access', '')
+  for (const d of enabled) {
+    lines.push(`### ${d.label}`, d.description, '')
+    for (const e of DOMAIN_ENDPOINTS[d.key]) {
+      lines.push(`- \`${e.method} ${e.path}\`${e.note ? ` — ${e.note}` : ''}`)
+    }
+    lines.push('')
+  }
+  lines.push(
+    '## How to use this well',
+    '- Start broad, then narrow: call `GET /events` once to see which events are in scope, then only fetch a specific event’s speakers/agenda/documents when the user’s question is actually about that event. Don’t loop over every event on every query.',
+    '- Rate limit: 60 requests/hour for this token. Cache what you fetch within a working session rather than re-requesting the same thing.',
+    '- Suggested refetch cadence (this API has no built-in caching — cache on your side):',
+    '  - Event Overview / Speakers & Partners / Agenda: fairly stable — safe to reuse for a few hours of work on the same event; refetch if the user mentions something changed.',
+    '  - Documents & Reports: refetch when you start new work on an event, or when the user mentions a new report or proposal — these get added regularly.',
+    '  - News & Press Coverage: refetch at the start of each session — EventPilot scans for new coverage on a weekly schedule, so this is the most time-sensitive domain.',
+    '- If a question needs something this API doesn’t expose (staff details, financials, anything about EventPilot’s own tech stack or how it’s built), say so plainly rather than guessing.',
+    ''
+  )
+  if (domains.includes('documents_reports')) {
+    lines.push(
+      '## Reusing past work (style guides, messaging docs, BD proposals)',
+      'When drafting a new messaging document, style guide, or BD proposal, check for similar past ones first and borrow structure/tone/best practices from them:',
+      '- `GET /documents?q=<keyword>` searches past BD proposals and post-event reports across every event in scope.',
+      '- `GET /events/{id}/documents` on a similar past event returns its `reference_docs` — the live Style Guide, Messaging Document, and Production Pack EventPilot compiled for that event.',
+      '',
+      'EventPilot’s own model for these, so a draft can be pasted back in cleanly later: a **Style Guide** is set once at the umbrella/series level and inherited by every event under it; a **Messaging Document** and a **Production Pack** are set per individual event. Keeping a new draft’s structure and section roles (`style_guide` / `messaging` / `production_pack`) consistent with that makes it a straightforward paste for whoever owns EventPilot’s Reference Docs for that event.',
+      ''
+    )
+  }
+  lines.push(
+    '## Errors',
+    '| Status | Meaning |',
+    '|---|---|',
+    '| 401 | Token missing, invalid, or revoked |',
+    '| 403 | This token isn’t scoped for that data domain |',
+    '| 404 | Event not found, or not in this token’s scope |',
+    '| 429 | Rate limit exceeded (60 requests/hour) |',
+    '| 500 | Something went wrong on EventPilot’s side — retry later |',
+    '',
+    '## Questions',
+    'Ask whoever issued you this token, in EventPilot’s AI Access panel (Administration → AI Access).',
+    ''
+  )
+  return lines.join('\n')
+}
 
 type EventOption = { id: string; name: string }
 
@@ -64,6 +155,8 @@ export default function AiAccessPage() {
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set())
   const [creating, setCreating] = useState(false)
   const [newToken, setNewToken] = useState<string | null>(null)
+  const [newTokenLabel, setNewTokenLabel] = useState('')
+  const [newTokenDomains, setNewTokenDomains] = useState<Domain[]>([])
 
   const [logForTokenId, setLogForTokenId] = useState<string | null>(null)
   const [logEntries, setLogEntries] = useState<LogEntry[]>([])
@@ -126,6 +219,8 @@ export default function AiAccessPage() {
     setCreating(false)
     if (!res.ok) { setMsg(data.error ?? 'Could not create token.'); setMsgIsError(true); return }
     setNewToken(data.token)
+    setNewTokenLabel(data.label ?? label.trim())
+    setNewTokenDomains(data.domains ?? [...selectedDomains])
     setLabel(''); setSelectedDomains(new Set()); setEventScope('all'); setSelectedEventIds(new Set())
     await load()
   }
@@ -144,6 +239,20 @@ export default function AiAccessPage() {
     const data = await res.json().catch(() => ({ entries: [] }))
     setLogEntries(data.entries ?? [])
     setLogLoading(false)
+  }
+
+  function downloadUsageGuide() {
+    if (!newToken) return
+    const md = buildUsageGuide(newToken, newTokenLabel, newTokenDomains)
+    const blob = new Blob([md], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `eventpilot-ai-access-${newTokenLabel.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'token'}.md`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   function eventName(id: string | null) {
@@ -180,7 +289,10 @@ export default function AiAccessPage() {
               </pre>
               Available paths (only the domains enabled on this token will work): <code>/events</code>, <code>/events/{'{id}'}</code>, <code>/events/{'{id}'}/speakers</code>, <code>/events/{'{id}'}/partners</code>, <code>/events/{'{id}'}/agenda</code>, <code>/events/{'{id}'}/documents</code>, <code>/documents?q=</code>, <code>/intel?q=&amp;event=</code>.
             </div>
-            <Button variant="ghost" onClick={() => setNewToken(null)}>Done</Button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <Button variant="lime" onClick={downloadUsageGuide}>Download Usage Guide (.md)</Button>
+              <Button variant="ghost" onClick={() => setNewToken(null)}>Done</Button>
+            </div>
           </Card>
         )}
 
