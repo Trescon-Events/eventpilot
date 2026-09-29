@@ -83,7 +83,7 @@ export type TextLayer = {
   width: number
   height: number
   max_lines: number          // wrapAndFit() shrinks font size (down to 60% of font_size) then
-                              // ellipsis-truncates if the text still can't fit within this many lines
+                              // never truncates: shrinks further, then overflows, if it still can't fit within this many lines
   font_size: number           // ceiling — actual rendered size may auto-shrink smaller to fit
   font_color: string         // hex, e.g. '#FFFFFF'
   // 2026-08-04 — widened to a numeric CSS weight (100-900) so a text layer
@@ -131,7 +131,7 @@ export type TextLayer = {
   // Opt out of wrapAndFit()'s shrink-then-truncate behavior (2026-09-22) —
   // when false, font_size is pinned exactly and the box only ever wraps to
   // more lines, never gets visually smaller; text that still can't fit at
-  // max_lines/height falls straight to ellipsis-truncation at the pinned
+  // max_lines/height is shrunk as a last resort (never ellipsis-cut) from the pinned
   // size. Generic, not tied to any one field — the headline_* fields (see
   // above) are the first user, authored with this off AND a generous
   // max_lines/height so truncation in practice never fires for a realistic

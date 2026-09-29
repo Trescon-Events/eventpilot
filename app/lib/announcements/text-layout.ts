@@ -45,6 +45,8 @@ const LINE_HEIGHT_RATIO = 1.2
 // rather than continuing to shrink to an unreadable size.
 const SHRINK_FLOOR_RATIO = 0.6
 const SHRINK_STEP = 1
+// Absolute shrink limit once the normal floor is passed (see wrapAndFit's last resorts).
+const HARD_MIN_RATIO = 0.4
 
 function measure(text: string, size: number, weight: number, family: string): number {
   measureCtx.font = `${weight} ${size}px ${family}`
@@ -70,7 +72,7 @@ const NATURAL_BREAK_CHARS = ['-', '/']
 // preceding fragment, standard hyphenation convention — no bare leading
 // hyphen on the continuation line); falls back to inserting a hyphen at a
 // measured-safe character boundary via the same bisection approach
-// truncateToWidth() already uses below, only now continuing onto a new
+// the old ellipsis fallback used, only now continuing onto a new
 // line instead of appending "…" and stopping. This is why a genuinely
 // unbreakable token (a URL, a long number) still degrades gracefully:
 // real glyph widths from measureCtx.measureText() make the cut point exact
@@ -100,7 +102,7 @@ function splitOverlongWord(word: string, boxWidth: number, size: number, weight:
 
   // No usable natural break char (or the box is too narrow for even the
   // first fragment) — bisect by real glyph width, same approach as
-  // truncateToWidth(), inserting our own hyphen and continuing to a new
+  // the old ellipsis fallback, inserting our own hyphen and continuing to a new
   // line rather than stopping with an ellipsis.
   let lo = 1
   let hi = word.length
@@ -146,25 +148,6 @@ function greedyWordWrap(text: string, boxWidth: number, size: number, weight: nu
   return lines
 }
 
-// forceEllipsis: append "…" even if `text` already fits within boxWidth
-// unmodified — needed when a whole trailing line got dropped (maxLines
-// cut it off) rather than this specific line itself being too wide; the
-// visible last line still needs to signal that more text existed.
-function truncateToWidth(text: string, boxWidth: number, size: number, weight: number, family: string, forceEllipsis = false): string {
-  const ellipsis = '…'
-  if (!forceEllipsis && measure(text, size, weight, family) <= boxWidth) return text
-  if (measure(text + ellipsis, size, weight, family) <= boxWidth) return text + ellipsis
-  let lo = 0
-  let hi = text.length
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2)
-    const candidate = text.slice(0, mid).trimEnd() + ellipsis
-    if (measure(candidate, size, weight, family) <= boxWidth) lo = mid
-    else hi = mid - 1
-  }
-  return (text.slice(0, lo).trimEnd() + ellipsis) || ellipsis
-}
-
 export function wrapAndFit(text: string, opts: WrapAndFitOptions): WrapAndFitResult {
   const { width, height, maxLines, fontSize, fontWeight = 400, fontFamily = 'sans-serif', allowShrink = true } = opts
   const trimmed = text.trim()
@@ -185,30 +168,30 @@ export function wrapAndFit(text: string, opts: WrapAndFitOptions): WrapAndFitRes
     size -= SHRINK_STEP
   }
 
-  // Hit the floor without ever fitting — best-effort at floor size, capped
-  // to maxLines. Two distinct truncation reasons, both marked with an
-  // ellipsis: (a) whole trailing lines got dropped by the maxLines cap —
-  // the last VISIBLE line gets a forced ellipsis even if its own text
-  // already fits, since it's what signals more content existed; (b) a
-  // single line is itself still wider than the box even alone — now a rare
-  // edge case rather than the common one (2026-09-27): greedyWordWrap's
-  // splitOverlongWord already breaks any word too wide to fit across
-  // multiple lines (at an existing hyphen/slash, or a measured-safe
-  // character boundary otherwise) before ever reaching here, so this only
-  // still fires when the box is too narrow for even a single character.
-  const lineHeight = floor * LINE_HEIGHT_RATIO
-  const fullyWrapped = greedyWordWrap(trimmed, width, floor, fontWeight, fontFamily)
-  let wrapped = fullyWrapped.slice(0, Math.max(1, maxLines))
-  if (wrapped.length === 0) wrapped = [trimmed]
-  const droppedTrailingLines = fullyWrapped.length > wrapped.length
-  const lastIdx = wrapped.length - 1
-
-  for (let i = 0; i < wrapped.length; i++) {
-    const tooWide = measure(wrapped[i], floor, fontWeight, fontFamily) > width
-    const isLastWithDroppedContent = i === lastIdx && droppedTrailingLines
-    if (tooWide || isLastWithDroppedContent) {
-      wrapped[i] = truncateToWidth(wrapped[i], width, floor, fontWeight, fontFamily, isLastWithDroppedContent)
+  // Never ellipsis-truncate (2026-09-30, Madhu: a headline must never lose words to "…" — seen on
+  // FSF's headline_full layer: pinned font size + max_lines 3 dropped the tail of a long headline).
+  // "Never shrink" layers keep their size exactly: every word is shown, wrapping onto as many
+  // lines as it takes (an overlong single word breaks at a hyphen/safe point and continues on the
+  // next line — see splitOverlongWord), even past max_lines / the box's bottom edge. didTruncate
+  // then means "overflows its box" so the editor tells the producer to enlarge the box.
+  if (!allowShrink) {
+    const all = greedyWordWrap(trimmed, width, fontSize, fontWeight, fontFamily)
+    return { lines: all.length ? all : [trimmed], fontSize, lineHeight: fontSize * LINE_HEIGHT_RATIO, didShrink: false, didTruncate: true }
+  }
+  // Layers that ARE allowed to shrink: keep shrinking past the normal floor, down to a hard
+  // minimum (a smaller headline beats a cut-off one). Honors maxLines/height.
+  const hardMin = Math.max(10, Math.round(fontSize * HARD_MIN_RATIO))
+  for (let s2 = Math.min(size, floor) - SHRINK_STEP; s2 >= hardMin; s2 -= SHRINK_STEP) {
+    const lh = s2 * LINE_HEIGHT_RATIO
+    const w2 = greedyWordWrap(trimmed, width, s2, fontWeight, fontFamily)
+    if (w2.length <= maxLines && w2.length * lh <= height && w2.every(l => measure(l, s2, fontWeight, fontFamily) <= width)) {
+      return { lines: w2, fontSize: s2, lineHeight: lh, didShrink: true, didTruncate: false }
     }
   }
-  return { lines: wrapped, fontSize: floor, lineHeight, didShrink: true, didTruncate: true }
+  // Last resort 2: even the hard minimum doesn't fit the box — render ALL the text at that size and
+  // let it run past the box rather than drop words. didTruncate now means "overflows its box" so the
+  // editor still warns the producer to enlarge the box or shorten the text.
+  const lineHeight = hardMin * LINE_HEIGHT_RATIO
+  const allLines = greedyWordWrap(trimmed, width, hardMin, fontWeight, fontFamily)
+  return { lines: allLines.length ? allLines : [trimmed], fontSize: hardMin, lineHeight, didShrink: true, didTruncate: true }
 }

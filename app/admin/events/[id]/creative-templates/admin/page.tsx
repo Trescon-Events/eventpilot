@@ -971,7 +971,7 @@ function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onTog
           <button onClick={onToggleExpand} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '12.5px', color: 'var(--ink)', fontWeight: 700 }}>
             {layerSummary(layer)}
           </button>
-          {diagnostics?.did_truncate && <span title="Text was shrunk and still had to be cut off with an ellipsis to fit its box" style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--red)' }}>⚠ truncated</span>}
+          {diagnostics?.did_truncate && <span title="Even at the smallest allowed size this text is longer than its box, so it runs past the box (no words are cut). Enlarge the box or shorten the text." style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--red)' }}>⚠ overflows box</span>}
           {diagnostics?.did_shrink && !diagnostics.did_truncate && <span title="Font size was auto-shrunk to fit its box" style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--amber)' }}>shrunk to fit</span>}
           <span style={{ fontSize: '10.5px', color: 'var(--ink4)' }}>{index + 1}/{total}</span>
           <button onClick={onDelete} title="Delete layer" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red)', fontSize: '13px' }}>✕</button>
@@ -1679,7 +1679,7 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
           generous Max lines. */}
       <label style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
         <input type="checkbox" checked={layer.allow_shrink === false} onChange={e => onChange({ allow_shrink: !e.target.checked })} />
-        Never shrink (fixed font size — wraps to more lines instead, only truncates as a last resort)
+        Never shrink (fixed font size — wraps to more lines instead; only shrinks as a last resort, never cuts words off)
       </label>
     </>
   )
