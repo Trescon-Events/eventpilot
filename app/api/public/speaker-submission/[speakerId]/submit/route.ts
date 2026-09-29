@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { toStoredBioPdf } from '@/app/lib/events/full-bio-upload'
+import sharp from 'sharp'
+import { detectHeadBox } from '@/app/lib/media/face-alignment'
+import { MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine'
+import { ASSISTANT_CONSENT_KEY, hasAssistantAnswer } from '@/app/lib/stakeholders/assistant-contact'
 import { uploadSensitiveDocument } from '@/app/lib/events/sensitive-storage'
 import { computeRetention } from '@/app/lib/events/sensitive-retention'
 import { sensitiveDocumentFileName, publicNameForFile } from '@/app/lib/events/sensitive-doc-name'
@@ -61,7 +65,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
 
   const { data: speaker } = await supabaseAdmin
     .from('event_speakers')
-    .select('event_id, announcement_status, is_uae_resident, name, public_name')
+    .select('event_id, announcement_status, is_uae_resident, name, public_name, custom_fields')
     .eq('id', speakerId)
     .single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
@@ -118,6 +122,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
     submitted.push('uae_resident_status')
   }
 
+  // Assistant coordination — asked only when the record has no answer yet
+  // (never re-ask what we already know). Same consent-first rule as the
+  // onboarding form: "yes" reveals the assistant fields, "no" just records
+  // the answer. Merged into custom_fields (never replaced — that wholesale-
+  // replace bug has bitten before), and a "yes" with an email also becomes
+  // an Additional Contact so every producer send CCs them by default.
+  const customFields = (speaker.custom_fields ?? {}) as Record<string, unknown>
+  const assistantAnswer = form.get('assistant_coordinate') as string | null
+  if ((assistantAnswer === 'yes' || assistantAnswer === 'no') && !(await hasAssistantAnswer(speakerId, customFields))) {
+    const patch: Record<string, unknown> = { [ASSISTANT_CONSENT_KEY]: assistantAnswer === 'yes' ? 'Yes' : 'No' }
+    if (assistantAnswer === 'yes') {
+      const aName = ((form.get('assistant_full_name') as string | null) ?? '').trim()
+      const aEmail = ((form.get('assistant_email') as string | null) ?? '').trim()
+      const aMobile = ((form.get('assistant_mobile') as string | null) ?? '').trim()
+      if (aEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(aEmail)) return NextResponse.json({ error: 'Please enter a valid assistant email address.' }, { status: 400 })
+      if (aName) patch.assistant_full_name = aName
+      if (aEmail) patch.assistant_email = aEmail
+      if (aMobile) patch.assistant_mobile = aMobile
+      if (aEmail) {
+        const [first, ...rest] = aName.split(/\s+/).filter(Boolean)
+        await supabaseAdmin.from('speaker_additional_contacts').insert({ speaker_id: speakerId, first_name: first || null, last_name: rest.join(' ') || null, email: aEmail, source: 'form' })
+      }
+    }
+    speakerPatch.custom_fields = { ...customFields, ...patch }
+    submitted.push('assistant')
+  }
+
   // Full Bio — same PDF-or-Word-converted-to-PDF rule as every other Full
   // Bio entry point (app/lib/events/full-bio-upload.ts's own doc comment).
   const bioFile = requestedFields.has('bio_full') ? (form.get('bio_full') as File | null) : null
@@ -136,10 +167,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
     }
   }
 
-  // Photo — plain raw upload, same as the existing onboarding form's own
-  // photo field (app/api/public/forms/.../route.ts). No PhotoRoom
-  // background removal here; the producer runs the existing Photo
-  // Cleaning Wizard afterward, same as any other newly-submitted photo.
+  // Photo — raw upload (photo_url) plus first-stage background removal
+  // (photo_processed_url), same as the onboarding form's own photo path.
   const photoFile = requestedFields.has('photo') ? (form.get('photo') as File | null) : null
   if (photoFile && photoFile.size > 0) {
     if (!ALLOWED_PHOTO_TYPES.includes(photoFile.type)) return NextResponse.json({ error: `Unsupported photo type ${photoFile.type}` }, { status: 400 })
@@ -149,6 +178,39 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
     const url = await uploadPublicAsset(`events/${speaker.event_id}/speakers/${speakerId}/photo-${Date.now()}.${ext}`, buffer, photoFile.type)
     speakerPatch.photo_url = url
     submitted.push('photo')
+
+    // First-stage cleaning (background removal) — mirrors the onboarding
+    // form's own path (speakers/from-submission/route.ts): raw stays in
+    // photo_url, the transparent cut-out lands in photo_processed_url. Best
+    // effort — a PhotoRoom failure must never lose the submission, but a
+    // stale cut-out of the PREVIOUS photo must not linger either, so both
+    // are cleared first and only re-set on success.
+    speakerPatch.photo_processed_url = null
+    speakerPatch.photo_head_box = null
+    const photoRoomKey = process.env.PHOTOROOM_API_KEY
+    if (photoRoomKey) {
+      try {
+        const prForm = new FormData()
+        prForm.append('image_file', new Blob([new Uint8Array(buffer)], { type: photoFile.type }), 'photo.jpg')
+        prForm.append('output_type', 'rgba')
+        const prRes = await fetch('https://sdk.photoroom.com/v1/segment', {
+          method: 'POST', headers: { 'x-api-key': photoRoomKey }, body: prForm, signal: AbortSignal.timeout(30_000),
+        })
+        if (prRes.ok) {
+          const transparentPng = await sharp(Buffer.from(await prRes.arrayBuffer()))
+            .rotate()
+            .resize(MAX_STORED_PHOTO_DIMENSION, MAX_STORED_PHOTO_DIMENSION, { fit: 'inside', withoutEnlargement: true })
+            .png()
+            .toBuffer()
+          speakerPatch.photo_processed_url = await uploadPublicAsset(`events/${speaker.event_id}/speakers/${speakerId}/photo-processed-${Date.now()}.png`, transparentPng, 'image/png')
+          try { speakerPatch.photo_head_box = await detectHeadBox(transparentPng) } catch (e) { console.error('[speaker-submission] head detection failed:', e) }
+        } else {
+          console.error('[speaker-submission] PhotoRoom failed:', prRes.status)
+        }
+      } catch (e) {
+        console.error('[speaker-submission] PhotoRoom processing failed (raw photo still saved):', e)
+      }
+    }
   }
 
   // Passport / National ID — same private-bucket pipeline as the
@@ -247,7 +309,7 @@ async function notifyProducer(eventId: string, speakerId: string, submittedField
   const submittedDocs = submittedFields.some(f => f === 'passport' || f === 'national_id')
   const canSeeDocs = submittedDocs && await hasEventPermission(recipientStaffId, eventId, 'sae.sensitive_documents.view')
   const reviewUrl = `${siteUrl}/admin/events/${eventId}/stakeholders/${speakerId}?tab=${canSeeDocs ? 'documents' : 'communications'}`
-  const DISPLAY_LABELS: Record<string, string> = { uae_resident_status: 'UAE Residency Status' }
+  const DISPLAY_LABELS: Record<string, string> = { uae_resident_status: 'UAE Residency Status', assistant: 'Assistant coordination details' }
   const itemsLabel = submittedFields.map(f => DISPLAY_LABELS[f] ?? missingItemLabel(f as MissingItemKey)).join(', ')
 
   const { html } = renderEmailTemplate(

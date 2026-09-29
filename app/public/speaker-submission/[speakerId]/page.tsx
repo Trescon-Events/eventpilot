@@ -42,6 +42,7 @@ type ReviewData = {
   current_short_bio: string
   current_country: string
   is_uae_resident: boolean | null
+  ask_assistant: boolean
 }
 
 const PROFILE_KEYS = ['photo', 'bio_full', 'short_bio', 'country']
@@ -103,6 +104,8 @@ export default function SpeakerSubmissionPage({ params }: { params: Promise<{ sp
   const [done, setDone] = useState(false)
   const [consent, setConsent] = useState(false)
   const [doneWithDocs, setDoneWithDocs] = useState(false)
+  const [assistantAnswer, setAssistantAnswer] = useState<'yes' | 'no' | null>(null)
+  const [assistant, setAssistant] = useState({ name: '', email: '', mobile: '' })
 
   useEffect(() => {
     if (!token) return
@@ -167,7 +170,8 @@ export default function SpeakerSubmissionPage({ params }: { params: Promise<{ sp
     const hasCountry = profileItems.includes('country') && country.trim().length > 0
     const sendingDocs = shownFiles.some(k => k === 'passport' || k === 'national_id')
     if (sendingDocs && !consent) { setSubmitError(SENSITIVE_CONSENT_REQUIRED_ERROR); return }
-    if (shownFiles.length === 0 && !hasShortBio && !hasCountry) { setSubmitError('Please add at least one item before submitting.'); return }
+    const hasAssistant = data!.ask_assistant && assistantAnswer !== null
+    if (shownFiles.length === 0 && !hasShortBio && !hasCountry && !hasAssistant) { setSubmitError('Please add at least one item before submitting.'); return }
     if (hasShortBio && shortBio.trim().length > MAX_SHORT_BIO_CHARS) { setSubmitError(`Short Bio must be ${MAX_SHORT_BIO_CHARS} characters or less.`); return }
     setSubmitting(true); setSubmitError(null)
     const form = new FormData()
@@ -176,6 +180,14 @@ export default function SpeakerSubmissionPage({ params }: { params: Promise<{ sp
     if (hasCountry) form.append('country', country.trim())
     if (sendingDocs && consent) form.append('sensitive_consent', SENSITIVE_CONSENT_VERSION)
     if (needsUaeQuestion && uaeAnswer) form.append('is_uae_resident', uaeAnswer)
+    if (hasAssistant) {
+      form.append('assistant_coordinate', assistantAnswer as string)
+      if (assistantAnswer === 'yes') {
+        form.append('assistant_full_name', assistant.name)
+        form.append('assistant_email', assistant.email)
+        form.append('assistant_mobile', assistant.mobile)
+      }
+    }
     const res = await fetch(`/api/public/speaker-submission/${speakerId}/submit?token=${token}`, { method: 'POST', body: form })
     const result = await res.json().catch(() => ({}))
     if (res.ok) { setDoneWithDocs(sendingDocs); setDone(true) }
@@ -292,6 +304,38 @@ export default function SpeakerSubmissionPage({ params }: { params: Promise<{ sp
                 <input type="file" accept={ACCEPT.national_id} className="ss-file-input" disabled={!consent} onChange={e => setFiles(prev => ({ ...prev, national_id: e.target.files?.[0] ?? null }))} />
                 <div className="ss-help">{HELP_TEXT.national_id}</div>
               </div>
+            )}
+          </div>
+        )}
+
+        {data.ask_assistant && (
+          <div className="ss-card">
+            <div>
+              <div className="ss-section-title">Your Assistant</div>
+              <div className="ss-section-sub">Optional — only if someone else handles your travel or scheduling.</div>
+            </div>
+            <div className="ss-field">
+              <div className="ss-item-label">Would you like us to coordinate with your assistant regarding your participation?</div>
+              <div className="ss-radio-row">
+                <button type="button" className={`ss-radio-btn${assistantAnswer === 'yes' ? ' active' : ''}`} onClick={() => setAssistantAnswer('yes')}>Yes</button>
+                <button type="button" className={`ss-radio-btn${assistantAnswer === 'no' ? ' active' : ''}`} onClick={() => setAssistantAnswer('no')}>No</button>
+              </div>
+            </div>
+            {assistantAnswer === 'yes' && (
+              <>
+                <div className="ss-field">
+                  <div className="ss-item-label">Assistant&apos;s full name</div>
+                  <input type="text" className="ss-select" value={assistant.name} onChange={e => setAssistant(a => ({ ...a, name: e.target.value }))} />
+                </div>
+                <div className="ss-field">
+                  <div className="ss-item-label">Assistant&apos;s email</div>
+                  <input type="email" className="ss-select" value={assistant.email} onChange={e => setAssistant(a => ({ ...a, email: e.target.value }))} />
+                </div>
+                <div className="ss-field">
+                  <div className="ss-item-label">Assistant&apos;s mobile number</div>
+                  <input type="tel" className="ss-select" value={assistant.mobile} onChange={e => setAssistant(a => ({ ...a, mobile: e.target.value }))} />
+                </div>
+              </>
             )}
           </div>
         )}

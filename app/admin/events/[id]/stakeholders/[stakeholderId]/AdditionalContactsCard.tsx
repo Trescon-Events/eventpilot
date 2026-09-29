@@ -31,6 +31,8 @@ export default function AdditionalContactsCard({ speakerId, canEdit }: { speaker
   const [adding, setAdding] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [draft, setDraft] = useState({ first: '', last: '', email: '' })
 
   const load = async () => {
     setLoading(true)
@@ -66,6 +68,18 @@ export default function AdditionalContactsCard({ speakerId, canEdit }: { speaker
     if (res.ok) setContacts(prev => prev.filter(c => c.id !== id))
   }
 
+  async function saveEdit(id: string) {
+    setBusyId(id); setError(null)
+    const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/additional-contacts/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ first_name: draft.first, last_name: draft.last, email: draft.email }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setBusyId(null)
+    if (res.ok) { setContacts(prev => prev.map(c => c.id === id ? data.contact : c)); setEditingId(null) }
+    else setError(data.error ?? 'Could not save contact.')
+  }
+
   if (loading) return null
 
   return (
@@ -84,19 +98,41 @@ export default function AdditionalContactsCard({ speakerId, canEdit }: { speaker
       ) : (
         <div style={{ display: 'grid', gap: '8px', marginBottom: '14px' }}>
           {contacts.map(c => (
-            <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: '8px', background: 'var(--card-hi)' }}>
-              <div>
-                <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>
-                  {[c.first_name, c.last_name].filter(Boolean).join(' ') || c.email}
-                  {c.source === 'form' && <Badge color="teal">From form</Badge>}
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--ink4)', marginTop: '2px' }}>{c.email}</div>
-              </div>
-              {canEdit && (
-                <button onClick={() => removeContact(c.id)} disabled={busyId === c.id}
-                  style={{ padding: '6px 12px', borderRadius: '7px', border: '1px solid var(--red-border)', background: 'transparent', color: 'var(--red)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  Remove
-                </button>
+            <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap', padding: '10px 12px', borderRadius: '8px', background: 'var(--card-hi)' }}>
+              {editingId === c.id ? (
+                <>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <Input placeholder="First name" value={draft.first} onChange={e => setDraft(d => ({ ...d, first: e.target.value }))} style={{ width: '140px' }} />
+                    <Input placeholder="Last name" value={draft.last} onChange={e => setDraft(d => ({ ...d, last: e.target.value }))} style={{ width: '140px' }} />
+                    <Input type="email" placeholder="Email" value={draft.email} onChange={e => setDraft(d => ({ ...d, email: e.target.value }))} style={{ width: '240px' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <Button variant="teal" onClick={() => saveEdit(c.id)} disabled={busyId === c.id || !draft.email.trim()}>Save</Button>
+                    <Button variant="ghost" onClick={() => setEditingId(null)}>Cancel</Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>
+                      {[c.first_name, c.last_name].filter(Boolean).join(' ') || c.email}
+                      {c.source === 'form' && <Badge color="teal">From form</Badge>}
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--ink4)', marginTop: '2px' }}>{c.email}</div>
+                  </div>
+                  {canEdit && (
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={() => { setEditingId(c.id); setDraft({ first: c.first_name ?? '', last: c.last_name ?? '', email: c.email }) }}
+                        style={{ padding: '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        Edit
+                      </button>
+                      <button onClick={() => removeContact(c.id)} disabled={busyId === c.id}
+                        style={{ padding: '6px 12px', borderRadius: '7px', border: '1px solid var(--red-border)', background: 'transparent', color: 'var(--red)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           ))}

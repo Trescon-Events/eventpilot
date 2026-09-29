@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { hasAssistantAnswer } from '@/app/lib/stakeholders/assistant-contact'
 import { missingItemLabel, MissingItemKey } from '@/app/lib/stakeholders/missing-items'
 
 /* GET /api/public/speaker-submission/[speakerId]/review-data?token=X
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ spea
     return NextResponse.json({ error: 'This link has expired.' }, { status: 410 })
   }
 
-  const { data: speaker } = await supabaseAdmin.from('event_speakers').select('name, public_name, event_id, bio, country, is_uae_resident').eq('id', speakerId).single()
+  const { data: speaker } = await supabaseAdmin.from('event_speakers').select('name, public_name, event_id, bio, country, is_uae_resident, custom_fields').eq('id', speakerId).single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
 
   const { data: event } = await supabaseAdmin.from('events').select('name, public_name').eq('id', speaker.event_id).single()
@@ -51,5 +52,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ spea
     current_short_bio: requestedFields.includes('short_bio') ? (speaker.bio ?? '') : '',
     current_country: requestedFields.includes('country') ? (speaker.country ?? '') : '',
     is_uae_resident: speaker.is_uae_resident,
+    // Only ask about an assistant when the record has no answer/details yet.
+    ask_assistant: request.status === 'pending' && !(await hasAssistantAnswer(speakerId, speaker.custom_fields as Record<string, unknown> | null)),
   })
 }

@@ -88,7 +88,7 @@ export default function NotifyExternalReminderComposer({ announcementId, stakeho
             recipientEmail={recipientEmail} setRecipientEmail={setRecipientEmail}
             ccInput={ccInput} setCcInput={setCcInput}
             subject={subject} setSubject={setSubject}
-            html={html}
+            html={html} setHtml={setHtml}
             sendError={sendError}
             sending={sending}
             sendLabel={sending ? 'Sending…' : 'Send Reminder'}

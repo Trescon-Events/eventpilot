@@ -1,5 +1,6 @@
 'use client'
 
+import { useRef } from 'react'
 import { Button, Input } from '@/app/components/ui'
 
 /* Shared To/Cc/Subject/Preview/Send editor for every SAE-module compose-
@@ -17,7 +18,7 @@ export default function ComposeEmailFields({
   recipientEmail, setRecipientEmail,
   ccInput, setCcInput,
   subject, setSubject,
-  html,
+  html, setHtml,
   sendError,
   sending,
   sendLabel,
@@ -33,12 +34,19 @@ export default function ComposeEmailFields({
   subject: string
   setSubject: (v: string) => void
   html: string
+  /* When given, the body is editable in place (click into the preview and type). */
+  setHtml?: (v: string) => void
   sendError: string | null
   sending: boolean
   sendLabel: string
   onSend: () => void
   onBack?: () => void
 }) {
+  // srcDoc is pinned to the html the composer handed us; edits flow OUT through
+  // setHtml but must not re-load the iframe (that would reset the caret).
+  const lastEmitted = useRef<string | null>(null)
+  const srcDocRef = useRef(html)
+  if (html !== lastEmitted.current) srcDocRef.current = html
   return (
     <div style={{ display: 'grid', gap: '12px' }}>
       <div style={{ fontSize: '14px', color: 'var(--ink3)' }}>
@@ -72,13 +80,28 @@ export default function ComposeEmailFields({
             yet, so any link here (e.g. a submission link) can 404 until Send
             really happens. */}
         <iframe
-          srcDoc={html}
+          srcDoc={srcDocRef.current}
           title="Email preview"
-          sandbox=""
+          // allow-same-origin (no allow-scripts) lets us switch the frame to designMode from here so the body is editable; nothing inside it can run script.
+          sandbox="allow-same-origin"
+          onLoad={e => {
+            const doc = e.currentTarget.contentDocument
+            if (!doc) return
+            if (setHtml) {
+              doc.designMode = 'on'
+              doc.addEventListener('input', () => {
+                const out = '<!DOCTYPE html>' + doc.documentElement.outerHTML.replace(/\sdesignmode="on"/i, '')
+                lastEmitted.current = out
+                setHtml(out)
+              })
+            }
+            // Links stay inert (an unsent submission link would 404) — still selectable/editable text.
+            doc.addEventListener('click', ev => { if ((ev.target as HTMLElement).closest('a')) ev.preventDefault() })
+          }}
           // eslint-disable-next-line no-restricted-syntax -- always-white email paper, not a themeable app surface (matches render-template.ts's own literal-color email HTML)
-          style={{ width: '100%', height: '360px', border: 'none', borderRadius: '6px', background: '#fff', pointerEvents: 'none' }}
+          style={{ width: '100%', height: '480px', border: 'none', borderRadius: '6px', background: '#fff' }}
         />
-        <div style={{ fontSize: '11.5px', color: 'var(--ink4)', marginTop: '6px' }}>Preview only — links become active once you click Send.</div>
+        <div style={{ fontSize: '11.5px', color: 'var(--ink4)', marginTop: '6px' }}>Click into the message to edit it. Links become active once you click Send.</div>
       </div>
       {sendError && <div style={{ fontSize: '14.5px', color: 'var(--red)' }}>{sendError}</div>}
       <div style={{ display: 'flex', gap: '8px' }}>
