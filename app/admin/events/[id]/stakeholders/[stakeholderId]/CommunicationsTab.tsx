@@ -100,7 +100,11 @@ export default function CommunicationsTab({ speakerId, stakeholderName, canEdit 
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
                 {missingItems.map(m => <Badge key={m.key} color="amber">{m.label}</Badge>)}
               </div>
-              <Button variant="teal" onClick={() => openComposer(missingItems.map(m => m.key))}>Request Missing Items</Button>
+              {requests.some(r => r.status === 'pending') ? (
+                <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>A request is already open for this speaker — send a reminder from Request History (same link), or close it there to send a new one.</div>
+              ) : (
+                <Button variant="teal" onClick={() => openComposer(missingItems.map(m => m.key))}>Request Missing Items</Button>
+              )}
             </>
           )}
         </Card>
@@ -133,7 +137,14 @@ export default function CommunicationsTab({ speakerId, stakeholderName, canEdit 
                     </div>
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
                       {r.status === 'pending' && (
-                        <Button variant="ghost" onClick={() => setReminderTarget(r.id)}>Send Reminder</Button>
+                        <>
+                          <Button variant="ghost" onClick={() => setReminderTarget(r.id)}>Send Reminder</Button>
+                          <Button variant="ghost" onClick={async () => {
+                            if (!window.confirm('Close this request? Its link will stop working.')) return
+                            const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/communications/${r.id}/close`, { method: 'POST' })
+                            if (res.ok) load(); else setError((await res.json().catch(() => ({}))).error || 'Could not close request.')
+                          }}>Close Request</Button>
+                        </>
                       )}
                       {r.status === 'submitted' && (
                         <>

@@ -5,8 +5,8 @@ import { hasEventPermission } from '@/app/lib/access/event-access'
 import { sendGraphMail } from '@/app/lib/email/graph-mail'
 import { resolveSenderIdentity } from '@/app/lib/email/sender-identity'
 import { renderEmailTemplate } from '@/app/lib/email/render-template'
-import { missingItemLabel, MissingItemKey } from '@/app/lib/stakeholders/missing-items'
-import { SENSITIVE_EMAIL_LINE } from '@/app/lib/stakeholders/sensitive-consent'
+import { MissingItemKey } from '@/app/lib/stakeholders/missing-items'
+import { remainingRequestedItems, outstandingItemsHtml, TOKEN_TTL_MS } from '@/app/lib/stakeholders/request-progress'
 
 /* POST /api/events/stakeholders/speakers/[id]/communications/[requestId]/remind
    Body (optional): { template_id?, recipient_email?, cc_emails?, subject?,
@@ -65,11 +65,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com'
     const submissionUrl = `${siteUrl}/public/speaker-submission/${speakerId}?token=${request.token}`
-    const requestedFields = (request.requested_fields as MissingItemKey[]) ?? []
-    // Kept in sync with compose/route.ts's own styling (2026-09-24) — a
-    // reminder should look identical to the original request.
-    /* eslint-disable-next-line no-restricted-syntax -- email HTML; clients can't render CSS custom properties, literal colors required (matches render-template.ts) */
-    const missingItemsListHtml = `<ul style="margin:8px 0 16px;padding-left:20px;">${requestedFields.map(k => `<li style="margin-bottom:6px;font-weight:700;color:#0D6665;">${missingItemLabel(k)}</li>`).join('')}</ul>${requestedFields.some(k => k === 'passport' || k === 'national_id') ? `<p style="margin:0 0 16px;font-size:13px;line-height:1.6;">${SENSITIVE_EMAIL_LINE}</p>` : ''}`
+    const remaining = await remainingRequestedItems(speakerId, (request.requested_fields as MissingItemKey[]) ?? [])
+    const missingItemsListHtml = outstandingItemsHtml(remaining)
 
     const rendered = renderEmailTemplate(template, {
       speaker_name: speaker.public_name || speaker.name || '',
@@ -90,7 +87,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     })
 
     const now = new Date().toISOString()
-    const patch = { reminder_count: request.reminder_count + 1, last_reminder_at: now }
+    // A reminder re-sends the SAME link, so it must still work: push the expiry out another 14 days.
+    const patch = { reminder_count: request.reminder_count + 1, last_reminder_at: now, token_expires_at: new Date(Date.now() + TOKEN_TTL_MS).toISOString() }
     await supabaseAdmin.from('speaker_communication_requests').update(patch).eq('id', requestId)
 
     return NextResponse.json({ ok: true, ...patch })

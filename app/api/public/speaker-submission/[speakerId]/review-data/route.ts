@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { hasAssistantAnswer } from '@/app/lib/stakeholders/assistant-contact'
+import { remainingRequestedItems } from '@/app/lib/stakeholders/request-progress'
 import { missingItemLabel, MissingItemKey } from '@/app/lib/stakeholders/missing-items'
 
 /* GET /api/public/speaker-submission/[speakerId]/review-data?token=X
@@ -35,13 +36,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ spea
 
   const { data: event } = await supabaseAdmin.from('events').select('name, public_name').eq('id', speaker.event_id).single()
 
-  const requestedFields = (request.requested_fields as MissingItemKey[]) ?? []
+  const allRequested = (request.requested_fields as MissingItemKey[]) ?? []
+  // Only what's still outstanding is shown — the link stays open across partial submissions.
+  const requestedFields = request.status === 'pending' ? await remainingRequestedItems(speakerId, allRequested) : allRequested
+  const receivedFields = allRequested.filter(k => !requestedFields.includes(k))
 
   return NextResponse.json({
     speaker_name: speaker.public_name || speaker.name,
     event_name: event?.public_name || event?.name || null,
     status: request.status,
     submitted_at: request.submitted_at,
+    received_fields: receivedFields.map(key => ({ key, label: missingItemLabel(key) })),
     requested_fields: requestedFields.map(key => ({ key, label: missingItemLabel(key) })),
     // Current values, so the form can pre-fill Short Bio/Country rather
     // than always starting blank, and so the frontend can decide whether

@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useState } from 'react'
 import { Button, Input } from '@/app/components/ui'
 
 /* Shared To/Cc/Subject/Preview/Send editor for every SAE-module compose-
@@ -44,9 +44,9 @@ export default function ComposeEmailFields({
 }) {
   // srcDoc is pinned to the html the composer handed us; edits flow OUT through
   // setHtml but must not re-load the iframe (that would reset the caret).
-  const lastEmitted = useRef<string | null>(null)
-  const srcDocRef = useRef(html)
-  if (html !== lastEmitted.current) srcDocRef.current = html
+  const [srcDoc, setSrcDoc] = useState(html)
+  const [lastEmitted, setLastEmitted] = useState<string | null>(null)
+  if (html !== srcDoc && html !== lastEmitted) setSrcDoc(html)
   return (
     <div style={{ display: 'grid', gap: '12px' }}>
       <div style={{ fontSize: '14px', color: 'var(--ink3)' }}>
@@ -80,7 +80,7 @@ export default function ComposeEmailFields({
             yet, so any link here (e.g. a submission link) can 404 until Send
             really happens. */}
         <iframe
-          srcDoc={srcDocRef.current}
+          srcDoc={srcDoc}
           title="Email preview"
           // allow-same-origin (no allow-scripts) lets us switch the frame to designMode from here so the body is editable; nothing inside it can run script.
           sandbox="allow-same-origin"
@@ -91,7 +91,7 @@ export default function ComposeEmailFields({
               doc.designMode = 'on'
               doc.addEventListener('input', () => {
                 const out = '<!DOCTYPE html>' + doc.documentElement.outerHTML.replace(/\sdesignmode="on"/i, '')
-                lastEmitted.current = out
+                setLastEmitted(out)
                 setHtml(out)
               })
             }

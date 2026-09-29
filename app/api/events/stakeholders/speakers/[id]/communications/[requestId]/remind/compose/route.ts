@@ -4,8 +4,8 @@ import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { resolveSenderIdentity } from '@/app/lib/email/sender-identity'
 import { renderEmailTemplate } from '@/app/lib/email/render-template'
-import { missingItemLabel, MissingItemKey } from '@/app/lib/stakeholders/missing-items'
-import { SENSITIVE_EMAIL_LINE } from '@/app/lib/stakeholders/sensitive-consent'
+import { MissingItemKey } from '@/app/lib/stakeholders/missing-items'
+import { remainingRequestedItems, outstandingItemsHtml } from '@/app/lib/stakeholders/request-progress'
 
 /* POST /api/events/stakeholders/speakers/[id]/communications/[requestId]/remind/compose
    No body — renders the reminder email fresh (same content the old
@@ -48,9 +48,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const sender = await resolveSenderIdentity(session, template, speaker.producer_staff_id)
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com'
   const submissionUrl = `${siteUrl}/public/speaker-submission/${speakerId}?token=${request.token}`
-  const requestedFields = (request.requested_fields as MissingItemKey[]) ?? []
-  /* eslint-disable-next-line no-restricted-syntax -- email HTML; clients can't render CSS custom properties, literal colors required (matches render-template.ts) */
-  const missingItemsListHtml = `<ul style="margin:8px 0 16px;padding-left:20px;">${requestedFields.map(k => `<li style="margin-bottom:6px;font-weight:700;color:#0D6665;">${missingItemLabel(k)}</li>`).join('')}</ul>${requestedFields.some(k => k === 'passport' || k === 'national_id') ? `<p style="margin:0 0 16px;font-size:13px;line-height:1.6;">${SENSITIVE_EMAIL_LINE}</p>` : ''}`
+  // Only what's STILL outstanding — a speaker who already sent the photo shouldn't be asked for it again.
+  const remaining = await remainingRequestedItems(speakerId, (request.requested_fields as MissingItemKey[]) ?? [])
+  if (remaining.length === 0) return NextResponse.json({ error: 'Everything requested is already on file — nothing to remind about.' }, { status: 422 })
+  const missingItemsListHtml = outstandingItemsHtml(remaining)
 
   const { subject, html } = renderEmailTemplate(template, {
     speaker_name: speaker.public_name || speaker.name || '',

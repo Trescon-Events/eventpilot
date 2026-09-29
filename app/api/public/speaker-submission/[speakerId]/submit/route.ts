@@ -5,6 +5,7 @@ import { toStoredBioPdf } from '@/app/lib/events/full-bio-upload'
 import sharp from 'sharp'
 import { detectHeadBox } from '@/app/lib/media/face-alignment'
 import { MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine'
+import { remainingRequestedItems } from '@/app/lib/stakeholders/request-progress'
 import { ASSISTANT_CONSENT_KEY, hasAssistantAnswer } from '@/app/lib/stakeholders/assistant-contact'
 import { uploadSensitiveDocument } from '@/app/lib/events/sensitive-storage'
 import { computeRetention } from '@/app/lib/events/sensitive-retention'
@@ -70,7 +71,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
     .single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
 
-  const requestedFields = new Set((request.requested_fields as MissingItemKey[]) ?? [])
+  // Only what's still outstanding is accepted: a link stays open across partial submissions, so
+  // items already on file are no longer asked for (nor silently overwritten by a re-send).
+  const remainingBefore = await remainingRequestedItems(speakerId, (request.requested_fields as MissingItemKey[]) ?? [])
+  const requestedFields = new Set(remainingBefore)
   const form = await req.formData()
   const submitted: string[] = []
   const speakerPatch: Record<string, unknown> = {}
@@ -265,19 +269,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
     await supabaseAdmin.from('event_speakers').update(speakerPatch).eq('id', speakerId)
   }
 
+  // The link stays open (status 'pending') until every requested item is on file — a speaker can
+  // send the photo today and the bio tomorrow via the same link. Items are recomputed from the
+  // record itself, after the write above. Only when nothing is left does the request lock.
+  const remainingAfter = await remainingRequestedItems(speakerId, (request.requested_fields as MissingItemKey[]) ?? [])
+  const complete = remainingAfter.length === 0
+  const prior = ((request.submitted_data as { fields?: string[] } | null)?.fields) ?? []
   await supabaseAdmin
     .from('speaker_communication_requests')
     .update({
-      status: 'submitted', submitted_at: new Date().toISOString(), submitted_data: { fields: submitted },
+      submitted_data: { fields: [...new Set([...prior, ...submitted])] },
+      ...(complete ? { status: 'submitted', submitted_at: new Date().toISOString() } : {}),
       ...((submitted.includes('passport') || submitted.includes('national_id'))
         ? { sensitive_consent_at: new Date().toISOString(), sensitive_consent_version: SENSITIVE_CONSENT_VERSION, sensitive_consent_ip: clientIp(req) }
         : {}),
     })
     .eq('id', request.id)
 
-  await notifyProducer(speaker.event_id, speakerId, submitted, request.requested_by).catch(e => console.error('[speaker-submission] producer notification failed (submission still recorded):', e))
+  await notifyProducer(speaker.event_id, speakerId, submitted, request.requested_by, remainingAfter).catch(e => console.error('[speaker-submission] producer notification failed (submission still recorded):', e))
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, complete, remaining: remainingAfter.map(missingItemLabel) })
 }
 
 // Notifies whoever actually sent THIS request round (request.requested_by)
@@ -289,7 +300,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
 // (approve/route.ts's notifyMM) — this is an internal system notification
 // triggered by an external actor's submission, not an outbound message
 // that should read as coming from any particular staffer.
-async function notifyProducer(eventId: string, speakerId: string, submittedFields: string[], requestedByStaffId: string | null) {
+async function notifyProducer(eventId: string, speakerId: string, submittedFields: string[], requestedByStaffId: string | null, remaining: MissingItemKey[]) {
   const { data: speaker } = await supabaseAdmin.from('event_speakers').select('name, public_name, producer_staff_id').eq('id', speakerId).single()
   if (!speaker) return
 
@@ -313,7 +324,7 @@ async function notifyProducer(eventId: string, speakerId: string, submittedField
   const itemsLabel = submittedFields.map(f => DISPLAY_LABELS[f] ?? missingItemLabel(f as MissingItemKey)).join(', ')
 
   const { html } = renderEmailTemplate(
-    { subject: '', body_html: `<p><strong>${speakerName}</strong> has submitted: ${itemsLabel}, for ${event?.public_name || event?.name || 'your event'}.</p><p><a href="${reviewUrl}">Review in EventPilot &rarr;</a></p>`, header_image_url: null, header_alt_text: null },
+    { subject: '', body_html: `<p><strong>${speakerName}</strong> has submitted: ${itemsLabel}, for ${event?.public_name || event?.name || 'your event'}.</p><p>${remaining.length ? `Still outstanding: ${remaining.map(missingItemLabel).join(', ')} (their link stays open).` : 'Everything requested is now in.'}</p><p><a href="${reviewUrl}">Review in EventPilot &rarr;</a></p>`, header_image_url: null, header_alt_text: null },
     {}
   )
 

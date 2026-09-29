@@ -43,11 +43,13 @@ type ReviewData = {
   current_country: string
   is_uae_resident: boolean | null
   ask_assistant: boolean
+  received_fields: { key: string; label: string }[]
 }
 
 const PROFILE_KEYS = ['photo', 'bio_full', 'short_bio', 'country']
 const LICENSE_KEYS = ['passport', 'national_id']
 const MAX_SHORT_BIO_CHARS = 500
+const MAX_FILE_MB: Record<string, number> = { photo: 5, bio_full: 5, passport: 20, national_id: 20 }
 
 const PAGE_STYLES = `
   .ss-shell { min-height: 100vh; background: var(--surface); padding: clamp(20px, 6vw, 48px) clamp(14px, 4vw, 20px); font-family: var(--font-manrope), Manrope, sans-serif; box-sizing: border-box; }
@@ -106,18 +108,50 @@ export default function SpeakerSubmissionPage({ params }: { params: Promise<{ sp
   const [doneWithDocs, setDoneWithDocs] = useState(false)
   const [assistantAnswer, setAssistantAnswer] = useState<'yes' | 'no' | null>(null)
   const [assistant, setAssistant] = useState({ name: '', email: '', mobile: '' })
+  const [notice, setNotice] = useState<string | null>(null)
+  const [restored, setRestored] = useState(false)
+  const [formKey, setFormKey] = useState(0) // bumping this remounts the form, clearing the (uncontrollable) file inputs
+  const draftKey = `speaker-submission-draft:${speakerId}:${token}`
+
+  const loadData = () => fetch(`/api/public/speaker-submission/${speakerId}/review-data?token=${token}`)
+    .then(async r => { if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Could not load this request.'); return r.json() })
 
   useEffect(() => {
     if (!token) return
-    fetch(`/api/public/speaker-submission/${speakerId}/review-data?token=${token}`)
-      .then(async r => { if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Could not load this request.'); return r.json() })
+    loadData()
       .then((d: ReviewData) => {
         setData(d)
-        setShortBio(d.current_short_bio || '')
-        setCountry(d.current_country || '')
+        // Restore what they'd typed before a refresh / an earlier visit (files can't be restored — browsers don't allow it).
+        let draft: { shortBio?: string; country?: string; uaeAnswer?: 'yes' | 'no' | null; assistantAnswer?: 'yes' | 'no' | null; assistant?: { name: string; email: string; mobile: string } } | null = null
+        try { draft = JSON.parse(localStorage.getItem(draftKey) ?? 'null') } catch { /* storage unavailable — start fresh */ }
+        setShortBio(draft?.shortBio || d.current_short_bio || '')
+        setCountry(draft?.country || d.current_country || '')
+        if (draft?.uaeAnswer) setUaeAnswer(draft.uaeAnswer)
+        if (draft?.assistantAnswer) setAssistantAnswer(draft.assistantAnswer)
+        if (draft?.assistant) setAssistant(draft.assistant)
+        if (draft && (draft.shortBio || draft.country || draft.uaeAnswer || draft.assistantAnswer)) setRestored(true)
       })
       .catch(e => setLoadError(e.message))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once per link
   }, [speakerId, token])
+
+  // Autosave typed answers so a refresh or a return visit doesn't lose them.
+  useEffect(() => {
+    if (!data) return
+    try { localStorage.setItem(draftKey, JSON.stringify({ shortBio, country, uaeAnswer, assistantAnswer, assistant })) } catch { /* storage unavailable — autosave is best-effort */ }
+  }, [data, draftKey, shortBio, country, uaeAnswer, assistantAnswer, assistant])
+
+  function pickFile(e: React.ChangeEvent<HTMLInputElement>, key: string) {
+    const f = e.target.files?.[0] ?? null
+    if (f && f.size > MAX_FILE_MB[key] * 1024 * 1024) {
+      e.target.value = ''
+      setFiles(prev => ({ ...prev, [key]: null }))
+      setSubmitError(`That file is ${(f.size / (1024 * 1024)).toFixed(1)} MB — the limit is ${MAX_FILE_MB[key]} MB. Please choose a smaller file.`)
+      return
+    }
+    setSubmitError(null)
+    setFiles(prev => ({ ...prev, [key]: f }))
+  }
 
   if (loadError) return <Centered><p style={{ color: 'var(--red)' }}>{loadError}</p></Centered>
   if (!data) return <Centered><p style={{ color: 'var(--ink3)' }}>Loading…</p></Centered>
@@ -133,6 +167,14 @@ export default function SpeakerSubmissionPage({ params }: { params: Promise<{ sp
   }
   // Already submitted by the time this page loaded — reopening the same
   // link (or a later re-visit) always shows this, never the form again.
+  if (data.status === 'closed') {
+    return (
+      <Centered>
+        <h1 style={{ fontSize: 'clamp(18px, 4.5vw, 22px)', fontWeight: 900, color: 'var(--ink)', margin: '0 0 10px' }}>This request has been closed</h1>
+        <p style={{ color: 'var(--ink2)', fontSize: 'clamp(14px, 3.6vw, 16px)', lineHeight: 1.5 }}>Our team has closed this request. If you still need to send something, please reply to the original email.</p>
+      </Centered>
+    )
+  }
   if (data.status !== 'pending') {
     return (
       <Centered>
@@ -190,17 +232,29 @@ export default function SpeakerSubmissionPage({ params }: { params: Promise<{ sp
     }
     const res = await fetch(`/api/public/speaker-submission/${speakerId}/submit?token=${token}`, { method: 'POST', body: form })
     const result = await res.json().catch(() => ({}))
-    if (res.ok) { setDoneWithDocs(sendingDocs); setDone(true) }
+    if (res.ok && result.complete === false) {
+      // Partial: what they sent is saved; the same link stays open for the rest.
+      try { localStorage.removeItem(draftKey) } catch { /* best-effort */ }
+      setFiles({}); setConsent(false); setShortBio(''); setCountry(''); setAssistantAnswer(null); setRestored(false)
+      setNotice(`Thank you — we've saved what you sent. Still needed: ${(result.remaining as string[]).join(', ')}. You can come back to this same link any time to add the rest.`)
+      setFormKey(k => k + 1)
+      window.scrollTo({ top: 0 })
+      await loadData().then(setData).catch(() => {})
+    } else if (res.ok) { try { localStorage.removeItem(draftKey) } catch { /* best-effort */ } setDoneWithDocs(sendingDocs); setDone(true) }
     else setSubmitError(result.error || 'Could not submit — please try again.')
     setSubmitting(false)
   }
 
   return (
-    <div className="ss-shell">
+    <div className="ss-shell" key={formKey}>
       <style>{PAGE_STYLES}</style>
       <div className="ss-wrap">
         <h1 className="ss-title">A Quick Follow-Up</h1>
         <div className="ss-event">{data.event_name}</div>
+
+        {notice && <div style={{ marginTop: '18px', padding: '12px 16px', borderRadius: '10px', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--ink)', fontSize: 'clamp(13px, 3.2vw, 14px)', lineHeight: 1.5 }}>{notice}</div>}
+        {restored && <div style={{ marginTop: '12px', fontSize: 'clamp(12px, 3vw, 13px)', color: 'var(--ink4)' }}>We restored what you typed earlier. Files need to be chosen again.</div>}
+        {data.received_fields.length > 0 && <div style={{ marginTop: '12px', fontSize: 'clamp(12px, 3vw, 13px)', color: 'var(--teal)' }}>✓ Already received: {data.received_fields.map(f => f.label).join(', ')}</div>}
 
         <div style={{ fontSize: 'clamp(13.5px, 3.4vw, 15px)', color: 'var(--ink2)', lineHeight: 1.6, marginTop: '18px' }}>
           Dear {data.speaker_name ?? 'Speaker'}, to finish setting up your speaker profile we still need the following from you.
@@ -216,7 +270,7 @@ export default function SpeakerSubmissionPage({ params }: { params: Promise<{ sp
             {profileItems.includes('photo') && (
               <div className="ss-field">
                 <div className="ss-item-label">Photo</div>
-                <input type="file" accept={ACCEPT.photo} className="ss-file-input" onChange={e => setFiles(prev => ({ ...prev, photo: e.target.files?.[0] ?? null }))} />
+                <input type="file" accept={ACCEPT.photo} className="ss-file-input" onChange={e => pickFile(e, 'photo')} />
                 <div className="ss-help">{HELP_TEXT.photo}</div>
               </div>
             )}
@@ -224,7 +278,7 @@ export default function SpeakerSubmissionPage({ params }: { params: Promise<{ sp
             {profileItems.includes('bio_full') && (
               <div className="ss-field">
                 <div className="ss-item-label">Full Bio</div>
-                <input type="file" accept={ACCEPT.bio_full} className="ss-file-input" onChange={e => setFiles(prev => ({ ...prev, bio_full: e.target.files?.[0] ?? null }))} />
+                <input type="file" accept={ACCEPT.bio_full} className="ss-file-input" onChange={e => pickFile(e, 'bio_full')} />
                 <div className="ss-help">{HELP_TEXT.bio_full}</div>
               </div>
             )}
@@ -293,7 +347,7 @@ export default function SpeakerSubmissionPage({ params }: { params: Promise<{ sp
             {showLicenseUploads && licenseItems.includes('passport') && (
               <div className="ss-field">
                 <div className="ss-item-label">Passport</div>
-                <input type="file" accept={ACCEPT.passport} className="ss-file-input" disabled={!consent} onChange={e => setFiles(prev => ({ ...prev, passport: e.target.files?.[0] ?? null }))} />
+                <input type="file" accept={ACCEPT.passport} className="ss-file-input" disabled={!consent} onChange={e => pickFile(e, 'passport')} />
                 <div className="ss-help">{HELP_TEXT.passport}</div>
               </div>
             )}
@@ -301,7 +355,7 @@ export default function SpeakerSubmissionPage({ params }: { params: Promise<{ sp
             {showLicenseUploads && showNationalId && (
               <div className="ss-field">
                 <div className="ss-item-label">National ID</div>
-                <input type="file" accept={ACCEPT.national_id} className="ss-file-input" disabled={!consent} onChange={e => setFiles(prev => ({ ...prev, national_id: e.target.files?.[0] ?? null }))} />
+                <input type="file" accept={ACCEPT.national_id} className="ss-file-input" disabled={!consent} onChange={e => pickFile(e, 'national_id')} />
                 <div className="ss-help">{HELP_TEXT.national_id}</div>
               </div>
             )}

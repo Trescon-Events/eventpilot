@@ -52,6 +52,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .eq('token', body.token)
     .maybeSingle()
 
+  if (!existingRow) {
+    const { data: openRequest } = await supabaseAdmin.from('speaker_communication_requests').select('id').eq('speaker_id', speakerId).eq('status', 'pending').limit(1).maybeSingle()
+    if (openRequest) return NextResponse.json({ error: 'There is already an open request for this speaker. Send a reminder on it instead.' }, { status: 409 })
+  }
+
   const { data: requestRow, error: insertErr } = existingRow
     ? { data: existingRow, error: null }
     : await supabaseAdmin

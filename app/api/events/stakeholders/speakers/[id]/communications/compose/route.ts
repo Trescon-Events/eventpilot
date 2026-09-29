@@ -45,6 +45,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   }
 
+  // One open link per speaker: while a request is still pending (even if its link has lapsed —
+  // a reminder revives it), follow up on THAT request instead of issuing a second link.
+  const { data: openRequest } = await supabaseAdmin.from('speaker_communication_requests').select('id').eq('speaker_id', speakerId).eq('status', 'pending').limit(1).maybeSingle()
+  if (openRequest) {
+    return NextResponse.json({ error: 'There is already an open request for this speaker. Send a reminder on it (same link) or close it first.', open_request_id: openRequest.id }, { status: 409 })
+  }
+
   const recipientEmail = speakerEmail(speaker.custom_fields as Record<string, unknown> | null, speaker.email)
   if (!recipientEmail) {
     return NextResponse.json({ error: 'No email address on file for this speaker — add one under the Registration tab first.' }, { status: 422 })
