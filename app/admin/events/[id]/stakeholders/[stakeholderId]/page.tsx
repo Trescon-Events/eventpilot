@@ -22,6 +22,7 @@ import { KONFHUB_AUTO_SENT_FIELD_KEYS } from '@/app/lib/konfhub/registration-fie
 import AnnouncementsTab from './AnnouncementsTab'
 import SensitiveDocumentsTab from './SensitiveDocumentsTab'
 import CommunicationsTab from './CommunicationsTab'
+import DeleteSensitiveDocumentModal from './DeleteSensitiveDocumentModal'
 import type { Speaker as SaeSpeaker, Partner as SaePartner } from '../../creative-templates/page'
 import type { HeadlineVariant } from '@/app/lib/events/announcements'
 import HeadlinePicker from './HeadlinePicker'
@@ -360,6 +361,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   // Full Bio upload + Generate Short Bio (2026-09-04)
   const fullBioInputRef = useRef<HTMLInputElement | null>(null)
   const [fullBioUploading, setFullBioUploading] = useState(false)
+  const [assetDelete, setAssetDelete] = useState<{ type: 'photo' | 'full_bio'; deleting: boolean } | null>(null)
   const [generatingShortBio, setGeneratingShortBio] = useState(false)
   const [shortBioUndoSnapshot, setShortBioUndoSnapshot] = useState<string | null>(null)
   // Short Bio integrity findings (2026-09-26) — report-only; shown only while the field still holds the text that was checked.
@@ -854,6 +856,23 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     } finally {
       setUploading(false)
       setProcessing(null)
+    }
+  }
+
+  async function deleteAsset(type: 'photo' | 'full_bio') {
+    setAssetDelete({ type, deleting: true })
+    try {
+      const res = await fetch(`${base}/${stakeholderId}/asset?type=${type}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setMsg(data?.error ?? `Could not delete (${res.status}).`); return }
+      setMsg(data.added_to_open_request
+        ? `${type === 'photo' ? 'Photo' : 'Full Bio'} deleted — added to this speaker's open request, so their same link asks for it again.`
+        : `${type === 'photo' ? 'Photo' : 'Full Bio'} deleted. It now shows as missing — use Request Missing Items on the Communications tab to ask for it again.`)
+      await load()
+    } catch (e) {
+      setMsg(`Could not delete: ${(e as Error).message}`)
+    } finally {
+      setAssetDelete(null)
     }
   }
 
@@ -1406,6 +1425,16 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
         />
       )}
 
+      {assetDelete && (
+        <DeleteSensitiveDocumentModal
+          docLabel={assetDelete.type === 'photo' ? 'Photo' : 'Full Bio'}
+          fileName={assetDelete.type === 'photo' ? 'the raw and cleaned photo' : 'the Full Bio PDF'}
+          deleting={assetDelete.deleting}
+          onConfirm={() => deleteAsset(assetDelete.type)}
+          onClose={() => { if (!assetDelete.deleting) setAssetDelete(null) }}
+        />
+      )}
+
       {activeTab === 'communications' && kind === 'speaker' && (
         <CommunicationsTab speakerId={stakeholderId} stakeholderName={name || 'this speaker'} canEdit={canEdit} />
       )}
@@ -1547,6 +1576,9 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                     />
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
                       <Button variant="ghost" onClick={() => rawPhotoInputRef.current?.click()}>Upload Raw Photo</Button>
+                      {canEdit && (record.photo_url || record.photo_processed_url) && (
+                        <Button variant="ghost" onClick={() => setAssetDelete({ type: 'photo', deleting: false })}>Delete Photo</Button>
+                      )}
                       <input ref={rawPhotoInputRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
                         onChange={e => { const f = e.target.files?.[0]; if (f) onRawPhotoPicked(f); e.target.value = '' }} />
                       {/* Drops to the same muted "ghost" treatment Regenerate
@@ -1645,6 +1677,9 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                 <Button variant="ghost" onClick={() => fullBioInputRef.current?.click()} disabled={fullBioUploading || !canEdit}>
                   {fullBioUploading ? 'Uploading…' : record.bio_full_url ? 'Replace' : 'Upload'}
                 </Button>
+ {canEdit && record.bio_full_url && (
+                  <Button variant="ghost" onClick={() => setAssetDelete({ type: 'full_bio', deleting: false })}>Delete</Button>
+                )}
                 <input ref={fullBioInputRef} type="file" accept=".pdf,.doc,.docx,.ppt,.pptx,application/pdf,application/msword,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                   style={{ display: 'none' }} disabled={fullBioUploading}
                   onChange={e => { const f = e.target.files?.[0]; if (f) uploadFullBio(f); e.target.value = '' }} />

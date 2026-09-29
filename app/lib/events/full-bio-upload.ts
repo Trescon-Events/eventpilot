@@ -1,5 +1,6 @@
 import { convertDocxToPdf, type OfficeInputFormat } from '@/app/lib/media/cloudconvert-client'
 import { extractPdfText } from '@/app/lib/pdf-text'
+import { sniffFileType } from '@/app/lib/events/sniff-file-type'
 
 /* Shared by every "Full Bio" upload entry point (the public onboarding
    form's file field, the public speaker-submission portal, from-submission
@@ -25,7 +26,11 @@ import { extractPdfText } from '@/app/lib/pdf-text'
    which is not a failure — the PDF still gets stored either way, this
    just returns '' for it rather than throwing and blocking the upload. */
 export async function toStoredBioPdf(buffer: Buffer, filename: string, mimeType: string): Promise<{ pdfBuffer: Buffer; source: 'pdf' | 'docx_converted'; bioText: string }> {
-  const ext = (filename.includes('.') ? filename.split('.').pop() : '')?.toLowerCase() ?? ''
+  // Trust the bytes over the filename/declared type: a PDF renamed .docx (or the reverse) must still work.
+  const sniffed = sniffFileType(buffer)
+  const declaredExt = (filename.includes('.') ? filename.split('.').pop() : '')?.toLowerCase() ?? ''
+  const ext = sniffed && sniffed.ext !== 'doc' ? sniffed.ext : declaredExt
+  if (sniffed && sniffed.ext !== 'doc') mimeType = sniffed.mime
 
   let pdfBuffer: Buffer
   let source: 'pdf' | 'docx_converted'

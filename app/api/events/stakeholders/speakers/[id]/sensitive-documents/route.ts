@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { sniffFileType } from '@/app/lib/events/sniff-file-type'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
@@ -115,8 +116,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!file || !documentType || !DOCUMENT_TYPES.has(documentType)) {
     return NextResponse.json({ error: 'file and document_type (passport|national_id) required' }, { status: 400 })
   }
-  const ext = ALLOWED_TYPES[file.type]
-  if (!ext) return NextResponse.json({ error: `Unsupported file type ${file.type}` }, { status: 400 })
+  // Real type from the bytes — a PDF misnamed .jpg (or vice versa) is stored under what it actually is.
+  const fileBuf = Buffer.from(await file.arrayBuffer())
+  const realType = sniffFileType(fileBuf)?.mime ?? file.type
+  const ext = ALLOWED_TYPES[realType]
+  if (!ext) return NextResponse.json({ error: `Unsupported file type ${realType || 'unknown'}` }, { status: 400 })
   if (file.size > MAX_SIZE) return NextResponse.json({ error: `File too large (max ${MAX_SIZE / (1024 * 1024)} MB)` }, { status: 413 })
 
   const retentionExpiresAt = (await computeRetention(speaker.event_id)).expiresAt
@@ -143,8 +147,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const storagePath = `${speaker.event_id}/${speakerId}/${documentType}-${Date.now()}.${ext}`
-  const buffer = Buffer.from(await file.arrayBuffer())
-  await uploadSensitiveDocument(storagePath, buffer, file.type)
+  await uploadSensitiveDocument(storagePath, fileBuf, realType)
 
   const { data: row, error } = await supabaseAdmin
     .from('speaker_sensitive_documents')
@@ -153,8 +156,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       event_id: speaker.event_id,
       document_type: documentType,
       storage_path: storagePath,
-      file_name: sensitiveDocumentFileName(publicNameForFile(speaker), documentType as SensitiveDocType, file.type),
-      mime_type: file.type,
+      file_name: sensitiveDocumentFileName(publicNameForFile(speaker), documentType as SensitiveDocType, realType),
+      mime_type: realType,
       file_size: file.size,
       uploaded_by: staffId,
       retention_expires_at: retentionExpiresAt,

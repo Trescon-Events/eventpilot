@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { toStoredBioPdf } from '@/app/lib/events/full-bio-upload'
 import sharp from 'sharp'
+import { sniffFileType } from '@/app/lib/events/sniff-file-type'
 import { detectHeadBox } from '@/app/lib/media/face-alignment'
 import { MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine'
 import { remainingRequestedItems } from '@/app/lib/stakeholders/request-progress'
@@ -175,11 +176,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
   // (photo_processed_url), same as the onboarding form's own photo path.
   const photoFile = requestedFields.has('photo') ? (form.get('photo') as File | null) : null
   if (photoFile && photoFile.size > 0) {
-    if (!ALLOWED_PHOTO_TYPES.includes(photoFile.type)) return NextResponse.json({ error: `Unsupported photo type ${photoFile.type}` }, { status: 400 })
+    const photoBuf = Buffer.from(await photoFile.arrayBuffer())
+    const photoType = sniffFileType(photoBuf)?.mime ?? photoFile.type // real type from the bytes, not the filename
+    if (!ALLOWED_PHOTO_TYPES.includes(photoType)) return NextResponse.json({ error: `Unsupported photo type ${photoType}` }, { status: 400 })
     if (photoFile.size > MAX_PHOTO_SIZE) return NextResponse.json({ error: `Photo too large (max ${MAX_PHOTO_SIZE / (1024 * 1024)} MB)` }, { status: 413 })
-    const ext = photoFile.name.includes('.') ? photoFile.name.split('.').pop() : 'jpg'
-    const buffer = Buffer.from(await photoFile.arrayBuffer())
-    const url = await uploadPublicAsset(`events/${speaker.event_id}/speakers/${speakerId}/photo-${Date.now()}.${ext}`, buffer, photoFile.type)
+    const ext = sniffFileType(photoBuf)?.ext ?? 'jpg'
+    const buffer = photoBuf
+    const url = await uploadPublicAsset(`events/${speaker.event_id}/speakers/${speakerId}/photo-${Date.now()}.${ext}`, buffer, photoType)
     speakerPatch.photo_url = url
     submitted.push('photo')
 
@@ -195,7 +198,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
     if (photoRoomKey) {
       try {
         const prForm = new FormData()
-        prForm.append('image_file', new Blob([new Uint8Array(buffer)], { type: photoFile.type }), 'photo.jpg')
+        prForm.append('image_file', new Blob([new Uint8Array(buffer)], { type: photoType }), 'photo.jpg')
         prForm.append('output_type', 'rgba')
         const prRes = await fetch('https://sdk.photoroom.com/v1/segment', {
           method: 'POST', headers: { 'x-api-key': photoRoomKey }, body: prForm, signal: AbortSignal.timeout(30_000),
@@ -228,8 +231,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
     if (docType === 'national_id' && (speakerPatch.is_uae_resident ?? speaker.is_uae_resident) === false) continue
     const file = form.get(docType) as File | null
     if (!file || file.size === 0) continue
-    const ext = ALLOWED_DOC_TYPES[file.type]
-    if (!ext) return NextResponse.json({ error: `Unsupported file type for ${docType}: ${file.type}` }, { status: 400 })
+    const docBuf = Buffer.from(await file.arrayBuffer())
+    const docMime = sniffFileType(docBuf)?.mime ?? file.type // real type from the bytes (a PDF named .jpg still works)
+    const ext = ALLOWED_DOC_TYPES[docMime]
+    if (!ext) return NextResponse.json({ error: `Unsupported file type for ${docType}: ${docMime}` }, { status: 400 })
     if (file.size > MAX_DOC_SIZE) return NextResponse.json({ error: `${docType} file too large (max ${MAX_DOC_SIZE / (1024 * 1024)} MB)` }, { status: 413 })
 
     if (retentionExpiresAt === null) retentionExpiresAt = (await computeRetention(speaker.event_id)).expiresAt
@@ -246,11 +251,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
     }
 
     const storagePath = `${speaker.event_id}/${speakerId}/${docType}-${Date.now()}.${ext}`
-    const buffer = Buffer.from(await file.arrayBuffer())
-    await uploadSensitiveDocument(storagePath, buffer, file.type)
+    const buffer = docBuf
+    await uploadSensitiveDocument(storagePath, buffer, docMime)
     await supabaseAdmin.from('speaker_sensitive_documents').insert({
       speaker_id: speakerId, event_id: speaker.event_id, document_type: docType,
-      storage_path: storagePath, file_name: sensitiveDocumentFileName(publicNameForFile(speaker), docType, file.type), mime_type: file.type, file_size: file.size,
+      storage_path: storagePath, file_name: sensitiveDocumentFileName(publicNameForFile(speaker), docType, docMime), mime_type: docMime, file_size: file.size,
       uploaded_by: null, retention_expires_at: retentionExpiresAt,
     })
     submitted.push(docType)

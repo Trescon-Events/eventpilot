@@ -250,7 +250,12 @@ export async function POST(req: NextRequest) {
     const backgroundLayer = body.variant.layers.find((l): l is ImageLayer => l.type === 'image')
     const extraLayers = body.variant.layers.filter(l => l.id !== photoLayer.id && l.id !== backgroundLayer?.id)
     if (extraLayers.length > 0) {
-      websitePhotoFinalBuffer = await compositeExtraLayersOnto(websitePhotoFinalBuffer, extraLayers, body.variant, assets, texts)
+      try {
+        websitePhotoFinalBuffer = await compositeExtraLayersOnto(websitePhotoFinalBuffer, extraLayers, body.variant, assets, texts)
+      } catch (e) {
+        // Was uncaught (a bare 500 with no body, which the editor showed as a silent blank preview).
+        return NextResponse.json({ error: `Could not render the extra layers: ${e instanceof Error ? e.message : 'unknown error'}` }, { status: 500 })
+      }
     }
   }
 

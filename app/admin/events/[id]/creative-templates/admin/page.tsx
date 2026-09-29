@@ -261,7 +261,8 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     setPreviewDataUrl(res.ok ? data.preview_data_url : null)
     setPreviewStale(false)
     setTextDiagnostics(res.ok ? (data.text_diagnostics ?? {}) : {})
-    setWebsitePhotoError(res.ok && activeVariant.category === 'website_photo' ? (data.website_photo_error ?? null) : null)
+    // A failed render used to leave a silent blank preview; surface the server's reason instead.
+    setWebsitePhotoError(!res.ok ? (data.error ?? `Preview failed (${res.status})`) : activeVariant.category === 'website_photo' ? (data.website_photo_error ?? null) : null)
     setPreviewLoading(false)
   }
 
@@ -893,7 +894,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       />
                     )}
                   </div>
-                  {activeVariant?.category === 'website_photo' && websitePhotoError && (
+                  {websitePhotoError && (
                     <div style={{ marginTop: '8px', fontSize: '11.5px', fontWeight: 700, color: 'var(--amber)' }}>
                       {websitePhotoError}
                     </div>
@@ -978,7 +979,7 @@ function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onTog
 
         {expanded && (
           <div style={{ padding: '12px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-            {layer.type === 'image' && <ImageLayerFields layer={layer} onChange={onChange as (patch: Partial<ImageLayer>) => void} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} />}
+            {layer.type === 'image' && <ImageLayerFields layer={layer} onChange={onChange as (patch: Partial<ImageLayer>) => void} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} canvasWidth={canvasWidth} canvasHeight={canvasHeight} />}
             {layer.type === 'photo_slot' && <PhotoSlotLayerFields layer={layer} activeType={activeType} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} canvasWidth={canvasWidth} canvasHeight={canvasHeight} />}
             {layer.type === 'text' && <TextLayerFields layer={layer} activeType={activeType} brandFonts={brandFonts} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} allLayers={allLayers} />}
           </div>
@@ -1163,16 +1164,40 @@ function NumField({ label, value, onChange, pushUndo, discardLastUndo }: {
 // X/Y/W/H." Always sends detect_face=false — a background/graphic layer
 // never has a face to detect, and running Gemini against it would just
 // waste a call and return meaningless data (see derive-alignment/route.ts).
-function ImageLayerFields({ layer, onChange, pushUndo, discardLastUndo, eventId }: {
+// Reference layers must be exported at exactly the variant's canvas size (2026-09-29). FSF's
+// branding team uploaded 1080px art onto a 1024px Website Photo canvas without knowing — the
+// preview then failed with no explanation. Checked at upload time, in the browser, so the
+// mistake is caught while they're still building the template. Non-blocking: the upload still
+// goes through (the renderer scales oversized art to fit), the warning just says how to fix it.
+async function readImageSize(file: File): Promise<{ w: number; h: number } | null> {
+  try { const bmp = await createImageBitmap(file); const size = { w: bmp.width, h: bmp.height }; bmp.close(); return size } catch { return null }
+}
+function sizeMismatchMessage(w: number, h: number, cw: number, ch: number): string | null {
+  if (w === cw && h === ch) return null
+  return `Wrong size: this image is ${w}×${h}px but this variant's canvas is ${cw}×${ch}px. Reference layers must be exported at exactly ${cw}×${ch}px — please ask the branding team to re-export it. Until then it is scaled to fit, so positions and the crop may be slightly off.`
+}
+function boundsMessage(layer: { x: number; y: number; width: number; height: number }, cw: number, ch: number): string | null {
+  if (layer.x + layer.width <= cw && layer.y + layer.height <= ch) return null
+  return `This layer is ${layer.width}×${layer.height}px but the canvas is only ${cw}×${ch}px — the image was probably exported at the wrong size. Ask the branding team to re-export it at ${cw}×${ch}px.`
+}
+function SizeWarning({ message }: { message: string | null }) {
+  if (!message) return null
+  return <div style={{ gridColumn: '1 / -1', fontSize: '11px', lineHeight: 1.4, color: 'var(--amber)', border: '1px solid var(--amber)', borderRadius: '6px', padding: '6px 9px' }}>⚠ {message}</div>
+}
+
+function ImageLayerFields({ layer, onChange, pushUndo, discardLastUndo, eventId, canvasWidth, canvasHeight }: {
   layer: ImageLayer; onChange: (patch: Partial<ImageLayer>) => void
-  pushUndo: () => void; discardLastUndo: () => void; eventId: string
+  pushUndo: () => void; discardLastUndo: () => void; eventId: string; canvasWidth: number; canvasHeight: number
 }) {
   const [analyzing, setAnalyzing] = useState(false)
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
+  const [uploadSizeWarning, setUploadSizeWarning] = useState<string | null>(null)
 
   async function analyzeReferenceLayer(file: File) {
     setAnalyzing(true)
     setAnalyzeError(null)
+    const dims = await readImageSize(file)
+    setUploadSizeWarning(dims ? sizeMismatchMessage(dims.w, dims.h, canvasWidth, canvasHeight) : null)
     const form = new FormData()
     form.append('file', file)
     form.append('event_id', eventId)
@@ -1215,6 +1240,7 @@ function ImageLayerFields({ layer, onChange, pushUndo, discardLastUndo, eventId 
         Upload a transparent PNG with the art already positioned where it should sit on the canvas — the box below and the rendered asset are both derived automatically from it. Manual fields below still work if you&apos;d rather set them by hand.
       </div>
       {analyzeError && <div style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--red)' }}>{analyzeError}</div>}
+      <SizeWarning message={uploadSizeWarning ?? boundsMessage(layer, canvasWidth, canvasHeight)} />
       <NumField label="X" value={layer.x} onChange={x => onChange({ x })} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />
       <NumField label="Y" value={layer.y} onChange={y => onChange({ y })} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />
       <NumField label="Width" value={layer.width} onChange={width => onChange({ width })} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />
@@ -1274,10 +1300,13 @@ function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLa
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
 
   const isPhoto = layer.source === 'speaker_photo'
+  const [uploadSizeWarning, setUploadSizeWarning] = useState<string | null>(null)
 
   async function analyzeReferenceLayer(file: File) {
     setAnalyzing(true)
     setAnalyzeError(null)
+    const dims = await readImageSize(file)
+    setUploadSizeWarning(dims ? sizeMismatchMessage(dims.w, dims.h, canvasWidth, canvasHeight) : null)
     const form = new FormData()
     form.append('file', file)
     form.append('event_id', eventId)
@@ -1373,6 +1402,7 @@ function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLa
               : <>Upload a transparent PNG showing the logo already correctly positioned (e.g. a placeholder logo in its final spot) — the box below is derived automatically from where it sits, and this image also stands in for the real logo when previewing with Placeholder data selected. Manual fields below still work if you&apos;d rather set them by hand.</>}
         </div>
         {analyzeError && <div style={{ fontSize: '11px', color: 'var(--red)' }}>{analyzeError}</div>}
+        <SizeWarning message={uploadSizeWarning ?? boundsMessage(layer, canvasWidth, canvasHeight)} />
         {isPhoto && layer.alignment && (
           <div style={{ fontSize: '11px', color: 'var(--teal-mid)', fontWeight: 700 }}>
             Face-aligned ✓ (detected shot type: {layer.alignment.shot_type.replace(/_/g, ' ')})

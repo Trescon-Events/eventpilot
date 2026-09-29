@@ -400,12 +400,18 @@ export async function compositeAnnouncement(
   const compositeOpsOrNull = await Promise.all(variant.layers.map(async (layer): Promise<OverlayOptions | null> => {
     if (layer.type === 'image') {
       if (!layer.asset_url) return null // not uploaded yet — editor can preview right after "+ Image Layer" is clicked, before a file is chosen
-      const key = JSON.stringify({ t: 'image', layer })
+      const key = JSON.stringify({ t: 'image', layer, cw: variant.canvas_width, ch: variant.canvas_height })
       return getOrRenderLayer(key, async () => {
         const buffer = await fetchAssetBuffer(layer.asset_url)
         if (!buffer) throw new Error(`Failed to fetch layer image (${layer.id})`)
+        // Clamp to the canvas: art authored bigger than the variant's canvas (e.g. 1080px reference
+        // layers on Website Photo's 1024px canvas) used to make sharp throw "Image to composite must
+        // have same dimensions or smaller" and the whole render 500. Cover-resizing to the clamped box
+        // scales full-canvas art uniformly instead.
+        const w = Math.max(1, Math.min(layer.width, variant.canvas_width - layer.x))
+        const h = Math.max(1, Math.min(layer.height, variant.canvas_height - layer.y))
         const resized = await sharp(buffer)
-          .resize(layer.width, layer.height, { fit: 'cover' })
+          .resize(w, h, { fit: 'cover' })
           .toBuffer()
         return { input: resized, left: layer.x, top: layer.y }
       })

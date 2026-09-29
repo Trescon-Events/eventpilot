@@ -5,6 +5,7 @@ import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { processLogo } from '@/app/lib/media/logo-engine'
 import { processSpeakerPhoto, MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine'
 import { detectHeadBox } from '@/app/lib/media/face-alignment'
+import { sniffFileType } from '@/app/lib/events/sniff-file-type'
 
 /* POST /api/events/stakeholders/speakers/[id]/upload-asset
    multipart/form-data: file, asset_type: 'photo' | 'company_logo'
@@ -65,8 +66,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!file || (assetType !== 'photo' && assetType !== 'company_logo')) {
     return NextResponse.json({ error: 'file and asset_type (photo|company_logo) required' }, { status: 400 })
   }
-  if (assetType === 'photo' && !ALLOWED_PHOTO_TYPES.includes(file.type)) {
-    return NextResponse.json({ error: `Unsupported file type ${file.type}` }, { status: 400 })
+  // Real type from the bytes, so a mislabeled photo (e.g. a PNG named .jpg) isn't rejected on its declared type.
+  const photoType = assetType === 'photo' ? (sniffFileType(Buffer.from(await file.arrayBuffer()))?.mime ?? file.type) : file.type
+  if (assetType === 'photo' && !ALLOWED_PHOTO_TYPES.includes(photoType)) {
+    return NextResponse.json({ error: `Unsupported file type ${photoType}` }, { status: 400 })
   }
   const filenameExt = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : null
   const logoExt = assetType === 'company_logo'
