@@ -535,6 +535,14 @@ export function getModuleRegistry(): ModuleDef[] {
       sidebar: { section: 'admin', parent: 'admin', order: 6, label: 'Branding' },
     },
     {
+      key: 'platform-api-tokens', label: 'AI Access',
+      description: 'Scoped, read-only API tokens for external AI tools — event data, public documents, speakers/partners, press coverage. Excludes staff and financial data.',
+      icon: I.gear, color: '#009D8D',
+      href: '/admin/settings/ai-access',
+      access: { kind: 'admin_only' },
+      platformMenu: { section: 'Administration' },
+    },
+    {
       key: 'email-templates', label: 'Email Templates',
       description: 'Workspace-level email templates — rich-text editor, AI rewrite, and "send as" delivery via Microsoft Graph.',
       icon: I.message, color: '#F16A7A',
