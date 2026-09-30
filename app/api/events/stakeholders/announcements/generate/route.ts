@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
   const [eventRes, speakerRes, partnerRes, compiledRef, effectiveRules] = await Promise.all([
     supabaseAdmin
       .from('events')
-      .select('name, venue, city, country, event_hashtag, registration_url, creative_template_config, public_name, public_dates_display, public_venue_display, sae_copy_mode, announcement_line_emojis, announcement_cta_label')
+      .select('name, venue, city, country, event_hashtag, registration_url, creative_template_config, public_name, public_dates_display, public_venue_display, sae_copy_mode, announcement_line_emojis, announcement_cta_label, announcement_attribution_line')
       .eq('id', body.event_id)
       .single(),
     body.stakeholder_type === 'speaker'

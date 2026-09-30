@@ -103,6 +103,10 @@ export type EventContext = {
   // the fixed CTA line only replaces it once an event explicitly sets a
   // label (Madhu, 2026-09-28).
   announcement_cta_label?: string | null
+  // NULL (the default) means no attribution line — same gating as
+  // announcement_cta_label. When set, inserted verbatim as its own
+  // paragraph directly after the date/venue line.
+  announcement_attribution_line?: string | null
 }
 
 // ── Stage 4 (global) — graceful X trim ─────────────────────────────────
@@ -162,6 +166,12 @@ function buildFixedCtaLine(event: EventContext): string | null {
   const label = event.announcement_cta_label?.trim()
   if (!label) return null
   return `${label} ${event.registration_url}`
+}
+
+// 'assembled' mode only. Reused VERBATIM from the event record — this is
+// approved client wording and the model must never rewrite or extend it.
+function buildAttributionLine(event: EventContext): string | null {
+  return event.announcement_attribution_line?.trim() || null
 }
 
 // Stage 2 — the speaker's name/title/company line, built in code and
@@ -376,11 +386,12 @@ Return JSON only, no markdown fences: { "hook": "...", "announcement": "...", "c
 // exactly (Madhu, 2026-09-28).
 export function assembleOrgPromoCopy(draft: PostCopyDraft, event: EventContext, rules: ValidationRule[]): GeneratedCopy {
   const dateVenueLine = buildDateVenueLine(event)
+  const attributionLine = buildAttributionLine(event)
   const ctaLine = buildFixedCtaLine(event) ?? (draft.cta || null)
   const hashtags = filterHashtags(draft.hashtags, event.event_hashtag, rules)
   const hashtagLine = hashtags.join(' ')
 
-  const copy = [draft.hook, draft.announcement, draft.credibility, dateVenueLine, ctaLine, hashtagLine]
+  const copy = [draft.hook, draft.announcement, draft.credibility, dateVenueLine, attributionLine, ctaLine, hashtagLine]
     .filter((s): s is string => !!s && s.trim().length > 0)
     .join('\n\n')
 
