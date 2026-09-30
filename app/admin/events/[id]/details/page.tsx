@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
 import { Button, Card, Input } from '@/app/components/ui'
+import DeleteSensitiveDocumentModal from '../stakeholders/[stakeholderId]/DeleteSensitiveDocumentModal'
 import { FORM_TITLES, FormType } from '@/app/lib/forms/types'
 import { TRACKED_EVENT_FIELDS, FIELD_LABELS, TrackedEventField } from '@/app/lib/events/detail-fields'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
@@ -153,6 +154,56 @@ export function DivergedBadge() {
 // a doc's role after upload is possible via the API but not exposed in
 // this compact editor to avoid producers accidentally reclassifying a
 // document mid-review.
+/* Cancel / delete a Reference Document version (2026-09-30). One control for every state: still
+   extracting (Cancel — the background job stops when its row disappears), failed, draft, or a
+   live/superseded version. Two deliberate steps every time: the button opens a modal that spells
+   out what will happen, and the delete only goes through after typing DELETE (re-checked on the
+   server too). */
+export function DeleteDocControl({ doc, canManage, onDeleted, compact }: { doc: MessagingDoc; canManage: boolean; onDeleted: () => void; compact?: boolean }) {
+  const [open, setOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  if (!canManage) return null
+
+  const processing = doc.extraction_status === 'processing'
+  const label = processing ? 'Cancel upload' : doc.status === 'draft' ? 'Discard draft' : 'Delete'
+  const note = processing
+    ? 'It is still being processed. Cancelling stops it and removes the uploaded file — nothing goes live.'
+    : doc.status === 'live'
+      ? 'This is the LIVE version. Deleting it removes it from every announcement and content rule that uses it, right away. Anything a previous approval already wrote into the event details stays as it is, and no older version is restored automatically (use Version history > Make live for that).'
+      : doc.status === 'draft'
+        ? 'This draft has not gone live. Discarding it removes the file, its extracted content and any questions raised on it. The current live version is untouched.'
+        : 'This is an older version kept in history. Deleting it removes it for good, so it can no longer be made live again.'
+
+  async function confirmDelete() {
+    setDeleting(true); setError(null)
+    const res = await fetch(`/api/events/stakeholders/messaging/${doc.id}`, {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: 'DELETE' }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setDeleting(false)
+    if (res.ok || res.status === 404) { setOpen(false); onDeleted() } // 404 = already gone, same end state
+    else setError(data.error ?? 'Could not delete.')
+  }
+
+  return (
+    <>
+      <Button variant={compact ? 'ghost' : 'red'} onClick={() => { setError(null); setOpen(true) }}>{label}</Button>
+      {open && (
+        <DeleteSensitiveDocumentModal
+          docLabel={`${DOC_ROLE_LABELS[doc.role] ?? 'document'} v${doc.version}`}
+          fileName={doc.title}
+          deleting={deleting}
+          note={note}
+          error={error}
+          onConfirm={confirmDelete}
+          onClose={() => { if (!deleting) setOpen(false) }}
+        />
+      )}
+    </>
+  )
+}
+
 export function ReferenceDocMeta({ doc, canManage, onUpdated }: { doc: MessagingDoc; canManage: boolean; onUpdated: () => void }) {
   const [saving, setSaving] = useState(false)
   async function patch(body: Record<string, unknown>) {
@@ -635,12 +686,14 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
   // limit (see the route's own comment). This polls for the background
   // work finishing instead — up to 4 minutes, generous headroom over the
   // ~180s a real upload has taken live.
-  async function pollExtraction(docId: string): Promise<MessagingDoc | null> {
+  async function pollExtraction(docId: string): Promise<MessagingDoc | 'deleted' | null> {
     for (let i = 0; i < 120; i++) {
       await new Promise(r => setTimeout(r, 2000))
-      const data = await fetch(`/api/events/stakeholders/messaging?event_id=${eventId}&all=true`).then(r => r.json()).catch(() => [])
-      const doc = (Array.isArray(data) ? data : []).find((d: MessagingDoc) => d.id === docId)
-      if (doc && doc.extraction_status !== 'processing') return doc
+      const data = await fetch(`/api/events/stakeholders/messaging?event_id=${eventId}&all=true`).then(r => r.json()).catch(() => null)
+      if (!Array.isArray(data)) continue // transient fetch failure — keep waiting
+      const doc = data.find((d: MessagingDoc) => d.id === docId)
+      if (!doc) return 'deleted' // cancelled/deleted while extracting — stop polling and free the Upload button
+      if (doc.extraction_status !== 'processing') return doc
     }
     return null
   }
@@ -661,6 +714,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
     const finalDoc = await pollExtraction(data.id)
     setSaving(false)
     await loadAll()
+    if (finalDoc === 'deleted') { setMsg('Upload cancelled — the file was removed.'); setMsgIsError(false); return }
     if (finalDoc?.extraction_status === 'failed') { setMsg(finalDoc.extraction_error ?? 'Extraction failed — the PDF is saved; try re-uploading.'); setMsgIsError(true) }
     else if (finalDoc?.extraction_status === 'complete') { setMsg('Uploaded — review the draft below before it goes live.'); setMsgIsError(false) }
     else { setMsg('Still extracting in the background — refresh in a bit to see the draft.'); setMsgIsError(false) }
@@ -1019,9 +1073,12 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
                         <span style={{ marginLeft: '8px', fontSize: '10.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: v.status === 'live' ? 'var(--teal-mid)' : v.status === 'draft' ? 'var(--amber)' : 'var(--ink4)' }}>{v.status}</span>
                         <span style={{ marginLeft: '8px', fontSize: '10.5px', color: 'var(--ink4)' }}>rank {v.authority_rank} · {PROVENANCE_LABELS[v.provenance]}</span>
                       </div>
-                      {v.status === 'superseded' && (
-                        <Button variant="ghost" onClick={() => makeLive(v)}>Make live</Button>
-                      )}
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        {v.status === 'superseded' && (
+                          <Button variant="ghost" onClick={() => makeLive(v)}>Make live</Button>
+                        )}
+                        <DeleteDocControl doc={v} canManage={canManage} onDeleted={() => { fetchVersions(); loadAll() }} compact />
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1079,6 +1136,10 @@ export function DraftReview({ doc, canManage, session, onApproved }: {
     return (
       <div style={{ padding: '24px', fontSize: '13px', color: 'var(--ink3)' }}>
         Extracting content — this can take a minute or two for a long document. This updates automatically; you can also leave and come back.
+        <div style={{ marginTop: '14px' }}>
+          <DeleteDocControl doc={doc} canManage={canManage} onDeleted={onApproved} />
+          <div style={{ fontSize: '11px', color: 'var(--ink4)', marginTop: '6px' }}>Uploaded to the wrong tab, or the wrong file? Cancel it here — nothing goes live.</div>
+        </div>
       </div>
     )
   }
@@ -1086,6 +1147,7 @@ export function DraftReview({ doc, canManage, session, onApproved }: {
     return (
       <div style={{ padding: '24px', fontSize: '13px', color: 'var(--red)' }}>
         Extraction failed{doc.extraction_error ? `: ${doc.extraction_error}` : '.'} The PDF itself is saved — re-upload to retry.
+        <div style={{ marginTop: '14px' }}><DeleteDocControl doc={doc} canManage={canManage} onDeleted={onApproved} /></div>
       </div>
     )
   }
@@ -1156,6 +1218,9 @@ export function DraftReview({ doc, canManage, session, onApproved }: {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(280px, 380px)', gap: '16px', alignItems: 'start' }}>
       <div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+          <DeleteDocControl doc={doc} canManage={canManage} onDeleted={onApproved} />
+        </div>
         <ReferenceDocMeta doc={doc} canManage={canManage} onUpdated={onApproved} />
         <ClarificationsPanel docId={doc.id} canManage={canManage} session={session} onStatusChange={setBlockedByClarifications} onResolved={onApproved} />
         <SuggestedRulesPanel docId={doc.id} canManage={canManage} />
@@ -1322,6 +1387,9 @@ export function LiveDocView({ doc, canManage, session, onUpdated }: {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(280px, 1fr)', gap: '16px', alignItems: 'start' }}>
       <div style={{ display: 'grid', gap: '10px' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <DeleteDocControl doc={doc} canManage={canManage} onDeleted={onUpdated} compact />
+        </div>
         <ReferenceDocMeta doc={doc} canManage={canManage} onUpdated={onUpdated} />
         <SuggestedRulesPanel docId={doc.id} canManage={canManage} />
         {sections.map(section => {

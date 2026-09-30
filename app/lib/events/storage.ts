@@ -53,3 +53,11 @@ export async function uploadPublicAsset(path: string, body: Buffer, contentType:
 export async function deletePublicAsset(path: string): Promise<void> {
   await supabaseAdmin.storage.from(BUCKET).remove([path]).catch(() => {})
 }
+
+// Deletes an object given its public URL (as stored in DB columns). No-op for a URL that isn't
+// in this bucket (e.g. an externally-hosted link) — nothing of ours to delete.
+export async function deletePublicAssetByUrl(url: string | null | undefined): Promise<void> {
+  const marker = `/${BUCKET}/`
+  if (!url || !url.includes(marker)) return
+  await deletePublicAsset(decodeURIComponent(url.split(marker)[1].split('?')[0]))
+}

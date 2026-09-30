@@ -314,12 +314,19 @@ export async function POST(req: NextRequest) {
 // this function is even called, so there's no client connection left to
 // time out — this keeps running on the persistent Railway/Node process
 // regardless of how long Gemini takes.
+async function docStillExists(docId: string): Promise<boolean> {
+  const { data } = await supabaseAdmin.from('event_messaging_docs').select('id').eq('id', docId).maybeSingle()
+  return !!data
+}
+
 async function runExtraction(docId: string, buffer: Buffer, fileName: string): Promise<void> {
   let rawText = ''
   let structuredJson: Record<string, unknown> | null = null
   let rawClarifications: unknown = []
   try {
     rawText = await extractKbText(buffer, fileName)
+    // Cancelled (row deleted) while text extraction ran? Skip the paid structuring call entirely.
+    if (!(await docStillExists(docId))) return
     const model  = getGemini().getGenerativeModel({ model: 'gemini-2.5-flash' })
     // 200k chars is comfortably within gemini-2.5-flash's context window and
     // far beyond any realistic messaging doc — the old 30k cap silently
@@ -347,6 +354,10 @@ async function runExtraction(docId: string, buffer: Buffer, fileName: string): P
   // counts up once a round actually has questions in it; a clean
   // extraction with nothing to ask stays at 0.
   const clarificationRoundsUsed = rawClarifications && (rawClarifications as unknown[]).length > 0 ? 1 : 0
+
+  // Cancelled/deleted mid-extraction: the update below would match no row, and inserting
+  // clarifications would violate the doc_id FK — just stop.
+  if (!(await docStillExists(docId))) return
 
   await supabaseAdmin.from('event_messaging_docs').update({
     raw_text: rawText || null,

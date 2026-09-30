@@ -19,11 +19,13 @@ type Props = {
   docLabel: string // 'Passport' | 'National ID'
   fileName: string
   deleting: boolean
+  note?: string // extra consequence text shown above the typed confirmation (e.g. "this is the LIVE version")
+  error?: string | null
   onConfirm: () => void
   onClose: () => void
 }
 
-export default function DeleteSensitiveDocumentModal({ docLabel, fileName, deleting, onConfirm, onClose }: Props) {
+export default function DeleteSensitiveDocumentModal({ docLabel, fileName, deleting, note, error, onConfirm, onClose }: Props) {
   const [confirmText, setConfirmText] = useState('')
   const canConfirm = confirmText === 'DELETE' && !deleting
 
@@ -36,6 +38,9 @@ export default function DeleteSensitiveDocumentModal({ docLabel, fileName, delet
         <div style={{ fontSize: '12.5px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '14px' }}>
           &quot;{fileName}&quot; — this <strong>permanently</strong> deletes the file from storage. This cannot be undone. Type <strong>DELETE</strong> below to confirm.
         </div>
+
+        {note && <div style={{ fontSize: '12.5px', color: 'var(--amber)', lineHeight: 1.6, marginBottom: '14px' }}>{note}</div>}
+        {error && <div style={{ fontSize: '12.5px', color: 'var(--red)', marginBottom: '10px' }}>{error}</div>}
 
         <Input value={confirmText} onChange={e => setConfirmText(e.target.value)} placeholder="Type DELETE to confirm" autoFocus style={{ marginBottom: '16px' }} />
 

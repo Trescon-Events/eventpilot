@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { recompileEventAndChildren } from '@/app/lib/content/compile-reference'
+import { getSession } from '@/app/lib/access/session'
+import { hasEventPermission } from '@/app/lib/access/event-access'
+import { deletePublicAssetByUrl } from '@/app/lib/events/storage'
 
 /* PATCH /api/events/stakeholders/messaging/[id]
    Body: { status?, structured_json?, role?, authority_rank?, provenance? }
@@ -56,4 +59,38 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   return NextResponse.json(data)
+}
+
+/* DELETE /api/events/stakeholders/messaging/[id]
+   Body: { confirm: 'DELETE' } — the typed confirmation is re-checked here, not just in the UI.
+   Removes a Reference Document version outright: cancels one that is still extracting (the
+   background job notices its row is gone and stops), discards a draft, or deletes a superseded
+   or live version. Clarifications and suggested rules cascade with it; the stored PDF is removed
+   from storage. Deleting a LIVE version recompiles the owner's (and its children's) effective
+   reference set — it does NOT promote an older version or undo anything Approve already wrote
+   into event details (Common Details); use Version history > Make live for the former.
+   Same permission gate as uploading: sae.messaging.umbrella_manage for an umbrella's docs,
+   sae.forms.manage for an event's. */
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const body = await req.json().catch(() => null) as { confirm?: string } | null
+  if (body?.confirm !== 'DELETE') return NextResponse.json({ error: 'Confirmation required.' }, { status: 400 })
+
+  const { data: doc } = await supabaseAdmin.from('event_messaging_docs').select('id, event_id, umbrella_id, status, role, version, source_url').eq('id', id).maybeSingle()
+  if (!doc) return NextResponse.json({ error: 'Document not found (it may already have been deleted).' }, { status: 404 })
+
+  const ownerId = (doc.event_id ?? doc.umbrella_id) as string
+  const session = getSession(req)
+  const allowed = session?.adm || await hasEventPermission(session?.sid, ownerId, doc.umbrella_id ? 'sae.messaging.umbrella_manage' : 'sae.forms.manage')
+  if (!allowed) return NextResponse.json({ error: 'Not authorized to delete this document.' }, { status: 403 })
+
+  const { error } = await supabaseAdmin.from('event_messaging_docs').delete().eq('id', id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  await deletePublicAssetByUrl(doc.source_url)
+  console.log(`[messaging-doc ${id}] deleted (${doc.role} v${doc.version}, was ${doc.status}) by ${session?.sid ?? 'unknown'}`)
+
+  if (doc.status === 'live') {
+    await recompileEventAndChildren(doc.event_id ? { kind: 'event', id: doc.event_id } : { kind: 'umbrella', id: doc.umbrella_id })
+  }
+  return NextResponse.json({ ok: true, was_live: doc.status === 'live' })
 }
