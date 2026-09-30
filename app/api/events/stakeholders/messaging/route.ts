@@ -238,7 +238,13 @@ export async function POST(req: NextRequest) {
     ownerTypeColumnValue = eventRow.type
   }
 
-  const provenance = defaultProvenance(role, ownerTypeColumnValue)
+  // Provenance is chosen by the uploader in the upload prompt (2026-09-30) and locked afterwards;
+  // the per-role default below is only a fallback for a caller that doesn't send one.
+  const provenanceRaw = form.get('provenance') as string | null
+  if (provenanceRaw && provenanceRaw !== 'client_approved' && provenanceRaw !== 'trescon_authored') {
+    return NextResponse.json({ error: 'provenance must be client_approved or trescon_authored' }, { status: 400 })
+  }
+  const provenance = (provenanceRaw as 'client_approved' | 'trescon_authored' | null) ?? defaultProvenance(role, ownerTypeColumnValue)
 
   const buffer = Buffer.from(await file.arrayBuffer())
 

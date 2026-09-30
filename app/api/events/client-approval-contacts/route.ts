@@ -11,7 +11,7 @@ import { hasEventPermission } from '@/app/lib/access/event-access'
    pipeline layer — see supabase/client_approval_contacts_migration.sql's
    doc comment for the full design (one primary gates publishing, others
    are CC'd with their own individually-tracked status, never gating).
-   Lives on the Integrations page, same sae.integrations.manage permission
+   Lives on the Integrations page, same sae.integrations.manage permission (for writes; reads are wider, see GET)
    as KonfHub/HubSpot/Postiz. Setting is_primary:true on insert/update
    unsets it on every other contact for this event first — the DB's own
    partial unique index (idx_client_approval_contacts_one_primary) is the
@@ -22,10 +22,18 @@ export async function GET(req: NextRequest) {
   const eventId = req.nextUrl.searchParams.get('event_id')
   if (!eventId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
 
+  // READ is open to anyone who works announcements (2026-09-30). It used to be
+  // sae.integrations.manage only, which Producers don't have: their fetch got a 403, the page
+  // treated that as "this event has no client contact", and the Client Approval card silently
+  // disappeared for them while an admin still saw it (DFS: Rhea and Jarryd). Writing (POST/PATCH/
+  // DELETE) stays integrations-only.
   const session = getSession(req)
-  if (!session?.adm && !(await hasEventPermission(session?.sid, eventId, 'sae.integrations.manage'))) {
-    return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
+  let canRead = !!session?.adm
+  for (const perm of ['sae.integrations.manage', 'sae.announcements.generate', 'sae.announcements.approve', 'sae.announcements.publish', 'sae.stakeholders.edit']) {
+    if (canRead) break
+    canRead = await hasEventPermission(session?.sid, eventId, perm)
   }
+  if (!canRead) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
 
   const { data, error } = await supabaseAdmin
     .from('event_client_approval_contacts')

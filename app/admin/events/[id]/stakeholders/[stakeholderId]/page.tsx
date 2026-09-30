@@ -391,6 +391,13 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const valuesRef = useRef(values)
+  // Which fields the user actually changed since the last successful save (2026-09-30). Autosave
+  // used to PATCH the WHOLE page state every time, so a stale open tab silently wrote its
+  // page-load copy of Producer / Reference / Status (and every other field) back over a
+  // colleague's newer edit — the "my producer change disappeared" reports. Now only the changed
+  // fields are sent, so an untouched field can never overwrite anyone.
+  const dirtyTopRef = useRef<Set<string>>(new Set())
+  const dirtyFieldsRef = useRef<Set<string>>(new Set())
   const partnerTypeRef = useRef(partnerType)
   const publicNameRef = useRef(publicName)
   const pronounStyleRef = useRef(pronounStyle)
@@ -495,7 +502,12 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount, matches the Hub page's own fetchAll effect
   useEffect(() => { load() }, [load])
-  useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current) }, [])
+  // Leaving the page inside the 700ms debounce used to DROP the pending edit (the timer was just
+  // cleared). Flush it instead, with keepalive so it survives navigation / tab close.
+  const flushSaveRef = useRef<((keepalive: boolean) => Promise<void>) | null>(null)
+  useEffect(() => () => {
+    if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null; void flushSaveRef.current?.(true) }
+  }, [])
 
   // Breadcrumb trail (GlobalShell) has no way to know an event's real name
   // or this stakeholder's name on its own — see breadcrumb-labels.tsx.
@@ -508,55 +520,66 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   useBreadcrumbLabel(eventId, eventName)
   useBreadcrumbLabel(stakeholderId, stakeholderName || null)
 
-  const flushSave = useCallback(async () => {
+  const doSave = useCallback(async (keepalive: boolean) => {
     if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null }
-    // Public Name + Pronoun are mandatory for speakers (2026-08-23, per
-    // Madhu) — they drive every public-facing surface (emails, promo
-    // creatives, website, KonfHub), so a record can't sit around without
-    // them once a producer has landed on this page, whether it arrived via
-    // a processed onboarding submission (which never collects these) or was
-    // created manually here. Blocks the WHOLE save (this PATCH always sends
-    // every field together — see body below), not just these two, since
-    // there's no partial-save path to preserve.
-    if (kind === 'speaker' && (!publicNameRef.current.trim() || !pronounStyleRef.current)) {
+    const top = new Set(dirtyTopRef.current)
+    const fieldKeys = new Set(dirtyFieldsRef.current)
+    if (top.size === 0 && fieldKeys.size === 0) { setDirty(false); return }
+    // Public Name + Pronoun are mandatory for speakers (2026-08-23, per Madhu) — they drive every
+    // public-facing surface. Only enforced when THIS save is trying to blank one of them: a record
+    // that is already missing one (imported / KonfHub-bridged speakers) must still be able to save
+    // an unrelated change like Producer or Status — that whole save used to be refused, with the
+    // edit appearing to stick on screen and then vanishing on reload.
+    if (kind === 'speaker'
+      && ((top.has('public_name') && !publicNameRef.current.trim()) || (top.has('pronoun_style') && !pronounStyleRef.current))) {
       setSaveState('error')
-      setSaveErrorMsg('Public Name and Pronoun / Honorific Style are required before this record can be saved — see the section below.')
+      setSaveErrorMsg('Public Name and Pronoun / Honorific Style are required — they can\u2019t be cleared. See the section below.')
       return
     }
     setSaveState('saving')
     setSaveErrorMsg(null)
-    const body: Record<string, unknown> = { fields: valuesRef.current }
-    if (kind === 'partner') { body.form_type = formType; body.partner_type = partnerTypeRef.current }
+    // Take ownership of what's being sent; anything edited while the request is in flight re-marks itself.
+    dirtyTopRef.current = new Set()
+    dirtyFieldsRef.current = new Set()
+    const body: Record<string, unknown> = {}
+    if (fieldKeys.size > 0) body.fields = Object.fromEntries([...fieldKeys].filter(k => k in valuesRef.current).map(k => [k, valuesRef.current[k]]))
+    if (kind === 'partner') { body.form_type = formType; if (top.has('partner_type')) body.partner_type = partnerTypeRef.current }
     if (kind === 'speaker') {
-      body.public_name = publicNameRef.current.trim() || null
-      body.pronoun_style = pronounStyleRef.current || null
-      body.key_talking_points = keyTalkingPointsRef.current.trim() || null
-      body.konfhub_tag_speaker = konfhubTagSpeakerRef.current
-      body.konfhub_tag_moderator = konfhubTagModeratorRef.current
-      body.producer_staff_id = producerStaffIdRef.current || null
-      body.reference = referenceRef.current.trim() || null
-      body.confirmation_status = confirmationStatusRef.current.trim() || null
+      if (top.has('public_name')) body.public_name = publicNameRef.current.trim() || null
+      if (top.has('pronoun_style')) body.pronoun_style = pronounStyleRef.current || null
+      if (top.has('key_talking_points')) body.key_talking_points = keyTalkingPointsRef.current.trim() || null
+      if (top.has('konfhub_tag_speaker')) body.konfhub_tag_speaker = konfhubTagSpeakerRef.current
+      if (top.has('konfhub_tag_moderator')) body.konfhub_tag_moderator = konfhubTagModeratorRef.current
+      if (top.has('producer_staff_id')) body.producer_staff_id = producerStaffIdRef.current || null
+      if (top.has('reference')) body.reference = referenceRef.current.trim() || null
+      if (top.has('confirmation_status')) body.confirmation_status = confirmationStatusRef.current.trim() || null
     }
+    const restore = () => { top.forEach(k => dirtyTopRef.current.add(k)); fieldKeys.forEach(k => dirtyFieldsRef.current.add(k)) }
     try {
       const res = await fetch(`${base}/${stakeholderId}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), keepalive,
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) { setSaveState('error'); setSaveErrorMsg(data.error || null); return }
+      if (!res.ok) { restore(); setSaveState('error'); setSaveErrorMsg(data.error || null); return }
       setSaveState('saved')
-      setDirty(false)
+      setDirty(dirtyTopRef.current.size > 0 || dirtyFieldsRef.current.size > 0)
       setTimeout(() => setSaveState(s => (s === 'saved' ? 'idle' : s)), 2000)
       if (data.announcement_status && data.announcement_status !== status) {
         if (data.announcement_status === 'pending_review' && status === 'ready') setReapprovalBanner(true)
         setStatus(data.announcement_status)
       }
     } catch {
+      restore()
       setSaveState('error')
       setSaveErrorMsg(null)
     }
   }, [base, stakeholderId, kind, formType, status])
+  // Zero-arg wrapper for event handlers (onBlur/onClick pass the event as their first argument).
+  const flushSave = useCallback(() => { void doSave(false) }, [doSave])
+  useEffect(() => { flushSaveRef.current = doSave }, [doSave])
 
-  function scheduleSave() {
+  function scheduleSave(topLevelKey?: string) {
+    if (topLevelKey) dirtyTopRef.current.add(topLevelKey)
     setDirty(true)
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => { flushSave() }, SAVE_DEBOUNCE_MS)
@@ -564,6 +587,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
 
   function updateValue(key: string, value: SubmittedValue) {
     setValues(prev => ({ ...prev, [key]: value }))
+    dirtyFieldsRef.current.add(key)
     scheduleSave()
   }
 
@@ -602,13 +626,13 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     if (!checked) return
     setKonfhubTagSpeaker(true)
     setKonfhubTagModerator(false)
-    scheduleSave()
+    scheduleSave('konfhub_tag_speaker'); dirtyTopRef.current.add('konfhub_tag_moderator')
   }
   function toggleKonfhubTagModerator(checked: boolean) {
     if (!checked) return
     setKonfhubTagModerator(true)
     setKonfhubTagSpeaker(false)
-    scheduleSave()
+    scheduleSave('konfhub_tag_moderator'); dirtyTopRef.current.add('konfhub_tag_speaker')
   }
 
   // Deliberately separate from approve() above (2026-08-24, per Madhu) —
@@ -1476,7 +1500,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                   <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Producer</label>
                   <Select
                     className="tfield-lg" value={producerStaffId} disabled={!canEdit} onBlur={flushSave}
-                    onChange={e => { setProducerStaffId(e.target.value); scheduleSave() }}
+                    onChange={e => { setProducerStaffId(e.target.value); scheduleSave('producer_staff_id') }}
                   >
                     <option value="">Not assigned</option>
                     {producerOptions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -1487,7 +1511,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                   <Input
                     className="tfield-lg" value={reference} disabled={!canEdit} onBlur={flushSave}
                     placeholder="Who sourced/introduced this speaker — informational only"
-                    onChange={e => { setReference(e.target.value); scheduleSave() }}
+                    onChange={e => { setReference(e.target.value); scheduleSave('reference') }}
                   />
                 </div>
                 <div>
@@ -1512,7 +1536,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                   ) : (
                     <Select
                       className="tfield-lg" value={confirmationStatus} disabled={!canEdit}
-                      onChange={e => { setConfirmationStatus(e.target.value); scheduleSave() }}
+                      onChange={e => { setConfirmationStatus(e.target.value); scheduleSave('confirmation_status') }}
                     >
                       <option value="">Not set</option>
                       {CONFIRMATION_STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
@@ -1739,14 +1763,14 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                     <Input
                       className="tfield-lg" value={publicName} disabled={!canEdit} onBlur={flushSave}
                       placeholder="Exact name to use everywhere public-facing"
-                      onChange={e => { setPublicName(e.target.value); scheduleSave() }}
+                      onChange={e => { setPublicName(e.target.value); scheduleSave('public_name') }}
                     />
                   </div>
                   <div>
                     <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Pronoun / Honorific Style <span style={{ color: 'var(--red)' }}>*</span></label>
                     <Select
                       className="tfield-lg" value={pronounStyle} disabled={!canEdit} onBlur={flushSave}
-                      onChange={e => { setPronounStyle(e.target.value); scheduleSave() }}
+                      onChange={e => { setPronounStyle(e.target.value); scheduleSave('pronoun_style') }}
                     >
                       <option value="">Not set</option>
                       {PRONOUN_STYLES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
@@ -1758,7 +1782,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                       className="tfield-lg" value={keyTalkingPoints} disabled={!canEdit} onBlur={flushSave}
                       placeholder="What this speaker will specifically cover — used to ground the AI-generated post copy"
                       rows={3}
-                      onChange={e => { setKeyTalkingPoints(e.target.value); scheduleSave() }}
+                      onChange={e => { setKeyTalkingPoints(e.target.value); scheduleSave('key_talking_points') }}
                     />
                   </div>
                 </div>
@@ -1829,7 +1853,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                   <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Partner Type</label>
                   <Select
                     className="tfield-lg" value={partnerType} disabled={!canEdit} onBlur={flushSave}
-                    onChange={e => { setPartnerType(e.target.value); scheduleSave() }}
+                    onChange={e => { setPartnerType(e.target.value); scheduleSave('partner_type') }}
                   >
                     {PARTNER_TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
                   </Select>

@@ -154,6 +154,85 @@ export function DivergedBadge() {
 // a doc's role after upload is possible via the API but not exposed in
 // this compact editor to avoid producers accidentally reclassifying a
 // document mid-review.
+/* Upload gate for Reference Documents (2026-09-30). Rank and Provenance are the two settings people
+   forgot to update after uploading, so they're asked deliberately BEFORE the file picker opens — both
+   required, nothing pre-selected — and recorded with the upload. They are locked afterwards (see
+   ReferenceDocMeta / the server's PATCH): a wrong choice is fixed by deleting the version and re-uploading. */
+export type UploadChoice = { rank: number; provenance: Provenance }
+
+export function UploadDocButton({ role, saving, existing, onPicked, label = 'Upload PDF ▲' }: {
+  role: DocRole
+  saving: boolean
+  existing: { role: DocRole; authority_rank: number; provenance: Provenance }[]
+  onPicked: (file: File, choice: UploadChoice) => void
+  label?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [rank, setRank] = useState('')
+  const [provenance, setProvenance] = useState<Provenance | ''>('')
+  const chosen = useRef<UploadChoice | null>(null)
+  const fileInput = useRef<HTMLInputElement>(null)
+  const rankNum = Number(rank)
+  const valid = rank.trim() !== '' && Number.isInteger(rankNum) && rankNum >= 1 && !!provenance
+
+  function proceed() {
+    if (!valid) return
+    chosen.current = { rank: rankNum, provenance: provenance as Provenance }
+    setOpen(false)
+    fileInput.current?.click() // still inside the user's click, so the browser allows the picker
+  }
+
+  const optionStyle = (active: boolean): React.CSSProperties => ({
+    display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit',
+    border: active ? '1.5px solid var(--teal-mid)' : '1px solid var(--border)', background: active ? 'var(--teal-light)' : 'var(--card)', color: 'var(--ink)',
+  })
+
+  return (
+    <>
+      <button type="button" disabled={saving} onClick={() => { setRank(''); setProvenance(''); setOpen(true) }}
+        style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.6 : 1, fontFamily: 'inherit' }}>
+        {saving ? 'Uploading…' : label}
+      </button>
+      <input ref={fileInput} type="file" accept="application/pdf" style={{ display: 'none' }}
+        onChange={e => { const f = e.target.files?.[0]; if (f && chosen.current) onPicked(f, chosen.current); e.target.value = '' }} />
+      {open && (
+        <div style={{ position: 'fixed', inset: 0, background: 'color-mix(in srgb, black 60%, transparent)', zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={() => setOpen(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '480px', maxWidth: '100%', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '22px' }}>
+            <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '6px' }}>Before you upload — {DOC_ROLE_LABELS[role]}</div>
+            <div style={{ fontSize: '12.5px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '14px' }}>
+              These two settings decide how this document is used, and they are <strong>locked once uploaded</strong> (to change them later, delete the version and upload again).
+            </div>
+
+            <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--ink2)', marginBottom: '4px' }}>Authority rank</div>
+            <div style={{ fontSize: '11.5px', color: 'var(--ink3)', lineHeight: 1.5, marginBottom: '6px' }}>
+              When two documents disagree, the lower number wins (1 = highest authority).
+              {existing.length > 0 && <> Already set here: {existing.map(d => `${DOC_ROLE_LABELS[d.role]} = ${d.authority_rank}`).join(' · ')}.</>}
+            </div>
+            <Input type="number" min={1} value={rank} onChange={e => setRank(e.target.value)} placeholder="e.g. 1" style={{ marginBottom: '14px', width: '120px' }} autoFocus />
+
+            <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--ink2)', marginBottom: '6px' }}>Provenance</div>
+            <div style={{ display: 'grid', gap: '8px', marginBottom: '16px' }}>
+              {(Object.keys(PROVENANCE_LABELS) as Provenance[]).map(p => (
+                <button key={p} type="button" onClick={() => setProvenance(p)} style={optionStyle(provenance === p)}>
+                  <div style={{ fontSize: '13px', fontWeight: 800 }}>{PROVENANCE_LABELS[p]}</div>
+                  <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginTop: '2px' }}>
+                    {p === 'client_approved' ? 'The client has approved this wording — it is their document.' : 'Written internally by Trescon, not signed off by the client.'}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button variant="lime" onClick={proceed} disabled={!valid}>Continue — choose file</Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 /* Cancel / delete a Reference Document version (2026-09-30). One control for every state: still
    extracting (Cancel — the background job stops when its row disappears), failed, draft, or a
    live/superseded version. Two deliberate steps every time: the button opens a modal that spells
@@ -204,38 +283,14 @@ export function DeleteDocControl({ doc, canManage, onDeleted, compact }: { doc: 
   )
 }
 
-export function ReferenceDocMeta({ doc, canManage, onUpdated }: { doc: MessagingDoc; canManage: boolean; onUpdated: () => void }) {
-  const [saving, setSaving] = useState(false)
-  async function patch(body: Record<string, unknown>) {
-    setSaving(true)
-    await fetch(`/api/events/stakeholders/messaging/${doc.id}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-    })
-    setSaving(false)
-    onUpdated()
-  }
+// Rank and Provenance are chosen in the upload prompt and locked afterwards (2026-09-30) — shown
+// read-only here. To correct one, delete the version and upload again.
+export function ReferenceDocMeta({ doc }: { doc: MessagingDoc; canManage?: boolean; onUpdated?: () => void }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', fontSize: '12px', color: 'var(--ink3)', marginBottom: '10px' }}>
       <span>{DOC_ROLE_LABELS[doc.role]}</span>
-      {canManage ? (
-        <>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            Rank
-            <input type="number" min={1} value={doc.authority_rank} disabled={saving}
-              onChange={e => { const n = Number(e.target.value); if (Number.isFinite(n) && n >= 1) patch({ authority_rank: n }) }}
-              style={{ width: '44px', fontSize: '12px', padding: '3px 6px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontFamily: 'inherit' }} />
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            Provenance
-            <select value={doc.provenance} disabled={saving} onChange={e => patch({ provenance: e.target.value })}
-              style={{ fontSize: '12px', padding: '3px 6px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontFamily: 'inherit' }}>
-              {(Object.keys(PROVENANCE_LABELS) as Provenance[]).map(p => <option key={p} value={p}>{PROVENANCE_LABELS[p]}</option>)}
-            </select>
-          </label>
-        </>
-      ) : (
-        <span>Rank {doc.authority_rank} · {PROVENANCE_LABELS[doc.provenance]}</span>
-      )}
+      <span>Rank {doc.authority_rank} · {PROVENANCE_LABELS[doc.provenance]}</span>
+      <span style={{ fontSize: '11px', color: 'var(--ink4)' }} title="Set when uploaded. To change it, delete this version and upload again.">🔒 locked</span>
     </div>
   )
 }
@@ -698,12 +753,14 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
     return null
   }
 
-  async function uploadMessagingDoc(file: File, role: DocRole = 'messaging') {
+  async function uploadMessagingDoc(file: File, role: DocRole, choice: UploadChoice) {
     setSaving(true); setMsg(null)
     const form = new FormData()
     form.append('event_id', eventId)
     form.append('file', file)
     form.append('role', role)
+    form.append('authority_rank', String(choice.rank))
+    form.append('provenance', choice.provenance)
     if (session?.sid) form.append('uploaded_by', session.sid)
     const res = await fetch('/api/events/stakeholders/messaging', { method: 'POST', body: form })
     const data = await res.json().catch(() => ({}))
@@ -1048,11 +1105,9 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
                     {showVersions ? 'Hide versions' : 'Version history'}
                   </Button>
                   {canUploadHere && (
-                    <label style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.6 : 1 }}>
-                      {saving ? 'Uploading…' : 'Upload PDF ▲'}
-                      <input type="file" accept="application/pdf" disabled={saving} style={{ display: 'none' }}
-                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadMessagingDoc(f, activeRole); e.target.value = '' }} />
-                    </label>
+                    <UploadDocButton role={activeRole} saving={saving}
+                      existing={docs.filter(d => d.status === 'live').map(d => ({ role: d.role, authority_rank: d.authority_rank, provenance: d.provenance }))}
+                      onPicked={(f, choice) => uploadMessagingDoc(f, activeRole, choice)} />
                   )}
                 </div>
               </div>

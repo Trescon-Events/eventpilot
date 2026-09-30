@@ -20,6 +20,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = await req.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'body required' }, { status: 400 })
 
+  // Role, rank and provenance are chosen in the upload prompt and LOCKED (2026-09-30) — people
+  // kept forgetting to set them after the fact, so they are fixed at upload. To correct one,
+  // delete the version and upload again.
+  if (body.role !== undefined || body.authority_rank !== undefined || body.provenance !== undefined) {
+    return NextResponse.json({ error: 'Rank, provenance and role are locked once a document is uploaded. Delete this version and upload it again to change them.' }, { status: 409 })
+  }
+
   const update: Record<string, unknown> = {}
   if (body.status !== undefined) update.status = body.status
   if (body.structured_json !== undefined) update.structured_json = body.structured_json

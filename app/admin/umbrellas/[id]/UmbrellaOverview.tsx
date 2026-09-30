@@ -7,8 +7,8 @@ import EventDaysCard from '@/app/admin/operations-shared/EventDaysCard'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
 import { Button, Card } from '@/app/components/ui'
 import {
-  DraftReview, LiveDocView, DOC_ROLE_LABELS,
-  type MessagingDoc, type DocRole,
+  DraftReview, LiveDocView, DOC_ROLE_LABELS, UploadDocButton,
+  type MessagingDoc, type DocRole, type UploadChoice,
 } from '@/app/admin/events/[id]/details/page'
 
 /* Umbrella/event separation (2026-09-11) — a real event_umbrellas row
@@ -107,13 +107,15 @@ export default function UmbrellaPage({ params }: { params: Promise<{ id: string 
     if (res.ok) { setMsg('Saved.'); setMsgIsError(false); await loadAll() } else { setMsg('Save failed.'); setMsgIsError(true) }
   }
 
-  async function uploadDoc(file: File) {
+  async function uploadDoc(file: File, choice: UploadChoice) {
     setSaving(true); setMsg(null)
     const form = new FormData()
     form.append('event_id', umbrellaId)
     form.append('owner_type', 'umbrella')
     form.append('file', file)
     form.append('role', uploadRole)
+    form.append('authority_rank', String(choice.rank))
+    form.append('provenance', choice.provenance)
     if (session?.sid) form.append('uploaded_by', session.sid)
     const res = await fetch('/api/events/stakeholders/messaging', { method: 'POST', body: form })
     setSaving(false)
@@ -217,11 +219,9 @@ export default function UmbrellaPage({ params }: { params: Promise<{ id: string 
               style={{ fontSize: '12px', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontFamily: 'inherit' }}>
               {(Object.keys(DOC_ROLE_LABELS) as DocRole[]).map(r => <option key={r} value={r}>{DOC_ROLE_LABELS[r]}</option>)}
             </select>
-            <label style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.6 : 1 }}>
-              {saving ? 'Uploading…' : 'Upload PDF ▲'}
-              <input type="file" accept="application/pdf" disabled={saving} style={{ display: 'none' }}
-                onChange={e => { const f = e.target.files?.[0]; if (f) uploadDoc(f); e.target.value = '' }} />
-            </label>
+            <UploadDocButton role={uploadRole} saving={saving}
+              existing={docs.filter(d => d.status === 'live').map(d => ({ role: d.role, authority_rank: d.authority_rank, provenance: d.provenance }))}
+              onPicked={(f, choice) => uploadDoc(f, choice)} />
           </div>
         )}
         {!canManage && (
