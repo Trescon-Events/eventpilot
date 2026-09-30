@@ -74,7 +74,12 @@ function collectMatches(re: RegExp, text: string, rule: ValidationRule): Validat
 }
 
 function checkForbiddenTerm(text: string, rule: ValidationRule): ValidationFinding[] {
-  const re = safeRegex(`\\b${escapeRegex(rule.pattern)}\\b`, 'gi')
+  // The trailing \b alone misses inflected/suffixed forms: "seamless" would not match "seamlessly",
+  // nor "FSF" match "#FSF2026" (a word character follows, so the boundary fails). The suffix class
+  // absorbs them, digits included; the trailing \b still stops the match running into a following
+  // word. With the `gi` flag it also absorbs uppercase, so "SEAMLESSLY" is caught too. `match` then
+  // reports the whole offending token ("seamlessly", "FSF2026"), which is what a reviewer needs to see.
+  const re = safeRegex(`\\b${escapeRegex(rule.pattern)}[a-z0-9]*\\b`, 'gi')
   return re ? collectMatches(re, text, rule) : []
 }
 
