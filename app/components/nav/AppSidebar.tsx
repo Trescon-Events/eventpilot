@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { getModuleRegistry } from '@/app/lib/registry/modules'
 import { useNavData } from '@/app/lib/nav/NavDataContext'
 import { useSidebarCollapse } from './useSidebarCollapse'
-import AppSidebarSection, { resolveSectionEntries } from './AppSidebarSection'
+import AppSidebarSection, { AppSidebarGroup, resolveSectionEntries } from './AppSidebarSection'
 import EventsSidebarSection from './EventsSidebarSection'
 
 const RAIL_WIDTH = '64px'
@@ -29,7 +29,12 @@ export default function AppSidebar() {
   const accessibleKeys = new Set(sidebarKeys ?? [])
   const ctx = { staffId: session?.sid }
 
-  const home = resolveSectionEntries(registry, accessibleKeys, 'home', ctx)
+  const homeAll = resolveSectionEntries(registry, accessibleKeys, 'home', ctx)
+  // "AI Learning" (2026-10-01): the learning pages live together in one collapsed group at the bottom;
+  // My Events leads the sidebar. What stays under Home is the everyday staff tools.
+  const LEARNING_KEYS = ['my-learning', 'course-library', 'ai-community', 'pilot-ai', 'leaderboard']
+  const learning = homeAll.filter(e => LEARNING_KEYS.includes(e.key))
+  const home = homeAll.filter(e => !LEARNING_KEYS.includes(e.key))
   const pilots = resolveSectionEntries(registry, accessibleKeys, 'pilots', ctx)
   const admin = resolveSectionEntries(registry, accessibleKeys, 'admin', ctx)
   const toolkit = resolveSectionEntries(registry, accessibleKeys, 'toolkit', ctx)
@@ -65,11 +70,12 @@ export default function AppSidebar() {
         </Link>
 
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '4px 8px 16px' }}>
-          <AppSidebarSection title="Home" entries={home} collapsedRail={collapsedRail} />
           {!isVendor && <EventsSidebarSection collapsedRail={collapsedRail} />}
+          <AppSidebarSection title="Home" entries={home} collapsedRail={collapsedRail} />
           <AppSidebarSection title="Pilot Projects" entries={pilots} collapsedRail={collapsedRail} />
           <AppSidebarSection title="Toolkit" entries={toolkit} collapsedRail={collapsedRail} />
           <AppSidebarSection title="Admin" entries={admin} collapsedRail={collapsedRail} />
+          <AppSidebarGroup title="AI Learning" entries={learning} collapsedRail={collapsedRail} />
         </div>
       </div>
     </div>

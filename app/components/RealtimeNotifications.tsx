@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 
 /**
  * RealtimeNotifications — sits in the app layout, always running.
- * Subscribes to Supabase Realtime for notifications + messages.
+ * Subscribes to Supabase Realtime for notifications.
  * On new event: plays sound (if enabled), shows browser notification, dispatches custom event.
  *
  * The on/off toggle itself moved into NavBar's SoundToggle button (between
@@ -104,23 +104,8 @@ export default function RealtimeNotifications() {
       })
       .subscribe()
 
-    const msgChannel = sb.channel(`rt-msg-${staffId}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'messages',
-        filter: `to_id=eq.${staffId}`,
-      }, (payload) => {
-        const row = payload.new as { from_name?: string; body?: string }
-        playSound()
-        showBrowserNotification(row.from_name ?? 'New Message', row.body ?? '')
-        window.dispatchEvent(new CustomEvent('ep:new-message', { detail: row }))
-      })
-      .subscribe()
-
     return () => {
       notifChannel.unsubscribe()
-      msgChannel.unsubscribe()
     }
   }, [staffId, playSound, showBrowserNotification])
 

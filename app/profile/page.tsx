@@ -405,7 +405,7 @@ function ProfileContent() {
 
   /* ───────── DONE SCREEN ───────── */
   if (done) {
-    const destination = nextUrl ?? `/dashboard?id=${staffId}`
+    const destination = nextUrl ?? '/dashboard'
     return (
       <div style={{ ...S.page, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '40px 24px' }}>
         <div style={{ width: '80px', height: '80px', borderRadius: '50%', border: '3px solid var(--teal-mid)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 28px', background: 'rgba(0,137,123,0.1)' }}>

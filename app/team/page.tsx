@@ -145,7 +145,7 @@ function TeamContent() {
       <div style={{ textAlign: 'center' }}>
         <div style={{ color: 'var(--red)', marginBottom: '8px', fontSize: '13px' }}>Error</div>
         <p style={{ color: 'var(--ink2)', fontSize: '13px' }}>{error}</p>
-        <Link href={staffId ? `/dashboard?id=${staffId}` : '/dashboard'} style={{ color: 'var(--teal)', fontSize: '13px' }}>
+        <Link href="/dashboard" style={{ color: 'var(--teal)', fontSize: '13px' }}>
           Back to My Dashboard
         </Link>
       </div>
@@ -177,7 +177,7 @@ function TeamContent() {
 
         {staffId && (
           <Link
-            href={`/dashboard?id=${staffId}`}
+            href="/dashboard"
             style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 700, color: 'var(--teal-light)', background: 'var(--teal-mid)', padding: '12px 22px', borderRadius: '10px', textDecoration: 'none' }}
           >
             <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>

@@ -117,29 +117,16 @@ export default function LoginPage() {
         <div style={{ position: 'relative', zIndex: 1 }}>
           <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '3px', textTransform: 'uppercase', color: C.lime, marginBottom: '20px' }}>Event Management Platform</div>
           <h1 style={{ fontSize: '54px', fontWeight: 900, color: '#FFFFFF', lineHeight: 1.06, letterSpacing: '-2.5px', margin: '0 0 24px' }}>
-            Build the skills<br />
-            <span style={{ color: C.lime }}>AI demands</span><br />
-            of your team.
+            Manage Events<br />
+            <span style={{ color: C.lime }}>Intelligently!</span>
           </h1>
           <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.75)', lineHeight: 1.7, margin: 0, maxWidth: '400px' }}>
-            Event Pilot maps your team&apos;s AI readiness, delivers personalised learning paths, and tracks progress in real time.
+            Event Pilot brings speakers, announcements, approvals and operations together for every Trescon event.
           </p>
         </div>
 
-        {/* Bottom: stat pills + offices */}
+        {/* Bottom: offices */}
         <div style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
-            {[
-              { label: 'Courses', value: '20+' },
-              { label: 'AI Features', value: '5' },
-              { label: 'Offices', value: '4' },
-            ].map(s => (
-              <div key={s.label} style={{ background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.20)', borderRadius: '10px', padding: '10px 18px', backdropFilter: 'blur(4px)' }}>
-                <div style={{ fontSize: '20px', fontWeight: 900, color: '#FFFFFF', lineHeight: 1 }}>{s.value}</div>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.65)', marginTop: '3px', textTransform: 'uppercase', letterSpacing: '1px' }}>{s.label}</div>
-              </div>
-            ))}
-          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {['Dubai', 'Bangalore', 'Mangalore', 'Manipal'].map((city, i) => (
               <span key={city} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

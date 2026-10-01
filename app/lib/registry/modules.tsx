@@ -177,12 +177,20 @@ export function getModuleRegistry(): ModuleDef[] {
     /* ── Learning ── */
     {
       key: 'dashboard', label: 'My Dashboard',
-      description: 'Your AI Readiness Score, learning track, and recommended courses',
+      description: 'Your starting point — jump straight into the modules you use most',
       icon: I.dashboard, color: '#009D8D',
-      href: ctx => ctx.staffId ? `/dashboard?id=${ctx.staffId}` : '/dashboard',
+      href: '/dashboard',
       access: { kind: 'always' },
       platformMenu: { section: 'Learning' },
-      sidebar: { section: 'home', order: 1, label: 'My Learning' },
+      sidebar: { section: 'home', order: 1 },
+    },
+    {
+      key: 'my-learning', label: 'My Learning',
+      description: 'Your AI Readiness Score, learning track, and recommended courses',
+      icon: I.dashboard, color: '#009D8D',
+      href: ctx => ctx.staffId ? `/learning?id=${ctx.staffId}` : '/learning',
+      access: { kind: 'always' },
+      sidebar: { section: 'home', order: 1.5 },
     },
     {
       key: 'course-library', label: 'Course Library',
@@ -328,17 +336,6 @@ export function getModuleRegistry(): ModuleDef[] {
       href: '/content?tab=approvals',
       access: { kind: 'has_reports_or_admin' },
       platformMenu: { section: 'Content & Marketing' },
-    },
-
-    /* ── Communication ── */
-    {
-      key: 'messages', label: 'Messages',
-      description: 'Send and receive messages with your team',
-      icon: I.message, color: '#3D8EEA',
-      href: ctx => `/messages?id=${ctx.staffId ?? ''}`,
-      access: { kind: 'always' },
-      platformMenu: { section: 'Communication' },
-      sidebar: { section: 'home', order: 4 },
     },
 
     /* ── Data Intelligence ── */

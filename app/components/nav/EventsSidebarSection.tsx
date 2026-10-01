@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const EVENTS_COLOR = 'var(--amber)'
-const EVENTS_HREF = '/dashboard#events'
+const EVENTS_HREF = '/my-events'
 
 /*
   2026-08-18: collapsed from a full expandable per-event tree (every
@@ -12,8 +12,9 @@ const EVENTS_HREF = '/dashboard#events'
   list ran past SEARCH_THRESHOLD) down to a single "My Events" link — the
   full tree read as noise for anyone with more than a handful of events
   (Madhu's own account: 50+). It now just deep-links to the dashboard's
-  existing "My Events" section (#events anchor, app/dashboard/page.tsx),
-  which is the real place to browse and open a specific event.
+  "My Events" page (/my-events, 2026-10-01 — it used to deep-link into the
+  AI-learning dashboard's #events anchor, which needs a staff id and showed
+  the learning dashboard / an email prompt to producers instead of their events).
 
   The full per-event tool breakdown this used to render inline isn't
   gone — it's still available. It has just moved: the Cmd+K command
@@ -23,7 +24,7 @@ const EVENTS_HREF = '/dashboard#events'
 */
 export default function EventsSidebarSection({ collapsedRail }: { collapsedRail: boolean }) {
   const pathname = usePathname()
-  const active = pathname === '/dashboard'
+  const active = pathname === '/my-events'
 
   return (
     <div style={{ marginBottom: '4px' }}>

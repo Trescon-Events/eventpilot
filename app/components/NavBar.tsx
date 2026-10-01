@@ -431,7 +431,7 @@ export function NotificationBell({ staffId }: { staffId?: string }) {
   }
 
   const unread = notifs.length
-  const dashHref = sid ? `/dashboard?id=${sid}` : '/dashboard'
+  const dashHref = '/dashboard'
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
@@ -549,41 +549,6 @@ export function NotificationBell({ staffId }: { staffId?: string }) {
         </div>
       )}
     </div>
-  )
-}
-
-/* ── Messages icon — always visible in navbar ── */
-export function MessagesIcon({ staffId }: { staffId?: string }) {
-  const [unread, setUnread] = useState(0)
-  const [sid, setSid] = useState(staffId ?? null)
-
-  useEffect(() => {
-    if (sid) return
-    fetch('/api/auth/session').then(r => r.json()).then(s => { if (s?.sid) setSid(s.sid) }).catch(() => {})
-  }, [sid])
-
-  useEffect(() => {
-    if (!sid) return
-    const load = () => fetch('/api/messages/inbox').then(r => r.json()).then(d => {
-      if (Array.isArray(d)) setUnread(d.reduce((s: number, c: { unread: number }) => s + (c.unread || 0), 0))
-    }).catch(() => {})
-    load()
-    const t = setInterval(load, 30000) // fallback polling
-    // Listen for Realtime events for instant update
-    const handler = () => load()
-    window.addEventListener('ep:new-message', handler)
-    return () => { clearInterval(t); window.removeEventListener('ep:new-message', handler) }
-  }, [sid])
-
-  return (
-    <Link href={`/messages?id=${sid || ''}`} title="Messages" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: '50%', background: 'transparent', border: 'none', cursor: 'pointer', textDecoration: 'none', color: 'var(--ink3)' }}>
-      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      {unread > 0 && (
-        <span style={{ position: 'absolute', top: 2, right: 2, minWidth: 16, height: 16, borderRadius: 8, background: 'var(--danger)', color: 'var(--red-light)', fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', border: '2px solid var(--surface)' }}>
-          {unread > 9 ? '9+' : unread}
-        </span>
-      )}
-    </Link>
   )
 }
 

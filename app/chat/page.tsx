@@ -334,7 +334,7 @@ export default function ChatPage() {
               This keeps Pilot focused and available for everyone. Your learning courses and dashboard remain fully accessible in the meantime.
             </p>
             <Link
-              href={staffId ? `/dashboard?id=${staffId}` : '/login'}
+              href={staffId ? '/dashboard' : '/login'}
               style={{ marginTop: '24px', display: 'inline-block', fontSize: '13px', fontWeight: 700, color: 'var(--ink)', background: 'var(--card)', border: '1px solid var(--border)', padding: '10px 24px', borderRadius: '10px', textDecoration: 'none' }}
             >
               Back to My Dashboard

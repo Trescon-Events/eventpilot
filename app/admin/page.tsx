@@ -480,12 +480,6 @@ function AdminPageInner() {
   const [feedbackReport, setFeedbackReport] = useState<Record<string,unknown> | null>(null)
   const [reportLoading,  setReportLoading]  = useState(false)
   const [reportError,    setReportError]    = useState('')
-  const [showWelcome,    setShowWelcome]    = useState(() => {
-    if (typeof window === 'undefined') return false
-    if (new URLSearchParams(window.location.search).get('welcome') === '1') return true
-    const uid = sessionStorage.getItem('tai_admin_staff_id') ?? 'admin'
-    return !localStorage.getItem(`pilot_admin_welcomed_${uid}`)
-  })
   const [tourStep,    setTourStep]    = useState<number | null>(null)
   const [tourRect,    setTourRect]    = useState<DOMRect | null>(null)
   const [showRoadmap,   setShowRoadmap]   = useState(false)
@@ -775,15 +769,6 @@ function AdminPageInner() {
 
   const getOffice = (id: string) => OFFICES.find(o => o.id === id)
 
-  function dismissWelcome() {
-    const uid = sessionStorage.getItem('tai_admin_staff_id') ?? 'admin'
-    localStorage.setItem(`pilot_admin_welcomed_${uid}`, '1')
-    setShowWelcome(false)
-    if (!localStorage.getItem(`pilot_tour_done_${uid}`)) {
-      setTimeout(() => setTourStep(0), 400)
-    }
-  }
-
   function endTour() {
     const uid = sessionStorage.getItem('tai_admin_staff_id') ?? 'admin'
     localStorage.setItem(`pilot_tour_done_${uid}`, '1')
@@ -832,88 +817,6 @@ function AdminPageInner() {
   return (
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: 'var(--surface)', minHeight: '100vh', color: 'var(--ink)' }}>
 
-      {/* ── Welcome Modal (first login only) ── */}
-      {showWelcome && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: 'var(--card)', border: '1px solid rgba(0,165,163,0.35)', borderRadius: '16px', maxWidth: '640px', width: '100%', overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,165,163,0.08)' }}>
-
-            {/* Top colour bar */}
-            <div style={{ height: '4px', background: 'linear-gradient(90deg, var(--teal-mid) 0%, var(--lime) 60%, #A478FF 100%)' }} />
-
-            <div style={{ padding: '36px 40px 32px' }}>
-
-              {/* Header row */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
-                <div style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #12C9BD 0%, #0B8079 100%)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg width="22" height="22" fill="none" stroke="var(--teal-light)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                </div>
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '3px' }}>First time here?</div>
-                  <div style={{ fontSize: '36px', fontWeight: 900, color: 'var(--ink)', letterSpacing: '-0.4px', lineHeight: 1.1 }}>Welcome to Event Pilot</div>
-                </div>
-              </div>
-
-              <p style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.75, margin: '0 0 28px' }}>
-                Event Pilot is Trescon&apos;s internal AI readiness platform — measuring where every employee stands today and moving them forward through structured, role-specific learning.
-              </p>
-
-              {/* Feature tiles — 3 column grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '28px' }}>
-                {[
-                  {
-                    color: 'var(--teal-mid)',
-                    bg: 'rgba(0,165,163,0.1)',
-                    border: 'rgba(0,165,163,0.25)',
-                    icon: <svg width="18" height="18" fill="none" stroke="var(--teal-mid)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
-                    title: 'AI Readiness Score',
-                    desc: 'Live AI readiness score (0–100) per staff member',
-                  },
-                  {
-                    color: 'var(--teal)',
-                    bg: 'rgba(192,244,60,0.08)',
-                    border: 'rgba(192,244,60,0.22)',
-                    icon: <svg width="18" height="18" fill="none" stroke="var(--lime)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
-                    title: 'AI Courses',
-                    desc: 'Role-based learning paths, generated and tracked',
-                  },
-                  {
-                    color: '#A478FF',
-                    bg: 'rgba(164,120,255,0.09)',
-                    border: 'rgba(164,120,255,0.25)',
-                    icon: <svg width="18" height="18" fill="none" stroke="#A478FF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
-                    title: 'Pilot AI',
-                    desc: 'Ask anything — platform, progress, or strategy',
-                  },
-                ].map((item, i) => (
-                  <div key={i} style={{ padding: '16px 14px', background: item.bg, border: `1px solid ${item.border}`, borderRadius: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div style={{ width: '36px', height: '36px', background: `${item.bg}`, border: `1px solid ${item.border}`, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {item.icon}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 800, color: item.color, marginBottom: '4px' }}>{item.title}</div>
-                      <div style={{ fontSize: '11.5px', color: 'var(--ink3)', lineHeight: 1.55 }}>{item.desc}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* CTA */}
-              <button
-                onClick={dismissWelcome}
-                style={{ width: '100%', padding: '16px', borderRadius: '14px', border: 'none', background: 'linear-gradient(135deg, #12C9BD 0%, #0EA79D 100%)', color: 'var(--teal-light)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-              >
-                Take me to the dashboard
-                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-              </button>
-
-              <div style={{ textAlign: 'center', marginTop: '12px', fontSize: '13px', color: 'var(--ink3)' }}>
-                This screen only appears on first login
-              </div>
-
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Page header — replaces the old shared AppShellNav (own logo/badge
           markup, own Help/Avatar dropdowns) now that the global shell
@@ -1564,7 +1467,7 @@ function AdminPageInner() {
                               return <div key={tool.key} style={{ width: '7px', height: '7px', borderRadius: '50%', background: granted ? tool.color : 'var(--border-light)', flexShrink: 0 }} />
                             })}
                           </button>
-                          <Link href={`/dashboard?id=${p.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--teal-mid)', fontSize: '11px', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                          <Link href={`/learning?id=${p.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--teal-mid)', fontSize: '11px', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
                             <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
                             View
                           </Link>

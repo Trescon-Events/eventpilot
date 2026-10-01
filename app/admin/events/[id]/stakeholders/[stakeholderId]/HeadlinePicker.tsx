@@ -1,6 +1,6 @@
 'use client'
 
-import { Button, Input, Textarea } from '@/app/components/ui'
+import { Button, Textarea } from '@/app/components/ui'
 import type { HeadlineVariant } from '@/app/lib/events/announcements'
 
 /* Speaker creative headline picker (2026-09-22) — up to 5 AI-generated
@@ -13,6 +13,9 @@ import type { HeadlineVariant } from '@/app/lib/events/announcements'
    pattern doesn't fit here. Compliance findings render per-card, advisory
    only (never block selection or save) — matches Press Release Studio's
    own confirmed behavior, the one real precedent this app has. */
+// Rows = number of lines typed, so a manual line break (Enter) is visible in the box as it's added.
+const lineCount = (v: string) => Math.max(1, v.split('\n').length)
+
 export default function HeadlinePicker({
   variants, selectedId, generating, saving, disabled,
   onGenerate, onSelect, onSegmentChange, onSegmentBlur,
@@ -69,29 +72,32 @@ export default function HeadlinePicker({
                         own doc comment in announcements.ts. */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                       <div style={{ display: 'grid', gap: '5px' }}>
-                        <Input
+                        <Textarea
                           value={v.segments.lead ?? ''}
                           placeholder="Lead (optional)"
                           disabled={disabled}
+                          rows={lineCount(v.segments.lead ?? '')}
                           onChange={e => onSegmentChange(v.id, 'lead', e.target.value)}
                           onBlur={() => onSegmentBlur(v.id)}
-                          style={{ fontSize: '12px' }}
+                          style={{ fontSize: '12px', resize: 'none', minHeight: 0 }}
                         />
-                        <Input
+                        <Textarea
                           value={v.segments.emphasis}
                           placeholder="Emphasis"
                           disabled={disabled}
+                          rows={lineCount(v.segments.emphasis)}
                           onChange={e => onSegmentChange(v.id, 'emphasis', e.target.value)}
                           onBlur={() => onSegmentBlur(v.id)}
-                          style={{ fontSize: '13px', fontWeight: 700, color: 'var(--teal-mid)' }}
+                          style={{ fontSize: '13px', fontWeight: 700, color: 'var(--teal-mid)', resize: 'none', minHeight: 0 }}
                         />
-                        <Input
+                        <Textarea
                           value={v.segments.trail ?? ''}
                           placeholder="Trail (optional)"
                           disabled={disabled}
+                          rows={lineCount(v.segments.trail ?? '')}
                           onChange={e => onSegmentChange(v.id, 'trail', e.target.value)}
                           onBlur={() => onSegmentBlur(v.id)}
-                          style={{ fontSize: '12px' }}
+                          style={{ fontSize: '12px', resize: 'none', minHeight: 0 }}
                         />
                       </div>
                       <Textarea
@@ -102,6 +108,9 @@ export default function HeadlinePicker({
                         onBlur={() => onSegmentBlur(v.id)}
                         style={{ fontSize: '13px', fontWeight: 700, height: '100%', width: '100%', resize: 'none', boxSizing: 'border-box' }}
                       />
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--ink4)' }}>
+                      Tip: press Enter inside a headline box to force a line break (e.g. put &ldquo;BANKING&rdquo; on its own line). Regenerate the creative to see it.
                     </div>
                     {findings.length > 0 && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>

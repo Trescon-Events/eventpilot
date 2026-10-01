@@ -119,7 +119,17 @@ function splitOverlongWord(word: string, boxWidth: number, size: number, weight:
   return [first, ...splitOverlongWord(rest, boxWidth, size, weight, family)]
 }
 
+// Explicit line breaks (2026-10-01, Rhea/DFS): a producer can press Enter inside a headline to force
+// "IN SWISS / BANKING" onto two lines. Each newline-separated line is wrapped on its own, so a manual
+// break is always honoured and a long line still wraps (and shrinks/hyphenates) normally within itself.
 function greedyWordWrap(text: string, boxWidth: number, size: number, weight: number, family: string): string[] {
+  if (/[\r\n]/.test(text)) {
+    return text.split(/\r?\n/).map(l => l.trim()).filter(Boolean).flatMap(l => greedyWordWrapLine(l, boxWidth, size, weight, family))
+  }
+  return greedyWordWrapLine(text, boxWidth, size, weight, family)
+}
+
+function greedyWordWrapLine(text: string, boxWidth: number, size: number, weight: number, family: string): string[] {
   const words = text.split(/\s+/).filter(Boolean)
   const lines: string[] = []
   let current = ''

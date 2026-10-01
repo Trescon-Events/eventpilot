@@ -337,7 +337,7 @@ function CourseContent() {
       <div style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: '13px', color: 'var(--red)' }}>Course not found.</div>
-          <Link href={staffId ? `/dashboard?id=${staffId}` : '/dashboard'} style={{ display: 'inline-block', marginTop: '16px', color: 'var(--teal)', fontWeight: 700, fontSize: '13px' }}>
+          <Link href={staffId ? `/learning?id=${staffId}` : '/learning'} style={{ display: 'inline-block', marginTop: '16px', color: 'var(--teal)', fontWeight: 700, fontSize: '13px' }}>
             Back to Dashboard
           </Link>
         </div>
@@ -385,7 +385,7 @@ function CourseContent() {
       {/* ── Nav ── */}
       <nav style={S.nav}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Link href={staffId ? `/dashboard?id=${staffId}` : '/dashboard'} style={{ display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none', color: 'var(--ink2)', fontSize: '13px', fontWeight: 600 }}>
+          <Link href={staffId ? `/learning?id=${staffId}` : '/learning'} style={{ display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none', color: 'var(--ink2)', fontSize: '13px', fontWeight: 600 }}>
             <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
             Dashboard
           </Link>
@@ -864,7 +864,7 @@ function CourseContent() {
             {/* CTA */}
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               {result.passed ? (
-                <Link href={staffId ? `/dashboard?id=${staffId}` : '/dashboard'} style={{ ...S.primaryBtnLink, background: 'var(--lime)', color: 'var(--lime-dark)' }}>
+                <Link href={staffId ? `/learning?id=${staffId}` : '/learning'} style={{ ...S.primaryBtnLink, background: 'var(--lime)', color: 'var(--lime-dark)' }}>
                   Back to Dashboard
                   <svg width="14" height="14" fill="none" stroke="var(--lime-dark)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
                 </Link>
