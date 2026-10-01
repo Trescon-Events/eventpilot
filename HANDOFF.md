@@ -15,13 +15,75 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — 29 Sep 2026. Built the **Super Admin AI Access API** (`/admin/settings/ai-access`) — platform-wide, read-only, scoped bearer tokens for external AI tools (Antigravity etc.) to use EventPilot as a knowledge base. Same-day: fixed a production bug in it, then extended it to include BD proposals + each event's reference docs (style guide/messaging doc/production pack) and added a downloadable per-token usage guide. |
-| Date | 2026-09-29 |
-| Latest push | `origin/main` at commit `0d6f315` (feature `299b2ee` → fix `a193457` → extension `0d6f315`). Railway + GitHub Actions CI both confirmed green after each of the three pushes. |
-| DB migrations applied | `supabase/platform_api_tokens_migration.sql` — new tables `platform_api_tokens`, `platform_api_access_log`. Applied to production via direct psql (session pooler). |
+| Who | Madhu + Claude Code (Sonnet 5.5) — 29 Sep → 1 Oct 2026 (one long session). Themes: SAE submission/communications fixes, FSF onboarding (19 speakers imported), BSS KonfHub remove-and-repush, Reference Docs controls, headline rendering, and a full **My Dashboard / My Events / sidebar rework** (AI-learning moved out of the way, Messages feature deleted). |
+| Date | 2026-10-01 |
+| Latest push | `origin/main` at `b46eca4` (this HANDOFF commit follows it). Session commits: `7b23882`, `4564380`, `9e67ab9`, `4cce2d6`, `1847ab2`, `6bd3c1d`, `86742db`, `91e3dba`, `b46eca4`. |
+| DB changes (direct psql / scripts, production) | **`messages` table DROPPED** (31 test rows; no FKs/views/code left). FSF: 19 `event_speakers` + files + 7 additional contacts imported. BSS: 25 POC additional contacts + Eva Mendis added; KonfHub rebuilt (see below). `events.announcement_attribution_line` column exists (migration `supabase/sae_attribution_line_migration.sql`, applied by Madhu; FIFF value set by it). |
 | Handed off to | Madhu (resumes next session; Durga can pick up from this file). |
-| Deployed | Yes — live at `/admin/settings/ai-access` (Administration section of the admin nav). |
-| Left alone / known follow-up | See "What's next (29 Sep sign-off)" directly below. The prior 25–27 Sep FIFF/Ops Hub session's own "What's next" (further down this file) is still separately open — this session didn't touch it. |
+| Deployed | Everything pushed has auto-deployed except possibly the last build — **verify `railway deployment list`** (one deploy this week sat on DEPLOYING for 20+ min; the container was up but Railway never switched traffic). |
+| Left alone / known follow-up | See "What's next (1 Oct sign-off)" directly below. |
+
+## 30 Sep – 1 Oct 2026 — SAE fixes, FSF + BSS KonfHub work, My Dashboard rework
+
+### Speaker submission link / Communications tab (commits `7b23882`, `4564380`)
+- **Compose email body is now scrollable AND editable** (`app/components/EmailComposeFields.tsx`): the preview iframe is `designMode`-editable (same-origin, no scripts), links inert; edits flow out via an optional `setHtml` prop (CommunicationsTab + NotifyExternalReminderComposer pass it).
+- **Submission page asks the assistant question** (only when the record has no answer/assistant details): Yes → name/email/mobile, No → just recorded. Written to `custom_fields.would_you_like_us_to_coordinate_with_your_assistant_regarding_your_participation` (same key as the onboarding form; `app/lib/stakeholders/assistant-contact.ts`) merged (never replaced), and a Yes + email also becomes an Additional Contact.
+- **Photo submitted via the link now gets PhotoRoom background removal** (`photo_processed_url` + head box), mirroring from-submission; raw stays in `photo_url`.
+- **The link stays open across partial submissions**: `app/lib/stakeholders/request-progress.ts` derives what is still missing from the RECORD (not a snapshot); status flips to `submitted` only when nothing requested is left; review-data/submit/reminders all use it. Reminders reuse the SAME token and extend its expiry another 14 days. **One open request per speaker** (compose/send return 409 while one is `pending`); new **Close Request** button (`.../communications/[requestId]/close`). Page autosaves typed answers to localStorage and checks file sizes (5MB photo/bio, 20MB docs) client-side; shows "Already received".
+- **Additional Contacts are editable** (Edit button + `PATCH .../additional-contacts/[contactId]`).
+- **Delete wrong Photo / Full Bio** (`DELETE .../speakers/[id]/asset?type=photo|full_bio`, typed-DELETE modal); item becomes missing again and, if the speaker has an open request that did not ask for it, is appended to it (same link asks again).
+- **Real file-type detection** (`app/lib/events/sniff-file-type.ts`): uploads trust the bytes, not the filename/MIME — used by sensitive-documents upload, the submit route (photo/docs), manual photo upload and `toStoredBioPdf`. (FSF's Manosij passport was a PDF named .jpg.)
+
+### Reference Docs (commits `1847ab2`, `91e3dba`)
+- **Cancel / delete any version** (`DELETE /api/events/stakeholders/messaging/[id]`, typed DELETE re-checked server-side, gated sae.forms.manage / umbrella_manage): cancels an extracting upload (the background job checks its row still exists before the paid Gemini call and before saving), discards drafts, deletes live/old versions (live → recompile). Upload button no longer sticks on "Uploading…" after a cancel.
+- **Upload prompt asks Rank + Provenance before the file picker** (`UploadDocButton` in `details/page.tsx`, also used on the umbrella page); both required, nothing pre-selected; **locked afterwards** (UI read-only "🔒 locked"; server PATCH returns 409 for role/rank/provenance). To change: delete the version and upload again.
+
+### Rendering / content rules
+- **Website-photo preview crash** (`4cce2d6` era, `9e67ab9`): FSF "web pic" had 1080px layers on a 1024 canvas → sharp threw → blank preview, error swallowed. Image layers are now clamped to the canvas; the preview route returns JSON errors; the editor shows the server's reason; and **the layer editor warns at upload (and on open) when a reference layer is the wrong size**. Branding team still needs to re-export the FSF art at 1024.
+- **Text layers never ellipsis-truncate** (`app/lib/announcements/text-layout.ts`): never-shrink layers keep their size and wrap to as many lines as needed (overflow warning "⚠ overflows box"); shrinkable layers shrink to 40% then overflow. Long words hyphenate across lines as before.
+- **Manual headline line breaks (pilot, `b46eca4`)**: Enter inside a headline segment forces a line break (`greedyWordWrap` splits on newlines); Lead/Emphasis/Trail are now textareas in `HeadlinePicker.tsx`. Regenerate the creative to see it. Idea parked: per-creative headline size and "grow to fill box" (see What's next).
+- **`forbidden_term` rules now match inflected/suffixed forms** (`validate.ts`: `\b…[a-z0-9]*\b`, flag `gi`) — `seamless`→`seamlessly`, `FSF`→`#FSF2026` (match text is the whole token, `FSF2026`). Tests: `npx tsx --test app/lib/content/validate.test.ts`. Findings are computed once at generation, so older drafts do not re-flag — regenerate anything still in review. Notes: `docs/build_suggestions/validate-inflected-terms.md`.
+- **Fixed attribution line** (`events.announcement_attribution_line`, `buildAttributionLine` in `announcements.ts`, both generate + regenerate-copy SELECTs): inserted verbatim between the date/venue line and the CTA in org-promo copy only (not self-promo, not X). Tests: `npx tsx --test app/lib/events/announcements.test.ts`. Note: `docs/build_suggestions/sae-attribution-line.md`.
+
+### Speaker record: lost edits (producer / reference / status) — root causes found and fixed (`91e3dba`)
+1. Autosave PATCHed the WHOLE page snapshot, so a stale tab overwrote a colleague's newer Producer/Reference/Status (Rhea/Jarryd's reports). **Now only the fields the user changed are sent** (`dirtyTopRef`/`dirtyFieldsRef` in the speaker Details page); an untouched field can never overwrite anyone. Same-field edits are still last-writer-wins.
+2. The save was refused outright when Public Name/Pronoun were empty (7 DFS, 3 BSS, 3 FSF speakers have no pronoun) — now only blocked when the edit tries to blank them.
+3. A pending debounce was dropped on navigation — now flushed with `keepalive`.
+Not done: an open tab still shows stale values until refreshed (no "changed by someone else" notice).
+
+### Client Approval card hidden for Producers (`91e3dba`)
+`GET /api/events/client-approval-contacts` required `sae.integrations.manage`; Producers lack it, got 403, the page read it as "no client contact" and hid the card. Read is now open to anyone with sae.announcements.* or sae.stakeholders.edit; writes still need integrations.manage.
+
+### My Dashboard / My Events / sidebar rework (`b46eca4`)
+- `/dashboard` is now a short **My Dashboard**: My Events card first, then the first two modules the person can access (sidebar order, skipping AI-learning pages). The old AI-readiness dashboard moved to **`/learning`** (registry key `my-learning`); a link without `?id=` now reads the session (the "enter your work email" page is gone). Removed from it: My Events list, Knowledge Base, Change Password. **Still on `/learning`: My Event Tasks, My Submissions, Feedback — and Change Password now has no UI on the dashboard (check the profile menu).**
+- `/my-events` (new): RBAC-driven list from `/api/events/access/my-events` (+ umbrellas via `/api/events?staff_id=`), live search, earliest event date first, works from the session (no staff id).
+- Sidebar: **My Events on top**, Home (My Dashboard, My HR, Team Dashboard, Task Manager), Pilot Projects, Toolkit, Admin, and a collapsed **AI Learning** group at the bottom (My Learning, Course Library, AI Community, Talk to Pilot, Leaderboard; remembers open/closed).
+- **Everyone (non-vendor) lands on /dashboard after login** — password and Microsoft SSO; admins no longer on `/admin`; the AI-readiness profile assessment is no longer forced at login. First-login "Welcome to Event Pilot" modal (and the `/admin` tour it started) removed. Login page copy reworded ("Manage Events Intelligently!").
+- **Messages feature deleted entirely** (page, API, registry entry, navbar icon, dashboard tile, realtime subscription) and its table dropped.
+
+### FSF (Future Sustainability Forum Dubai 2026, `b470ee7f-77d9-4985-a5e3-f3c1ebb349c8`, DFFW child)
+- **19 speakers imported** from `/Users/madhu/Downloads/FSF Confirmed Speakers` (script `scripts/import-fsf-speakers-2026-09-29.ts`, gitignored): producer = Rukshi Sarin (the only `producer` on the event team — confirm), 16 raw photos + PhotoRoom cut-outs, 9 Full Bios (→PDF), 19 passports + 14 National IDs (Azure), 7 additional contacts. Confirmed spellings (Ganguli, Priya Sarma Mathur, Pherwani, Alosaimi, Vaidyanathan, Tecirli); Yianni's email = ioannis.spanos@expocitydubai.ae. **Anyone who sent an Emirates ID was set UAE resident = YES** (Maen, Maryam, Beliz, Manal flipped from NO). Low-res photos (Ismail, Manal) imported as-is; Madhu is processing photos.
+- **Still missing**: photos — Priya Sarma Mathur, Jaydeep Anand, Radha Dhir; Full Bio — 10 speakers; Emirates ID — Johanna Salem. The source folder in Downloads still holds passport scans — delete it.
+- **Integration config**: Speaker/Moderator tags saved; **Speaker Category and Speaker ticket still UNSET** (must be set before any push; FSF shares DFFW's KonfHub event `f133240e-…`). FSF Reference Docs: production pack draft uploaded (rank/provenance prompt did not exist yet).
+- Website-photo template: see the oversized-layer note above.
+
+### BSS (Bengaluru Skill Summit 2026, `27edfe37-ab45-4656-922d-0503012c75a7`) — KonfHub rebuilt, AGENDA LINKS LOST
+- Dry-run + apply scripts (gitignored): `scripts/snapshot-konfhub-bss-2026-10-01.ts`, `scripts/konfhub-bss-repush-2026-10-01.ts`. Snapshot of the old KonfHub list (25 speakers, orders 1–25, no categories): `.scratch/konfhub-bss-snapshot-2026-10-01.json`; sessions as they are AFTER: `.scratch/konfhub-bss-sessions-after-2026-10-01.json`. All 25 deleted and recreated from EventPilot in the same order (new KonfHub ids 29843–29867, all linked via `konfhub_speaker_id`).
+- **⚠️ Deleting KonfHub speakers removed them from every agenda session — all 32 BSS sessions now have zero speakers.** The sessions were not snapshotted first (my miss); the assignments are unrecoverable from any system we have. **Simran is re-assigning them manually.** Lesson saved to memory (`feedback_konfhub_delete_wipes_agenda_sessions.md`): before ANY bulk delete, snapshot `GET /sessions?sessions_to_return=all`, get an explicit OK, restore after, and prefer PUT-updating speakers over delete+recreate. **FIFF (26 Sep) and DFS (24 Sep) repushes may have wiped session links the same way — not checked.**
+- Discrepancies from the repush (EventPilot wins): Prateek Madhav lost his **Moderator** tag (EventPilot has Speaker only — toggle in EventPilot and push to restore); Kaushik Mudda's bio is 364 chars in EventPilot vs 1,495 on the old KonfHub (old text only in the snapshot); Mohan Rao Goli's org was pushed with a hyphen because KonfHub rejects the en dash (**his EventPilot company still contains "–", so a normal Push will fail until fixed**); all 25 now carry the Speaker tag; names now PN Nayak / Rajiv Sharma / Dr. R Balasubramaniam; several designation/organisation wordings changed (Gururaj Deshpande, Devashish Dasgupta, Nidhi Pundhir, Meena Ganesh…). 11 Confirmed EventPilot speakers were never on KonfHub (5 ready: Vinod Prabhu, Suresh Bhojraj, Meera Rajeevan, Nidhi Goyal, Hiroshi Nawata; 6 missing data) — not pushed.
+- **POC contacts from the sheet** imported as Additional Contacts (25) with names guessed from the email local part; six need manual names (Anitha, Nabeel, Arjun, Margret first-name-only; utpreksha@, suyeshnas@ unnamed; plus communications@mitticafe.org and ceo@worldskillcenter.org are generic). John Travis (dummy form) assistant Eva Mendis added. BSS's HubSpot form now maps the assistant-consent question (Madhu mapped it).
+
+### Other
+- Dev server may still be running on :3000 (production DB via `.env.local`; never run `npm run build` alongside it). `tsc` needs `NODE_OPTIONS=--max-old-space-size=6144` when the dev server is up.
+- **Nothing in the UI changes above was browser-tested by Claude** (no authenticated session available) — Madhu reviewed the dashboard/login/My Events screens live; the rest are typechecked + unit-checked only.
+
+### What's next (1 Oct sign-off)
+1. **Verify the latest Railway deploy went live** (`railway deployment list`), then: log in → lands on My Dashboard; Rhea sees her DFS/FTF events under My Events and the Client Approval card on Shanu S.P. Hinduja's announcement; speaker Details autosave no longer reverts producer/status.
+2. **BSS**: Simran re-assigns agenda sessions; fix Prateek's tag, Mohan's company en dash, Kaushik's bio; decide on the 11 not-yet-on-KonfHub speakers; name the six unnamed POC contacts.
+3. **Check FIFF and DFS KonfHub agenda sessions** for the same wiped-assignments problem; if found, consider restoring from whatever Simran/producers hold.
+4. **FSF**: set Speaker Category + ticket; finish photos/bios/EID gaps (producers request via the Communications tab — the one-link flow now supports partial submissions); KonfHub compare → tests → producer sign-off → snapshot (speakers AND sessions) → repush; messaging doc + announcement tests; branding re-exports the web-pic layers at 1024.
+5. **Headline flexibility** (Rhea): line breaks shipped as the pilot; next candidates are a bounded per-creative headline size and a template-level "grow to fill box" — wait for what producers actually reach for.
+6. **Decisions open**: where Change Password should live now; whether My Event Tasks should surface on the new dashboard; whether the AIRS assessment should be re-offered somewhere.
 
 ## 29 Sep 2026 — Super Admin AI Access API
 

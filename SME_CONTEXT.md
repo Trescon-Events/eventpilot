@@ -166,11 +166,11 @@ Do not ask Durga to build anything that already exists. Reference this when writ
 
 | URL | What it does |
 |---|---|
-| `/dashboard` | Personal dashboard — AIRS score, courses, team view for managers |
+| `/dashboard` | **My Dashboard** (1 Oct 2026) — post-login landing: three module cards, My Events first. The old AI-readiness dashboard (AIRS score, courses, team view) now lives at `/learning`, reached via the sidebar's collapsed "AI Learning" group |
+| `/my-events` | My Events — every event the signed-in person has access to (RBAC-driven), live search, earliest date first |
 | `/profile` | AI Readiness Questionnaire — staff describe their daily tasks for scoring |
 | `/chat` | Pilot AI — internal assistant (Gemini-powered) |
 | `/community` | Staff post AI prompts, automations, use cases; like/filter |
-| `/messages` | Internal DM system — inbox + thread view |
 | `/my-hr` | Self-service HR — leave requests, attendance, event tasks |
 | `/team` | Manager's view of their team's course progress |
 | `/docs` | Platform documentation (20 articles) |
@@ -245,7 +245,6 @@ These tables already exist. Any new tool should use them where relevant, or add 
 | `crm_contact_event_links` / `crm_company_event_links` | contact_id/company_id, event_id, role | Which events a CRM contact/company is linked to and in what role (speaker/sponsor_contact/sponsor/media_partner/association_partner) — EventPilot's own mirror of HubSpot's Association Label pattern |
 | `crm_properties` / `crm_property_groups` | entity_type (contact/company), property_key, label, field_type, hubspot_property_name | The Contact/Company property registry managed at `/admin/crm/objects`, HubSpot Settings→Properties-style. `hubspot_property_name` is null until a HubSpot CRM admin manually creates the matching property and maps it — never auto-provisioned |
 | `notifications` | staff_id, type, title, body, read | In-app bell notifications |
-| `messages` | from_id, to_id, body, read | Internal DMs |
 | `documents` | title, type, extracted_text, visibility | Knowledge base uploads |
 | `platform_docs` | slug, category, title, content | Platform help articles |
 | `community_posts` | author_id, category, body, tool_name, likes | Community posts |
