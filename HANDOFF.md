@@ -74,6 +74,7 @@ Not done: an open tab still shows stale values until refreshed (no "changed by s
 - **POC contacts from the sheet** imported as Additional Contacts (25) with names guessed from the email local part; six need manual names (Anitha, Nabeel, Arjun, Margret first-name-only; utpreksha@, suyeshnas@ unnamed; plus communications@mitticafe.org and ceo@worldskillcenter.org are generic). John Travis (dummy form) assistant Eva Mendis added. BSS's HubSpot form now maps the assistant-consent question (Madhu mapped it).
 
 ### Other
+- **`SME_CONTEXT.md` retired (1 Oct 2026, Madhu):** the file is deleted and is no longer maintained — HANDOFF.md updates no longer need a matching SME_CONTEXT update. `PILOTS.md` and the seeded pilot checklists in `app/api/admin/setup-pilots/route.ts` still tell pilots to read it; revisit those if the pilot workflow is still in use.
 - Dev server may still be running on :3000 (production DB via `.env.local`; never run `npm run build` alongside it). `tsc` needs `NODE_OPTIONS=--max-old-space-size=6144` when the dev server is up.
 - **Nothing in the UI changes above was browser-tested by Claude** (no authenticated session available) — Madhu reviewed the dashboard/login/My Events screens live; the rest are typechecked + unit-checked only.
 
