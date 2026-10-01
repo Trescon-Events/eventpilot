@@ -35,7 +35,38 @@ async function roleIdsFor(staffId: string, eventId: string): Promise<string[]> {
     .eq('staff_id', staffId)
     .or(`event_id.eq.${eventId},event_id.is.null`)
     .or(notExpiredFilter())
-  return (data ?? []).map(r => r.role_id)
+  const ids = (data ?? []).map(r => r.role_id)
+
+  // Umbrella-level roles (2026-10-01, umbrella_access_assignments): a role granted at the umbrella an
+  // event belongs to applies to this event too — current and future children alike.
+  const { data: ev } = await supabaseAdmin.from('events').select('umbrella_id').eq('id', eventId).maybeSingle()
+  if (ev?.umbrella_id) {
+    const { data: um } = await supabaseAdmin
+      .from('umbrella_access_assignments')
+      .select('role_id')
+      .eq('staff_id', staffId)
+      .eq('umbrella_id', ev.umbrella_id)
+      .or(notExpiredFilter())
+    for (const r of um ?? []) ids.push(r.role_id)
+  }
+  return [...new Set(ids)]
+}
+
+// A staffer's umbrella-level grants, expanded to the events those umbrellas CURRENTLY contain, as
+// (event_id, role_id) pairs — the same shape getAccessibleEventIds already works with. New children
+// of an umbrella are picked up automatically on the next call (nothing is copied per event).
+async function umbrellaGrantRows(staffId: string): Promise<{ event_id: string; role_id: string }[]> {
+  const { data: grants } = await supabaseAdmin
+    .from('umbrella_access_assignments')
+    .select('umbrella_id, role_id')
+    .eq('staff_id', staffId)
+    .or(notExpiredFilter())
+  if (!grants?.length) return []
+  const umbrellaIds = [...new Set(grants.map(g => g.umbrella_id))]
+  const { data: kids } = await supabaseAdmin.from('events').select('id, umbrella_id').in('umbrella_id', umbrellaIds)
+  const out: { event_id: string; role_id: string }[] = []
+  for (const g of grants) for (const k of kids ?? []) if (k.umbrella_id === g.umbrella_id) out.push({ event_id: k.id, role_id: g.role_id })
+  return out
 }
 
 // "Does this staffer have ANY real role on this event at all" — coarser
@@ -94,7 +125,7 @@ export async function getAccessibleEventIds(
     .select('event_id, role_id')
     .eq('staff_id', staffId)
     .or(notExpiredFilter())
-  const rows = data ?? []
+  const rows: { event_id: string | null; role_id: string }[] = [...(data ?? []), ...(await umbrellaGrantRows(staffId))]
   if (rows.length === 0) return { allEvents: false, eventIds: [] }
 
   // Unfiltered path — cheap, no permission expansion needed.
@@ -133,12 +164,18 @@ export async function getStaffWithRole(
 ): Promise<{ id: string; name: string; email: string }[]> {
   const { data: role } = await supabaseAdmin.from('access_roles_catalog').select('id').eq('slug', roleSlug).is('event_id', null).maybeSingle()
   if (!role) return []
-  const { data: rows } = await supabaseAdmin
+  const { data: eventRows } = await supabaseAdmin
     .from('event_access_assignments')
     .select('staff_members!staff_id(id, name, email)')
     .eq('role_id', role.id)
     .or(`event_id.eq.${eventId},event_id.is.null`)
     .or(notExpiredFilter())
+  // Plus anyone holding the role at the umbrella this event belongs to.
+  const { data: ev } = await supabaseAdmin.from('events').select('umbrella_id').eq('id', eventId).maybeSingle()
+  const { data: umbrellaRows } = ev?.umbrella_id
+    ? await supabaseAdmin.from('umbrella_access_assignments').select('staff_members!staff_id(id, name, email)').eq('role_id', role.id).eq('umbrella_id', ev.umbrella_id).or(notExpiredFilter())
+    : { data: [] as typeof eventRows }
+  const rows = [...(eventRows ?? []), ...(umbrellaRows ?? [])]
   const seen = new Set<string>()
   const staff: { id: string; name: string; email: string }[] = []
   for (const r of rows ?? []) {
@@ -203,7 +240,12 @@ export async function hasPlatformPermission(
     .select('role_id')
     .eq('staff_id', staffId)
     .or(notExpiredFilter())
-  const roleIds = (assignments ?? []).map(a => a.role_id)
+  const { data: umbrellaAssignments } = await supabaseAdmin
+    .from('umbrella_access_assignments')
+    .select('role_id')
+    .eq('staff_id', staffId)
+    .or(notExpiredFilter())
+  const roleIds = [...(assignments ?? []), ...(umbrellaAssignments ?? [])].map(a => a.role_id)
   if (roleIds.length === 0) return false
 
   const { data: perms } = await supabaseAdmin

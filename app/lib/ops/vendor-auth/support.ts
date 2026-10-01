@@ -16,12 +16,18 @@ export type StaffLite = { id: string; name: string; email: string }
 /** Staff holding `permissionKey` on this event through a role assigned to the event (or globally). */
 export async function getStaffWithPermission(eventId: string, permissionKey: string): Promise<StaffLite[]> {
   const nowIso = new Date().toISOString()
-  const { data: assignments } = await supabaseAdmin
+  const { data: eventAssignments } = await supabaseAdmin
     .from('event_access_assignments')
     .select('role_id, staff_members!staff_id(id, name, email)')
     .or(`event_id.eq.${eventId},event_id.is.null`)
     .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
-  if (!assignments?.length) return []
+  // Roles granted at the umbrella this event belongs to count too (umbrella_access_assignments).
+  const { data: ev } = await supabaseAdmin.from('events').select('umbrella_id').eq('id', eventId).maybeSingle()
+  const { data: umbrellaAssignments } = ev?.umbrella_id
+    ? await supabaseAdmin.from('umbrella_access_assignments').select('role_id, staff_members!staff_id(id, name, email)').eq('umbrella_id', ev.umbrella_id).or(`expires_at.is.null,expires_at.gt.${nowIso}`)
+    : { data: [] as typeof eventAssignments }
+  const assignments = [...(eventAssignments ?? []), ...(umbrellaAssignments ?? [])]
+  if (!assignments.length) return []
 
   const roleIds = [...new Set(assignments.map(a => a.role_id))]
   const { data: perms } = await supabaseAdmin.from('access_role_permissions').select('role_id, permission_key').in('role_id', roleIds)

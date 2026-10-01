@@ -39,6 +39,7 @@ export default function UmbrellaShell({ umbrellaId, name, isAdmin, canOps, child
         <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', margin: '4px 0 12px', paddingLeft: '12px', lineHeight: 1.3 }}>{name}</div>
         <div style={{ display: 'grid', gap: '2px' }}>
           {isAdmin && <Link href={base} style={linkStyle(pathname === base)}>Overview</Link>}
+          {isAdmin && <Link href={`${base}/access`} style={linkStyle(pathname === `${base}/access`)}>Access</Link>}
           {canOps && (
             <div>
               <Link href={opsBase} style={linkStyle(pathname === opsBase)}>Operations</Link>

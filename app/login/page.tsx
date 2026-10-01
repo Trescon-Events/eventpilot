@@ -120,9 +120,6 @@ export default function LoginPage() {
             Manage Events<br />
             <span style={{ color: C.lime }}>Intelligently!</span>
           </h1>
-          <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.75)', lineHeight: 1.7, margin: 0, maxWidth: '400px' }}>
-            Event Pilot brings speakers, announcements, approvals and operations together for every Trescon event.
-          </p>
         </div>
 
         {/* Bottom: offices */}

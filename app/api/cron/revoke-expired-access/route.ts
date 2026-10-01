@@ -93,5 +93,15 @@ export async function GET(req: NextRequest) {
   const assignmentsRevoked = assignErr ? 0 : (expiredAssignments ?? []).length
   if (assignErr) failures.push({ id: 'event_access_assignments', err: assignErr.message })
 
-  return NextResponse.json({ ok: true, revoked, assignmentsRevoked, failed: failures.length, failures })
+  // Umbrella-level grants (umbrella_access_assignments) expire the same way.
+  const { data: expiredUmbrella, error: umbErr } = await supabaseAdmin
+    .from('umbrella_access_assignments')
+    .delete()
+    .not('expires_at', 'is', null)
+    .lte('expires_at', nowIso)
+    .select('id')
+  if (umbErr) failures.push({ id: 'umbrella_access_assignments', err: umbErr.message })
+  const umbrellaAssignmentsRevoked = umbErr ? 0 : (expiredUmbrella ?? []).length
+
+  return NextResponse.json({ ok: true, revoked, assignmentsRevoked, umbrellaAssignmentsRevoked, failed: failures.length, failures })
 }
