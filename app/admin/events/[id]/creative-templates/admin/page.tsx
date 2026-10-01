@@ -774,6 +774,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                                 pushUndo={pushUndo}
                                 discardLastUndo={discardLastUndo}
                                 eventId={eventId}
+                                variantCategory={activeVariant.category}
                                 allLayers={activeVariant.layers}
                                 canvasWidth={activeVariant.canvas_width}
                                 canvasHeight={activeVariant.canvas_height}
@@ -938,8 +939,9 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   )
 }
 
-function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onToggleExpand, diagnostics, onChange, onDelete, pushUndo, discardLastUndo, eventId, allLayers, canvasWidth, canvasHeight }: {
+function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onToggleExpand, diagnostics, onChange, onDelete, pushUndo, discardLastUndo, eventId, allLayers, canvasWidth, canvasHeight, variantCategory }: {
   layer: Layer
+  variantCategory?: Variant['category']
   index: number
   total: number
   activeType: StakeholderKind
@@ -980,7 +982,7 @@ function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onTog
         {expanded && (
           <div style={{ padding: '12px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             {layer.type === 'image' && <ImageLayerFields layer={layer} onChange={onChange as (patch: Partial<ImageLayer>) => void} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} canvasWidth={canvasWidth} canvasHeight={canvasHeight} />}
-            {layer.type === 'photo_slot' && <PhotoSlotLayerFields layer={layer} activeType={activeType} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} canvasWidth={canvasWidth} canvasHeight={canvasHeight} />}
+            {layer.type === 'photo_slot' && <PhotoSlotLayerFields layer={layer} activeType={activeType} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} canvasWidth={canvasWidth} canvasHeight={canvasHeight} variantCategory={variantCategory} />}
             {layer.type === 'text' && <TextLayerFields layer={layer} activeType={activeType} brandFonts={brandFonts} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} allLayers={allLayers} />}
           </div>
         )}
@@ -1291,9 +1293,10 @@ function computeFootroomWarning(layer: PhotoSlotLayer): { footroomPct: number } 
   return footroomPct < LOW_FOOTROOM_THRESHOLD ? { footroomPct } : null
 }
 
-function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLastUndo, eventId, canvasWidth, canvasHeight }: {
+function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLastUndo, eventId, canvasWidth, canvasHeight, variantCategory }: {
   layer: PhotoSlotLayer; activeType: StakeholderKind; onChange: (patch: Partial<PhotoSlotLayer>) => void
   pushUndo: () => void; discardLastUndo: () => void; eventId: string; canvasWidth: number; canvasHeight: number
+  variantCategory?: Variant['category']
 }) {
   const sourceOptions: PhotoSlotLayer['source'][] = activeType === 'speaker' ? ['speaker_photo', 'speaker_logo'] : ['partner_logo']
   const [analyzing, setAnalyzing] = useState(false)
@@ -1381,6 +1384,15 @@ function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLa
           {sourceOptions.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
         </Select>
       </label>
+
+      {/* Monochrome speaker photo (2026-10-01, DFS) — per template, because each template has its own photo
+          layer. Announcement creatives only: Website Photo variants render through a separate path and stay in colour. */}
+      {isPhoto && variantCategory !== 'website_photo' && (
+        <label style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'flex-start', gap: '6px', cursor: 'pointer', lineHeight: 1.4 }}>
+          <input type="checkbox" checked={!!layer.monochrome} onChange={e => onChange({ monochrome: e.target.checked })} style={{ marginTop: '1px', width: '16px', height: '16px', flexShrink: 0 }} />
+          <span>Monochrome (black &amp; white) speaker photo — applies to creatives generated from this template. Click Generate Preview to see it; already-generated announcements keep their colour until regenerated.</span>
+        </label>
+      )}
 
       <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '6px' }}>
         <label style={{ padding: '7px 14px', borderRadius: '8px', border: '1.5px solid var(--border)', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', width: 'fit-content' }}>

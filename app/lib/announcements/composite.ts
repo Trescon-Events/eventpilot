@@ -19,6 +19,7 @@ import { alignAndCropPhoto, type PhotoAlignmentMeta, type HeadBox } from '@/app/
 import { wrapAndFit } from '@/app/lib/announcements/text-layout'
 import { withTextLayerDefaults } from '@/app/lib/announcements/text-layer-defaults'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
+import { toMonochrome } from '@/app/lib/media/monochrome'
 
 export { withTextLayerDefaults, type LegacyTextLayer } from '@/app/lib/announcements/text-layer-defaults'
 
@@ -58,6 +59,10 @@ export type PhotoSlotLayer = {
   // call (a real bug Madhu hit live: a reference photo looked "misaligned"
   // then "even more distorted" after only two regenerates).
   reference_head_box?: HeadBox | null
+  // Render the speaker photo in black & white (2026-10-01, DFS). Only applies when source is
+  // 'speaker_photo' (never logos) and only to announcement creatives (promo/self_promo) — the
+  // website_photo category renders through its own path (composite-on-background.ts) and stays in colour.
+  monochrome?: boolean
 }
 
 export type TextLayerFont = {
@@ -436,12 +441,13 @@ export async function compositeAnnouncement(
             ...layer.alignment,
             box: { x: layer.x, y: layer.y, width: layer.width, height: layer.height },
           }, asset.head_box)
-          return { input: cropped, left: layer.x, top: layer.y }
+          return { input: layer.monochrome ? await toMonochrome(cropped) : cropped, left: layer.x, top: layer.y }
         }
 
-        const resized = await sharp(assetBuffer)
+        let resized: Buffer = await sharp(assetBuffer)
           .resize(layer.width, layer.height, { fit: 'inside', withoutEnlargement: false })
           .toBuffer()
+        if (layer.monochrome && layer.source === 'speaker_photo') resized = await toMonochrome(resized)
 
         const metadata = await sharp(resized).metadata()
         const assetWidth = metadata.width ?? layer.width
