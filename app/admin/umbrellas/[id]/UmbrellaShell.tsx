@@ -5,8 +5,9 @@ import { usePathname } from 'next/navigation'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 
 /* Left-panel navigation for an umbrella's workspace — same look as the event workspace's panel
-   (app/admin/events/[id]/page.tsx). Only what the person can use is listed (see layout.tsx). It also
-   registers the umbrella's real name for the breadcrumb, so the trail never shows the raw id. */
+   (app/admin/events/[id]/page.tsx). Only what the person can use is listed (see layout.tsx): a platform admin
+   gets Event Details, Reference Documents, Events and Access as well; an Operations user gets Operations only.
+   It also registers the umbrella's real name for the breadcrumb, so the trail never shows the raw id. */
 
 function linkStyle(active: boolean): React.CSSProperties {
   return {
@@ -21,14 +22,17 @@ const subStyle = (active: boolean): React.CSSProperties => ({
   color: active ? 'var(--teal-mid)' : 'var(--ink3)', textDecoration: 'none',
 })
 
-export default function UmbrellaShell({ umbrellaId, name, isAdmin, canOps, children }: {
-  umbrellaId: string; name: string; isAdmin: boolean; canOps: boolean; children: React.ReactNode
+export type UmbrellaNavChild = { id: string; name: string }
+
+export default function UmbrellaShell({ umbrellaId, name, isAdmin, canOps, children: pageChildren, events }: {
+  umbrellaId: string; name: string; isAdmin: boolean; canOps: boolean; children: React.ReactNode; events: UmbrellaNavChild[]
 }) {
   useBreadcrumbLabel(umbrellaId, name)
   const pathname = usePathname().replace(/\/+$/, '')
   const base = `/admin/umbrellas/${umbrellaId}`
   const opsBase = `${base}/operations`
   const inOps = pathname === opsBase || pathname.startsWith(opsBase + '/')
+  const opsSub = (suffix: string) => inOps && pathname === `${opsBase}/${suffix}`
 
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '20px 0 0 20px' }}>
@@ -38,20 +42,32 @@ export default function UmbrellaShell({ umbrellaId, name, isAdmin, canOps, child
         </div>
         <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', margin: '4px 0 12px', paddingLeft: '12px', lineHeight: 1.3 }}>{name}</div>
         <div style={{ display: 'grid', gap: '2px' }}>
-          {isAdmin && <Link href={base} style={linkStyle(pathname === base)}>Overview</Link>}
-          {isAdmin && <Link href={`${base}/access`} style={linkStyle(pathname === `${base}/access`)}>Access</Link>}
+          <Link href={base} style={linkStyle(pathname === base)}>Overview</Link>
+          {isAdmin && <Link href={`${base}/details`} style={linkStyle(pathname === `${base}/details`)}>Event Details</Link>}
+          {isAdmin && <Link href={`${base}/reference-docs`} style={linkStyle(pathname === `${base}/reference-docs`)}>Reference Documents</Link>}
+          {isAdmin && events.length > 0 && (
+            <div>
+              <div style={{ ...linkStyle(false), cursor: 'default', borderLeft: '2.5px solid transparent' }}>Events</div>
+              <div style={{ paddingLeft: '14px', marginTop: '2px', display: 'grid', gap: '1px' }}>
+                {events.map(e => <Link key={e.id} href={`/admin/events/${e.id}`} style={subStyle(false)}>{e.name}</Link>)}
+              </div>
+            </div>
+          )}
           {canOps && (
             <div>
               <Link href={opsBase} style={linkStyle(pathname === opsBase)}>Operations</Link>
               <div style={{ paddingLeft: '14px', marginTop: '2px', display: 'grid', gap: '1px' }}>
-                <Link href={`${opsBase}/licenses`} style={subStyle(inOps && pathname.endsWith('/licenses'))}>Licences</Link>
-                <Link href={`${opsBase}/vendors`} style={subStyle(inOps && pathname.endsWith('/vendors'))}>Vendors</Link>
+                <Link href={`${opsBase}/licenses`} style={subStyle(opsSub('licenses'))}>Licences</Link>
+                <Link href={`${opsBase}/vendors`} style={subStyle(opsSub('vendors'))}>Vendors</Link>
+                <Link href={`${opsBase}/badges`} style={subStyle(inOps && pathname.startsWith(`${opsBase}/badges`))}>Badge Printing</Link>
+                <Link href={`${opsBase}/access`} style={subStyle(opsSub('access'))}>Access</Link>
               </div>
             </div>
           )}
+          {isAdmin && <Link href={`${base}/access`} style={linkStyle(pathname === `${base}/access`)}>Access</Link>}
         </div>
       </nav>
-      <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>{pageChildren}</div>
     </div>
   )
 }

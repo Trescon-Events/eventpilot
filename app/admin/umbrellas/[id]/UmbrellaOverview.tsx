@@ -1,276 +1,74 @@
-'use client'
-
-import { useState, useEffect, use } from 'react'
-import PageHeader from '@/app/components/PageHeader'
 import Link from 'next/link'
-import EventDaysCard from '@/app/admin/operations-shared/EventDaysCard'
-import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
-import { Button, Card } from '@/app/components/ui'
-import {
-  DraftReview, LiveDocView, DOC_ROLE_LABELS, UploadDocButton,
-  type MessagingDoc, type DocRole, type UploadChoice,
-} from '@/app/admin/events/[id]/details/page'
+import { supabaseAdmin } from '@/app/lib/supabase'
 
-/* Umbrella/event separation (2026-09-11) — a real event_umbrellas row
-   (see supabase/umbrella_events_separation_migration.sql), a deliberately
-   SIMPLIFIED workspace: Common Details, Content Approval (no "inherit"
-   option here — an umbrella is the top of the hierarchy, nothing above it
-   to inherit from), Reference Documents (style guide / messaging /
-   production pack, reusing the exact same review/clarification/
-   suggested-rules UI the event details page uses, via owner_type=umbrella
-   on every call), Content Check, and its child events for navigation.
-   Deliberately does NOT get Stakeholder Hub, Brief, Plan, Execution,
-   Website Builder, Brand Studio, Market Intel, Commercial, or
-   Integrations — none of those make sense for a pure grouping construct;
-   that's the whole point of this page existing separately from
-   app/admin/events/[id]/details/page.tsx rather than reusing it wholesale. */
+/* Umbrella workspace hub (2026-10-02) — mirrors the event workspace's hub: a header and a grid of module tiles. Each person
+   sees only the tiles they can use (decided by the layout and passed in): an Operations user sees the Operations tile and
+   nothing else; a platform admin sees Event Details, Reference Documents, Access and the child event workspaces too. */
 
-type UmbrellaRow = {
-  id: string; name: string; client_name: string | null; status: string
-  event_date: string | null; end_date: string | null; description: string | null
-  type: string | null; requires_client_approval: boolean | null
-  children: Array<{ id: string; name: string; type: string | null; status: string; client_name: string | null }>
+const fmt = (iso: string | null) => (iso ? new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : null)
+const fmtRange = (a: string | null, b: string | null) => (a && b && a !== b ? `${fmt(a)} – ${fmt(b)}` : fmt(a) ?? 'Dates not set')
+
+function Tile({ href, icon, title, description, tint }: { href: string; icon: string; title: string; description: string; tint: string }) {
+  return (
+    <Link href={href} style={{ textDecoration: 'none' }}>
+      <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', padding: '14px 16px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)', height: '100%' }}>
+        <div style={{ width: '34px', height: '34px', borderRadius: '9px', background: tint, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', flexShrink: 0 }}>{icon}</div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)' }}>{title}</div>
+          <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '3px', lineHeight: 1.5 }}>{description}</div>
+        </div>
+      </div>
+    </Link>
+  )
 }
 
-function getSession() {
-  if (typeof document === 'undefined') return null
-  const raw = document.cookie.split('; ').find(c => c.startsWith('tcs_session='))?.split('=')[1]
-  if (!raw) return null
-  try { return JSON.parse(atob(raw)) as { sid: string } } catch { return null }
-}
-
-export default function UmbrellaPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id: umbrellaId } = use(params)
-  const session = getSession()
-
-  const [permissions, setPermissions] = useState<Set<string>>(new Set())
-  const [umbrella, setUmbrella] = useState<UmbrellaRow | null>(null)
-  const [editForm, setEditForm] = useState({ name: '', client_name: '', status: 'planning', event_date: '', end_date: '', description: '' })
-  const [docs, setDocs] = useState<MessagingDoc[]>([])
-  const [uploadRole, setUploadRole] = useState<DocRole>('style_guide')
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [msg, setMsg] = useState<string | null>(null)
-  const [msgIsError, setMsgIsError] = useState(false)
-
-  const [checkText, setCheckText] = useState('')
-  const [checkFindings, setCheckFindings] = useState<Array<{ rule_key: string; severity: 'error' | 'warning'; message: string; source_clause: string | null; match: string }> | null>(null)
-  const [checking, setChecking] = useState(false)
-
-  const can = (key: string) => permissionSetSatisfies(permissions, key)
-  // A Corporate Marketing Director decision, not a producer one — every
-  // document here changes every child event's effective document set at
-  // once. See app/api/events/stakeholders/messaging/route.ts POST.
-  const canManage = can('sae.messaging.umbrella_manage')
-
-  async function loadAll() {
-    const [permRes, umbrellaRes, docsRes] = await Promise.all([
-      fetch(`/api/events/access/me?event_id=${umbrellaId}`).then(r => r.json()).catch(() => ({ permissions: [] })),
-      fetch(`/api/events/umbrellas?id=${umbrellaId}`).then(r => r.json()).catch(() => null),
-      fetch(`/api/events/stakeholders/messaging?event_id=${umbrellaId}&owner_type=umbrella&all=true`).then(r => r.json()).catch(() => []),
-    ])
-    setPermissions(new Set(permRes.permissions ?? []))
-    setUmbrella(umbrellaRes ?? null)
-    if (umbrellaRes) {
-      setEditForm({
-        name: umbrellaRes.name ?? '', client_name: umbrellaRes.client_name ?? '', status: umbrellaRes.status ?? 'planning',
-        event_date: umbrellaRes.event_date ?? '', end_date: umbrellaRes.end_date ?? '', description: umbrellaRes.description ?? '',
-      })
-    }
-    setDocs(Array.isArray(docsRes) ? docsRes : [])
-  }
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount, matches the event details page's own pattern
-    setLoading(true)
-    loadAll().finally(() => setLoading(false))
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadAll is stable for this effect's purpose (mount + umbrellaId change only)
-  }, [umbrellaId])
-
-  async function saveDetails() {
-    setSaving(true); setMsg(null)
-    const res = await fetch(`/api/events/umbrellas?id=${umbrellaId}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editForm),
-    })
-    const data = await res.json().catch(() => ({}))
-    setSaving(false)
-    if (res.ok) { setMsg('Saved.'); setMsgIsError(false); await loadAll() }
-    else { setMsg(data.error ?? 'Save failed.'); setMsgIsError(true) }
-  }
-
-  async function saveRequiresClientApproval(value: boolean) {
-    setSaving(true); setMsg(null)
-    const res = await fetch(`/api/events/umbrellas?id=${umbrellaId}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requires_client_approval: value }),
-    })
-    setSaving(false)
-    if (res.ok) { setMsg('Saved.'); setMsgIsError(false); await loadAll() } else { setMsg('Save failed.'); setMsgIsError(true) }
-  }
-
-  async function uploadDoc(file: File, choice: UploadChoice) {
-    setSaving(true); setMsg(null)
-    const form = new FormData()
-    form.append('event_id', umbrellaId)
-    form.append('owner_type', 'umbrella')
-    form.append('file', file)
-    form.append('role', uploadRole)
-    form.append('authority_rank', String(choice.rank))
-    form.append('provenance', choice.provenance)
-    if (session?.sid) form.append('uploaded_by', session.sid)
-    const res = await fetch('/api/events/stakeholders/messaging', { method: 'POST', body: form })
-    setSaving(false)
-    if (res.ok) { await loadAll(); setMsg('Uploaded — review the draft below before it goes live.'); setMsgIsError(false) }
-    else { const data = await res.json().catch(() => ({})); setMsg(data.error ?? 'Upload failed.'); setMsgIsError(true) }
-  }
-
-  async function checkCopy() {
-    if (!checkText.trim() || checking) return
-    setChecking(true); setCheckFindings(null)
-    const res = await fetch('/api/events/stakeholders/content/validate', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event_id: umbrellaId, owner_type: 'umbrella', text: checkText }),
-    })
-    const data = await res.json().catch(() => ({}))
-    setChecking(false)
-    setCheckFindings(data.findings ?? [])
-  }
-
-  if (loading) return <div style={{ padding: '40px', textAlign: 'center', color: 'var(--ink3)' }}>Loading…</div>
-  if (!umbrella) return <div style={{ padding: '40px', textAlign: 'center', color: 'var(--red)' }}>Umbrella event not found.</div>
+export default async function UmbrellaOverview({ umbrellaId, isAdmin, canOps }: { umbrellaId: string; isAdmin: boolean; canOps: boolean }) {
+  const [{ data: u }, { data: kids }] = await Promise.all([
+    supabaseAdmin.from('event_umbrellas').select('id, name, client_name, status, event_date, end_date, description').eq('id', umbrellaId).maybeSingle(),
+    supabaseAdmin.from('events').select('id, name, status, event_date, end_date, city').eq('umbrella_id', umbrellaId).order('event_date', { ascending: true }),
+  ])
+  if (!u) return <div style={{ padding: '40px', textAlign: 'center', color: 'var(--red)' }}>Umbrella event not found.</div>
+  const base = `/admin/umbrellas/${umbrellaId}`
+  const children = kids ?? []
 
   return (
-    <div style={{ maxWidth: '900px', margin: '0 auto', padding: '24px 32px' }}>
-      <PageHeader eyebrow="Umbrella Event" title={umbrella.name} description="A grouping of related events sharing top-level reference documents and content rules — not a producible event itself." />
-
-      {msg && <div style={{ marginBottom: '12px', fontSize: '13px', color: msgIsError ? 'var(--red)' : 'var(--success)' }}>{msg}</div>}
-
-      <Card padded>
-        <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '14px' }}>Common Details</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-          <div>
-            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>Name</label>
-            <input disabled={!canManage} value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
-              style={{ width: '100%', fontSize: '13px', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-          </div>
-          <div>
-            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>Client</label>
-            <input disabled={!canManage} value={editForm.client_name} onChange={e => setEditForm(f => ({ ...f, client_name: e.target.value }))}
-              style={{ width: '100%', fontSize: '13px', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-          </div>
-          <div style={{ gridColumn: '1/-1' }}>
-            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>Description / Notes</label>
-            <textarea disabled={!canManage} value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} rows={3}
-              style={{ width: '100%', fontSize: '13px', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
-          </div>
+    <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '8px 32px 48px' }}>
+      <div style={{ padding: '22px 0 20px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.8px', textTransform: 'uppercase', color: 'var(--teal-mid)' }}>Umbrella Event</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', margin: '6px 0 6px' }}>
+          <h1 style={{ fontSize: '26px', fontWeight: 800, color: 'var(--ink)', margin: 0 }}>{u.name}</h1>
+          <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'capitalize', padding: '4px 10px', borderRadius: '999px', background: 'var(--teal-light)', color: 'var(--teal-mid)' }}>{u.status}</span>
         </div>
-        {canManage && (
-          <div style={{ marginTop: '14px' }}>
-            <Button variant="lime" onClick={saveDetails} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
-          </div>
-        )}
-      </Card>
-
-      <Card padded>
-        <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '4px' }}>Content Approval</div>
-        <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '14px' }}>
-          When on, this becomes the default for every child event that doesn&apos;t explicitly override it — client sign-off is required before internal approval or publish.
+        <div style={{ fontSize: '13.5px', color: 'var(--ink3)' }}>
+          {[u.client_name, fmtRange(u.event_date, u.end_date), `${children.length} event${children.length === 1 ? '' : 's'}`].filter(Boolean).join('  ·  ')}
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          {([['on', 'Require', true], ['off', "Don't require", false]] as const).map(([key, label, value]) => {
-            const selected = !!umbrella.requires_client_approval === value && (umbrella.requires_client_approval !== null)
-            return (
-              <button key={key} disabled={!canManage || saving} onClick={() => saveRequiresClientApproval(value)}
-                style={{ padding: '8px 14px', borderRadius: '8px', fontSize: '12.5px', fontWeight: 700, cursor: canManage ? 'pointer' : 'default', fontFamily: 'inherit', border: selected ? '1.5px solid var(--teal-mid)' : '1px solid var(--border)', background: selected ? 'var(--teal-light)' : 'var(--card)', color: selected ? 'var(--teal-mid)' : 'var(--ink2)' }}>
-                {label}
-              </button>
-            )
-          })}
-        </div>
-      </Card>
-
-      <Card padded>
-        <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '10px' }}>Operations</div>
-        <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '12px', lineHeight: 1.6 }}>
-          Speaker licences for every event in {umbrella.name} are processed together here — one list, one set of vendors and batches.
-        </div>
-        <Link href={`/admin/umbrellas/${umbrella.id}/operations`} style={{ textDecoration: 'none' }}><Button variant="teal">Open Operations</Button></Link>
-      </Card>
-
-      <EventDaysCard kind="umbrella" id={umbrella.id} canEdit />
-
-      {umbrella.children.length > 0 && (
-        <Card padded>
-          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '10px' }}>Child Events ({umbrella.children.length})</div>
-          <div style={{ display: 'grid', gap: '4px' }}>
-            {umbrella.children.map(c => (
-              <a key={c.id} href={`/admin/events/${c.id}/details`} style={{ fontSize: '13px', color: 'var(--teal-mid)', textDecoration: 'none', padding: '6px 0' }}>
-                {c.name} <span style={{ fontSize: '11px', color: 'var(--ink4)' }}>· {c.client_name}</span>
-              </a>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', margin: '24px 0 12px' }}>Reference Documents</div>
-      <div style={{ marginBottom: '16px' }}>
-        {canManage && (
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <select value={uploadRole} onChange={e => setUploadRole(e.target.value as DocRole)}
-              style={{ fontSize: '12px', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontFamily: 'inherit' }}>
-              {(Object.keys(DOC_ROLE_LABELS) as DocRole[]).map(r => <option key={r} value={r}>{DOC_ROLE_LABELS[r]}</option>)}
-            </select>
-            <UploadDocButton role={uploadRole} saving={saving}
-              existing={docs.filter(d => d.status === 'live').map(d => ({ role: d.role, authority_rank: d.authority_rank, provenance: d.provenance }))}
-              onPicked={(f, choice) => uploadDoc(f, choice)} />
-          </div>
-        )}
-        {!canManage && (
-          <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>Managing umbrella-level documents requires the umbrella-manage permission — it changes every child event at once.</div>
-        )}
+        {u.description && <div style={{ fontSize: '13.5px', color: 'var(--ink2)', marginTop: '8px', maxWidth: '720px', lineHeight: 1.6 }}>{u.description}</div>}
       </div>
 
-      {(['style_guide', 'messaging', 'production_pack'] as DocRole[]).map(role => {
-        const roleLive = docs.find(d => d.role === role && d.status === 'live') ?? null
-        const roleDraft = docs.filter(d => d.role === role && d.status === 'draft').sort((a, b) => b.version - a.version)[0] ?? null
-        if (!roleLive && !roleDraft) return null
-        return (
-          <div key={role} style={{ marginBottom: '16px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '8px' }}>{DOC_ROLE_LABELS[role]}</div>
-            {roleDraft && (
-              <Card padded color="amber">
-                <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--amber)', letterSpacing: '0.6px', textTransform: 'uppercase', marginBottom: '8px' }}>
-                  Draft v{roleDraft.version} — review before it goes live
-                </div>
-                <DraftReview doc={roleDraft} canManage={canManage} session={session} onApproved={loadAll} />
-              </Card>
-            )}
-            {roleLive && !roleDraft && (
-              <LiveDocView doc={roleLive} canManage={canManage} session={session} onUpdated={loadAll} />
-            )}
-          </div>
-        )
-      })}
+      <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--ink4)', margin: '4px 0 10px' }}>Modules</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+        {canOps && <Tile href={`${base}/operations`} icon="⚙" tint="color-mix(in srgb, var(--amber) 16%, transparent)" title="Operations" description="Speaker licences, vendors and badge printing for every event in this umbrella, and who handles each section." />}
+        {isAdmin && <Tile href={`${base}/details`} icon="◈" tint="color-mix(in srgb, var(--teal-mid) 16%, transparent)" title="Event Details" description="Name, client, status and dates; content approval; event days; the dates of each event under it." />}
+        {isAdmin && <Tile href={`${base}/reference-docs`} icon="❏" tint="color-mix(in srgb, var(--purple) 16%, transparent)" title="Reference Documents" description="Style guide, messaging document and production pack shared by every event, plus a copy checker." />}
+        {isAdmin && <Tile href={`${base}/access`} icon="⚿" tint="color-mix(in srgb, var(--red) 14%, transparent)" title="Access" description="Give someone a role across every event in this umbrella." />}
+      </div>
 
-      <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', margin: '24px 0 12px' }}>Content Check</div>
-      <Card padded>
-        <textarea value={checkText} onChange={e => setCheckText(e.target.value)} placeholder="Paste copy here to check against this umbrella's rules…" rows={6}
-          style={{ width: '100%', fontSize: '13px', fontFamily: 'inherit', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', resize: 'vertical', boxSizing: 'border-box' }} />
-        <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'flex-end' }}>
-          <Button variant="lime" onClick={checkCopy} disabled={checking || !checkText.trim()}>{checking ? 'Checking…' : 'Check copy'}</Button>
-        </div>
-        {checkFindings !== null && (
-          <div style={{ marginTop: '14px', display: 'grid', gap: '8px' }}>
-            {checkFindings.length === 0 && <div style={{ fontSize: '13px', color: 'var(--success)', textAlign: 'center' }}>No findings.</div>}
-            {checkFindings.map((f, i) => (
-              <div key={i} style={{ padding: '8px 12px', borderRadius: '8px', background: 'var(--surface)', border: '1px solid var(--border)' }}>
-                <span style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: f.severity === 'error' ? 'var(--red)' : 'var(--amber)' }}>{f.severity}</span>
-                <div style={{ fontSize: '13px', color: 'var(--ink)', marginTop: '2px' }}>{f.message}</div>
-                <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '2px' }}>Matched: <code>{f.match}</code>{f.source_clause && ` · ${f.source_clause}`}</div>
-              </div>
+      {isAdmin && children.length > 0 && (
+        <>
+          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--ink4)', margin: '30px 0 10px' }}>Events in this umbrella</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+            {children.map(c => (
+              <Link key={c.id} href={`/admin/events/${c.id}`} style={{ textDecoration: 'none' }}>
+                <div style={{ padding: '14px 16px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)', height: '100%' }}>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)' }}>{c.name}</div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '4px' }}>{fmtRange(c.event_date, c.end_date)}{c.city ? ` · ${c.city}` : ''}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--teal-mid)', marginTop: '8px', fontWeight: 700 }}>Open event workspace →</div>
+                </div>
+              </Link>
             ))}
           </div>
-        )}
-      </Card>
+        </>
+      )}
     </div>
   )
 }
