@@ -42,6 +42,13 @@ Madhu + Claude Code (Sonnet 5.5). **Nothing from this section is committed or pu
 - Tested: service + HTTP end to end with real DFS speakers (render, flags, adjust, approve, PDF, download, delete). **Not yet tested:** a 100-badge batch (est. ~110 MB PDF, several minutes), killing the server mid-job, a view-only user.
 - Known/open: cutout specks (faint pixels above hair on some cleaned photos) are not auto-removed; no "layer above the photo is fully opaque" warning on upload; real photos are 1024 px (~380 ppi at DFS head size, fine).
 
+### Umbrella workspace redesigned like an event workspace (2 Oct, late — UNCOMMITTED)
+- `/admin/umbrellas/[id]` is now a **hub of module tiles** (server component `UmbrellaOverview.tsx`): Operations, Event Details, Reference Documents, Access, plus a card per child event linking to its workspace. Left nav (`UmbrellaShell.tsx`) lists the same, plus an "Events" group and the Ops sub-pages (Licences, Vendors, **Badge Printing**, **Access**).
+- The old long Overview page is split: `/details` (`UmbrellaDetails.tsx`: common details with **status + cycle dates now editable**, content approval, Event Days card, child events with their dates) and `/reference-docs` (`UmbrellaReferenceDocs.tsx`: reference documents + content check). Both, and `/access`, are platform-admin only.
+- **Operations-only people see only the Operations tile/nav** (no redirect any more); the layout also admits section-assignment-only people. Verified by script: ops-only user can open the hub, `/operations`, `/operations/badges`, `/operations/access`; blocked from `/details`, `/reference-docs`, `/access`; outsider refused.
+- **Hardening:** `PATCH /api/events/umbrellas` now needs admin or `sae.messaging.umbrella_manage` and only writes whitelisted columns (it used to write any body for any signed-in user). Still open: `GET /api/events/stakeholders/messaging?owner_type=umbrella` has no permission check (event pages read it for inherited docs).
+- Registry breadcrumb entries added for the new umbrella pages.
+
 ### Badge phase 2 — picker, producer → Ops → print vendor hand-off, Ops section assignments (2 Oct, evening; also UNCOMMITTED)
 - Migration `supabase/badge_dispatch_migration.sql` **applied to production by Madhu** (tables `badge_print_dispatches`, `ops_section_assignments`; `notifications` gained `link/event_id/umbrella_id`).
 - **New batch picker** (`stakeholders/badges/page.tsx`): full screen table; Name + cleaned Photo are required (checkbox disabled, server also refuses); Title/Company/Country shown as Missing and flagged later; **Badge** column Created / Sent to Printer / Printed (`speakerBadgeStatus` in `app/api/events/badges/batches/route.ts`).
