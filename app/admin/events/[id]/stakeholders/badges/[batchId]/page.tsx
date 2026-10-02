@@ -315,14 +315,16 @@ function modalShell(children: React.ReactNode, onClose: () => void, width = 560)
 
 function AdjustModal({ item, onClose, onApply, canvas }: { item: BadgeItemRow; onClose: () => void; onApply: (o: BadgeOverrides) => Promise<BadgeItemRow | null>; canvas: { w: number; h: number } }) {
   const o = item.overrides ?? {}
-  const [text, setText] = useState({ name: o.name ?? '', title: o.title ?? '', company: o.company ?? '', country: o.country ?? '' })
+  const frozen = { name: item.name ?? '', title: item.title ?? '', company: item.company ?? '', country: item.country ?? '' }
+  // The boxes start with what the badge currently says (an earlier adjustment, else the speaker's own text) so it can be edited in place.
+  const [text, setText] = useState({ name: o.name ?? frozen.name, title: o.title ?? frozen.title, company: o.company ?? frozen.company, country: o.country ?? frozen.country })
   const [photo, setPhoto] = useState({ dx: o.photo?.dx ?? 0, dy: o.photo?.dy ?? 0, zoom: o.photo?.zoom ?? 1 })
   const [working, setWorking] = useState(false)
-  const frozen = { name: item.name ?? '', title: item.title ?? '', company: item.company ?? '', country: item.country ?? '' }
 
   function build(): BadgeOverrides {
     const out: BadgeOverrides = {}
-    for (const k of ['name', 'title', 'company', 'country'] as const) if (text[k].trim() && text[k].trim() !== frozen[k]) out[k] = text[k].trim()
+    // Only text that differs from the speaker record is stored as an adjustment (an emptied box falls back to the record).
+    for (const k of ['name', 'title', 'company', 'country'] as const) if (text[k].trim() && text[k].trim() !== frozen[k].trim()) out[k] = text[k].trim()
     if (photo.dx || photo.dy || photo.zoom !== 1) out.photo = { dx: photo.dx, dy: photo.dy, zoom: photo.zoom }
     return out
   }
@@ -344,10 +346,13 @@ function AdjustModal({ item, onClose, onApply, canvas }: { item: BadgeItemRow; o
           ) : <div style={{ width: '190px', height: '290px', border: '1px dashed var(--border)', borderRadius: '8px' }} />}
         </div>
         <div style={{ flex: '1 1 260px', display: 'grid', gap: '10px', alignContent: 'start' }}>
-          <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>Text changes apply to this badge only; the speaker record isn&apos;t touched.</div>
+          <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.5 }}>Edit the text in place. It applies to this badge only; the speaker record isn&apos;t touched. Press <strong>Shift + Enter</strong> to start a new line (to control where a word breaks); <strong>Enter</strong> applies and previews.</div>
           {(['name', 'title', 'company', 'country'] as const).map(k => (
             <label key={k} style={{ fontSize: '13px', color: 'var(--ink3)' }}>{k === 'title' ? 'Job title' : k[0].toUpperCase() + k.slice(1)}
-              <Input value={text[k]} placeholder={frozen[k] || '—'} onChange={e => setText(t => ({ ...t, [k]: e.target.value }))} style={{ marginTop: '3px' }} />
+              <textarea value={text[k]} rows={Math.max(1, text[k].split('\n').length)}
+                onChange={e => setText(t => ({ ...t, [k]: e.target.value }))}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!working) void apply(build()) } }}
+                style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: '3px', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink)', fontSize: '14px', fontFamily: 'inherit', resize: 'none', lineHeight: 1.4 }} />
             </label>
           ))}
           <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink2)', marginTop: '4px' }}>Photo position</div>
@@ -357,7 +362,7 @@ function AdjustModal({ item, onClose, onApply, canvas }: { item: BadgeItemRow; o
         </div>
       </div>
       <div style={{ marginTop: '16px', display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-        <Button variant="ghost" disabled={working} onClick={() => { setText({ name: '', title: '', company: '', country: '' }); setPhoto({ dx: 0, dy: 0, zoom: 1 }); void apply({}) }}>Reset adjustments</Button>
+        <Button variant="ghost" disabled={working} onClick={() => { setText(frozen); setPhoto({ dx: 0, dy: 0, zoom: 1 }); void apply({}) }}>Reset adjustments</Button>
         <Button variant="ghost" onClick={onClose}>Close</Button>
         <Button variant="lime" disabled={working} onClick={() => void apply(build())}>{working ? 'Rendering…' : 'Apply & preview'}</Button>
       </div>
