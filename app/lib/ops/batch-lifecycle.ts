@@ -1,3 +1,4 @@
+import { staffForSection } from '@/app/lib/ops/section-access'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getStaffWithPermission } from '@/app/lib/ops/vendor-auth/support'
 import { sendOpsNotice, PORTAL_BASE } from '@/app/lib/ops/vendor-auth/mail'
@@ -38,7 +39,11 @@ export async function notifyOps(scope: OpsScope, subject: string, heading: strin
       for (const eventId of scope.eventIds) for (const st of await getStaffWithPermission(eventId, key)) seen.set(st.id, st.email)
       return [...seen.values()]
     }
-    let to = await collect('ops.licenses.view')
+    // People ASSIGNED to Speaker Licences (Ops > Access) are who gets told; with nobody assigned, fall back to the old rule.
+    const assigned = new Map<string, string>()
+    for (const eventId of scope.eventIds) { const r = await staffForSection(eventId, 'licenses'); if (r.assigned) for (const st of r.staff) assigned.set(st.id, st.email) }
+    let to = [...assigned.values()]
+    if (!to.length) to = await collect('ops.licenses.view')
     if (!to.length) to = await collect('ops.view')
     await sendOpsNotice({
       to, subject, heading, message,

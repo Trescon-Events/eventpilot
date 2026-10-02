@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     }, { status: 422 })
   }
 
-  const backgroundLayer = variant.layers.find((l): l is ImageLayer => l.type === 'image')
+  const backgroundLayer = variant.layers.find((l): l is ImageLayer => l.type === 'image' && !l.reference_only)
   if (!backgroundLayer?.asset_url) {
     return NextResponse.json({ error: 'The Website Photo variant has no background image set yet — add an Image layer in Admin Console → Variants' }, { status: 422 })
   }

@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (body.assign) {
-    await supabaseAdmin.from('ops_event_vendors').insert({ ...ownerFields(scope), vendor_id: vendor.id, created_by: session?.sid ?? null })
+    await supabaseAdmin.from('ops_event_vendors').insert({ ...ownerFields(scope), vendor_id: vendor.id, purpose: body.category === 'print' ? 'badge_print' : 'speaker_license', created_by: session?.sid ?? null })
   }
   return NextResponse.json({ id: vendor.id })
 }

@@ -359,7 +359,7 @@ async function doSignOut() {
 }
 
 /* ── Notification bell — self-contained, sits beside ProfileMenu ── */
-type Notif = { id: string; type: string; title: string; body: string; course_id: string | null; review_id: string | null; created_at: string }
+type Notif = { id: string; type: string; title: string; body: string; course_id: string | null; review_id: string | null; link?: string | null; created_at: string }
 
 function timeAgoShort(iso: string) {
   const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
@@ -505,7 +505,10 @@ export function NotificationBell({ staffId }: { staffId?: string }) {
               {notifs.map(n => {
                 const isReview = !!n.review_id
                 const isCourse = !!n.course_id
-                const actionHref = isReview
+                const hasLink = !!n.link
+                const actionHref = hasLink
+                  ? n.link as string
+                  : isReview
                   ? `${dashHref}#my-submissions`
                   : isCourse
                   ? `/dashboard/course/${n.course_id}${sid ? `?staff_id=${sid}` : ''}`
@@ -526,7 +529,7 @@ export function NotificationBell({ staffId }: { staffId?: string }) {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <span style={{ fontSize: '11px', color: 'var(--ink4)' }}>{timeAgoShort(n.created_at)}</span>
                         <a href={actionHref} onClick={() => dismiss(n.id)} style={{ fontSize: '11px', fontWeight: 700, color: 'var(--teal-mid)', textDecoration: 'none' }}>
-                          {isReview ? 'View report' : isCourse ? 'View course' : 'View'}
+                          {hasLink ? 'Open' : isReview ? 'View report' : isCourse ? 'View course' : 'View'}
                         </a>
                       </div>
                     </div>

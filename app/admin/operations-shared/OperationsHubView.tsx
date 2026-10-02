@@ -10,11 +10,16 @@ import EventDaysCard from './EventDaysCard'
 export default function OperationsHubView() {
   const scope = useOpsScope()
   const [info, setInfo] = useState<{ kind: 'event' | 'umbrella'; id: string; name: string } | null>(null)
+  // Badge Printing and Access appear only for people who can use them (the APIs decide).
+  const [canBadges, setCanBadges] = useState(false)
+  const [canAccess, setCanAccess] = useState(false)
   useBreadcrumbLabel(scope.id, info && info.id === scope.id ? info.name : null)
 
   useEffect(() => {
     let cancelled = false
     fetch(`/api/events/operations/vendors?${scope.query}`).then(r => r.ok ? r.json() : null).then(b => { if (!cancelled) setInfo(b?.scope ?? null) }).catch(() => {})
+    fetch(`/api/events/operations/badges?${scope.query}`).then(r => { if (!cancelled) setCanBadges(r.ok) }).catch(() => {})
+    fetch(`/api/events/operations/section-assignments?${scope.query}`).then(r => r.ok ? r.json() : null).then(b => { if (!cancelled) setCanAccess(!!b?.can_manage) }).catch(() => {})
     return () => { cancelled = true }
   }, [scope.query])
 
@@ -52,6 +57,26 @@ export default function OperationsHubView() {
               </div>
             </div>
           </Link>
+          {canBadges && (
+            <Link href={`${scope.basePath}/badges`} style={{ textDecoration: 'none' }}>
+              <div style={{ padding: '18px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)' }}>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>Badge Printing</div>
+                <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '6px', lineHeight: 1.5 }}>
+                  Review speaker badge print files from producers, send them to the print vendor and follow them to printed.
+                </div>
+              </div>
+            </Link>
+          )}
+          {canAccess && (
+            <Link href={`${workBase}/access`} style={{ textDecoration: 'none' }}>
+              <div style={{ padding: '18px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)' }}>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>Access</div>
+                <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '6px', lineHeight: 1.5 }}>
+                  Choose who handles each section (Speaker Licences, Badge Printing). They get access and the notifications.
+                </div>
+              </div>
+            </Link>
+          )}
         </div>
         <EventDaysCard kind={scope.kind} id={scope.id} />
       </div>

@@ -27,6 +27,16 @@ export type ImageLayer = {
   id: string
   type: 'image'
   asset_url: string
+  // Badge variants only (2026-10-02): the layer's true VECTOR art as a single-page PDF exported from
+  // Illustrator at the full bleed size. The print PDF embeds this as vector; `asset_url` then holds the
+  // PNG preview the app rendered from it, which is all the on-screen compositing (editor preview, review
+  // grid) ever uses.
+  print_pdf_url?: string
+  // Preview layer (2026-10-02): a mockup the branding team places text/photo against. Drawn ONLY in the template
+  // editor's Generate Preview (compositeAnnouncement's showReferenceLayers) at `reference_opacity` (default 0.5);
+  // every real render — announcements, regenerate, website photos, badges, print — skips it.
+  reference_only?: boolean
+  reference_opacity?: number
   x: number
   y: number
   width: number
@@ -218,7 +228,23 @@ export type Variant = {
   // generate route both read as an already-clean input. That version uses
   // two annotated reference images plus a mandatory second manual confirm,
   // which is what the earlier abandoned attempt lacked.
-  category?: 'promo' | 'self_promo' | 'website_photo'
+  category?: 'promo' | 'self_promo' | 'website_photo' | 'badge'
+  // 'badge' (2026-10-02) — a speaker badge printed on a PVC card (see supabase/badge_batches_migration.sql
+  // and app/lib/badges/*). Layers composite exactly like any other variant for the on-screen preview; the
+  // print PDF is built separately from `print` below, with vector layer art, outlined vector text and the
+  // common back as the last page. Never offered in the announcement pickers (they filter by exact category).
+  print?: BadgePrintSpec
+}
+
+// Physical spec of a badge variant. Page size = trim + bleed on every side (54x85 + 3mm => 60x91 mm).
+export type BadgePrintSpec = {
+  width_mm: number
+  height_mm: number
+  bleed_mm: number
+  // The common back (single-page vector PDF at the same page size), appended once as the last page of every
+  // print file; back_preview_url is the PNG the app rendered from it for display.
+  back_pdf_url?: string
+  back_preview_url?: string
 }
 
 // The Cleaning Cycle's own template (2026-08-21, replaces the abandoned
@@ -383,7 +409,8 @@ async function getOrRenderLayer(key: string, render: () => Promise<OverlayOption
 export async function compositeAnnouncement(
   variant: Variant,
   assets: ResolvedAssets,
-  texts: ResolvedTexts
+  texts: ResolvedTexts,
+  opts?: { showReferenceLayers?: boolean }
 ): Promise<Buffer> {
   // "Snap below" resolution — see TextLayer.snap_below_layer_id's doc
   // comment. Cheap (just wrapAndFit measurement, no Sharp/canvas render) and
@@ -404,6 +431,7 @@ export async function compositeAnnouncement(
   // filtered out afterward.
   const compositeOpsOrNull = await Promise.all(variant.layers.map(async (layer): Promise<OverlayOptions | null> => {
     if (layer.type === 'image') {
+      if (layer.reference_only && !opts?.showReferenceLayers) return null // preview layers never reach a real render
       if (!layer.asset_url) return null // not uploaded yet — editor can preview right after "+ Image Layer" is clicked, before a file is chosen
       const key = JSON.stringify({ t: 'image', layer, cw: variant.canvas_width, ch: variant.canvas_height })
       return getOrRenderLayer(key, async () => {
@@ -415,9 +443,13 @@ export async function compositeAnnouncement(
         // scales full-canvas art uniformly instead.
         const w = Math.max(1, Math.min(layer.width, variant.canvas_width - layer.x))
         const h = Math.max(1, Math.min(layer.height, variant.canvas_height - layer.y))
-        const resized = await sharp(buffer)
+        let resized = await sharp(buffer)
           .resize(w, h, { fit: 'cover' })
           .toBuffer()
+        if (layer.reference_only) {
+          const opacity = Math.min(1, Math.max(0.05, layer.reference_opacity ?? 0.5))
+          resized = await sharp(resized).ensureAlpha().composite([{ input: Buffer.from([255, 255, 255, Math.round(255 * opacity)]), raw: { width: 1, height: 1, channels: 4 }, tile: true, blend: 'dest-in' }]).png().toBuffer()
+        }
         return { input: resized, left: layer.x, top: layer.y }
       })
     }
@@ -513,18 +545,20 @@ export async function compositeExtraLayersOnto(
   extraLayers: Layer[],
   canvas: { canvas_width: number; canvas_height: number },
   assets: ResolvedAssets,
-  texts: ResolvedTexts
+  texts: ResolvedTexts,
+  opts?: { showReferenceLayers?: boolean }
 ): Promise<Buffer> {
   if (extraLayers.length === 0) return baseBuffer
   const overlay = await compositeAnnouncement(
     { id: '', name: '', canvas_width: canvas.canvas_width, canvas_height: canvas.canvas_height, layers: extraLayers },
     assets,
-    texts
+    texts,
+    opts
   )
   return sharp(baseBuffer).composite([{ input: overlay, left: 0, top: 0 }]).toBuffer()
 }
 
-function resolveTextValue(layer: TextLayer, texts: ResolvedTexts): string | undefined {
+export function resolveTextValue(layer: TextLayer, texts: ResolvedTexts): string | undefined {
   const raw = layer.field === 'custom' ? layer.value
     : layer.field === 'name' ? texts.name
     : layer.field === 'title' ? texts.title
@@ -571,7 +605,7 @@ async function measureTextLayerHeight(layer: TextLayer, value: string, canvasWid
 // pass regardless of array order; a cycle (should never happen from the UI,
 // which only offers layers earlier in the same variant) falls back to the
 // layer's own authored y rather than looping forever.
-async function resolveTextLayerYPositions(
+export async function resolveTextLayerYPositions(
   variant: Variant,
   texts: ResolvedTexts
 ): Promise<Map<string, number>> {
@@ -633,7 +667,7 @@ function fetchFontBuffer(url: string): Promise<Buffer | null> {
 // registering the same family twice is harmless but wasteful (network
 // fetch + native registration on every debounced preview keystroke), so
 // track what's already been registered this process.
-type RegisteredFont = { family: string; weights: number[] } // weights: sorted ascending, only genuinely distinct registered files
+type RegisteredFont = { family: string; weights: number[]; urls: Record<number, string> } // urls: weight -> font file (only the registered, distinct ones) // weights: sorted ascending, only genuinely distinct registered files
 const registeredFontFamilies = new Map<string, RegisteredFont>()
 
 // Normalizes font_weight's legacy 'normal'/'bold' shape (pre-2026-08-04
@@ -678,6 +712,7 @@ async function ensureFontRegisteredForMeasurement(font: TextLayerFont): Promise<
   if (!urlsByWeight[700] && font.bold_url) urlsByWeight[700] = font.bold_url
 
   const weights: number[] = []
+  const urls: Record<number, string> = {}
   const seenBuffers: Buffer[] = []
   // Deterministic ascending order so byte-dedup consistently favors the
   // lower weight when two "different" weights turn out to be the same file.
@@ -688,47 +723,46 @@ async function ensureFontRegisteredForMeasurement(font: TextLayerFont): Promise<
     seenBuffers.push(buffer)
     GlobalFonts.register(buffer, familyName)
     weights.push(weight)
+    urls[weight] = urlsByWeight[weight]
   }
 
-  const result: RegisteredFont = { family: familyName, weights }
+  const result: RegisteredFont = { family: familyName, weights, urls }
   registeredFontFamilies.set(familyName, result)
   return result
 }
 
-// Renders a text layer directly via @napi-rs/canvas (Skia) rather than
-// building an SVG string for Sharp/librsvg to rasterize. Real bug found
-// live (2026-07-31): librsvg (the SVG engine Sharp uses, confirmed via
-// `sharp.versions.rsvg`) does NOT reliably apply embedded base64
-// @font-face fonts — Madhu selected a real, correctly-uploaded custom
-// brand font (Space Grotesk Bold) and the render silently fell back to a
-// generic default font every time. Confirmed via a direct test: an SVG
-// with a Space Grotesk @font-face embed and one with NO font specified
-// at all rendered to byte-identical PNGs — librsvg was ignoring the
-// embedded font entirely, not a caching or data problem. @napi-rs/canvas
-// or already correctly loads custom fonts via GlobalFonts.register() —
-// this was already proven working for wrapAndFit()'s own text
-// measurement — so rendering through the SAME engine both fixes the bug
-// and removes a latent measurement/render engine mismatch risk (SVG text
-// was previously measured by one engine and rendered by a different one).
-async function renderTextLayerPng(
-  layer: TextLayer, value: string, canvasWidth: number, canvasHeight: number
-): Promise<{ buffer: Buffer; didShrink: boolean; didTruncate: boolean }> {
+export type TextLayerPlan = {
+  lines: string[]; fontSize: number; lineHeight: number
+  xPos: number; firstBaselineY: number
+  align: 'left' | 'center' | 'right'
+  color: string
+  fontFamily: string; fontWeight: number
+  fontUrl: string | null     // the file of the weight actually used (null = generic fallback font, no brand font)
+  syntheticBold: boolean
+  didShrink: boolean; didTruncate: boolean
+}
+
+// Wrap/shrink/align/position of one text layer — everything except drawing. Shared by renderTextLayerPng (canvas) and
+// the badge print PDF (outlined vector text), so a printed badge wraps and positions text exactly like the preview.
+export async function planTextLayer(layer: TextLayer, value: string): Promise<TextLayerPlan> {
   const targetWeight = resolveFontWeight(layer.font_weight)
 
   // Custom brand font if configured; falls back to a generic sans-serif
   // (unaffected for every text layer authored before Phase C v4).
   let fontFamily = 'sans-serif'
   let actualWeight = targetWeight
+  let fontUrl: string | null = null
   if (layer.font_family) {
     const registered = await ensureFontRegisteredForMeasurement(layer.font_family)
     fontFamily = registered.family
     if (registered.weights.length > 0) actualWeight = nearestWeight(registered.weights, targetWeight)
+    fontUrl = registered.urls[actualWeight] ?? null
   }
   // Only fake it when the request is MEANINGFULLY heavier than what's
   // actually available (matches how browsers only synthesize bold when no
   // real bold-ish face exists at all) — a small nearest-match gap (e.g.
   // asked for 600, only 500 on file) doesn't need faking.
-  const useSyntheticBold = targetWeight >= 600 && actualWeight < 600
+  const syntheticBold = targetWeight >= 600 && actualWeight < 600
 
   const { lines, fontSize, lineHeight, didShrink, didTruncate } = wrapAndFit(value, {
     width: layer.width,
@@ -740,12 +774,34 @@ async function renderTextLayerPng(
     allowShrink: layer.allow_shrink ?? true,
   })
 
+  const align = layer.align === 'center' ? 'center' : layer.align === 'right' ? 'right' : 'left'
+  const xPos = align === 'center' ? layer.x + layer.width / 2 : align === 'right' ? layer.x + layer.width : layer.x
+
+  // Top-anchored (2026-07-31, was vertically centered) — Madhu's feedback:
+  // centering hid where the box's own top edge actually was, so text didn't
+  // visibly start at the Y you set. Matches how every mainstream design
+  // tool (Figma, Canva, PowerPoint) anchors a text box by default — content
+  // starts at the top and grows downward, never floating away from Y.
+  const approxAscent = fontSize * 0.8
+  return { lines, fontSize, lineHeight, xPos, firstBaselineY: layer.y + approxAscent, align, color: layer.font_color, fontFamily, fontWeight: actualWeight, fontUrl, syntheticBold, didShrink, didTruncate }
+}
+
+// Renders a text layer directly via @napi-rs/canvas (Skia) rather than
+// building an SVG string for Sharp/librsvg to rasterize. (librsvg ignored embedded @font-face brand fonts —
+// found live 2026-07-31 — and rendering through the same engine as wrapAndFit's measurement removes any
+// measurement/render mismatch.)
+async function renderTextLayerPng(
+  layer: TextLayer, value: string, canvasWidth: number, canvasHeight: number
+): Promise<{ buffer: Buffer; didShrink: boolean; didTruncate: boolean }> {
+  const plan = await planTextLayer(layer, value)
+  const { lines, fontSize, lineHeight, xPos, firstBaselineY } = plan
+
   const canvas = createCanvas(canvasWidth, canvasHeight)
   const ctx = canvas.getContext('2d')
-  ctx.font = `${actualWeight} ${fontSize}px ${fontFamily}`
+  ctx.font = `${plan.fontWeight} ${fontSize}px ${plan.fontFamily}`
   ctx.fillStyle = layer.font_color
-  ctx.textAlign = layer.align === 'center' ? 'center' : layer.align === 'right' ? 'right' : 'left'
-  if (useSyntheticBold) {
+  ctx.textAlign = plan.align
+  if (plan.syntheticBold) {
     // Faux bold: stroke the glyph outline before filling, thickened by a
     // fraction of the font size — the same "embolden by ~4% of an em"
     // technique browsers themselves used for synthetic bold before variable
@@ -756,23 +812,13 @@ async function renderTextLayerPng(
     ctx.lineJoin = 'round'
   }
 
-  const xPos = layer.align === 'center' ? layer.x + layer.width / 2 : layer.align === 'right' ? layer.x + layer.width : layer.x
-
-  // Top-anchored (2026-07-31, was vertically centered) — Madhu's feedback:
-  // centering hid where the box's own top edge actually was, so text didn't
-  // visibly start at the Y you set. Matches how every mainstream design
-  // tool (Figma, Canva, PowerPoint) anchors a text box by default — content
-  // starts at the top and grows downward, never floating away from Y.
-  const approxAscent = fontSize * 0.8
-  const firstBaselineY = layer.y + approxAscent
-
   for (let i = 0; i < lines.length; i++) {
     const y = firstBaselineY + i * lineHeight
-    if (useSyntheticBold) ctx.strokeText(lines[i], xPos, y)
+    if (plan.syntheticBold) ctx.strokeText(lines[i], xPos, y)
     ctx.fillText(lines[i], xPos, y)
   }
 
-  return { buffer: canvas.toBuffer('image/png'), didShrink, didTruncate }
+  return { buffer: canvas.toBuffer('image/png'), didShrink: plan.didShrink, didTruncate: plan.didTruncate }
 }
 
 // Diagnostics-only: lets the variant editor's live preview surface an

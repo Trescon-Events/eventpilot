@@ -11,7 +11,7 @@ type Vendor = { id: string; name: string; category: string; notes: string | null
 const CATEGORIES: { value: string; label: string }[] = [
   { value: 'speaker_license', label: 'Speaker licence' },
   { value: 'av', label: 'AV' },
-  { value: 'print', label: 'Print' },
+  { value: 'print', label: 'Print (badge printing)' },
   { value: 'visa', label: 'Visa agency' },
   { value: 'other', label: 'Other' },
 ]
@@ -53,7 +53,8 @@ export default function VendorsView() {
     const res = await fetch('/api/events/operations/event-vendors', {
       method: v.assigned ? 'DELETE' : 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...scope.body, vendor_id: v.id }),
+      // A Print vendor is engaged for badge printing; every other category keeps the original licence purpose.
+      body: JSON.stringify({ ...scope.body, vendor_id: v.id, purpose: v.category === 'print' ? 'badge_print' : 'speaker_license' }),
     })
     if (!res.ok) setError((await res.json().catch(() => null))?.error ?? 'Could not update assignment.')
     else load()

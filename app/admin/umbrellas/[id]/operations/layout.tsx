@@ -8,6 +8,7 @@
 import { redirect } from 'next/navigation'
 import { getServerSession } from '@/app/lib/registry/access'
 import { resolveScope, hasScopePermission } from '@/app/lib/ops/scope'
+import { hasAnySectionAssignmentForUmbrella } from '@/app/lib/ops/section-access'
 
 export default async function UmbrellaOperationsLayout({ children, params }: { children: React.ReactNode; params: Promise<{ id: string }> }) {
   const session = await getServerSession()
@@ -15,7 +16,7 @@ export default async function UmbrellaOperationsLayout({ children, params }: { c
   const { id } = await params
 
   const scope = await resolveScope({ umbrellaId: id })
-  const ok = !!session.adm || (!!scope && (await hasScopePermission({ sid: session.sid }, scope, 'ops.view')))
+  const ok = !!session.adm || (!!scope && ((await hasScopePermission({ sid: session.sid }, scope, 'ops.view')) || (await hasAnySectionAssignmentForUmbrella(session.sid, id, scope.eventIds))))
   if (!ok) redirect('/no-access?tool=operations')
 
   return <>{children}</>

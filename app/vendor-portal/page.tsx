@@ -19,9 +19,17 @@ const STATUS: Record<string, { label: string; color: string; bg: string }> = {
   cancelled:  { label: 'Cancelled',         color: 'var(--ink3)',  bg: 'var(--border-light)' },
 }
 
+type BadgeFile = { id: string; batch_name: string; event_name: string; status: string; badges: number; sent_at: string | null; printed_at: string | null }
+const BADGE_STATUS: Record<string, { label: string; color: string; bg: string }> = {
+  sent:       { label: 'Ready to download', color: 'var(--teal)',  bg: 'var(--teal-light)' },
+  downloaded: { label: 'Downloaded — confirm when printed', color: 'var(--amber)', bg: 'var(--amber-light)' },
+  printed:    { label: 'Printed', color: 'var(--lime)', bg: 'var(--lime-light)' },
+}
+
 export default function VendorHomePage() {
   const router = useRouter()
   const [batches, setBatches] = useState<Batch[] | null>(null)
+  const [badgeFiles, setBadgeFiles] = useState<BadgeFile[]>([])
   const [who, setWho] = useState<{ vendor: string; user: string } | null>(null)
   const [error, setError] = useState<ApiError | null>(null)
 
@@ -39,6 +47,8 @@ export default function VendorHomePage() {
       const body = await res.json()
       if (cancelled) return
       setBatches(body.batches); setWho({ vendor: body.vendor, user: body.user })
+      const bres = await fetch('/vendor-portal/api/badge-batches')
+      if (!cancelled && bres.ok) setBadgeFiles((await bres.json()).batches ?? [])
     })()
     return () => { cancelled = true }
   }, [router])
@@ -59,7 +69,28 @@ export default function VendorHomePage() {
       </div>
       <ErrorBox error={error} />
       {!batches && !error && <p style={{ color: 'var(--ink3)', fontSize: '14px' }}>Loading…</p>}
-      {batches && batches.length === 0 && (
+      {badgeFiles.length > 0 && (
+        <div style={{ marginBottom: '24px' }}>
+          <h2 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)', margin: '0 0 10px' }}>Badge print files</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {badgeFiles.map(b => {
+              const st = BADGE_STATUS[b.status] ?? BADGE_STATUS.sent
+              return (
+                <Link key={b.id} href={`/vendor-portal/badge-batches/${b.id}`} style={{ textDecoration: 'none' }}>
+                  <div style={{ padding: '16px 18px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)', display: 'flex', justifyContent: 'space-between', gap: '14px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)' }}>{b.batch_name} · {b.event_name}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '4px' }}>{b.badges} badge{b.badges === 1 ? '' : 's'}{b.sent_at ? ` · sent ${new Date(b.sent_at).toLocaleDateString()}` : ''}</div>
+                    </div>
+                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '999px', color: st.color, background: st.bg }}>{st.label}</span>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      )}
+      {batches && batches.length === 0 && badgeFiles.length === 0 && (
         <p style={{ color: 'var(--ink3)', fontSize: '14px', padding: '32px 0' }}>Nothing has been sent to you yet. You&rsquo;ll receive an email when a batch is ready.</p>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

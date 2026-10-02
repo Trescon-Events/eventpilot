@@ -63,6 +63,14 @@ const DEFAULT_MAX_LINES_BY_FIELD: Record<TextLayer['field'], number> = {
 // is presentation-editor business logic (what a "name" field usually looks
 // like on a card), not general brand-rules logic, so it stays here rather
 // than in the shared library.
+// Speaker badge (PVC card) sizes differ per event (DFFW: 54 x 85 mm trim + 3 mm bleed each side = 60 x 91 mm page), so the
+// size is asked up front when the variant is created (2026-10-02) and everything uploaded afterwards must match it.
+// The values below are only the form's starting point (DFFW's card). Design grid = ~300 ppi of the full page.
+const BADGE_DEFAULT = { trim_w: 54, trim_h: 85, bleed: 3 }
+const BADGE_GRID_PPI = 300
+const badgePage = (trimW: number, trimH: number, bleed: number) => ({ width_mm: +(trimW + 2 * bleed).toFixed(2), height_mm: +(trimH + 2 * bleed).toFixed(2), bleed_mm: bleed })
+const badgeGrid = (spec: { width_mm: number; height_mm: number }) => ({ w: Math.round((spec.width_mm / 25.4) * BADGE_GRID_PPI), h: Math.round((spec.height_mm / 25.4) * BADGE_GRID_PPI) })
+
 const FIELD_TO_CONTENT_TYPE: Record<TextLayer['field'], string> = {
   name: 'heading', title: 'subheading', company: 'body', country: 'body', tier: 'body', custom: 'body',
   headline_lead: 'heading', headline_emphasis: 'heading', headline_trail: 'heading', headline_full: 'heading',
@@ -80,7 +88,7 @@ function newLayer(type: Layer['type'], activeType: StakeholderKind, canvasWidth:
     // the frame with it, unlike a Promo variant's photo slot, which is
     // typically a smaller inset within a larger poster (400x400 stays the
     // sensible default there).
-    const full = category === 'website_photo'
+    const full = category === 'website_photo' || category === 'badge'
     return { id, type: 'photo_slot', source: activeType === 'speaker' ? 'speaker_photo' : 'partner_logo', x: 0, y: 0, width: full ? canvasWidth : 400, height: full ? canvasHeight : 400 }
   }
   const field: TextLayer['field'] = activeType === 'speaker' ? 'name' : 'custom'
@@ -127,6 +135,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   const [activeType, setActiveType] = useState<StakeholderKind>('speaker')
   const [activeVariantId, setActiveVariantId] = useState<string | null>(null)
   const [newVariantPickerOpen, setNewVariantPickerOpen] = useState(false)
+  const [badgeSetup, setBadgeSetup] = useState<{ trim_w: string; trim_h: string; bleed: string } | null>(null) // step 2 of New Variant > Speaker Badge
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
@@ -154,6 +163,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   const [showPlaceholderPanel, setShowPlaceholderPanel] = useState(false)
   const [previewDataUrl, setPreviewDataUrl] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [quickPreviewOpen, setQuickPreviewOpen] = useState(false)
   // Stale-while-revalidate (2026-07-31 UX pass, replacing the old debounced
   // auto-render): any layer/variant edit keeps showing the last render,
   // dimmed + badged, rather than clearing it outright — an old image there
@@ -344,6 +354,25 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
 
+  // Edit the badge's print size. Layer geometry is rescaled to the new design grid so the layout keeps its proportions;
+  // uploaded PDFs (layers + common back) were made for the old size, so they are dropped and must be re-uploaded.
+  function resizeBadge(print: NonNullable<Variant['print']>) {
+    if (!activeVariant?.print) return
+    const grid = badgeGrid(print)
+    const sx = grid.w / activeVariant.canvas_width, sy = grid.h / activeVariant.canvas_height
+    const pageChanged = Math.abs(print.width_mm - activeVariant.print.width_mm) > 0.01 || Math.abs(print.height_mm - activeVariant.print.height_mm) > 0.01
+    const layers = activeVariant.layers.map(l => {
+      const scaled = { ...l, x: Math.round(l.x * sx), y: Math.round(l.y * sy), width: Math.round(l.width * sx), height: Math.round(l.height * sy) } as Layer
+      if (scaled.type === 'text') (scaled as TextLayer).font_size = Math.round(scaled.font_size * ((sx + sy) / 2))
+      if (pageChanged && scaled.type === 'image') (scaled as ImageLayer).print_pdf_url = undefined
+      return scaled
+    })
+    updateActiveVariant({
+      canvas_width: grid.w, canvas_height: grid.h, layers,
+      print: pageChanged ? { ...print, back_pdf_url: undefined, back_preview_url: undefined } : { ...activeVariant.print, ...print },
+    })
+  }
+
   function updateActiveVariant(patch: Partial<Variant>) {
     if (!activeVariantId) return
     mutate(vs => vs.map(v => v.id === activeVariantId ? { ...v, ...patch } : v))
@@ -364,16 +393,21 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   // wrong canvas size (1080x1350) by mistake, only caught once a layer
   // inside it was already wrong too. Gating on the choice up front means
   // canvas dimensions are correct from the variant's very first layer.
-  function addVariant(category: 'promo' | 'self_promo' | 'website_photo') {
+  function addVariant(category: 'promo' | 'self_promo' | 'website_photo' | 'badge', badgeSpec?: { width_mm: number; height_mm: number; bleed_mm: number }) {
     pushUndo()
     const size = category === 'website_photo' ? CLEANING_CYCLE_CANVAS_SIZE : null
+    // Badge (2026-10-02): page = trim + bleed, entered in the setup step; canvas = that page at ~300 ppi.
+    const badge = category === 'badge' && !!badgeSpec
+    const grid = badge ? badgeGrid(badgeSpec!) : null
     const variant: Variant = {
-      id: crypto.randomUUID(), name: 'Untitled Variant', category,
-      canvas_width: size ?? 1080, canvas_height: size ?? 1350, layers: [],
+      id: crypto.randomUUID(), name: badge ? 'Speaker badge' : 'Untitled Variant', category,
+      canvas_width: grid ? grid.w : size ?? 1080, canvas_height: grid ? grid.h : size ?? 1350, layers: [],
+      ...(badge ? { print: { ...badgeSpec! } } : {}),
     }
     mutate(vs => [...vs, variant])
     setActiveVariantId(variant.id)
     setNewVariantPickerOpen(false)
+    setBadgeSetup(null)
   }
 
   // Persists immediately (2026-08-19) rather than just staging a local
@@ -431,6 +465,14 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
       return next
     })
     setActiveVariantId(duplicate.id)
+  }
+
+  function addPreviewLayer() {
+    if (!activeVariant) return
+    pushUndo()
+    const layer: ImageLayer = { id: crypto.randomUUID(), type: 'image', asset_url: '', x: 0, y: 0, width: activeVariant.canvas_width, height: activeVariant.canvas_height, reference_only: true, reference_opacity: 0.5 }
+    updateActiveVariant({ layers: [...activeVariant.layers, layer] })
+    setExpandedLayerId(layer.id)
   }
 
   function addLayer(type: Layer['type']) {
@@ -709,8 +751,10 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                     </div>
                   ) : (
                     <>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '10px', alignItems: 'center', marginBottom: '14px' }}>
-                        <Input value={activeVariant.name} onChange={e => updateActiveVariant({ name: e.target.value })} placeholder="Variant name" />
+                      {/* Wraps instead of a fixed 4-column grid so the name box is never squeezed off-screen on narrow windows. */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', marginBottom: '14px' }}>
+                        <Input value={activeVariant.name} onChange={e => updateActiveVariant({ name: e.target.value })} placeholder="Variant name" style={{ flex: '1 1 260px', minWidth: 0 }} />
+                        {activeVariant.category !== 'badge' && (
                         <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                           Use
                           <Select
@@ -733,6 +777,8 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                             <option value="website_photo">Website Photo</option>
                           </Select>
                         </label>
+                        )}
+                        {activeVariant.category !== 'badge' && (<>
                         <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                           {/* 90px, was 70px (2026-08-21) — a 4-digit value
                               (e.g. 1024) plus the browser's built-in number
@@ -742,7 +788,11 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                         <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                           H <Input type="number" value={activeVariant.canvas_height} onChange={e => updateActiveVariant({ canvas_height: Number(e.target.value) })} style={{ width: '90px' }} />
                         </label>
+                        </>)}
                       </div>
+                      {activeVariant.category === 'badge' && activeVariant.print && (
+                        <BadgeSettings variant={activeVariant} eventId={eventId} activeType={activeType} onChange={print => updateActiveVariant({ print })} onResize={resizeBadge} />
+                      )}
                       {activeVariant.category === 'website_photo' && (
                         <div style={{ marginBottom: '14px' }}>
                           <div style={{ fontSize: '11px', color: 'var(--ink3)', marginBottom: '10px' }}>
@@ -775,6 +825,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                                 discardLastUndo={discardLastUndo}
                                 eventId={eventId}
                                 variantCategory={activeVariant.category}
+                                variantPrint={activeVariant.print}
                                 allLayers={activeVariant.layers}
                                 canvasWidth={activeVariant.canvas_width}
                                 canvasHeight={activeVariant.canvas_height}
@@ -791,6 +842,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                         <Button variant="ghost" title="Static art, identical on every announcement — backgrounds, decorative overlays, branding blocks. Not this speaker/partner's own photo or logo." onClick={() => addLayer('image')}>+ Image Layer</Button>
                         <Button variant="ghost" title="A slot that fills in with each real speaker/partner's own photo or logo at generation time. Not static art." onClick={() => addLayer('photo_slot')}>+ Photo/Logo Slot</Button>
                         <Button variant="ghost" title="A field of text (name, title, company, a static caption, etc.) rendered live at generation time." onClick={() => addLayer('text')}>+ Text Layer</Button>
+                        <Button variant="ghost" title="A mockup to place text and photos against. Shown in Generate Preview only — never in real announcements, website photos or print." onClick={addPreviewLayer}>+ Preview Layer</Button>
                         <Button variant="ghost" title="Duplicates this variant with all its layers intact, ready to tweak — for building several near-identical variants faster." onClick={() => duplicateVariant(activeVariant.id)}>Copy this</Button>
                         <Button variant="red" onClick={() => deleteVariant(activeVariant.id)}>Delete Variant</Button>
                       </div>
@@ -900,13 +952,21 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       {websitePhotoError}
                     </div>
                   )}
+                  {activeVariant && (
+                    <div style={{ marginTop: '10px' }}>
+                      <Button variant="ghost" title="A clean full-size preview with no drag boxes or mockup layers — what a real render looks like." onClick={() => setQuickPreviewOpen(true)}>Quick preview</Button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
           </>
         )}
       </div>
-      {newVariantPickerOpen && (
+      {quickPreviewOpen && activeVariant && (
+        <QuickPreviewModal variant={activeVariant} eventId={eventId} activeType={activeType} onClose={() => setQuickPreviewOpen(false)} />
+      )}
+      {newVariantPickerOpen && !badgeSetup && (
         <div style={{ position: 'fixed', inset: 0, background: 'color-mix(in srgb, black 60%, transparent)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={() => setNewVariantPickerOpen(false)}>
           <div onClick={e => e.stopPropagation()} style={{ width: '360px', maxWidth: '100%', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '22px' }}>
             <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>New Variant — Use</div>
@@ -918,8 +978,9 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                 ['promo', 'Promo', 'Org’s own channel-publish flow'],
                 ['self_promo', 'Self Promo', 'Emailed to the speaker for them to post'],
                 ['website_photo', 'Website Photo', `Square speaker card photo, ${CLEANING_CYCLE_CANVAS_SIZE}x${CLEANING_CYCLE_CANVAS_SIZE}`],
+                ['badge', 'Speaker Badge (print)', 'PVC card — you set the size next; vector layers uploaded as PDFs'],
               ] as const).map(([value, label, hint]) => (
-                <button key={value} onClick={() => addVariant(value)} style={{
+                <button key={value} onClick={() => value === 'badge' ? setBadgeSetup({ trim_w: String(BADGE_DEFAULT.trim_w), trim_h: String(BADGE_DEFAULT.trim_h), bleed: String(BADGE_DEFAULT.bleed) }) : addVariant(value)} style={{
                   display: 'block', width: '100%', padding: '11px 14px', borderRadius: '10px',
                   border: '1.5px solid var(--border)', background: 'var(--surface)', cursor: 'pointer',
                   fontFamily: 'inherit', textAlign: 'left',
@@ -935,13 +996,52 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
           </div>
         </div>
       )}
+      {newVariantPickerOpen && badgeSetup && (() => {
+        const tw = Number(badgeSetup.trim_w), th = Number(badgeSetup.trim_h), bl = Number(badgeSetup.bleed)
+        const valid = tw >= 20 && tw <= 400 && th >= 20 && th <= 400 && bl >= 0 && bl <= 15
+        const page = valid ? badgePage(tw, th, bl) : null
+        const field = (label: string, key: 'trim_w' | 'trim_h' | 'bleed', hint?: string) => (
+          <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'block' }}>
+            {label}
+            <Input type="number" min={0} step="0.1" value={badgeSetup[key]} onChange={e => setBadgeSetup(b => (b ? { ...b, [key]: e.target.value } : b))} style={{ marginTop: '3px' }} />
+            {hint && <span style={{ fontSize: '10.5px', color: 'var(--ink4)' }}>{hint}</span>}
+          </label>
+        )
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'color-mix(in srgb, black 60%, transparent)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={() => setBadgeSetup(null)}>
+            <div onClick={e => e.stopPropagation()} style={{ width: '400px', maxWidth: '100%', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '22px' }}>
+              <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Speaker Badge — size</div>
+              <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginBottom: '16px', lineHeight: 1.5 }}>
+                Set the print size first. Uploads must match it, and it can&apos;t be changed later.
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                {field('Card width (trim, mm)', 'trim_w')}
+                {field('Card height (trim, mm)', 'trim_h')}
+              </div>
+              {field('Bleed (mm, each side)', 'bleed', 'The extra artwork past the cut line, built into the artwork itself (0 if none).')}
+              <div style={{ marginTop: '14px', padding: '10px 12px', borderRadius: '8px', background: 'var(--card-hi)', fontSize: '12px', color: 'var(--ink2)', lineHeight: 1.6 }}>
+                {page ? (
+                  <>Artwork size: <strong>{page.width_mm} × {page.height_mm} mm</strong><br />Trim: {tw} × {th} mm · Bleed: {bl} mm each side</>
+                ) : (
+                  <span style={{ color: 'var(--red)' }}>Enter a card size between 20 and 400 mm and a bleed between 0 and 15 mm.</span>
+                )}
+              </div>
+              <div style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
+                <Button variant="ghost" onClick={() => setBadgeSetup(null)}>Back</Button>
+                <Button variant="teal" disabled={!page} onClick={() => page && addVariant('badge', page)}>Next — open template maker</Button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
 
-function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onToggleExpand, diagnostics, onChange, onDelete, pushUndo, discardLastUndo, eventId, allLayers, canvasWidth, canvasHeight, variantCategory }: {
+function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onToggleExpand, diagnostics, onChange, onDelete, pushUndo, discardLastUndo, eventId, allLayers, canvasWidth, canvasHeight, variantCategory, variantPrint }: {
   layer: Layer
   variantCategory?: Variant['category']
+  variantPrint?: Variant['print']
   index: number
   total: number
   activeType: StakeholderKind
@@ -969,7 +1069,7 @@ function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onTog
       <div style={{ border: expanded ? '1px solid var(--lime)' : '1px solid var(--border-light)', borderRadius: '8px', overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', background: 'var(--surface)' }}>
           <span {...attributes} {...listeners} title="Drag to reorder" style={{ cursor: 'grab', color: 'var(--ink4)', fontSize: '15px', lineHeight: 1, touchAction: 'none', flexShrink: 0 }}>⠿</span>
-          <Badge color={layer.type === 'image' ? 'purple' : layer.type === 'photo_slot' ? 'amber' : 'teal'}>{LAYER_TYPE_LABEL[layer.type]}</Badge>
+          <Badge color={layer.type === 'image' && layer.reference_only ? 'grey' : layer.type === 'image' ? 'purple' : layer.type === 'photo_slot' ? 'amber' : 'teal'}>{layer.type === 'image' && layer.reference_only ? 'Preview' : LAYER_TYPE_LABEL[layer.type]}</Badge>
           <button onClick={onToggleExpand} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '12.5px', color: 'var(--ink)', fontWeight: 700 }}>
             {layerSummary(layer)}
           </button>
@@ -981,8 +1081,9 @@ function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onTog
 
         {expanded && (
           <div style={{ padding: '12px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-            {layer.type === 'image' && <ImageLayerFields layer={layer} onChange={onChange as (patch: Partial<ImageLayer>) => void} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} canvasWidth={canvasWidth} canvasHeight={canvasHeight} />}
-            {layer.type === 'photo_slot' && <PhotoSlotLayerFields layer={layer} activeType={activeType} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} canvasWidth={canvasWidth} canvasHeight={canvasHeight} variantCategory={variantCategory} />}
+            {layer.type === 'image' && layer.reference_only && <PreviewLayerFields layer={layer} onChange={onChange as (patch: Partial<ImageLayer>) => void} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} activeType={activeType} />}
+            {layer.type === 'image' && !layer.reference_only && <ImageLayerFields layer={layer} onChange={onChange as (patch: Partial<ImageLayer>) => void} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} canvasWidth={canvasWidth} canvasHeight={canvasHeight} variantCategory={variantCategory} variantPrint={variantPrint} activeType={activeType} />}
+            {layer.type === 'photo_slot' && <PhotoSlotLayerFields layer={layer} activeType={activeType} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} canvasWidth={canvasWidth} canvasHeight={canvasHeight} variantCategory={variantCategory} variantPrint={variantPrint} />}
             {layer.type === 'text' && <TextLayerFields layer={layer} activeType={activeType} brandFonts={brandFonts} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} allLayers={allLayers} />}
           </div>
         )}
@@ -992,6 +1093,7 @@ function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onTog
 }
 
 function layerSummary(layer: Layer): string {
+  if (layer.type === 'image' && layer.reference_only) return layer.asset_url ? 'Preview layer (reference only)' : 'Preview layer (no file uploaded)'
   if (layer.type === 'image') return layer.asset_url ? `Image (${layer.width}×${layer.height})` : 'Image (no file uploaded)'
   if (layer.type === 'photo_slot') return `${layer.source.replace(/_/g, ' ')} (${layer.width}×${layer.height})`
   return `Text: ${layer.field}${layer.field === 'custom' || layer.field === 'tier' ? ` "${layer.value ?? ''}"` : ''}`
@@ -1174,9 +1276,28 @@ function NumField({ label, value, onChange, pushUndo, discardLastUndo }: {
 async function readImageSize(file: File): Promise<{ w: number; h: number } | null> {
   try { const bmp = await createImageBitmap(file); const size = { w: bmp.width, h: bmp.height }; bmp.close(); return size } catch { return null }
 }
+// Badge references only need the right PROPORTIONS (checked by badgeShapeError); branding exports them at any scale
+// (e.g. 355×538 for a 709×1075 canvas). Resample to the exact canvas size so the head-box maths and the compositor
+// work in canvas pixels, exactly as if it had been exported at full size. Alpha is kept (PNG).
+async function resampleToCanvas(file: File, w: number, h: number): Promise<File> {
+  const bmp = await createImageBitmap(file)
+  if (bmp.width === w && bmp.height === h) { bmp.close(); return file }
+  const c = document.createElement('canvas'); c.width = w; c.height = h
+  const ctx = c.getContext('2d')!; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(bmp, 0, 0, w, h); bmp.close()
+  const blob = await new Promise<Blob | null>(r => c.toBlob(r, 'image/png'))
+  return blob ? new File([blob], file.name.replace(/\.[^.]+$/, '') + '.png', { type: 'image/png' }) : file
+}
 function sizeMismatchMessage(w: number, h: number, cw: number, ch: number): string | null {
   if (w === cw && h === ch) return null
   return `Wrong size: this image is ${w}×${h}px but this variant's canvas is ${cw}×${ch}px. Reference layers must be exported at exactly ${cw}×${ch}px — please ask the branding team to re-export it. Until then it is scaled to fit, so positions and the crop may be slightly off.`
+}
+// Badge variants are strict (2026-10-02): a PNG (photo reference, or a hand-made preview) must have the SAME PROPORTIONS as the
+// badge artwork — any resolution is fine (a bigger export is welcome), any other shape is refused rather than silently stretched.
+function badgeShapeError(dims: { w: number; h: number } | null, print: { width_mm: number; height_mm: number }): string | null {
+  if (!dims) return null
+  const want = print.width_mm / print.height_mm, got = dims.w / dims.h
+  if (Math.abs(got - want) / want <= 0.01) return null
+  return `Not accepted: this PNG is ${dims.w} × ${dims.h} px (shape ${got.toFixed(3)}) but this badge's artwork is ${print.width_mm} × ${print.height_mm} mm (shape ${want.toFixed(3)}). Export it with the same proportions — any resolution works, e.g. ${Math.round(print.width_mm / 25.4 * 600)} × ${Math.round(print.height_mm / 25.4 * 600)} px.`
 }
 function boundsMessage(layer: { x: number; y: number; width: number; height: number }, cw: number, ch: number): string | null {
   if (layer.x + layer.width <= cw && layer.y + layer.height <= ch) return null
@@ -1187,9 +1308,316 @@ function SizeWarning({ message }: { message: string | null }) {
   return <div style={{ gridColumn: '1 / -1', fontSize: '11px', lineHeight: 1.4, color: 'var(--amber)', border: '1px solid var(--amber)', borderRadius: '6px', padding: '6px 9px' }}>⚠ {message}</div>
 }
 
-function ImageLayerFields({ layer, onChange, pushUndo, discardLastUndo, eventId, canvasWidth, canvasHeight }: {
+// ── Speaker Badge: vector layer PDF upload + common back (2026-10-02) ─────────────────────────────────────────
+// Branding exports each layer (logo block, panel, common back) as a single-page vector PDF at the full bleed page
+// size. The server checks the page size, stores the PDF (embedded as TRUE VECTOR in the print file) and renders a PNG
+// preview from it, which is what this editor and the review grid composite. If the automatic preview can't be made, a
+// PNG of the same layer can be uploaded by hand as the preview (the PDF still prints as vector).
+async function uploadBadgePdf(file: File, eventId: string, templateType: string, print: { width_mm: number; height_mm: number }): Promise<{ pdf_url: string; preview_url: string | null; preview_error: string | null; width_mm: number; height_mm: number }> {
+  const form = new FormData()
+  form.append('file', file); form.append('event_id', eventId); form.append('template_type', templateType)
+  form.append('expect_width_mm', String(print.width_mm)); form.append('expect_height_mm', String(print.height_mm))
+  const res = await fetch('/api/events/templates/upload-pdf', { method: 'POST', body: form })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || 'Could not upload that PDF.')
+  return data
+}
+async function uploadPreviewPng(file: File, eventId: string, templateType: string): Promise<string> {
+  const form = new FormData(); form.append('file', file); form.append('event_id', eventId); form.append('template_type', templateType)
+  const res = await fetch('/api/events/templates/upload', { method: 'POST', body: form })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || !data.url) throw new Error(data.error || 'Could not upload that PNG.')
+  return data.url
+}
+
+function BadgePdfLayerFields({ layer, onChange, eventId, templateType, canvasWidth, canvasHeight, print }: {
+  layer: ImageLayer; onChange: (patch: Partial<ImageLayer>) => void; eventId: string; templateType: string; canvasWidth: number; canvasHeight: number; print: NonNullable<Variant['print']>
+}) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [needsPng, setNeedsPng] = useState<string | null>(null)
+
+  async function onPdf(file: File) {
+    setBusy(true); setError(null); setNeedsPng(null)
+    try {
+      const r = await uploadBadgePdf(file, eventId, templateType, print)
+      // Layer art is authored in place at the full page size — it always fills the badge canvas.
+      onChange({ print_pdf_url: r.pdf_url, ...(r.preview_url ? { asset_url: r.preview_url } : {}), x: 0, y: 0, width: canvasWidth, height: canvasHeight })
+      if (!r.preview_url) setNeedsPng(r.preview_error)
+    } catch (e) { setError(e instanceof Error ? e.message : 'Upload failed.') }
+    setBusy(false)
+  }
+  async function onPng(file: File) {
+    setBusy(true); setError(null)
+    const refused = badgeShapeError(await readImageSize(file), print)
+    if (refused) { setError(refused); setBusy(false); return }
+    try { onChange({ asset_url: await uploadPreviewPng(file, eventId, templateType) }); setNeedsPng(null) } catch (e) { setError(e instanceof Error ? e.message : 'Upload failed.') }
+    setBusy(false)
+  }
+  const btn = { padding: '7px 14px', borderRadius: '8px', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, cursor: 'pointer' } as const
+  return (
+    <>
+      <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        {layer.asset_url && (
+          // eslint-disable-next-line @next/next/no-img-element -- small admin-only thumbnail
+          <img src={layer.asset_url} alt="Layer preview" style={{ width: '40px', height: '60px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-light)', background: 'var(--card-hi)' }} />
+        )}
+        <label style={btn}>
+          {busy ? 'Uploading…' : layer.print_pdf_url ? 'Replace layer PDF' : 'Upload layer PDF (vector)'}
+          <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={busy} onChange={e => { const f = e.target.files?.[0]; if (f) onPdf(f); e.target.value = '' }} />
+        </label>
+        {layer.print_pdf_url && <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--teal-mid)' }}>✓ Vector PDF saved</span>}
+      </div>
+      <div style={{ gridColumn: '1 / -1', fontSize: '10.5px', color: 'var(--ink3)', lineHeight: 1.4 }}>
+        Single-page PDF exported from Illustrator at this badge&apos;s full bleed size ({print.width_mm} × {print.height_mm} mm), art positioned in place, text outlined. It prints as true vector; the preview image shown here is made from it automatically.
+      </div>
+      {needsPng && (
+        <div style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--amber)' }}>
+          ⚠ {needsPng}{' '}
+          <label style={{ ...btn, display: 'inline-block', marginTop: '6px' }}>Upload preview PNG
+            <input type="file" accept="image/png" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) onPng(f); e.target.value = '' }} />
+          </label>
+        </div>
+      )}
+      {error && <div style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--red)' }}>{error}</div>}
+    </>
+  )
+}
+
+// Variant-level badge settings: what the badge is, and the common back (appended once as the last page of every print file).
+function BadgeSettings({ variant, eventId, activeType, onChange, onResize }: { variant: Variant; eventId: string; activeType: StakeholderKind; onChange: (print: NonNullable<Variant['print']>) => void; onResize: (print: NonNullable<Variant['print']>) => void }) {
+  const print = variant.print!
+  const trimW = +(print.width_mm - 2 * print.bleed_mm).toFixed(2), trimH = +(print.height_mm - 2 * print.bleed_mm).toFixed(2)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [edit, setEdit] = useState<{ w: string; h: string; bleed: string } | null>(null)
+  const ew = Number(edit?.w), eh = Number(edit?.h), eb = Number(edit?.bleed)
+  const editValid = !!edit && ew >= 20 && ew <= 400 && eh >= 20 && eh <= 400 && eb >= 0 && eb <= 15
+  const editPage = editValid ? { width_mm: +(ew + 2 * eb).toFixed(2), height_mm: +(eh + 2 * eb).toFixed(2), bleed_mm: eb } : null
+  const sizeChanges = !!editPage && (Math.abs(editPage.width_mm - print.width_mm) > 0.01 || Math.abs(editPage.height_mm - print.height_mm) > 0.01)
+  const hasUploads = !!print.back_pdf_url || variant.layers.some(l => l.type === 'image' && l.print_pdf_url)
+  async function onBack(file: File) {
+    setBusy(true); setError(null)
+    try {
+      const r = await uploadBadgePdf(file, eventId, activeType, print)
+      onChange({ ...print, back_pdf_url: r.pdf_url, back_preview_url: r.preview_url ?? print.back_preview_url })
+      if (!r.preview_url && r.preview_error) setError(r.preview_error)
+    } catch (e) { setError(e instanceof Error ? e.message : 'Upload failed.') }
+    setBusy(false)
+  }
+  return (
+    <div style={{ marginBottom: '14px', padding: '12px 14px', border: '1px solid var(--border-light)', borderRadius: '10px', background: 'var(--card-hi)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '10px' }}>
+        <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>Speaker Badge — print specs</div>
+        {!edit && <Button variant="ghost" onClick={() => setEdit({ w: String(trimW), h: String(trimH), bleed: String(print.bleed_mm) })}>Edit specs</Button>}
+      </div>
+      {edit && (
+        <div style={{ marginBottom: '12px', padding: '12px', borderRadius: '8px', background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
+            {([['Trim width (mm)', 'w'], ['Trim height (mm)', 'h'], ['Bleed (mm, each side)', 'bleed']] as const).map(([label, key]) => (
+              <label key={key} style={{ fontSize: '12px', color: 'var(--ink3)' }}>
+                {label}
+                <Input type="number" min={0} step="0.1" value={edit[key]} onChange={e => setEdit(v => (v ? { ...v, [key]: e.target.value } : v))} style={{ marginTop: '3px' }} />
+              </label>
+            ))}
+          </div>
+          <div style={{ marginTop: '10px', fontSize: '13px', color: editPage ? 'var(--ink2)' : 'var(--red)', lineHeight: 1.5 }}>
+            {editPage ? <>Artwork size will be <strong>{editPage.width_mm} × {editPage.height_mm} mm</strong>.</> : 'Trim 20–400 mm, bleed 0–15 mm.'}
+          </div>
+          {sizeChanges && hasUploads && (
+            <div style={{ marginTop: '6px', fontSize: '13px', color: 'var(--amber)', lineHeight: 1.5 }}>
+              The artwork size changes, so the uploaded layer PDFs and the common back are removed. Upload them again at the new size. Layer positions are scaled to fit.
+            </div>
+          )}
+          <div style={{ marginTop: '10px', display: 'flex', gap: '8px' }}>
+            <Button variant="ghost" onClick={() => setEdit(null)}>Cancel</Button>
+            <Button variant="teal" disabled={!editPage} onClick={() => { if (editPage) { onResize(editPage); setEdit(null) } }}>Save specs</Button>
+          </div>
+        </div>
+      )}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px', marginBottom: '12px' }}>
+        {[
+          ['Artwork size (PDF page)', `${print.width_mm} × ${print.height_mm} mm`],
+          ['Trim size (cut line)', `${trimW} × ${trimH} mm`],
+          ['Bleed', `${print.bleed_mm} mm each side`],
+        ].map(([label, value]) => (
+          <div key={label} style={{ padding: '10px 12px', borderRadius: '8px', background: 'var(--card)', border: '1px solid var(--border-light)' }}>
+            <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '3px' }}>{label}</div>
+            <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)' }}>{value}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: '13px', color: 'var(--ink2)', lineHeight: 1.5, marginBottom: '12px' }}>
+        Every upload must match the artwork size. Layer PDFs are vector; text prints as outlines.
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        {print.back_preview_url && (
+          // eslint-disable-next-line @next/next/no-img-element -- small admin-only thumbnail
+          <img src={print.back_preview_url} alt="Common back" style={{ width: '40px', height: '60px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-light)' }} />
+        )}
+        <label style={{ padding: '7px 14px', borderRadius: '8px', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+          {busy ? 'Uploading…' : print.back_pdf_url ? 'Replace common back (PDF)' : 'Upload common back (PDF)'}
+          <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={busy} onChange={e => { const f = e.target.files?.[0]; if (f) onBack(f); e.target.value = '' }} />
+        </label>
+        {print.back_pdf_url ? <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--teal-mid)' }}>✓ Common back saved — added once, as the last page of each print file</span> : <span style={{ fontSize: '11px', color: 'var(--amber)' }}>No common back yet</span>}
+      </div>
+      {error && <div style={{ fontSize: '11px', color: 'var(--red)', marginTop: '8px' }}>{error}</div>}
+    </div>
+  )
+}
+
+// Quick preview: a clean, full-size render of the draft in a popup (no drag boxes, mockup/preview layers left out) so
+// branding can verify the template. Badge templates also get "Download print PDF": a real sample print file built from
+// the same placeholder content (instruction page, badge, common back) to inspect in Illustrator.
+function QuickPreviewModal({ variant, eventId, activeType, onClose }: { variant: Variant; eventId: string; activeType: StakeholderKind; onClose: () => void }) {
+  const [image, setImage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
+  const isBadge = variant.category === 'badge' && !!variant.print
+
+  // The fetch itself sets no state, so it can run straight from the open-effect; results are applied in the callback.
+  async function fetchPreview(): Promise<{ image: string | null; error: string | null; notice: string | null }> {
+    try {
+      const res = await fetch('/api/events/templates/preview', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_id: eventId, stakeholder_type: activeType, variant, full_res: true, hide_reference_layers: true }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? `Preview failed (${res.status})`)
+      return { image: data.preview_data_url, error: null, notice: data.website_photo_error ?? null }
+    } catch (e) { return { image: null, error: e instanceof Error ? e.message : 'Preview failed.', notice: null } }
+  }
+  function applyPreview(r: { image: string | null; error: string | null; notice: string | null }) {
+    setImage(r.image); setError(r.error); setNotice(r.notice); setLoading(false)
+  }
+  function refresh() { setLoading(true); void fetchPreview().then(applyPreview) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- renders the draft once on open; Refresh re-renders it
+  useEffect(() => { void fetchPreview().then(applyPreview) }, [])
+
+  async function downloadPdf() {
+    setDownloading(true); setDownloadError(null)
+    try {
+      const res = await fetch('/api/events/templates/print-preview', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_id: eventId, stakeholder_type: activeType, variant }),
+      })
+      if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error ?? `Could not build the print file (${res.status})`) }
+      const blob = await res.blob()
+      const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? 'badge-sample-print.pdf'
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+    } catch (e) { setDownloadError(e instanceof Error ? e.message : 'Download failed.') }
+    setDownloading(false)
+  }
+
+  const print = variant.print
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'color-mix(in srgb, black 70%, transparent)', zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ width: isBadge ? '760px' : '640px', maxWidth: '100%', maxHeight: '100%', overflow: 'auto', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '18px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
+          <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Quick preview — {variant.name || 'Untitled variant'}</div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Button variant="ghost" onClick={refresh} disabled={loading}>{loading ? 'Rendering…' : 'Refresh'}</Button>
+            <Button variant="ghost" onClick={onClose}>Close</Button>
+          </div>
+        </div>
+        {isBadge && print && (
+          <div style={{ fontSize: '13px', color: 'var(--ink2)', marginBottom: '12px' }}>
+            Artwork {print.width_mm} × {print.height_mm} mm · Trim {+(print.width_mm - 2 * print.bleed_mm).toFixed(2)} × {+(print.height_mm - 2 * print.bleed_mm).toFixed(2)} mm · Bleed {print.bleed_mm} mm. Placeholder content.
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'center', background: 'var(--surface)', borderRadius: '10px', padding: '14px' }}>
+          <div style={{ textAlign: 'center' }}>
+            {isBadge && <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '4px' }}>Front</div>}
+            {image ? (
+              // eslint-disable-next-line @next/next/no-img-element -- data: URL preview
+              <img src={image} alt="Quick preview" style={{ display: 'block', maxWidth: '100%', maxHeight: '70vh', width: 'auto', height: 'auto', background: 'repeating-conic-gradient(var(--card-hi) 0% 25%, var(--card) 0% 50%) 0 0 / 16px 16px', opacity: loading ? 0.5 : 1 }} />
+            ) : (
+              <div style={{ width: '260px', padding: '60px 10px', fontSize: '13px', color: error ? 'var(--red)' : 'var(--ink3)' }}>{error ?? 'Rendering…'}</div>
+            )}
+          </div>
+          {isBadge && print?.back_preview_url && (
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '4px' }}>Common back</div>
+              {/* eslint-disable-next-line @next/next/no-img-element -- small admin-only thumbnail */}
+              <img src={print.back_preview_url} alt="Common back" style={{ display: 'block', maxHeight: '70vh', maxWidth: '100%', width: 'auto', height: 'auto' }} />
+            </div>
+          )}
+        </div>
+        {notice && <div style={{ marginTop: '10px', fontSize: '13px', fontWeight: 700, color: 'var(--amber)' }}>{notice}</div>}
+        {isBadge && (
+          <div style={{ marginTop: '14px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <Button variant="teal" onClick={() => void downloadPdf()} disabled={downloading}>{downloading ? 'Building PDF…' : 'Download print PDF'}</Button>
+            <span style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.5 }}>A real sample file: instruction page, the badge, then the common back. Open it in Illustrator to check.</span>
+          </div>
+        )}
+        {downloadError && <div style={{ marginTop: '8px', fontSize: '13px', color: 'var(--red)' }}>{downloadError}</div>}
+      </div>
+    </div>
+  )
+}
+
+// Preview layer: a mockup (PNG/JPG/PDF) drawn semi-transparent over the canvas in Generate Preview so text and photo
+// layers can be placed against it. The compositor skips it for every real render (see ImageLayer.reference_only).
+async function toPngFile(file: File): Promise<File> {
+  if (file.type === 'image/png') return file
+  const bmp = await createImageBitmap(file)
+  const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height
+  c.getContext('2d')!.drawImage(bmp, 0, 0); bmp.close()
+  const blob = await new Promise<Blob | null>(r => c.toBlob(r, 'image/png'))
+  if (!blob) throw new Error('Could not read that image.')
+  return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.png', { type: 'image/png' })
+}
+function PreviewLayerFields({ layer, onChange, pushUndo, discardLastUndo, eventId, activeType }: {
+  layer: ImageLayer; onChange: (patch: Partial<ImageLayer>) => void; pushUndo: () => void; discardLastUndo: () => void; eventId: string; activeType: StakeholderKind
+}) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  async function onFile(file: File) {
+    setBusy(true); setError(null)
+    try {
+      let url: string
+      if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+        const form = new FormData()
+        form.append('file', file); form.append('event_id', eventId); form.append('template_type', activeType)
+        const res = await fetch('/api/events/templates/upload-pdf', { method: 'POST', body: form })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data.error || 'Could not upload that PDF.')
+        if (!data.preview_url) throw new Error(data.preview_error || 'Could not make an image from that PDF — upload a PNG instead.')
+        url = data.preview_url
+      } else {
+        url = await uploadPreviewPng(await toPngFile(file), eventId, activeType)
+      }
+      onChange({ asset_url: url })
+    } catch (e) { setError(e instanceof Error ? e.message : 'Upload failed.') }
+    setBusy(false)
+  }
+  return (
+    <>
+      <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <label style={{ padding: '7px 14px', borderRadius: '8px', border: '1.5px solid var(--border)', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, cursor: busy ? 'default' : 'pointer', width: 'fit-content' }}>
+          {busy ? 'Uploading…' : layer.asset_url ? 'Replace preview (PNG, JPG or PDF)' : 'Upload preview (PNG, JPG or PDF)'}
+          <input type="file" accept=".png,.jpg,.jpeg,.webp,.pdf,image/png,image/jpeg,image/webp,application/pdf" disabled={busy} style={{ display: 'none' }}
+            onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void onFile(f) }} />
+        </label>
+        <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.5 }}>
+          Shown in Generate Preview only, so you can line text up against a mockup. Never used in real announcements, website photos or print. Keep it last in the list so it sits on top.
+        </div>
+        {error && <div style={{ fontSize: '13px', color: 'var(--red)' }}>{error}</div>}
+      </div>
+      <NumField label="Opacity (%)" value={Math.round((layer.reference_opacity ?? 0.5) * 100)} onChange={v => onChange({ reference_opacity: Math.min(100, Math.max(5, v)) / 100 })} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />
+    </>
+  )
+}
+
+function ImageLayerFields({ layer, onChange, pushUndo, discardLastUndo, eventId, canvasWidth, canvasHeight, variantCategory, variantPrint, activeType }: {
   layer: ImageLayer; onChange: (patch: Partial<ImageLayer>) => void
   pushUndo: () => void; discardLastUndo: () => void; eventId: string; canvasWidth: number; canvasHeight: number
+  variantCategory?: Variant['category']; variantPrint?: Variant['print']; activeType?: StakeholderKind
 }) {
   const [analyzing, setAnalyzing] = useState(false)
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
@@ -1222,6 +1650,11 @@ function ImageLayerFields({ layer, onChange, pushUndo, discardLastUndo, eventId,
       setAnalyzeError(data.error || 'Could not analyze that reference image.')
     }
     setAnalyzing(false)
+  }
+
+  // Badge layers are vector PDFs (2026-10-02), not PNG references.
+  if (variantCategory === 'badge' && variantPrint) {
+    return <BadgePdfLayerFields layer={layer} onChange={onChange} eventId={eventId} templateType={activeType ?? 'speaker'} canvasWidth={canvasWidth} canvasHeight={canvasHeight} print={variantPrint} />
   }
 
   return (
@@ -1293,10 +1726,10 @@ function computeFootroomWarning(layer: PhotoSlotLayer): { footroomPct: number } 
   return footroomPct < LOW_FOOTROOM_THRESHOLD ? { footroomPct } : null
 }
 
-function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLastUndo, eventId, canvasWidth, canvasHeight, variantCategory }: {
+function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLastUndo, eventId, canvasWidth, canvasHeight, variantCategory, variantPrint }: {
   layer: PhotoSlotLayer; activeType: StakeholderKind; onChange: (patch: Partial<PhotoSlotLayer>) => void
   pushUndo: () => void; discardLastUndo: () => void; eventId: string; canvasWidth: number; canvasHeight: number
-  variantCategory?: Variant['category']
+  variantCategory?: Variant['category']; variantPrint?: Variant['print']
 }) {
   const sourceOptions: PhotoSlotLayer['source'][] = activeType === 'speaker' ? ['speaker_photo', 'speaker_logo'] : ['partner_logo']
   const [analyzing, setAnalyzing] = useState(false)
@@ -1309,7 +1742,14 @@ function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLa
     setAnalyzing(true)
     setAnalyzeError(null)
     const dims = await readImageSize(file)
-    setUploadSizeWarning(dims ? sizeMismatchMessage(dims.w, dims.h, canvasWidth, canvasHeight) : null)
+    if (variantCategory === 'badge' && variantPrint) {
+      const refused = badgeShapeError(dims, variantPrint)
+      if (refused) { setAnalyzeError(refused); setAnalyzing(false); return }
+      file = await resampleToCanvas(file, canvasWidth, canvasHeight)
+      setUploadSizeWarning(null)
+    } else {
+      setUploadSizeWarning(dims ? sizeMismatchMessage(dims.w, dims.h, canvasWidth, canvasHeight) : null)
+    }
     const form = new FormData()
     form.append('file', file)
     form.append('event_id', eventId)

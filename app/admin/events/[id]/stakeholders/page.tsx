@@ -826,6 +826,11 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                   <Link href={`/admin/events/${eventId}/stakeholders/speaker-order`}>
                     <Button variant="ghost">Speaker Order</Button>
                   </Link>
+                  {can('sae.badges.view') && (
+                    <Link href={`/admin/events/${eventId}/stakeholders/badges`}>
+                      <Button variant="ghost">Badges</Button>
+                    </Link>
+                  )}
                 </>
               )}
             </div>

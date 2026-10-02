@@ -1,5 +1,5 @@
 // Single source of truth for "what per-event, gate-able items exist" —
-// read by the Access UI (app/admin/events/[id]/access/RolesTab.tsx) to
+// read by the Access UI (app/admin/access/RolesTab.tsx) to
 // render module/item checkboxes when authoring a role, and used to
 // validate access_role_permissions.permission_key at write time. A plain
 // TypeScript constant, not a DB table — permission_key isn't FK'd, deliberately,
@@ -45,6 +45,12 @@ export const ACCESS_REGISTRY: AccessModule[] = [
       // Extension points for later phases (email templates / invite workflow)
       // — keys exist now so a Producer role can be pre-provisioned with
       // them; no route enforces them yet.
+      // Speaker Badges (2026-10-02) — bulk print badges for an event's confirmed speakers. view = see batches and
+      // previews; manage = create/edit/render a batch; approve = approve a batch for print and generate/download the
+      // real print PDF (deliberately separate: the person who adjusts badges isn't necessarily who releases to the vendor).
+      { key: 'sae.badges.view',            label: 'View speaker badge batches',                      enforced: true },
+      { key: 'sae.badges.manage',          label: 'Create and edit speaker badge batches',           enforced: true },
+      { key: 'sae.badges.approve',         label: 'Approve badges for print and download the print file', enforced: true },
       { key: 'sae.invites.send',           label: 'Send speaker/stakeholder invite emails',          enforced: true },
       { key: 'sae.forms.manage',           label: 'Customize onboarding form fields',                enforced: true },
       // Sensitive Documents (2026-09-04) — Passport/National ID, stored
@@ -137,6 +143,13 @@ export const ACCESS_REGISTRY: AccessModule[] = [
       { key: 'ops.vendors.manage', label: 'Add / edit vendors and their contacts, assign vendors to this event', enforced: true },
       { key: 'ops.licenses.view',   label: 'View the Speaker Licences list and batches',                enforced: true },
       { key: 'ops.licenses.manage', label: 'Create, send, extend, revoke and reopen licence batches; upload licences',                         enforced: true },
+      // Badge Printing (2026-10-02): the Ops section that reviews an approved speaker-badge print file, sends it to the
+      // print vendor and sees it confirmed printed. A person ASSIGNED to the section (Ops > Access) gets access without
+      // holding these keys — see app/lib/ops/section-access.ts.
+      { key: 'ops.badges.view',     label: 'View the Badge Printing list and print batches',            enforced: true },
+      { key: 'ops.badges.manage',   label: 'Review badge print files, send them to the print vendor, revoke or resend',                        enforced: true },
+      // Who handles what: assigning ops staff to sections (Speaker Licences, Badge Printing …). For the Ops Lead / Project Manager / Coordinator.
+      { key: 'ops.access.manage',   label: 'Assign operations staff to Operations sections',           enforced: true },
       // Vendor Portal accounts (2026-09-25): creating vendor logins, sending
       // invite/reset links, disabling accounts. Deliberately its own key —
       // it controls who from OUTSIDE Trescon can reach the portal at all.

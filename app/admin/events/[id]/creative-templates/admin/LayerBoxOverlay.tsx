@@ -1,8 +1,9 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Layer, TextLayer, PhotoSlotLayer, PlaceholderProfile, GlobalPlaceholderDefault } from '@/app/lib/announcements/composite'
 import type { HeadBox } from '@/app/lib/media/face-alignment'
+import { getContentRuns, type ContentRuns } from '@/app/lib/media/content-guides'
 import type { StakeholderKind, StakeholderOption } from './page'
 
 /* Drag/resize box editor overlaid on the variant editor's live preview
@@ -327,6 +328,18 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
   } | null>(null)
   const nudgeBurstRef = useRef<{ layerId: string; lastAt: number } | null>(null)
   const [guides, setGuides] = useState<{ x: number | null; y: number | null }>({ x: null, y: null })
+  // Where the real art sits inside each image layer (logo edges, panel edges…) as 0..1 fractions of that layer's image.
+  const [contentRuns, setContentRuns] = useState<Record<string, ContentRuns>>({})
+  const imageKey = layers.filter(l => l.type === 'image' && l.asset_url).map(l => `${l.id}|${(l as { asset_url: string }).asset_url}`).join(',')
+  useEffect(() => {
+    let cancelled = false
+    for (const l of layers) {
+      if (l.type !== 'image' || !l.asset_url) continue
+      void getContentRuns(l.asset_url).then(r => { if (!cancelled && r) setContentRuns(prev => (prev[l.id] === r ? prev : { ...prev, [l.id]: r })) })
+    }
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the image layers' ids + urls only
+  }, [imageKey])
 
   function startMarkerDrag(e: React.PointerEvent, layer: PhotoSlotLayer, mode: 'move' | 'resize') {
     if (!layer.alignment) return
@@ -452,6 +465,14 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
     if (mode === 'move') {
       const siblingsX = layers.filter(l => l.id !== drag.layerId).map(l => ({ start: l.x, size: l.width }))
       const siblingsY = layers.filter(l => l.id !== drag.layerId).map(l => ({ start: l.y, size: l.height }))
+      // Also snap to the art inside image layers (a logo's edges/centre, a panel's edges), mapped to canvas pixels.
+      for (const l of layers) {
+        if (l.type !== 'image' || l.id === drag.layerId) continue
+        const runs = contentRuns[l.id]
+        if (!runs) continue
+        for (const [a, b] of runs.xs) siblingsX.push({ start: l.x + a * l.width, size: (b - a) * l.width })
+        for (const [a, b] of runs.ys) siblingsY.push({ start: l.y + a * l.height, size: (b - a) * l.height })
+      }
       const snapX = computeSnap(x, width, canvasWidth, siblingsX)
       const snapY = computeSnap(y, height, canvasHeight, siblingsY)
       x = snapX.snapped
