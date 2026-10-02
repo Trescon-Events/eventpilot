@@ -3,13 +3,16 @@
 import { useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import AssignmentsTab from '@/app/admin/events/[id]/access/AssignmentsTab'
+import RolesTab from './RolesTab'
 import StaffPortalMappingTab from './StaffPortalMappingTab'
 import StaleAccessTab from './StaleAccessTab'
 
-/* Organization-Wide Access (2026-08-16) — Phase 1 & 2 of the Event
+/* Roles tab (2026-10-02): the role catalog (names + permission bundles) is global, so it is defined HERE, once. It used to
+   live in each event's Access page, which made it look event-specific; event pages now only assign people to a role.
+   Organization-Wide Access (2026-08-16) — Phase 1 & 2 of the Event
    Workspace Access Roles foundation redesign.
-   - Assignments tab: assigns a role (the same reusable catalog defined in
-     any event's Access → Roles tab) with no event_id, so it applies to
+   - Assignments tab: assigns a role (from the reusable role catalog defined
+     in the Roles tab here) with no event_id, so it applies to
      every event, current and future — for board/leadership who need
      visibility across the whole portfolio without being added
      event-by-event.
@@ -26,19 +29,20 @@ import StaleAccessTab from './StaleAccessTab'
    requires session.adm" rule, no separate layout.tsx gate needed). */
 
 export default function GlobalAccessPage() {
-  const [tab, setTab] = useState<'assignments' | 'hrms-mapping' | 'stale'>('assignments')
+  const [tab, setTab] = useState<'assignments' | 'roles' | 'hrms-mapping' | 'stale'>('assignments')
 
   return (
     <div style={{ padding: '24px 32px', maxWidth: '1100px', margin: '0 auto' }}>
       <PageHeader
         eyebrow="Platform"
         title="Organization-Wide Access"
-        description="Assign a role across every event at once, and map Staff Portal role types to auto-grant the matching access. Roles themselves are defined from any event's Access → Roles tab."
+        description="Define roles and their permissions once (Roles tab), assign a role across every event at once, and map Staff Portal role types to auto-grant the matching access. Per-event assignments are made from each event's own Access page."
       />
 
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '1px solid var(--border)' }}>
         {([
           ['assignments', 'Org-Wide Assignments'],
+          ['roles', 'Roles'],
           ['hrms-mapping', 'Staff Portal Mapping'],
           ['stale', 'Stale Access'],
         ] as const).map(([key, label]) => (
@@ -53,7 +57,7 @@ export default function GlobalAccessPage() {
         ))}
       </div>
 
-      {tab === 'assignments' ? <AssignmentsTab /> : tab === 'hrms-mapping' ? <StaffPortalMappingTab /> : <StaleAccessTab />}
+      {tab === 'assignments' ? <AssignmentsTab /> : tab === 'roles' ? <RolesTab /> : tab === 'hrms-mapping' ? <StaffPortalMappingTab /> : <StaleAccessTab />}
     </div>
   )
 }

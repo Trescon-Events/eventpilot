@@ -99,13 +99,13 @@ export default function AccessCenterPage() {
               <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.8px', color: 'var(--teal-mid)', textTransform: 'uppercase', marginBottom: '6px' }}>Tier 3 — Event Workspace</div>
               <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Fine-grained, per-event roles</div>
               <p style={{ fontSize: '13px', color: 'var(--ink3)', margin: 0, maxWidth: '560px' }}>
-                Define reusable roles once, then assign staff to a role either across every event
-                (board/leadership) or scoped to a single event. Per-event assignments happen from
-                each event&apos;s own workspace, under Access — this link covers the org-wide part
-                and the shared role catalog.
+                Roles (and the permissions in each) are defined once, centrally, under Roles on the
+                Org-Wide Access page. Staff are then assigned to a role either across every event
+                (board/leadership) or scoped to a single event from that event&apos;s own workspace,
+                under Access.
               </p>
             </div>
-            <Link href="/admin/access"><span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--teal-mid)', whiteSpace: 'nowrap' }}>Open Org-Wide Access →</span></Link>
+            <Link href="/admin/access"><span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--teal-mid)', whiteSpace: 'nowrap' }}>Open Roles & Org-Wide Access →</span></Link>
           </div>
         </Card>
 

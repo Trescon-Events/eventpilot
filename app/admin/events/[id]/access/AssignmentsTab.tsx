@@ -88,7 +88,7 @@ export default function AssignmentsTab({ eventId }: { eventId?: string }) {
   if (roleOptions.length === 0) {
     return (
       <div style={{ fontSize: '13px', color: 'var(--ink3)', padding: '24px', textAlign: 'center' }}>
-        No roles exist yet — create one in the Roles tab first.
+        No roles exist yet — create one under Roles on the Organization-Wide Access page first.
       </div>
     )
   }
