@@ -15,13 +15,21 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5.5) — 29 Sep → 1 Oct 2026 (one long session). Themes: SAE submission/communications fixes, FSF onboarding (19 speakers imported), BSS KonfHub remove-and-repush, Reference Docs controls, headline rendering, and a full **My Dashboard / My Events / sidebar rework** (AI-learning moved out of the way, Messages feature deleted). |
-| Date | 2026-10-01 |
-| Latest push | `origin/main` at `b46eca4` (this HANDOFF commit follows it). Session commits: `7b23882`, `4564380`, `9e67ab9`, `4cce2d6`, `1847ab2`, `6bd3c1d`, `86742db`, `91e3dba`, `b46eca4`. |
-| DB changes (direct psql / scripts, production) | **`messages` table DROPPED** (31 test rows; no FKs/views/code left). FSF: 19 `event_speakers` + files + 7 additional contacts imported. BSS: 25 POC additional contacts + Eva Mendis added; KonfHub rebuilt (see below). `events.announcement_attribution_line` column exists (migration `supabase/sae_attribution_line_migration.sql`, applied by Madhu; FIFF value set by it). |
-| Handed off to | Madhu (resumes next session; Durga can pick up from this file). |
-| Deployed | Everything pushed has auto-deployed except possibly the last build — **verify `railway deployment list`** (one deploy this week sat on DEPLOYING for 20+ min; the container was up but Railway never switched traffic). |
-| Left alone / known follow-up | See "What's next (1 Oct sign-off)" directly below. |
+| Who | Madhu + Claude Code (Sonnet 5.5) — 2 → 4 Oct 2026 (one long session). Themes: **Speaker Badge module** (print-ready badge templates, batches, review, approval, private print PDF), **producer → Ops → print-vendor hand-off** with vendor-portal download/confirm, **Ops section assignments** (Ops > Access), **umbrella workspace redesigned like an event workspace**, roles moved to `/admin/access` > Roles, searchable pickers, and a **CI fix** (see below). |
+| Date | 2026-10-04 |
+| Latest push | `origin/main` at the final exit commit (see `git log`). Session commits: `6931cb5` badge module, `37283fe` central roles, `7f8e270` docs, `5abca76` adjust-window edit + Shift+Enter, `936ee7b` umbrella redesign, `ae45d2f` docs, `528fc35` CI gate fix, `9473f40` searchable Ops Access pickers. |
+| DB changes (production, applied by Madhu via `!`) | `supabase/badge_batches_migration.sql` (`badge_batches`, `badge_batch_items`, `badge_jobs`) and `supabase/badge_dispatch_migration.sql` (`badge_print_dispatches`, `ops_section_assignments`, `notifications.link/event_id/umbrella_id`). Test data from the scripted end-to-end runs was cleaned up. |
+| CI | The "Nav + branding registry completeness" step had **failed on every push since 1 Oct** (new thin `page.tsx` wrappers / `/dashboard` not containing `<PageHeader`). Fixed by reasoned `PAGEHEADER_EXEMPT` entries in `app/lib/registry/nav-exclusions.ts`; CI is green again. **Before every push run `npm run check:nav`** (now part of the exitpro skill). |
+| Handed off to | Madhu (resumes next session). |
+| Deployed | Railway auto-deploy from `main`; verify with `railway deployment list` and `gh run list --workflow CI --limit 1`. |
+| Left alone / known follow-up | See "What's next (4 Oct sign-off)" directly below. |
+
+### What's next (4 Oct sign-off)
+1. **Grant `sae.badges.view|manage|approve` to the Producer role** (Access screen / `/admin/access` > Roles) so producers see the Badges button; `ops.*` already covers Ops. Grant **`ops.access.manage`** to the Ops Lead / PM / Coordinator roles.
+2. **Set up the badge print vendor:** Operations > Vendors > category "Print (badge printing)", assign to the event/umbrella, create a portal login (vendor sees the Vendor Portal's passport-data terms page once — wording not badge-specific yet). Assign **Badge Printing** staff under Operations > Access (otherwise Notify Ops falls back to `ops.badges.manage` holders — Hussain, Sanjusha).
+3. **Browser-test the whole hand-off** (nothing here was clicked through in a browser, only scripted): create batch → review/adjust (edit text in place, Shift+Enter) → approve → generate print file → Notify Ops → Ops sends to vendor → vendor portal download + Confirm printed → bells/emails. Also the umbrella hub as Hussain/Sanjusha (Operations tile only).
+4. **Not tested yet:** a 100-badge batch (~110 MB PDF, several minutes), killing the server mid-render/PDF, a view-only (`sae.badges.view`) user.
+5. Open/cosmetic: Licences page still gates on `ops.licenses.*` only (section assignment doesn't open it); `GET /api/events/stakeholders/messaging?owner_type=umbrella` has no permission check; cutout specks aren't auto-removed; no "layer above the photo is opaque" upload warning; ops vendor picker isn't searchable; older carry-overs: BSS follow-ups (Prateek Moderator tag, Mohan Rao Goli company en dash, Kaushik bio, 6 unnamed POC contacts, 11 confirmed speakers not on KonfHub), FIFF/DFS KonfHub agenda sessions may have lost speaker links after repush (unchecked), delete the FSF source folder with passport scans, PILOTS.md/setup-pilots still mention SME_CONTEXT.
 
 ## 2 Oct 2026 — Speaker Badge module (print-ready PVC badges) — UNCOMMITTED, not yet pushed
 

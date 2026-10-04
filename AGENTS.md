@@ -36,3 +36,10 @@ This prevents duplicate work and ensures continuity between Madhu and Durga's se
 5. Tell the user: "Handoff complete. Here is your sign-off summary: [brief summary]"
 
 The person picking up next will read HANDOFF.md before touching anything.
+
+---
+
+# Before every push — CI gates
+
+CI (`.github/workflows/ci.yml`) runs lint (changed files), typecheck, **`npm run check:nav`** and the build. `check:nav` fails the whole run (and emails the team) when a NEW `page.tsx` has no entry in `app/lib/registry/modules.tsx`, doesn't literally contain `<PageHeader`, or claims an event permission without a gate call. Run `npm run check:nav` locally before pushing. For a thin wrapper page whose shared view renders the header, add a reasoned entry to `app/lib/registry/nav-exclusions.ts`; never edit `.github/scripts/nav-branding-baseline.json` to hide new pages. After pushing, confirm `gh run list --workflow CI --limit 1` ends `success`.
+
