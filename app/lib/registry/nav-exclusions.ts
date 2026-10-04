@@ -33,6 +33,8 @@ export type NavExclusionPrefix = { prefix: string; reason: string }
 export const REGISTRY_EXEMPT: NavExclusion[] = []
 export const REGISTRY_EXEMPT_PREFIXES: NavExclusionPrefix[] = []
 
+const VIEW_NAME = { '': 'OperationsHubView', '/licenses': 'LicensesView', '/vendors': 'VendorsView', '/badges': 'BadgePrintingView', '/access': 'OpsAccessView' } as const
+
 export const PAGEHEADER_EXEMPT: NavExclusion[] = [
   {
     path: '/admin/events/[id]/announcements/[announcementId]/review',
@@ -48,18 +50,26 @@ export const PAGEHEADER_EXEMPT: NavExclusion[] = [
   },
   {
     path: '/admin/umbrellas/[id]',
-    reason: 'Thin server-component wrapper (app/admin/umbrellas/[id]/page.tsx) that only session-checks and delegates to UmbrellaOverview.tsx, which already renders <PageHeader eyebrow="Umbrella Event" .../> itself — the check greps the page.tsx file only, it can\'t see through the import.',
+    reason: 'Umbrella workspace hub (2026-10-02 redesign) — a module-tile landing page that mirrors the event workspace hub, which also has its own custom hero (title, status pill, meta line) instead of the standard PageHeader. Rendered by UmbrellaOverview.tsx via a thin server page.tsx.',
   },
-  ...(['', '/licenses', '/vendors'] as const).flatMap(sub => ([
+  ...(['', '/licenses', '/vendors', '/badges', '/access'] as const).flatMap(sub => ([
     {
       path: `/admin/events/[id]/operations${sub}`,
-      reason: `Thin wrapper (OpsScopeProvider kind="event") delegating to the shared ${sub === '' ? 'OperationsHubView' : sub === '/licenses' ? 'LicensesView' : 'VendorsView'} component, which already renders <PageHeader/> itself — same event/umbrella shared-view split as the sibling below. The check greps the page.tsx file only, it can't see through the import.`,
+      reason: `Thin wrapper (OpsScopeProvider kind="event") delegating to the shared ${VIEW_NAME[sub]} component, which already renders <PageHeader/> itself — same event/umbrella shared-view split as the sibling below. The check greps the page.tsx file only, it can't see through the import.`,
     },
     {
       path: `/admin/umbrellas/[id]/operations${sub}`,
-      reason: `Thin wrapper (OpsScopeProvider kind="umbrella") delegating to the shared ${sub === '' ? 'OperationsHubView' : sub === '/licenses' ? 'LicensesView' : 'VendorsView'} component, which already renders <PageHeader/> itself — an umbrella's Operations screens are the same shared view as its child events', just scoped differently. The check greps the page.tsx file only, it can't see through the import.`,
+      reason: `Thin wrapper (OpsScopeProvider kind="umbrella") delegating to the shared ${VIEW_NAME[sub]} component, which already renders <PageHeader/> itself — an umbrella's Operations screens are the same shared view as its child events', just scoped differently. The check greps the page.tsx file only, it can't see through the import.`,
     },
   ])),
+  ...([['details', 'UmbrellaDetails', 'Event Details'], ['reference-docs', 'UmbrellaReferenceDocs', 'Reference Documents'], ['access', 'UmbrellaAccessTab', 'Access']] as const).map(([sub, comp, label]) => ({
+    path: `/admin/umbrellas/[id]/${sub}`,
+    reason: `Thin server-component wrapper (admin check, then delegates to ${comp}) — the ${label} screen of the umbrella workspace renders <PageHeader/> itself inside ${comp}. The check greps the page.tsx file only, it can't see through the import.`,
+  })),
+  {
+    path: '/dashboard',
+    reason: 'My Dashboard (2026-10-01) — the post-login landing page, deliberately a custom welcome hero with a few module cards (RBAC-driven from the sidebar access list) rather than the standard title/description PageHeader. It is the first screen everyone sees and is not a module page.',
+  },
 ]
 export const PAGEHEADER_EXEMPT_PREFIXES: NavExclusionPrefix[] = []
 
