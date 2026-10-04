@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
-import { Button, Select } from '@/app/components/ui'
+import { Button, SearchableSelect } from '@/app/components/ui'
 import Toast from '@/app/components/ui/Toast'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import { useOpsScope } from './scope-context'
@@ -85,10 +85,10 @@ export default function OpsAccessView() {
               )}
               {data.can_manage && (
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <Select value={pick[sec.key] ?? ''} onChange={e => setPick(p => ({ ...p, [sec.key]: e.target.value }))} style={{ flex: '1 1 240px' }}>
-                    <option value="">Add a person…</option>
-                    {available.map(c => <option key={c.id} value={c.id}>{c.name}{c.role ? ` — ${c.role}` : ''}</option>)}
-                  </Select>
+                  <div style={{ flex: '1 1 240px', minWidth: 0 }}>
+                    <SearchableSelect value={pick[sec.key] ?? ''} onChange={id => setPick(p => ({ ...p, [sec.key]: id }))} placeholder="Search for a person to add…"
+                      options={available.map(c => ({ id: c.id, label: c.name, sublabel: [c.role, c.email].filter(Boolean).join(' · ') }))} />
+                  </div>
                   <Button variant="lime" disabled={!pick[sec.key] || busy === sec.key} onClick={() => void add(sec.key)}>{busy === sec.key ? 'Assigning…' : 'Assign'}</Button>
                 </div>
               )}
