@@ -147,11 +147,18 @@ export async function updateKonfhubSession(
     session_location: string
     session_speakers: string[]
     session_colour: string
+    tags: { id: string; name: string }[]
+    track_assigned: boolean
   }>
 ): Promise<void> {
-  const payload = fields.session_speakers
-    ? { ...fields, session_speakers: fields.session_speakers.map(Number) }
-    : fields
+  // KonfHub only accepts "YYYY-MM-DD HH:MM:SS" / "YYYY-MM-DDTHH:MM:SS" (UTC, no
+  // offset) — an ISO string with +00:00 or Z is rejected with 400 "Invalid
+  // timestamp format" (confirmed live 2026-10-04), so normalise every time
+  // here regardless of what the caller holds.
+  const payload: Record<string, unknown> = { ...fields }
+  if (fields.session_speakers) payload.session_speakers = fields.session_speakers.map(Number)
+  if (fields.start_timestamp) payload.start_timestamp = toKonfhubTimestamp(fields.start_timestamp)
+  if (fields.end_timestamp) payload.end_timestamp = toKonfhubTimestamp(fields.end_timestamp)
   const res = await fetch(`${API_BASE}/${konfhubEventId}/sessions/${sessionId}`, {
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -161,6 +168,58 @@ export async function updateKonfhubSession(
     const data = await res.json().catch(() => ({})) as { error?: string }
     throw new KonfhubApiError(data.error || 'Failed to update KonfHub session', res.status)
   }
+}
+
+// POST .../tracks — all five fields required (confirmed live 2026-10-04);
+// returns the new numeric track id. KonfHub tracks are PER DATE (a recurring
+// stage gets a new id each day), so the push creates one per stage per day.
+export async function createKonfhubTrack(konfhubEventId: string, token: string, f: { track_title: string; track_date: string; start_time: string; end_time: string; track_order: number }): Promise<string> {
+  const res = await fetch(`${API_BASE}/${konfhubEventId}/tracks`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(f) })
+  const data = await res.json().catch(() => ({})) as { track_id?: number | string; error?: string }
+  if (!res.ok || data.track_id === undefined) throw new KonfhubApiError(data.error || 'Failed to create KonfHub track', res.status)
+  return String(data.track_id)
+}
+
+// PUT .../tracks/:id {track_sessions} REPLACES the track's whole session list,
+// and KonfHub does not remove a session from another track when it's added
+// here (one session can sit in two tracks at once, confirmed live) — callers
+// must send the complete desired list and clean up the old track themselves.
+export async function setKonfhubTrackSessions(konfhubEventId: string, trackId: string, token: string, sessionIds: string[]): Promise<void> {
+  const res = await fetch(`${API_BASE}/${konfhubEventId}/tracks/${trackId}`, { method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ track_sessions: sessionIds.map(Number) }) })
+  if (!res.ok) { const d = await res.json().catch(() => ({})) as { error?: string }; throw new KonfhubApiError(d.error || 'Failed to update KonfHub track sessions', res.status) }
+}
+
+// POST .../sessions — session_title, session_type, session_order,
+// track_assigned, session_colour and both timestamps are required; `tags`
+// must be {id, name} objects (plain id strings are rejected). A session can't
+// be created inside a track directly — assign it with setKonfhubTrackSessions.
+export async function createKonfhubSession(konfhubEventId: string, token: string, f: {
+  session_title: string; session_type: number; session_order: number; session_colour: string; start_timestamp: string; end_timestamp: string
+  session_description?: string; session_speakers?: string[]; tags?: { id: string; name: string }[]
+}): Promise<string> {
+  const payload: Record<string, unknown> = { ...f, track_assigned: false, start_timestamp: toKonfhubTimestamp(f.start_timestamp), end_timestamp: toKonfhubTimestamp(f.end_timestamp) }
+  if (f.session_speakers) payload.session_speakers = f.session_speakers.map(Number)
+  const res = await fetch(`${API_BASE}/${konfhubEventId}/sessions`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+  const data = await res.json().catch(() => ({})) as { session_id?: number | string; error?: string }
+  if (!res.ok || data.session_id === undefined) throw new KonfhubApiError(data.error || 'Failed to create KonfHub session', res.status)
+  return String(data.session_id)
+}
+
+// Any ISO/Date value -> KonfHub's UTC "YYYY-MM-DD HH:MM:SS".
+export function toKonfhubTimestamp(value: string | Date): string {
+  const d = typeof value === 'string' ? new Date(value.includes(' ') && !/[Zz+]/.test(value) ? value.replace(' ', 'T') + 'Z' : value) : value
+  return d.toISOString().slice(0, 19).replace('T', ' ')
+}
+
+// KonfHub's own updated_at for one session, as an ISO instant — used after a
+// push to stamp konfhub_last_synced_updated_at with KonfHub's clock rather
+// than ours (our local clock made every push look like drift on the next
+// fetch). Null if the session can't be found.
+export async function fetchKonfhubSessionUpdatedAt(konfhubEventId: string, sessionId: string, token: string): Promise<string | null> {
+  const all = await fetchKonfhubSessionsFull(konfhubEventId, token)
+  const u = all.find(s => s.session_id === String(sessionId))?.updated_at
+  if (!u) return null
+  return /[Zz+]/.test(u) ? u : u.replace(' ', 'T') + 'Z'
 }
 
 export { getKonfhubToken, KonfhubApiError }

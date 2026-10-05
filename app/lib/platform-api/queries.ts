@@ -1,3 +1,4 @@
+import { getPublishedAgenda } from '@/app/lib/agenda/public'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getEventGuidelines, renderGuidelinesJson } from '@/app/lib/content/guidelines-api'
 import type { TokenScope } from './auth'
@@ -95,16 +96,10 @@ export async function getEventPartners(eventId: string) {
   return (data ?? []).map(p => ({ id: p.id, name: p.name, tier: p.tier, logo_url: p.logo_url, website_url: p.website_url, description: p.company_description }))
 }
 
+// Published Agenda Builder sessions (falls back to the legacy free-text agenda
+// for events that haven't moved over) — see app/lib/agenda/public.ts.
 export async function getEventAgenda(eventId: string) {
-  const { data, error } = await supabaseAdmin
-    .from('event_agenda')
-    .select('id, day, time_slot, title, description, speaker_name, type, track')
-    .eq('event_id', eventId)
-    .eq('active', true)
-    .order('day', { ascending: true })
-    .order('time_slot', { ascending: true })
-  if (error) throw new Error('query_failed')
-  return data ?? []
+  try { return (await getPublishedAgenda(eventId)).items } catch { throw new Error('query_failed') }
 }
 
 // Explicit doc_type allowlist (2026-09-29, per Madhu — this token type is

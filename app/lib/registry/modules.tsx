@@ -1181,6 +1181,17 @@ export function getModuleRegistry(): ModuleDef[] {
       sidebar: { section: 'events', parent: 'events', order: 6 },
     },
     {
+      key: 'agenda-builder', label: 'Agenda',
+      description: 'Build the event agenda on a day timeline — stages, sessions, speakers with roles, draft/publish. Times are in the event timezone.',
+      icon: I.clock, color: '#0291DB',
+      href: ctx => `/admin/events/${ctx.eventId}/agenda`,
+      needsEvent: true,
+      breadcrumbPattern: '/admin/events/:eventId/agenda', breadcrumbParent: 'admin-event-workspace',
+      // Matches agenda/layout.tsx's real gate.
+      access: { kind: 'event_permission', permissionKey: 'sae.agenda.manage' },
+      sidebar: { section: 'events', parent: 'events', order: 6.5 },
+    },
+    {
       key: 'admin-event-integrations', label: 'Integrations',
       description: 'KonfHub, HubSpot Forms, Postiz, and Client Approval Contacts config for this event.',
       icon: I.gear, color: '#009C89',

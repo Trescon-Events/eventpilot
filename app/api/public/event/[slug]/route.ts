@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getPublishedAgenda } from '@/app/lib/agenda/public'
 import { withSpeakerPublicName } from '@/app/lib/events/speaker-public-name'
 
 /* Public read-only API for an event website.
@@ -49,12 +50,7 @@ export async function GET(
   }
 
   if (section === 'agenda') {
-    const { data } = await supabaseAdmin
-      .from('event_agenda')
-      .select('id,day,time_slot,title,description,speaker_name,type,track')
-      .eq('event_id', eventId).eq('active', true)
-      .order('day').order('order_index').order('time_slot')
-    return NextResponse.json(data ?? [], { headers })
+    return NextResponse.json((await getPublishedAgenda(eventId)).items, { headers })
   }
 
   if (section === 'sponsors') {
@@ -70,8 +66,7 @@ export async function GET(
   const [spRes, agRes, spRes2] = await Promise.all([
     supabaseAdmin.from('event_speakers').select('id,name,public_name,role,company,bio,photo_url,linkedin_url,tier,session_title')
       .eq('event_id', eventId).eq('active', true).eq('status', 'approved').order('tier').order('order_index').order('name'),
-    supabaseAdmin.from('event_agenda').select('id,day,time_slot,title,description,speaker_name,type,track')
-      .eq('event_id', eventId).eq('active', true).order('day').order('order_index').order('time_slot'),
+    getPublishedAgenda(eventId).then(r => ({ data: r.items })),
     supabaseAdmin.from('event_sponsors').select('id,name,tier,logo_url,website_url')
       .eq('event_id', eventId).eq('active', true).order('order_index').order('name'),
   ])

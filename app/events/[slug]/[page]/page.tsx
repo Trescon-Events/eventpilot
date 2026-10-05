@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getPublishedAgenda } from '@/app/lib/agenda/public'
 import { withSpeakerPublicName } from '@/app/lib/events/speaker-public-name'
 import type { PageStructure, Section, SectionDesign, SectionItem } from '@/app/lib/event-page-types'
 import { defaultFooter } from '@/app/lib/event-page-types'
@@ -116,8 +117,7 @@ export default async function EventSubPage({ params }: { params: Promise<{ slug:
     needsSpeakers ? supabaseAdmin.from('event_speakers').select('id,name,public_name,role,company,bio,photo_url,linkedin_url,tier,session_title')
       .eq('event_id', w.event_id).eq('active', true).eq('status', 'approved')
       .order('tier').order('order_index').order('name') : Promise.resolve({ data: [] }),
-    needsAgenda ? supabaseAdmin.from('event_agenda').select('id,day,time_slot,title,description,speaker_name,type,track')
-      .eq('event_id', w.event_id).eq('active', true).order('day').order('order_index').order('time_slot') : Promise.resolve({ data: [] }),
+    needsAgenda ? getPublishedAgenda(w.event_id).then(r => ({ data: r.items })) : Promise.resolve({ data: [] }),
     needsPartners ? supabaseAdmin.from('event_sponsors').select('id,name,tier,logo_url,website_url')
       .eq('event_id', w.event_id).eq('active', true).order('order_index').order('name') : Promise.resolve({ data: [] }),
   ])

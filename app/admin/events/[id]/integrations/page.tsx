@@ -98,8 +98,9 @@ function IntegrationsSideNav({ active, sections }: { active: string; sections: r
      never auto-run, because only a human knows when KonfHub's own side is
      actually ready (per Madhu: "konfhub platform need to be setup and
      ready before he does that").
-   - Speaker/Moderator tags: fetched via GET /event/:id/tags, then a human
-     PICKS which fetched tag is which from a dropdown — never auto-matched
+   - Speaker roles (Speaker, Moderator, Roundtable Chair, ... — generalised
+     from a fixed Speaker/Moderator pair 2026-10-04): tags fetched via GET
+     /event/:id/tags, then a human ADDS the ones that are roles — never auto-matched
      by name. A live probe against WAIS Malaysia's real event confirmed
      why: it has both a lowercase 'speaker' tag AND a separate capitalized
      'Speaker' tag, plus unrelated session-type tags in the same list.
@@ -117,8 +118,6 @@ type Settings = {
   konfhub_client_id: string | null
   konfhub_client_secret: string | null
   konfhub_speaker_category_id: string | null
-  konfhub_speaker_tag_id: string | null
-  konfhub_moderator_tag_id: string | null
   konfhub_speaker_ticket: string | null
   konfhub_partner_ticket: string | null
   konfhub_api_key: string | null
@@ -211,9 +210,22 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
 
   const [fetchedTags, setFetchedTags] = useState<KonfhubTag[] | null>(null)
   const [fetchingTags, setFetchingTags] = useState(false)
-  const [selectedSpeakerTagId, setSelectedSpeakerTagId] = useState('')
-  const [selectedModeratorTagId, setSelectedModeratorTagId] = useState('')
+  // Roles (2026-10-04) — replaced the fixed Speaker/Moderator tag pair: any
+  // number of the event's KonfHub tags can be marked as roles (Speaker,
+  // Moderator, Roundtable Chair, ...). Saved as a list in display order.
+  const [roles, setRoles] = useState<{ tag_id: string; label: string }[]>([])
   const [savingTags, setSavingTags] = useState(false)
+  // Agenda tag mapping (2026-10-05) — which KonfHub tag a session format
+  // (Keynote, Panel…) and a room (Roundtable Room 1…) maps to when sessions are pushed.
+  const [tagMap, setTagMap] = useState<{ format: { label: string; tag_id: string }[]; room: { label: string; tag_id: string }[] }>({ format: [], room: [] })
+  const [savingTagMap, setSavingTagMap] = useState(false)
+  // HubSpot Event link (2026-10-05) — the one HubSpot Events record the CRM sync associates this
+  // event's contacts/companies with. Selected here, never name-matched or created by EventPilot.
+  type HubSpotEventRow = { id: string; name: string; createdAt: string | null; startDate: string | null }
+  const [hsLinked, setHsLinked] = useState<{ id: string; name: string | null } | null>(null)
+  const [hsEvents, setHsEvents] = useState<HubSpotEventRow[] | null>(null)
+  const [hsQuery, setHsQuery] = useState('')
+  const [hsBusy, setHsBusy] = useState(false)
 
   // Speaker Category ID (2026-09-27) — auto-fetched from the same GET
   // /speakers KonfHub call listKonfhubSpeakers already trusts, instead of
@@ -346,8 +358,15 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
         konfhub_api_key: settingsData.konfhub_api_key ?? '',
         konfhub_partner_ticket: settingsData.konfhub_partner_ticket ?? '',
       })
-      setSelectedSpeakerTagId(settingsData.konfhub_speaker_tag_id ?? '')
-      setSelectedModeratorTagId(settingsData.konfhub_moderator_tag_id ?? '')
+      const hsRes = await fetch(`/api/events/hubspot/link?event_id=${eventId}`)
+      const hsData = await hsRes.json().catch(() => null)
+      if (hsRes.ok) setHsLinked(hsData?.linked ?? null)
+      const tagMapRes = await fetch(`/api/events/konfhub/tag-map?event_id=${eventId}`)
+      const tagMapData = await tagMapRes.json().catch(() => null)
+      if (tagMapRes.ok && tagMapData) setTagMap({ format: tagMapData.format ?? [], room: tagMapData.room ?? [] })
+      const rolesRes = await fetch(`/api/events/konfhub/roles?event_id=${eventId}`)
+      const rolesData = await rolesRes.json().catch(() => null)
+      if (rolesRes.ok && rolesData?.roles) setRoles(rolesData.roles.map((r: { tag_id: string; label: string }) => ({ tag_id: r.tag_id, label: r.label })))
       setSelectedTicketId(settingsData.konfhub_speaker_ticket ?? '')
       setFieldMapSelections(settingsData.konfhub_registration_field_map ?? {})
       setAgendaSource(settingsData.agenda_source === 'konfhub_authoritative' ? 'konfhub_authoritative' : 'eventpilot_native')
@@ -451,15 +470,53 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
   async function saveTags() {
     setSavingTags(true)
     setMsg(null)
-    const res = await fetch(`/api/events/konfhub/settings?event_id=${eventId}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ konfhub_speaker_tag_id: selectedSpeakerTagId || null, konfhub_moderator_tag_id: selectedModeratorTagId || null }),
+    const res = await fetch(`/api/events/konfhub/roles?event_id=${eventId}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roles }),
     })
     const data = await res.json().catch(() => ({}))
     setSavingTags(false)
-    if (!res.ok) { setMsg({ text: data.error ?? 'Could not save tags.', ok: false }); return }
-    setSettings(prev => prev ? { ...prev, konfhub_speaker_tag_id: data.konfhub_speaker_tag_id, konfhub_moderator_tag_id: data.konfhub_moderator_tag_id } : prev)
-    setMsg({ text: 'Tags saved.', ok: true })
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not save roles.', ok: false }); return }
+    setRoles((data.roles ?? []).map((r: { tag_id: string; label: string }) => ({ tag_id: r.tag_id, label: r.label })))
+    setMsg({ text: 'Roles saved.', ok: true })
+  }
+
+  async function fetchHubspotEvents(q?: string) {
+    setHsBusy(true)
+    setMsg(null)
+    const res = await fetch(`/api/events/hubspot/events?event_id=${eventId}${q?.trim() ? `&q=${encodeURIComponent(q.trim())}` : ''}`)
+    const data = await res.json().catch(() => ({}))
+    setHsBusy(false)
+    setHsLinked(data.linked ?? null)
+    if (!res.ok && !data.events) { setMsg({ text: data.error ?? 'Could not fetch HubSpot events.', ok: false }); return }
+    if (data.error) setMsg({ text: data.error, ok: false })
+    setHsEvents(data.events ?? [])
+  }
+
+  async function linkHubspotEvent(id: string | null) {
+    setHsBusy(true)
+    setMsg(null)
+    const res = await fetch(`/api/events/hubspot/events?event_id=${eventId}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hubspot_event_id: id }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setHsBusy(false)
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not save the link.', ok: false }); return }
+    setHsLinked(data.linked ?? null)
+    setMsg({ text: id ? 'HubSpot event linked.' : 'HubSpot event unlinked.', ok: true })
+  }
+
+  async function saveTagMap() {
+    setSavingTagMap(true)
+    setMsg(null)
+    const res = await fetch(`/api/events/konfhub/tag-map?event_id=${eventId}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tagMap),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSavingTagMap(false)
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not save the agenda tag mapping.', ok: false }); return }
+    setTagMap({ format: data.format ?? [], room: data.room ?? [] })
+    setMsg({ text: 'Agenda tag mapping saved.', ok: true })
   }
 
   async function fetchSpeakerCategories() {
@@ -926,45 +983,79 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
         </div>
 
         <div style={{ marginTop: '16px' }}><Card padded>
-          <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Speaker Listing Tags</div>
+          <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Speaker Roles</div>
           <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
-            Decides which of this speaker&apos;s tags (Speaker / Moderator) get sent to KonfHub&apos;s Speakers listing. Fetch only once KonfHub&apos;s tags are actually set up — this never runs automatically.
+            The KonfHub tags that count as a speaker&apos;s role — Speaker, Moderator, Roundtable Chair, and so on. A speaker&apos;s main listing carries one; any extra role (a different role in another session) gets its own record from the speaker&apos;s Additional Roles tab. Whenever new tags are created in KonfHub, fetch again and add them here — this never runs automatically.
           </div>
-          {!fetchedTags ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              {settings?.konfhub_speaker_tag_id || settings?.konfhub_moderator_tag_id ? (
-                <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>
-                  Currently saved — Speaker: <code>{settings.konfhub_speaker_tag_id ?? '—'}</code>, Moderator: <code>{settings.konfhub_moderator_tag_id ?? '—'}</code>
-                </div>
-              ) : (
-                <Badge color="grey">Not set</Badge>
-              )}
-              {canManage && <Button variant="ghost" onClick={fetchTags} disabled={fetchingTags}>{fetchingTags ? 'Fetching…' : 'Fetch Tags from KonfHub'}</Button>}
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gap: '12px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
-                <div>
-                  <label style={labelStyle}>Speaker Tag</label>
-                  <Select value={selectedSpeakerTagId} disabled={!canManage} onChange={e => setSelectedSpeakerTagId(e.target.value)}>
-                    <option value="">— Select —</option>
-                    {fetchedTags.map(t => <option key={t.id} value={t.id}>{t.name} ({t.id.slice(0, 8)}…)</option>)}
-                  </Select>
-                </div>
-                <div>
-                  <label style={labelStyle}>Moderator Tag</label>
-                  <Select value={selectedModeratorTagId} disabled={!canManage} onChange={e => setSelectedModeratorTagId(e.target.value)}>
-                    <option value="">— Select —</option>
-                    {fetchedTags.map(t => <option key={t.id} value={t.id}>{t.name} ({t.id.slice(0, 8)}…)</option>)}
-                  </Select>
-                </div>
+          <div style={{ display: 'grid', gap: '8px', marginBottom: '14px' }}>
+            {roles.length === 0 && <div><Badge color="grey">No roles set</Badge></div>}
+            {roles.map((r, idx) => (
+              <div key={r.tag_id} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <input
+                  value={r.label} disabled={!canManage}
+                  onChange={e => setRoles(prev => prev.map((x, i) => i === idx ? { ...x, label: e.target.value } : x))}
+                  style={{ width: '220px', padding: '6px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '6px' }}
+                />
+                <code style={{ fontSize: '11.5px', color: 'var(--ink4)' }}>{r.tag_id.slice(0, 8)}…</code>
+                {canManage && <button onClick={() => setRoles(prev => prev.filter((_, i) => i !== idx))} style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer' }}>Remove</button>}
               </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                {canManage && <Button variant="teal" onClick={saveTags} disabled={savingTags}>{savingTags ? 'Saving…' : 'Save Tags'}</Button>}
-                {canManage && <Button variant="ghost" onClick={fetchTags} disabled={fetchingTags}>{fetchingTags ? 'Fetching…' : 'Re-fetch'}</Button>}
+            ))}
+          </div>
+          {fetchedTags && (
+            <div style={{ marginBottom: '14px' }}>
+              <label style={labelStyle}>Tags on KonfHub</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {fetchedTags.filter(t => !roles.some(r => r.tag_id === t.id)).map(t => (
+                  <button key={t.id} disabled={!canManage} onClick={() => setRoles(prev => [...prev, { tag_id: t.id, label: t.name }])}
+                    style={{ padding: '4px 10px', fontSize: '12.5px', border: '1px dashed var(--border)', borderRadius: '999px', background: 'none', color: 'var(--ink2)', cursor: canManage ? 'pointer' : 'default' }}>
+                    + {t.name}
+                  </button>
+                ))}
+                {fetchedTags.every(t => roles.some(r => r.tag_id === t.id)) && <span style={{ fontSize: '12.5px', color: 'var(--ink4)' }}>Every fetched tag is already a role.</span>}
               </div>
+              <div style={{ fontSize: '11.5px', color: 'var(--ink4)', marginTop: '6px' }}>Pick only role tags — leave session-type tags (Keynote, Panel Discussion, Break…) out.</div>
             </div>
           )}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {canManage && <Button variant="teal" onClick={saveTags} disabled={savingTags}>{savingTags ? 'Saving…' : 'Save Roles'}</Button>}
+            {canManage && <Button variant="ghost" onClick={fetchTags} disabled={fetchingTags}>{fetchingTags ? 'Fetching…' : fetchedTags ? 'Re-fetch' : 'Fetch Tags from KonfHub'}</Button>}
+          </div>
+        </Card></div>
+
+        <div style={{ marginTop: '16px' }}><Card padded>
+          <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Agenda Tags</div>
+          <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
+            Which KonfHub tag each session <strong>format</strong> (Keynote, Panel Discussion…) and each <strong>room</strong> (Roundtable Room 1…) is pushed with. Add them from the tags fetched above — never matched by name automatically.
+          </div>
+          {(['format', 'room'] as const).map(kind => (
+            <div key={kind} style={{ marginBottom: '14px' }}>
+              <label style={labelStyle}>{kind === 'format' ? 'Session formats → KonfHub Session Type tags' : 'Rooms → KonfHub Stage tags'}</label>
+              <div style={{ display: 'grid', gap: '8px', marginBottom: '8px' }}>
+                {tagMap[kind].length === 0 && <div><Badge color="grey">None mapped</Badge></div>}
+                {tagMap[kind].map((r, idx) => (
+                  <div key={r.tag_id} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <input value={r.label} disabled={!canManage}
+                      onChange={e => setTagMap(prev => ({ ...prev, [kind]: prev[kind].map((x, i) => i === idx ? { ...x, label: e.target.value } : x) }))}
+                      style={{ width: '220px', padding: '6px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '6px' }} />
+                    <code style={{ fontSize: '11.5px', color: 'var(--ink4)' }}>{r.tag_id.slice(0, 8)}…</code>
+                    {canManage && <button onClick={() => setTagMap(prev => ({ ...prev, [kind]: prev[kind].filter((_, i) => i !== idx) }))} style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer' }}>Remove</button>}
+                  </div>
+                ))}
+              </div>
+              {fetchedTags && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {fetchedTags.filter(t => !tagMap[kind].some(r => r.tag_id === t.id)).map(t => (
+                    <button key={t.id} disabled={!canManage} onClick={() => setTagMap(prev => ({ ...prev, [kind]: [...prev[kind], { label: t.name, tag_id: t.id }] }))}
+                      style={{ padding: '4px 10px', fontSize: '12.5px', border: '1px dashed var(--border)', borderRadius: '999px', background: 'none', color: 'var(--ink2)', cursor: canManage ? 'pointer' : 'default' }}>
+                      + {t.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+          {!fetchedTags && <div style={{ fontSize: '12px', color: 'var(--ink4)', marginBottom: '10px' }}>Use “Fetch Tags from KonfHub” in Speaker Roles above to list the available tags.</div>}
+          {canManage && <Button variant="teal" onClick={saveTagMap} disabled={savingTagMap}>{savingTagMap ? 'Saving…' : 'Save Agenda Tags'}</Button>}
         </Card></div>
 
         <div style={{ marginTop: '16px' }}><Card padded>
@@ -1210,6 +1301,46 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
 
         {sectionEnabled.hubspot && (
         <section id="hubspot" ref={el => { sectionRefs.current.hubspot = el }} style={{ scrollMarginTop: '20px' }}>
+        <div style={{ marginTop: '16px' }}><Card padded>
+          <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>HubSpot Event</div>
+          <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
+            The HubSpot Events record this event&apos;s speakers and sponsors are linked to when they&apos;re synced to HubSpot. Pick it here — EventPilot only ever uses the event selected below. It never creates, edits or matches HubSpot events by name; with nothing selected, the contact still syncs but isn&apos;t linked to any event.
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: hsEvents ? '14px' : 0 }}>
+            {hsLinked ? (
+              <>
+                <Badge color="teal">Linked</Badge>
+                <span style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>{hsLinked.name ?? 'HubSpot event'}</span>
+                <a href={`https://app.hubspot.com/contacts/2953901/record/2-16202870/${hsLinked.id}`} target="_blank" rel="noreferrer" style={{ fontSize: '12.5px', color: 'var(--teal-mid)', fontWeight: 700 }}>Open in HubSpot ↗</a>
+                {canManage && <button onClick={() => linkHubspotEvent(null)} disabled={hsBusy} style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer' }}>Unlink</button>}
+              </>
+            ) : <Badge color="amber">Not linked</Badge>}
+            {canManage && <Button variant="ghost" onClick={() => fetchHubspotEvents(hsQuery)} disabled={hsBusy}>{hsBusy ? 'Fetching…' : hsEvents ? 'Re-fetch' : 'Fetch HubSpot events'}</Button>}
+          </div>
+          {hsEvents && (
+            <div style={{ display: 'grid', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <Input placeholder="Search HubSpot events by name…" value={hsQuery} onChange={e => setHsQuery(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') fetchHubspotEvents(hsQuery) }} style={{ maxWidth: '340px' }} />
+                <Button variant="ghost" onClick={() => fetchHubspotEvents(hsQuery)} disabled={hsBusy}>Search</Button>
+              </div>
+              <div style={{ display: 'grid', gap: '6px', maxHeight: '300px', overflowY: 'auto' }}>
+                {hsEvents.length === 0 && <div style={{ fontSize: '12.5px', color: 'var(--ink4)' }}>No HubSpot events match.</div>}
+                {hsEvents.map(h => (
+                  <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', padding: '8px 12px', borderRadius: '8px', background: 'var(--card-hi)', border: hsLinked?.id === h.id ? '1.5px solid var(--teal-mid)' : '1px solid transparent' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.name}</div>
+                      <div style={{ fontSize: '11.5px', color: 'var(--ink4)' }}>id {h.id}{h.createdAt ? ` · created ${new Date(h.createdAt).toLocaleDateString()}` : ''}</div>
+                    </div>
+                    {canManage && (hsLinked?.id === h.id
+                      ? <Badge color="teal">Selected</Badge>
+                      : <Button variant="teal" onClick={() => linkHubspotEvent(h.id)} disabled={hsBusy}>Select</Button>)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Card></div>
+
         <div style={{ marginTop: '16px' }}><Card padded>
           <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>HubSpot Forms</div>
           <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '14px' }}>

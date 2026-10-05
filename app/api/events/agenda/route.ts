@@ -7,6 +7,17 @@ import { supabaseAdmin } from '@/app/lib/supabase'
    DELETE /api/events/agenda?id=
 */
 
+// Only these columns are writable — the old routes passed the request body
+// straight to insert/update. (Middleware already requires a staff session for
+// this route; this closes the "write any column" hole, it doesn't add a role
+// check — the legacy Website Builder tab has no agenda-specific permission.)
+const WRITABLE = ['event_id', 'day', 'time_slot', 'title', 'description', 'speaker_name', 'type', 'track', 'order_index', 'active'] as const
+function pickWritable(body: Record<string, unknown>, allowEventId: boolean) {
+  const out: Record<string, unknown> = {}
+  for (const k of WRITABLE) if (k in body && (allowEventId || k !== 'event_id')) out[k] = body[k]
+  return out
+}
+
 export async function GET(req: NextRequest) {
   const eventId   = req.nextUrl.searchParams.get('event_id')
   const activeOnly = req.nextUrl.searchParams.get('active') !== 'false'
@@ -36,7 +47,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from('event_agenda')
-    .insert(body)
+    .insert(pickWritable(body, true))
     .select()
     .single()
 
@@ -51,7 +62,7 @@ export async function PATCH(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from('event_agenda')
-    .update(body)
+    .update(pickWritable(body, false))
     .eq('id', id)
     .select()
     .single()
