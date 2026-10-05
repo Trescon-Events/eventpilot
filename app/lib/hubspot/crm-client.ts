@@ -97,18 +97,36 @@ export async function upsertHubSpotCompany(domain: string, properties: Record<st
   return { id: created.id, isNew: true }
 }
 
-// Find-or-create the HubSpot Events custom-object record standing in for a
-// given EventPilot event — matched by exact name (the only identifying
-// field both sides agree on; there's no hubspot_event_id column yet).
-export async function findOrCreateHubSpotEvent(eventName: string): Promise<string> {
-  const existing = await searchByProperty(HUBSPOT_OBJECT_TYPE.event, 'event_name', eventName, ['event_name'])
-  if (existing) return existing.id
-  const res = await hubspotFetch(`/crm/v3/objects/${HUBSPOT_OBJECT_TYPE.event}`, {
-    method: 'POST',
-    body: JSON.stringify({ properties: { event_name: eventName } }),
+// HubSpot Events are READ-ONLY for EventPilot. Linking a Contact/Company to an
+// Event needs the Event's id, which a person selects on the event's
+// Integrations tab (stored in events.hubspot_event_id). Nothing here ever
+// creates, edits or deletes an Events record — an earlier find-or-create by
+// exact name made duplicates whenever a name differed (even by an invisible
+// non-breaking space), which is why it was removed (2026-10-05).
+export type HubSpotEventSummary = { id: string; name: string; createdAt: string | null; startDate: string | null }
+
+// One page of Events, newest first; `query` is HubSpot's full-text search over the record.
+export async function listHubSpotEvents(query?: string, limit = 100): Promise<HubSpotEventSummary[]> {
+  const props = ['event_name', 'hs_createdate', 'event_start_date']
+  const res = await hubspotFetch(`/crm/v3/objects/${HUBSPOT_OBJECT_TYPE.event}/search`, {
+    method: 'POST', // HubSpot's search endpoint is a POST but only READS
+    body: JSON.stringify({ ...(query?.trim() ? { query: query.trim() } : {}), properties: props, limit, sorts: [{ propertyName: 'hs_createdate', direction: 'DESCENDING' }] }),
   })
-  const created = (await res.json()) as { id: string }
-  return created.id
+  const j = (await res.json()) as { results?: { id: string; properties: Record<string, string | null> }[] }
+  return (j.results ?? []).map(r => ({ id: r.id, name: r.properties.event_name ?? '(unnamed)', createdAt: r.properties.hs_createdate ?? null, startDate: r.properties.event_start_date ?? null }))
+}
+
+// The Event with this id, or null if it no longer exists in HubSpot.
+export async function getHubSpotEvent(id: string): Promise<HubSpotEventSummary | null> {
+  if (!/^\d+$/.test(id)) return null
+  try {
+    const res = await hubspotFetch(`/crm/v3/objects/${HUBSPOT_OBJECT_TYPE.event}/${id}?properties=event_name,hs_createdate,event_start_date`)
+    const r = (await res.json()) as { id: string; properties: Record<string, string | null> }
+    return { id: r.id, name: r.properties.event_name ?? '(unnamed)', createdAt: r.properties.hs_createdate ?? null, startDate: r.properties.event_start_date ?? null }
+  } catch (e) {
+    if (e instanceof Error && /\(404\)/.test(e.message)) return null
+    throw e
+  }
 }
 
 // Association Labels — HubSpot's role-tracking mechanism (replaces the old

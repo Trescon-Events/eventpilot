@@ -2,7 +2,7 @@
 // crm_companies row reaches HubSpot right now (see CRM Admin's Sync button).
 // Deliberately not automatic yet: Madhu wants this proven manually first.
 import { supabaseAdmin } from '@/app/lib/supabase'
-import { upsertHubSpotContact, upsertHubSpotCompany, findOrCreateHubSpotEvent, ensureAssociationLabel, associateWithLabel, HUBSPOT_OBJECT_TYPE } from '@/app/lib/hubspot/crm-client'
+import { upsertHubSpotContact, upsertHubSpotCompany, ensureAssociationLabel, associateWithLabel, HUBSPOT_OBJECT_TYPE } from '@/app/lib/hubspot/crm-client'
 
 const CONTACT_ROLE_LABELS: Record<string, [name: string, label: string]> = {
   speaker: ['speaker', 'Speaker'],
@@ -18,7 +18,9 @@ export type SyncResult = {
   hubspotId: string
   isNew: boolean
   eventsLinked: number
-  eventsSkipped: { eventName: string; role: string }[]
+  // reason: 'unlinked' = the EventPilot event has no HubSpot event selected on its Integrations tab
+  // (EventPilot never creates HubSpot events); 'unsupported_role' = no association label for that role.
+  eventsSkipped: { eventName: string; role: string; reason: 'unlinked' | 'unsupported_role' }[]
 }
 
 // Maps a crm_contacts/crm_companies row's own property_values (populated by
@@ -51,7 +53,7 @@ export async function syncContactToHubSpot(contactId: string): Promise<SyncResul
 
   const { data: links } = await supabaseAdmin
     .from('crm_contact_event_links')
-    .select('role, events(name)')
+    .select('role, events(name, hubspot_event_id)')
     .eq('contact_id', contactId)
 
   const mappedProperties = await resolveHubSpotPropertyValues('contact', contact.property_values as Record<string, string> | null)
@@ -74,12 +76,15 @@ export async function syncContactToHubSpot(contactId: string): Promise<SyncResul
   })
 
   let eventsLinked = 0
-  const eventsSkipped: { eventName: string; role: string }[] = []
+  const eventsSkipped: SyncResult['eventsSkipped'] = []
   for (const link of links ?? []) {
-    const eventName = (link.events as unknown as { name: string } | null)?.name
+    const ev = link.events as unknown as { name: string; hubspot_event_id: string | null } | null
+    const eventName = ev?.name
     const roleMap = CONTACT_ROLE_LABELS[link.role]
-    if (!eventName || !roleMap) { eventsSkipped.push({ eventName: eventName ?? '(unknown)', role: link.role }); continue }
-    const eventId = await findOrCreateHubSpotEvent(eventName)
+    if (!eventName || !roleMap) { eventsSkipped.push({ eventName: eventName ?? '(unknown)', role: link.role, reason: 'unsupported_role' }); continue }
+    // Read-only toward HubSpot Events: only ever the Event selected on the Integrations tab.
+    const eventId = ev?.hubspot_event_id
+    if (!eventId) { eventsSkipped.push({ eventName, role: link.role, reason: 'unlinked' }); continue }
     const [name, label] = roleMap
     const typeId = await ensureAssociationLabel(HUBSPOT_OBJECT_TYPE.contact, HUBSPOT_OBJECT_TYPE.event, name, label)
     await associateWithLabel(HUBSPOT_OBJECT_TYPE.contact, hubspotId, HUBSPOT_OBJECT_TYPE.event, eventId, typeId)
@@ -97,7 +102,7 @@ export async function syncCompanyToHubSpot(companyId: string): Promise<SyncResul
 
   const { data: links } = await supabaseAdmin
     .from('crm_company_event_links')
-    .select('role, events(name)')
+    .select('role, events(name, hubspot_event_id)')
     .eq('company_id', companyId)
 
   const mappedProperties = await resolveHubSpotPropertyValues('company', company.property_values as Record<string, string> | null)
@@ -108,12 +113,14 @@ export async function syncCompanyToHubSpot(companyId: string): Promise<SyncResul
   })
 
   let eventsLinked = 0
-  const eventsSkipped: { eventName: string; role: string }[] = []
+  const eventsSkipped: SyncResult['eventsSkipped'] = []
   for (const link of links ?? []) {
-    const eventName = (link.events as unknown as { name: string } | null)?.name
+    const ev = link.events as unknown as { name: string; hubspot_event_id: string | null } | null
+    const eventName = ev?.name
     const roleMap = COMPANY_ROLE_LABELS[link.role]
-    if (!eventName || !roleMap) { eventsSkipped.push({ eventName: eventName ?? '(unknown)', role: link.role }); continue }
-    const eventId = await findOrCreateHubSpotEvent(eventName)
+    if (!eventName || !roleMap) { eventsSkipped.push({ eventName: eventName ?? '(unknown)', role: link.role, reason: 'unsupported_role' }); continue }
+    const eventId = ev?.hubspot_event_id
+    if (!eventId) { eventsSkipped.push({ eventName, role: link.role, reason: 'unlinked' }); continue }
     const [name, label] = roleMap
     const typeId = await ensureAssociationLabel(HUBSPOT_OBJECT_TYPE.company, HUBSPOT_OBJECT_TYPE.event, name, label)
     await associateWithLabel(HUBSPOT_OBJECT_TYPE.company, hubspotId, HUBSPOT_OBJECT_TYPE.event, eventId, typeId)

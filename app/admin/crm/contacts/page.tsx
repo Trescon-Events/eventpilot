@@ -54,6 +54,9 @@ export default function CrmContactsPage() {
     } else {
       await openContact(id)
       await load(search)
+      // The sync never creates HubSpot events: an EventPilot event with no HubSpot event selected is skipped.
+      const unlinked: string[] = (data.eventsSkipped ?? []).filter((x: { reason: string }) => x.reason === 'unlinked').map((x: { eventName: string }) => x.eventName)
+      if (unlinked.length) setSyncError(`Synced to HubSpot, but not linked to a HubSpot event for: ${[...new Set(unlinked)].join(', ')}. Select the HubSpot event on that event's Integrations tab, then sync again.`)
     }
     setSyncing(false)
   }
