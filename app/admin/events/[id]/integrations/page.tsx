@@ -226,6 +226,9 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
   const [hsEvents, setHsEvents] = useState<HubSpotEventRow[] | null>(null)
   const [hsQuery, setHsQuery] = useState('')
   const [hsBusy, setHsBusy] = useState(false)
+  const [hsSearching, setHsSearching] = useState(false)
+  const hsTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hsReq = useRef(0)
 
   // Speaker Category ID (2026-09-27) — auto-fetched from the same GET
   // /speakers KonfHub call listKonfhubSpeakers already trusts, instead of
@@ -481,16 +484,27 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
     setMsg({ text: 'Roles saved.', ok: true })
   }
 
-  async function fetchHubspotEvents(q?: string) {
-    setHsBusy(true)
+  // Fetch (or search) HubSpot events. A request counter drops out-of-order responses so a slow
+  // earlier search can never overwrite the results of what's typed now.
+  async function fetchHubspotEvents(q?: string, opts: { live?: boolean } = {}) {
+    const mine = ++hsReq.current
+    if (opts.live) setHsSearching(true); else setHsBusy(true)
     setMsg(null)
     const res = await fetch(`/api/events/hubspot/events?event_id=${eventId}${q?.trim() ? `&q=${encodeURIComponent(q.trim())}` : ''}`)
     const data = await res.json().catch(() => ({}))
-    setHsBusy(false)
+    if (mine !== hsReq.current) return
+    setHsBusy(false); setHsSearching(false)
     setHsLinked(data.linked ?? null)
     if (!res.ok && !data.events) { setMsg({ text: data.error ?? 'Could not fetch HubSpot events.', ok: false }); return }
     if (data.error) setMsg({ text: data.error, ok: false })
     setHsEvents(data.events ?? [])
+  }
+
+  // Live search: runs ~350 ms after the last keystroke (and loads the list on the first one).
+  function onHubspotSearchInput(value: string) {
+    setHsQuery(value)
+    if (hsTimer.current) clearTimeout(hsTimer.current)
+    hsTimer.current = setTimeout(() => { void fetchHubspotEvents(value, { live: true }) }, 350)
   }
 
   async function linkHubspotEvent(id: string | null) {
@@ -1306,7 +1320,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
           <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
             The HubSpot Events record this event&apos;s speakers and sponsors are linked to when they&apos;re synced to HubSpot. Pick it here — EventPilot only ever uses the event selected below. It never creates, edits or matches HubSpot events by name; with nothing selected, the contact still syncs but isn&apos;t linked to any event.
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: hsEvents ? '14px' : 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '14px' }}>
             {hsLinked ? (
               <>
                 <Badge color="teal">Linked</Badge>
@@ -1315,14 +1329,16 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
                 {canManage && <button onClick={() => linkHubspotEvent(null)} disabled={hsBusy} style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer' }}>Unlink</button>}
               </>
             ) : <Badge color="amber">Not linked</Badge>}
-            {canManage && <Button variant="ghost" onClick={() => fetchHubspotEvents(hsQuery)} disabled={hsBusy}>{hsBusy ? 'Fetching…' : hsEvents ? 'Re-fetch' : 'Fetch HubSpot events'}</Button>}
+            {canManage && <Button variant="ghost" onClick={() => fetchHubspotEvents(hsQuery)} disabled={hsBusy}>{hsBusy ? 'Fetching…' : hsEvents ? 'Refresh' : 'Fetch HubSpot events'}</Button>}
           </div>
+          {canManage && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+              <Input placeholder="Type to search HubSpot events by name…" value={hsQuery} onChange={e => onHubspotSearchInput(e.target.value)} style={{ maxWidth: '380px' }} />
+              {hsSearching && <span style={{ fontSize: '12px', color: 'var(--ink4)' }}>Searching…</span>}
+            </div>
+          )}
           {hsEvents && (
             <div style={{ display: 'grid', gap: '10px' }}>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <Input placeholder="Search HubSpot events by name…" value={hsQuery} onChange={e => setHsQuery(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') fetchHubspotEvents(hsQuery) }} style={{ maxWidth: '340px' }} />
-                <Button variant="ghost" onClick={() => fetchHubspotEvents(hsQuery)} disabled={hsBusy}>Search</Button>
-              </div>
               <div style={{ display: 'grid', gap: '6px', maxHeight: '300px', overflowY: 'auto' }}>
                 {hsEvents.length === 0 && <div style={{ fontSize: '12.5px', color: 'var(--ink4)' }}>No HubSpot events match.</div>}
                 {hsEvents.map(h => (
