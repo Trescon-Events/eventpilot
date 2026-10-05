@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
-import { getKonfhubToken, createKonfhubSpeaker, updateKonfhubSpeaker, maxSpeakerOrderInCategory, KonfhubApiError } from '@/app/lib/konfhub-speakers'
+import { getEventRoles, resolvePrimaryRole } from '@/app/lib/konfhub/roles'
+import { getKonfhubToken, createKonfhubSpeaker, updateKonfhubSpeaker, maxSpeakerOrderInCategory, fetchKonfhubTags, KonfhubApiError } from '@/app/lib/konfhub-speakers'
 
 /* POST /api/events/stakeholders/speakers/[id]/konfhub-push
    Publishes (or updates) this speaker on KonfHub's Speakers-management API
@@ -34,20 +35,16 @@ import { getKonfhubToken, createKonfhubSpeaker, updateKonfhubSpeaker, maxSpeaker
    set one of those directly in KonfHub never has it silently clobbered by
    a sync from a system that doesn't track it.
 
-   Speaker/Moderator tags (2026-08-25) — the panel-discussion workaround
-   (a person speaks in one session, moderates another) turned out not to
-   need a duplicate KonfHub record at all: a single speaker's `tags` array
-   can hold both a Speaker and a Moderator tag at once, confirmed live to
-   render correctly on both KonfHub's own page and the event website.
-   event_speakers.konfhub_tag_speaker/konfhub_tag_moderator (producer-
-   controlled checkboxes on this Details page, default speaker=true,
-   moderator=false for every new speaker) decide which of this event's
-   real tag ids (event_websites.konfhub_speaker_tag_id/
-   konfhub_moderator_tag_id — per-event, found via GET /event/:id/tags,
-   undocumented — see git history) get sent. This is purely a KonfHub
-   display classification — it never touches announcement_status,
-   website_status, or any other "is this a published speaker" signal in
-   EventPilot itself.
+   Role tag (2026-10-04, generalised from the Speaker/Moderator pair) — this
+   main record carries exactly ONE KonfHub tag: event_speakers.
+   konfhub_primary_role_tag_id, one of the event's roles
+   (event_konfhub_roles, picked from GET /event/:id/tags on the
+   Integrations page), defaulting to the "Speaker" role. KonfHub's Agenda
+   has no per-session role — the record's tag shows in every session it's
+   assigned to — so any ADDITIONAL role this person plays in another session
+   lives on its own record, pushed from the Additional Roles tab (see
+   konfhub-push-role/route.ts). Purely a KonfHub display classification —
+   never touches announcement_status or website_status.
 
    Speaker category (2026-08-26) — for an umbrella KonfHub event hosting
    several separately-branded sub-events under one event_id (e.g. Dubai
@@ -63,7 +60,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: speaker } = await supabaseAdmin
     .from('event_speakers')
-    .select('event_id, public_name, pronoun_style, photo_cleaning_cycle_done, website_card_url, company_logo_url, bio, role, company, country, linkedin_url, konfhub_speaker_id, konfhub_tag_speaker, konfhub_tag_moderator')
+    .select('event_id, public_name, pronoun_style, photo_cleaning_cycle_done, website_card_url, company_logo_url, bio, role, company, country, linkedin_url, konfhub_speaker_id, konfhub_primary_role_tag_id')
     .eq('id', speakerId)
     .single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
@@ -88,7 +85,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: website } = await supabaseAdmin
     .from('event_websites')
-    .select('konfhub_client_id, konfhub_client_secret, konfhub_event_id, konfhub_speaker_tag_id, konfhub_moderator_tag_id, konfhub_speaker_category_id')
+    .select('konfhub_client_id, konfhub_client_secret, konfhub_event_id, konfhub_speaker_category_id')
     .eq('event_id', speaker.event_id)
     .single()
   if (!website?.konfhub_client_id || !website?.konfhub_client_secret || !website?.konfhub_event_id) {
@@ -99,12 +96,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // tag ids yet — a safe no-op, same shape as konfhub_registration_field_map
   // elsewhere in this codebase, rather than clobbering tags a producer set
   // directly in KonfHub for an event this feature hasn't been set up for.
-  const tags: { id: string; name: string }[] = []
-  if (speaker.konfhub_tag_speaker && website.konfhub_speaker_tag_id) tags.push({ id: website.konfhub_speaker_tag_id, name: 'Speaker' })
-  if (speaker.konfhub_tag_moderator && website.konfhub_moderator_tag_id) tags.push({ id: website.konfhub_moderator_tag_id, name: 'Moderator' })
+  const primaryRole = resolvePrimaryRole(speaker.konfhub_primary_role_tag_id, await getEventRoles(speaker.event_id))
+  let tags: { id: string; name: string }[] = []
 
   try {
     const token = await getKonfhubToken(website.konfhub_client_id, website.konfhub_client_secret)
+    // KonfHub shows the tag name we send literally — use ITS name for the tag id, not our editable role label.
+    if (primaryRole) tags = [{ id: primaryRole.tag_id, name: (await fetchKonfhubTags(website.konfhub_event_id, token)).find(t => t.id === primaryRole.tag_id)?.name ?? primaryRole.label }]
     const fields = {
       name: speaker.public_name!.trim(),
       about: speaker.bio || undefined,

@@ -5,6 +5,7 @@ import { hasEventPermission } from '@/app/lib/access/event-access'
 import { resolveFormSchema } from '@/app/lib/forms/resolve-schema'
 import { mapFieldsToRecord, recordToFields } from '@/app/lib/forms/map-to-stakeholder-record'
 import { FieldSchema, SubmittedValue } from '@/app/lib/forms/types'
+import { getEventRoles } from '@/app/lib/konfhub/roles'
 import { getKonfhubToken, deleteKonfhubSpeaker, KonfhubApiError } from '@/app/lib/konfhub-speakers'
 import { syncSpeakerCrmContact } from '@/app/lib/crm/upsert'
 import { syncContactToHubSpot } from '@/app/lib/hubspot/crm-sync'
@@ -60,8 +61,9 @@ type SpeakerPatchBody = {
   // workaround this supports. Producer-controlled checkboxes on this
   // Details page; at least one must stay true (enforced client-side —
   // there's no meaningful "neither" state for a published speaker record).
-  konfhub_tag_speaker?: boolean
-  konfhub_tag_moderator?: boolean
+  // Role tag the main KonfHub record carries (event_konfhub_roles.tag_id) —
+  // replaced the old Speaker/Moderator boolean pair 2026-10-04.
+  konfhub_primary_role_tag_id?: string | null
   // Producer / Reference / Confirmation Status (2026-09-03) — see
   // supabase/speaker_producer_reference_confirmation_migration.sql's own
   // doc comment for why each exists. Same producer-editable, not-part-of-
@@ -109,7 +111,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { data, error } = await supabaseAdmin.from('event_speakers').select('*').eq('id', id).single()
   if (error || !data) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
   const schema = await resolveFormSchema(data.event_id, 'speaker')
-  return NextResponse.json({ ...fromRow(data), fields: recordToFields('speaker', schema, data) })
+  // Multi-role KonfHub listings (2026-10-04): the event's configured roles +
+  // this speaker's additional-role records, for the Overview role picker and
+  // the Additional Roles tab.
+  const [konfhubRoles, { data: konfhubExtraRoles }] = await Promise.all([
+    getEventRoles(data.event_id),
+    supabaseAdmin.from('speaker_konfhub_roles').select('tag_id, konfhub_speaker_id, synced_at').eq('speaker_id', id),
+  ])
+  return NextResponse.json({ ...fromRow(data), fields: recordToFields('speaker', schema, data), konfhub_roles: konfhubRoles, konfhub_extra_roles: konfhubExtraRoles ?? [] })
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -189,8 +198,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.public_name !== undefined) row.public_name = body.public_name || null
   if (body.pronoun_style !== undefined) row.pronoun_style = body.pronoun_style || null
   if (body.key_talking_points !== undefined) row.key_talking_points = body.key_talking_points || null
-  if (body.konfhub_tag_speaker !== undefined) row.konfhub_tag_speaker = body.konfhub_tag_speaker
-  if (body.konfhub_tag_moderator !== undefined) row.konfhub_tag_moderator = body.konfhub_tag_moderator
+  if (body.konfhub_primary_role_tag_id !== undefined) {
+    if (body.konfhub_primary_role_tag_id !== null && !(await getEventRoles(existing.event_id)).some(r => r.tag_id === body.konfhub_primary_role_tag_id)) {
+      return NextResponse.json({ error: 'That role isn’t configured for this event.' }, { status: 422 })
+    }
+    row.konfhub_primary_role_tag_id = body.konfhub_primary_role_tag_id
+  }
   if (body.producer_staff_id !== undefined) row.producer_staff_id = body.producer_staff_id || null
   if (body.reference !== undefined) row.reference = body.reference || null
   if (body.confirmation_status !== undefined) row.confirmation_status = body.confirmation_status || null
