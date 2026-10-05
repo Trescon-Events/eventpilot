@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
-import { sendGraphMail } from '@/app/lib/email/graph-mail'
+import { sendSpeakerThreadMail } from '@/app/lib/email/speaker-thread'
 import { resolveSenderIdentity } from '@/app/lib/email/sender-identity'
 import { MissingItemKey } from '@/app/lib/stakeholders/missing-items'
 
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (insertErr || !requestRow) return NextResponse.json({ error: insertErr?.message ?? 'Could not create request record' }, { status: 500 })
 
   try {
-    await sendGraphMail({
+    await sendSpeakerThreadMail(speakerId, {
       senderEmail: sender.email, senderName: sender.name,
       to: body.recipient_email, cc: ccEmails.length ? ccEmails : undefined, subject: body.subject, html: body.html,
     })

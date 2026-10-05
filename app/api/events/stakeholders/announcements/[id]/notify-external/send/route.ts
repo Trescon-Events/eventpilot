@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
-import { sendGraphMail } from '@/app/lib/email/graph-mail'
+import { sendMaybeSpeakerThreadMail } from '@/app/lib/email/speaker-thread'
 import { resolveSenderIdentity, getSpeakerProducerId } from '@/app/lib/email/sender-identity'
 
 /* POST /api/events/stakeholders/announcements/[id]/notify-external/send
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const ccEmails = (body.cc_emails ?? []).map(e => e.trim()).filter(Boolean)
 
   try {
-    await sendGraphMail({
+    await sendMaybeSpeakerThreadMail(announcement.speaker_id, {
       senderEmail: sender.email, senderName: sender.name,
       to: body.recipient_email, cc: ccEmails.length ? ccEmails : undefined,
       subject: body.subject, html: body.html,

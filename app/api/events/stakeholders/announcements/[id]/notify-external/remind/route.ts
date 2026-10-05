@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
-import { sendGraphMail } from '@/app/lib/email/graph-mail'
+import { sendMaybeSpeakerThreadMail } from '@/app/lib/email/speaker-thread'
 import { resolveSenderIdentity, getSpeakerProducerId } from '@/app/lib/email/sender-identity'
 import { renderEmailTemplate } from '@/app/lib/email/render-template'
 import { buildPlatformLinksHtml } from '@/app/lib/events/postiz-publish'
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const ccEmails: string[] = ccEmailsOverride ?? announcement.external_notification_cc_emails ?? []
 
   try {
-    await sendGraphMail({
+    await sendMaybeSpeakerThreadMail(announcement.speaker_id, {
       senderEmail: sender.email, senderName: sender.name,
       to: recipientEmail,
       cc: ccEmails.length ? ccEmails : undefined,

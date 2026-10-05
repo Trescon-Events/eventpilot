@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
-import { sendGraphMail } from '@/app/lib/email/graph-mail'
+import { sendSpeakerThreadMail } from '@/app/lib/email/speaker-thread'
 import { resolveSenderIdentity } from '@/app/lib/email/sender-identity'
 import { renderEmailTemplate } from '@/app/lib/email/render-template'
 import { MissingItemKey } from '@/app/lib/stakeholders/missing-items'
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   try {
-    await sendGraphMail({ senderEmail: sender.email, senderName: sender.name, to: recipientEmail, cc: ccEmails.length ? ccEmails : undefined, subject, html })
+    await sendSpeakerThreadMail(speakerId, { senderEmail: sender.email, senderName: sender.name, to: recipientEmail, cc: ccEmails.length ? ccEmails : undefined, subject, html })
 
     await supabaseAdmin.from('email_template_sends').insert({
       template_id: template.id, send_type: 'live', to_email: recipientEmail, subject, status: 'sent', sent_by: session!.sid,

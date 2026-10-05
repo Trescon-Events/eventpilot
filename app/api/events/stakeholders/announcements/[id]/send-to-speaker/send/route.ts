@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
-import { sendGraphMail } from '@/app/lib/email/graph-mail'
+import { sendMaybeSpeakerThreadMail } from '@/app/lib/email/speaker-thread'
 import { resolveSenderIdentity } from '@/app/lib/email/sender-identity'
 import { buildCreativeAttachment } from '@/app/lib/announcements/creative-attachment'
 
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
     }
 
-    await sendGraphMail({
+    await sendMaybeSpeakerThreadMail(announcement.speaker_id, {
       senderEmail: sender.email,
       senderName: sender.name,
       to: body.recipient_email,
