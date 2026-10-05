@@ -4,6 +4,7 @@ import { getSession } from '@/app/lib/access/session'
 import { getAccessibleEventIds } from '@/app/lib/access/event-access'
 import { umbrellasForStaff } from '@/app/lib/ops/my-umbrellas'
 import { TRACKED_EVENT_FIELDS, logEventFieldChanges } from '@/app/lib/events/detail-field-log'
+import { normalizeTimezone } from '@/app/lib/events/timezones'
 import { FEATURE_REGISTRY } from '@/app/lib/registry/feature-flags'
 
 /* GET /api/events — list all events with staff count and doc count */
@@ -175,6 +176,17 @@ export async function PATCH(req: NextRequest) {
   const id   = req.nextUrl.searchParams.get('id')
   const body = await req.json().catch(() => null)
   if (!id || !body) return NextResponse.json({ error: 'id and body required' }, { status: 400 })
+
+  // Timezone (2026-10-05): stored as a canonical IANA name (KonfHub's own
+  // format; legacy aliases like Asia/Calcutta normalised). Empty clears it.
+  if ('timezone' in body) {
+    if (body.timezone === null || body.timezone === '') body.timezone = null
+    else {
+      const tz = normalizeTimezone(String(body.timezone))
+      if (!tz) return NextResponse.json({ error: 'Not a valid timezone — use an IANA name such as Asia/Dubai.' }, { status: 400 })
+      body.timezone = tz
+    }
+  }
 
   // Supabase can't infer column types from a dynamically-built select
   // string, hence the cast — the columns themselves are real (TRACKED_EVENT_FIELDS).

@@ -4,12 +4,13 @@ import { useState, useEffect, useRef, useMemo, use } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
-import { Button, Card, Input } from '@/app/components/ui'
+import { Button, Card, Input, Select } from '@/app/components/ui'
 import DeleteSensitiveDocumentModal from '../stakeholders/[stakeholderId]/DeleteSensitiveDocumentModal'
 import { FORM_TITLES, FormType } from '@/app/lib/forms/types'
 import { TRACKED_EVENT_FIELDS, FIELD_LABELS, TrackedEventField } from '@/app/lib/events/detail-fields'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import EventDaysCard from '@/app/admin/operations-shared/EventDaysCard'
+import { COMMON_TIMEZONES, normalizeTimezone, timezoneOffsetLabel } from '@/app/lib/events/timezones'
 import { FEATURE_REGISTRY, type FeatureKey, type FeatureGroup } from '@/app/lib/registry/feature-flags'
 
 /* Event Details — the single place a producer manages "everything about
@@ -25,7 +26,7 @@ import { FEATURE_REGISTRY, type FeatureKey, type FeatureGroup } from '@/app/lib/
    Overview stale, so Overview offers "Sync with Messaging Doc" to re-
    derive just the fields that drifted. */
 
-type EventRow = { id: string; name: string; type: string | null; umbrella_id?: string | null; requires_client_approval: boolean | null; country?: string | null; enabled_features?: Record<string, boolean> | null } & Record<TrackedEventField, string | null>
+type EventRow = { id: string; name: string; type: string | null; umbrella_id?: string | null; requires_client_approval: boolean | null; country?: string | null; timezone?: string | null; enabled_features?: Record<string, boolean> | null } & Record<TrackedEventField, string | null>
 
 type PageLink = { form_type: string; hubspot_form_name: string | null; public_page_url: string | null }
 
@@ -689,6 +690,21 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
     else { setMsg(data.error ?? 'Save failed.'); setMsgIsError(true) }
   }
 
+  // Event timezone (2026-10-05) — IANA name, the same format KonfHub uses for
+  // its own events; the Agenda Builder enters/shows session times in it.
+  const [tzOther, setTzOther] = useState(false)
+  const [tzDraft, setTzDraft] = useState('')
+  async function saveTimezone(value: string | null) {
+    setSaving(true); setMsg(null)
+    const res = await fetch(`/api/events?id=${eventId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ timezone: value }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSaving(false)
+    if (res.ok) { setEvent(data); setTzOther(false); setMsg('Timezone saved.'); setMsgIsError(false) }
+    else { setMsg(data.error ?? 'Save failed.'); setMsgIsError(true) }
+  }
+
   // Reference Documents spec, Stage 4 (2026-09-10) — release gate. null =
   // inherit from umbrella (resolved server-side, see
   // app/lib/events/client-approval-gate.ts); an explicit true/false here
@@ -954,6 +970,43 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
 
             {/* Real event days (2026-09-25) — a separate, proper-date field from the public text dates above. */}
             <EventDaysCard kind="event" id={eventId} canEdit={canManage} />
+
+            <Card padded>
+              <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '4px' }}>Event timezone</div>
+              <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '14px', lineHeight: 1.6 }}>
+                The timezone this event runs in. Agenda sessions are entered and shown in it, and stored in UTC underneath. Plain IANA names (e.g. Asia/Dubai) — the same format KonfHub uses.
+              </div>
+              {(() => {
+                const current = normalizeTimezone(event?.timezone) ?? ''
+                const inList = COMMON_TIMEZONES.some(z => z.tz === current)
+                const selectValue = tzOther ? '__other' : current && !inList ? '__other' : current
+                return (
+                  <div style={{ display: 'grid', gap: '10px', maxWidth: '420px' }}>
+                    <Select value={selectValue} disabled={!canManage || saving} onChange={e => {
+                      const v = e.target.value
+                      if (v === '__other') { setTzOther(true); setTzDraft(current); return }
+                      setTzOther(false)
+                      void saveTimezone(v || null)
+                    }}>
+                      <option value="">— Not set —</option>
+                      {COMMON_TIMEZONES.map(z => <option key={z.tz} value={z.tz}>{z.tz} — {z.place} ({timezoneOffsetLabel(z.tz)})</option>)}
+                      <option value="__other">Other (type an IANA name)…</option>
+                    </Select>
+                    {selectValue === '__other' && (
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <Input disabled={!canManage} value={tzOther ? tzDraft : current} placeholder="e.g. Pacific/Auckland" onChange={e => { setTzOther(true); setTzDraft(e.target.value) }} />
+                        {canManage && <Button variant="lime" onClick={() => saveTimezone(tzDraft.trim() || null)} disabled={saving}>Save</Button>}
+                      </div>
+                    )}
+                    {current ? (
+                      <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>Currently <strong>{current}</strong> ({timezoneOffsetLabel(current)}).</div>
+                    ) : (
+                      <div style={{ fontSize: '12px', color: 'var(--amber)' }}>Not set yet — set it before building the agenda.</div>
+                    )}
+                  </div>
+                )
+              })()}
+            </Card>
 
             <Card padded>
               <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '4px' }}>Content Approval</div>
