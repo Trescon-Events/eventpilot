@@ -8,10 +8,17 @@ import { useEffect, useState } from 'react'
    server-side. The print/right-click/drag blocks are advisory only: the burned-in
    watermark is what makes a copy traceable. See app/api/events/sensitive-documents/view. */
 
+// 'fit' shows the whole page; the rest are multiples of the viewer's width (scroll to move around).
+const ZOOMS = ['fit', 1, 1.5, 2, 3] as const
+type Zoom = typeof ZOOMS[number]
+const zoomLabel = (z: Zoom) => (z === 'fit' ? 'Fit' : `${Math.round(z * 100)}%`)
+
 type Loaded = { key: string; url: string | null; pageCount: number; error: string | null }
 
 export default function SensitiveDocViewer({ docId, title, onClose }: { docId: string; title: string; onClose: () => void }) {
   const [page, setPage] = useState(0)
+  const [zoomIdx, setZoomIdx] = useState(0)
+  const zoom = ZOOMS[zoomIdx]
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const key = `${docId}:${page}`
   const loading = loaded?.key !== key
@@ -56,15 +63,18 @@ export default function SensitiveDocViewer({ docId, title, onClose }: { docId: s
                 <button onClick={() => setPage(p => Math.min(pageCount - 1, p + 1))} disabled={page >= pageCount - 1} style={btn}>Next ›</button>
               </>
             )}
+            <button onClick={() => setZoomIdx(i => Math.max(0, i - 1))} disabled={zoomIdx === 0} style={btn} aria-label="Zoom out">−</button>
+            <button onClick={() => setZoomIdx(0)} style={btn} title="Fit the whole page">{zoomLabel(zoom)}</button>
+            <button onClick={() => setZoomIdx(i => Math.min(ZOOMS.length - 1, i + 1))} disabled={zoomIdx === ZOOMS.length - 1} style={btn} aria-label="Zoom in">+</button>
             <button onClick={onClose} style={btn}>Close</button>
           </div>
         </div>
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface)', overflow: 'auto', userSelect: 'none' }}>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: zoom === 'fit' ? 'center' : 'flex-start', justifyContent: 'center', background: 'var(--surface)', overflow: 'auto', userSelect: 'none' }}>
           {loading && <span style={{ color: 'var(--ink3)', fontSize: '13px' }}>Opening…</span>}
           {!loading && loaded?.error && <span style={{ color: 'var(--amber)', fontSize: '13px', maxWidth: '460px', textAlign: 'center', lineHeight: 1.6, padding: '20px' }}>{loaded.error}</span>}
           {!loading && loaded?.url && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={loaded.url} alt={title} draggable={false} onContextMenu={e => e.preventDefault()} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+            <img src={loaded.url} alt={title} draggable={false} onContextMenu={e => e.preventDefault()} style={zoom === 'fit' ? { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' } : { width: `${zoom * 100}%`, maxWidth: 'none', flexShrink: 0, height: 'auto' }} onDoubleClick={() => setZoomIdx(i => (i === 0 ? 2 : 0))} />
           )}
         </div>
       </div>

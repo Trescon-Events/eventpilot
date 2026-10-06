@@ -19,7 +19,9 @@ import { createCanvas, GlobalFonts } from '@napi-rs/canvas'
    original files in their ZIP (they need them). */
 
 const MAX_PAGES = 8
-const MAX_EDGE = 1800
+// Long-edge cap of the rendered page. High enough that small print on an ID card stays legible when the viewer zooms in.
+const MAX_EDGE = 3000
+const MAX_PDF_SCALE = 3
 
 let fontReady: boolean | null = null
 function ensureFont(): boolean {
@@ -71,7 +73,7 @@ async function rasterizePdfPage(bytes: Uint8Array, pageIndex: number): Promise<{
   if (pageIndex >= pageCount) return null
   const page = await pdf.getPage(pageIndex + 1)
   const base = page.getViewport({ scale: 1 })
-  const scale = Math.min(2, MAX_EDGE / Math.max(base.width, base.height))
+  const scale = Math.min(MAX_PDF_SCALE, MAX_EDGE / Math.max(base.width, base.height))
   const viewport = page.getViewport({ scale })
   const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height))
   const ctx = canvas.getContext('2d')
@@ -103,7 +105,7 @@ export async function renderWatermarkedPage(bytes: Uint8Array, mimeType: string,
   const jpeg = await sharp(basePng)
     .flatten({ background: 'white' })
     .composite([{ input: watermarkLayer(width, height, lines) }])
-    .jpeg({ quality: 82 })
+    .jpeg({ quality: 90 })
     .toBuffer()
   return { jpeg, pageCount }
 }
