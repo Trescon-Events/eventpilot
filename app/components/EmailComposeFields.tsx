@@ -17,7 +17,7 @@ export default function ComposeEmailFields({
   senderName, senderEmail,
   recipientEmail, setRecipientEmail,
   ccInput, setCcInput,
-  subject, setSubject,
+  subject, setSubject, subjectReadOnly,
   html, setHtml,
   sendError,
   sending,
@@ -33,6 +33,8 @@ export default function ComposeEmailFields({
   setCcInput: (v: string) => void
   subject: string
   setSubject: (v: string) => void
+  /* When true the subject is shown but fixed (e.g. emails that must stay in the speaker's one thread). */
+  subjectReadOnly?: boolean
   html: string
   /* When given, the body is editable in place (click into the preview and type). */
   setHtml?: (v: string) => void
@@ -63,7 +65,8 @@ export default function ComposeEmailFields({
       </div>
       <div>
         <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Subject</span>
-        <Input value={subject} onChange={e => setSubject(e.target.value)} />
+        <Input value={subject} onChange={e => setSubject(e.target.value)} disabled={subjectReadOnly} />
+        {subjectReadOnly && <div style={{ fontSize: '11.5px', color: 'var(--ink4)', marginTop: '4px' }}>Fixed — every email to this speaker uses the same subject so it stays in one thread.</div>}
       </div>
       <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '14px' }}>
         <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '10px' }}>Preview</span>

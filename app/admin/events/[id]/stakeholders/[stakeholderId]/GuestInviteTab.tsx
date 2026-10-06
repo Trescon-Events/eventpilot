@@ -176,7 +176,7 @@ function Composer({ kind, speakerId, stakeholderName, onClose, onSent }: { kind:
         {kind === 'reminder' && info && <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '12px' }}>KonfHub shows <strong>{info.used}</strong> of {info.cap} places used — the reminder is worded to match.</div>}
         {loading ? <div style={{ fontSize: '13px', color: 'var(--ink4)' }}>{kind === 'reminder' ? 'Checking KonfHub for registrations…' : 'Loading…'}</div>
           : loadError ? <div style={{ fontSize: '14.5px', color: 'var(--red)' }}>{loadError}</div>
-          : <ComposeEmailFields senderName={senderName} senderEmail={senderEmail} recipientEmail={recipientEmail} setRecipientEmail={setRecipientEmail} ccInput={ccInput} setCcInput={setCcInput} subject={subject} setSubject={setSubject} html={html} setHtml={setHtml} sendError={sendError} sending={sending} sendLabel={sending ? 'Sending…' : kind === 'invite' ? 'Send invite' : 'Send reminder'} onSend={send} />}
+          : <ComposeEmailFields senderName={senderName} senderEmail={senderEmail} recipientEmail={recipientEmail} setRecipientEmail={setRecipientEmail} ccInput={ccInput} setCcInput={setCcInput} subject={subject} setSubject={setSubject} subjectReadOnly html={html} setHtml={setHtml} sendError={sendError} sending={sending} sendLabel={sending ? 'Sending…' : kind === 'invite' ? 'Send invite' : 'Send reminder'} onSend={send} />}
       </div>
     </div>
   )

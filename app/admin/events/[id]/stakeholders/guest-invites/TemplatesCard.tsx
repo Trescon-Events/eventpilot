@@ -121,8 +121,9 @@ function TemplateEditor({ eventId, kind, saved, variables, canEdit, onSaved, say
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '16px', alignItems: 'start' }}>
           <div style={{ display: 'grid', gap: '8px' }}>
-            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)' }}>Subject (used only if no thread exists yet — sends normally reply in the speaker’s thread)</label>
-            <Input value={shown.subject} disabled={!canEdit} onChange={e => refreshPreview(shown.text, e.target.value)} />
+            <div style={{ fontSize: '12.5px', color: 'var(--ink3)', lineHeight: 1.6, padding: '8px 10px', borderRadius: '8px', background: 'var(--card-hi)' }}>
+              <strong style={{ color: 'var(--ink2)' }}>Subject is fixed:</strong> every email to a speaker uses <em>“Speaker name @ Event name”</em> — the same line for all our emails to them, so everything stays in one thread. It isn’t part of this template.
+            </div>
             <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)' }}>Wording — blank line = new paragraph</label>
             <Textarea id={`tpl-${kind}`} rows={16} value={shown.text} disabled={!canEdit} onChange={e => refreshPreview(e.target.value, shown.subject)} style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: '12.5px', lineHeight: 1.55 }} />
             {canEdit && (
