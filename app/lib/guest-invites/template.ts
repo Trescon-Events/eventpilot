@@ -42,8 +42,11 @@ export function usageSummary(used: number, cap: number): string {
 }
 
 /* eslint-disable no-restricted-syntax -- email HTML; clients can't render CSS custom properties, literal colors required (same as the other SAE email templates) */
+// The button, plus the same link as plain text underneath: email can't run a "click to copy" script, but
+// plain text can be selected, copied and pasted straight into WhatsApp or a message to a guest.
 export const linkButtonHtml = (url: string) =>
-  `<p style="margin:20px 0;"><a href="${url}" style="display:inline-block;background:#00A5A3;color:#ffffff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:700;">Speaker Guest Registration Link &rarr;</a></p>`
+  `<p style="margin:20px 0 6px;"><a href="${url}" style="display:inline-block;background:#00A5A3;color:#ffffff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:700;">Speaker Guest Registration Link &rarr;</a></p>` +
+  `<p style="margin:0 0 20px;font-size:13px;line-height:1.5;color:#555555;">Or copy and paste your link:<br/><span data-guest-link="1" style="word-break:break-all;color:#0D6665;">${url.replace(/&/g, '&amp;')}</span></p>`
 /* eslint-enable no-restricted-syntax */
 
 export const SKELETON: Record<GuestKind, { subject: string; body: string }> = {
@@ -96,7 +99,8 @@ export function guestVariables(args: { speakerName: string; eventName: string; d
 }
 
 export function htmlToPlainText(html: string): string {
-  return html.replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n').replace(/<[^>]+>/g, ' ')
+  // The pasted copy of the link is a URL, not prose — keep it out of the content-rule check.
+  return html.replace(/<span data-guest-link="1"[^>]*>[\s\S]*?<\/span>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n').replace(/<[^>]+>/g, ' ')
     .replace(/&rarr;/g, '').replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').replace(/[ \t]+/g, ' ').replace(/\n\s+/g, '\n').trim()
 }
 
