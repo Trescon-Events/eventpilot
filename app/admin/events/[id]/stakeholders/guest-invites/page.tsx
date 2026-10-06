@@ -7,12 +7,10 @@ import { Badge, Button, Card, Input, Toast } from '@/app/components/ui'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import TemplatesCard, { type TemplateInfo } from './TemplatesCard'
-import ImportCard from './ImportCard'
 
 /* Guest Invites (2026-10-06) — speakers invite their own guests through a personal KonfHub
    registration link (a code with a cap, made by the delegate team). This page holds the
-   event's settings, its two generated emails (invite + reminder), the bulk link import and
-   an overview of every speaker: link, usage, what's been sent. Sending to one speaker
+   event's settings, its two generated emails (invite + reminder) and an overview of every speaker: link, usage, what's been sent. Sending to one speaker
    happens on that speaker's "Guest Invite" tab. EventPilot only stores links and reads
    KonfHub for usage — it never creates or edits codes. */
 
@@ -80,7 +78,7 @@ export default function GuestInvitesPage({ params }: { params: Promise<{ id: str
       <PageHeader
         eyebrow="Stakeholder Hub"
         title="Guest Invites"
-        description="Each speaker gets a personal KonfHub registration link to invite their own guests. Set it up once per event, load the links, then send from each speaker’s Guest Invite tab."
+        description="Each speaker gets a personal KonfHub registration link to invite their own guests. Set it up once per event, then add each speaker’s link and send from their Guest Invite tab."
         backHref={`/admin/events/${eventId}/stakeholders`}
         backLabel="Back to Stakeholder Hub"
       />
@@ -111,16 +109,9 @@ export default function GuestInvitesPage({ params }: { params: Promise<{ id: str
           {tpl ? <TemplatesCard eventId={eventId} templates={tpl.templates} variables={tpl.variables} canEdit={canEdit} onSaved={load} say={say} /> : <div style={{ color: 'var(--ink3)' }}>Loading…</div>}
         </Card>
 
-        {canEdit && (
-          <Card padded>
-            <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '12px' }}>3 · Load the links</div>
-            <ImportCard eventId={eventId} onSaved={load} say={say} />
-          </Card>
-        )}
-
         <Card padded>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
-            <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>4 · Speakers {counts && <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--ink3)' }}>· {counts.sent} sent · {counts.ready} ready · {counts.missing} without a link</span>}</div>
+            <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>3 · Speakers {counts && <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--ink3)' }}>· {counts.sent} sent · {counts.ready} ready · {counts.missing} without a link</span>}</div>
             {canEdit && <Button variant="ghost" onClick={refreshUsage} disabled={refreshing}>{refreshing ? 'Checking KonfHub… (about 15 seconds)' : 'Refresh usage from KonfHub'}</Button>}
           </div>
           {!rows ? <div style={{ color: 'var(--ink3)' }}>Loading…</div> : rows.length === 0 ? <div style={{ color: 'var(--ink3)' }}>No speakers yet.</div> : (
