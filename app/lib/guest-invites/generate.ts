@@ -46,7 +46,7 @@ export async function generateGuestTemplate(eventId: string, kind: GuestKind): P
   }
 
   const intent = kind === 'guest_invite'
-    ? `The FIRST email: shared in the run-up to the event, offering the speaker a personal registration link to invite their own guests. Cover: the event name, dates and venue; that each guest who registers through the link receives a complimentary {{pass_name}}; that they may invite up to {{guest_limit}} guests; that registration closes on {{registration_deadline}}; the link button; how to use it (share it directly, guests register themselves, registrations are connected to the speaker). Include ONE short paragraph, specific to this event and grounded ONLY in the reference material below, on why guests would value attending (no numbers, no forecasts, no superlatives).`
+    ? `The FIRST email: shared in the run-up to the event, telling the speaker they can invite their own guests and giving them a personal registration link. Cover: the event name, dates and venue; that each guest who registers through the link receives a complimentary {{pass_name}}; that they may invite up to {{guest_limit}} guests; that registration closes on {{registration_deadline}}; the link button; how to use it (share it directly, guests register themselves, registrations are connected to the speaker). Include ONE plain sentence, specific to this event and grounded ONLY in the reference material below, on who guests will meet there (no numbers, no forecasts, no superlatives, no list of themes or discussions).`
     : `A single, kind REMINDER, sent by the producer. Cover: the link remains open until {{registration_deadline}}; one sentence {{usage_summary}} (it is filled in with where the speaker currently stands — do not write numbers yourself); the link button; that each guest who registers receives a complimentary {{pass_name}} and they can still share the link before the deadline.`
 
   const baseRules = rules.map(r => `- [${r.severity}] ${r.message}${r.rule_type === 'forbidden_term' || r.rule_type === 'forbidden_pattern' ? ` (pattern: ${r.pattern})` : ''}`).join('\n')
@@ -57,6 +57,7 @@ ${intent}
 HARD REQUIREMENTS
 - Output JSON only: {"subject": "...", "body_html": "..."}. body_html uses only <p>, <br/>, <strong>. No styles, no links, no images.
 - Use these placeholders exactly as written (double curly braces) and keep every one of: ${REQUIRED_VARIABLES[kind].map(v => `{{${v}}}`).join(' ')}. Other allowed placeholders: ${GUEST_VARIABLES.filter(v => v.kinds.includes(kind)).map(v => `{{${v.key}}}`).join(' ')}.
+- TONE: a plain, courteous note from a producer to a speaker, not a marketing email. Never use "offer", "opportunity", "exclusive", "unlock", "don't miss" or similar sales language, and no exclamation marks.
 - {{guest_link_button}} must sit on its own line between paragraphs.
 - Do NOT thank them for speaking, do not congratulate, do not use exclamation marks, em dashes, ampersands, or the words unprecedented, world-class, seamless, unlock, transformative, game-changing, premier.
 - Never abbreviate the event name; write ${eventName} in full via {{event_name}}.

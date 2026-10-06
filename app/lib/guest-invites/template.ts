@@ -53,21 +53,21 @@ export const SKELETON: Record<GuestKind, { subject: string; body: string }> = {
   guest_invite: {
     subject: 'Speaker Guest Registration Link: {{event_name}}',
     body: `<p>Dear {{speaker_name}},</p>
-<p>With {{event_name}} on {{event_dates}} at {{event_venue}} approaching, we would like to offer you the opportunity to invite your colleagues, leadership team and peers as your guests.</p>
-<p>Your personal registration link is below. Each guest who registers through it receives a complimentary {{pass_name}}. You may invite up to {{guest_limit}} guests, and registration closes on {{registration_deadline}}.</p>
+<p>{{event_name}} takes place on {{event_dates}} at {{event_venue}}. As one of our speakers, you can invite your own guests to attend, and this email has your personal registration link.</p>
+<p>Each guest who registers through it receives a complimentary {{pass_name}}. You can invite up to {{guest_limit}} guests, and registration closes on {{registration_deadline}}.</p>
 {{guest_link_button}}
 <p>Please share the link directly with the people you would like to invite. They register themselves, and each registration made through your link is connected to you.</p>
-<p>If you need anything, please reply to this email.</p>
+<p>If you have any questions, please reply to this email.</p>
 <p>Warm regards,<br/>{{producer_name}}</p>`,
   },
   guest_invite_reminder: {
     subject: 'Speaker Guest Registration Link, reminder: {{event_name}}',
     body: `<p>Dear {{speaker_name}},</p>
-<p>A short reminder that your personal guest registration link for {{event_name}} remains open until {{registration_deadline}}.</p>
+<p>This is a short reminder that your personal guest registration link for {{event_name}} remains open until {{registration_deadline}}.</p>
 <p>{{usage_summary}}</p>
 {{guest_link_button}}
 <p>Each guest who registers through the link receives a complimentary {{pass_name}}. If you would like to invite more colleagues or peers, please share the link with them before the deadline.</p>
-<p>If you need anything, please reply to this email.</p>
+<p>If you have any questions, please reply to this email.</p>
 <p>Warm regards,<br/>{{producer_name}}</p>`,
   },
 }
