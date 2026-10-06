@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission, getEventFeatures } from '@/app/lib/access/event-access'
 import { renderEmailTemplate } from '@/app/lib/email/render-template'
+import { speakerThreadSubjectFor } from '@/app/lib/email/speaker-thread'
 import { resolveSenderIdentity } from '@/app/lib/email/sender-identity'
 import { generateSecureToken } from '@/app/lib/security/generate-token'
 import { computeMissingItems, MissingItemKey } from '@/app/lib/stakeholders/missing-items'
@@ -96,13 +97,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   /* eslint-disable-next-line no-restricted-syntax -- email HTML; clients can't render CSS custom properties, literal colors required (matches render-template.ts) */
   const missingItemsListHtml = `<ul style="margin:8px 0 16px;padding-left:20px;">${chosen.map(m => `<li style="margin-bottom:6px;font-weight:700;color:#0D6665;">${m.label}</li>`).join('')}</ul>${asksForDocuments ? `<p style="margin:0 0 16px;font-size:13px;line-height:1.6;">${SENSITIVE_EMAIL_LINE}</p>` : ''}`
 
-  const { subject, html } = renderEmailTemplate(template, {
+  const { subject: templateSubject, html } = renderEmailTemplate(template, {
     speaker_name: speaker.public_name || speaker.name || '',
     event_name: event.public_name || event.name,
     missing_items_list: missingItemsListHtml,
     submission_link: submissionUrl,
     producer_name: sender.name,
   })
+  // The email goes out under the speaker's fixed thread subject whatever the template says — show that, not the template's.
+  const subject = (await speakerThreadSubjectFor(speakerId, sender.email)) ?? templateSubject
 
   return NextResponse.json({
     speaker_id: speakerId,

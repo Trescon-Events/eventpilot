@@ -318,7 +318,7 @@ function RequestComposer({ speakerId, stakeholderName, allMissingItems, initialS
             senderName={senderName} senderEmail={senderEmail}
             recipientEmail={recipientEmail} setRecipientEmail={setRecipientEmail}
             ccInput={ccInput} setCcInput={setCcInput}
-            subject={subject} setSubject={setSubject}
+            subject={subject} setSubject={setSubject} subjectReadOnly
             html={html} setHtml={setHtml}
             sendError={sendError}
             sending={step === 'sending'}
@@ -415,7 +415,7 @@ function ReminderComposer({ speakerId, stakeholderName, requestId, onClose, onSe
             senderName={senderName} senderEmail={senderEmail}
             recipientEmail={recipientEmail} setRecipientEmail={setRecipientEmail}
             ccInput={ccInput} setCcInput={setCcInput}
-            subject={subject} setSubject={setSubject}
+            subject={subject} setSubject={setSubject} subjectReadOnly
             html={html} setHtml={setHtml}
             sendError={sendError}
             sending={sending}
@@ -511,7 +511,7 @@ function AcknowledgeComposer({ speakerId, stakeholderName, requestId, onClose, o
             senderName={senderName} senderEmail={senderEmail}
             recipientEmail={recipientEmail} setRecipientEmail={setRecipientEmail}
             ccInput={ccInput} setCcInput={setCcInput}
-            subject={subject} setSubject={setSubject}
+            subject={subject} setSubject={setSubject} subjectReadOnly
             html={html} setHtml={setHtml}
             sendError={sendError}
             sending={sending}

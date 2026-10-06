@@ -8,6 +8,18 @@ export function speakerThreadSubject(speakerName: string, eventName: string): st
   return `${speakerName} @ ${eventName}`
 }
 
+/** The subject a speaker's emails actually go out with (their stored thread's, else the fixed "<Speaker> @ <Event>"), for composers to show read-only. */
+export async function speakerThreadSubjectFor(speakerId: string, senderEmail?: string): Promise<string | null> {
+  const { data: speaker } = await supabaseAdmin.from('event_speakers').select('event_id, name, public_name').eq('id', speakerId).maybeSingle()
+  if (!speaker) return null
+  if (senderEmail) {
+    const { data: existing } = await supabaseAdmin.from('speaker_email_threads').select('subject').eq('speaker_id', speakerId).eq('sender_email', senderEmail.toLowerCase()).maybeSingle()
+    if (existing?.subject) return existing.subject
+  }
+  const { data: event } = await supabaseAdmin.from('events').select('name, public_name').eq('id', speaker.event_id).maybeSingle()
+  return speakerThreadSubject(speaker.public_name || speaker.name || '', event?.public_name || event?.name || '')
+}
+
 type SendOpts = Parameters<typeof sendGraphMailNewThread>[0]
 
 /*

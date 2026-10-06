@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
+import { speakerThreadSubjectFor } from '@/app/lib/email/speaker-thread'
 import { resolveSenderIdentity } from '@/app/lib/email/sender-identity'
 import { renderEmailTemplate } from '@/app/lib/email/render-template'
 
@@ -41,11 +42,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!template) return NextResponse.json({ error: '"Speaker Outstanding Items Acknowledgment" template not found' }, { status: 404 })
 
   const sender = await resolveSenderIdentity(session, template, speaker.producer_staff_id)
-  const { subject, html } = renderEmailTemplate(template, {
+  const { subject: templateSubject, html } = renderEmailTemplate(template, {
     speaker_name: speaker.public_name || speaker.name || '',
     event_name: event?.public_name || event?.name || '',
     producer_name: sender.name,
   })
+  // The email goes out under the speaker's fixed thread subject whatever the template says — show that, not the template's.
+  const subject = (await speakerThreadSubjectFor(speakerId, sender.email)) ?? templateSubject
 
   return NextResponse.json({
     template_id: template.id,
