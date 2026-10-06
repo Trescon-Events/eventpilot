@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { fetchAwaitingApprovalIds } from '@/app/lib/events/approval-round'
 
 /* Roster status columns (2026-08-18 SAE-into-Hub merge, extended 2026-08-23
    for the 3-state Website/Social Post/Self Promo columns; extracted
@@ -16,7 +17,8 @@ import { supabaseAdmin } from '@/app/lib/supabase'
    'pending'. Two batched queries for the whole roster rather than N+1 per
    speaker. */
 
-export type TriState = 'pending' | 'created' | 'published'
+/* 'awaiting_approval' (Social Post only): an external/client approval round was sent and nobody has answered yet. */
+export type TriState = 'pending' | 'created' | 'published' | 'awaiting_approval'
 export type SelfPromoState = 'pending' | 'created' | 'sent'
 
 // Website column — 'published' once actually pushed to KonfHub (which also
@@ -39,12 +41,12 @@ export async function fetchAnnouncementStatus(speakerIds: string[]): Promise<Map
     .select('id, speaker_id, announcement_kind, status')
     .in('speaker_id', speakerIds)
 
-  const bySpeaker = new Map<string, { orgPromoStatuses: string[]; selfPromoIds: string[] }>()
+  const bySpeaker = new Map<string, { orgPromoStatuses: string[]; orgPromoIds: string[]; selfPromoIds: string[] }>()
   for (const a of announcements ?? []) {
     if (!a.speaker_id) continue
-    const entry = bySpeaker.get(a.speaker_id) ?? { orgPromoStatuses: [], selfPromoIds: [] }
+    const entry = bySpeaker.get(a.speaker_id) ?? { orgPromoStatuses: [], orgPromoIds: [], selfPromoIds: [] }
     if (a.announcement_kind === 'self_promo') entry.selfPromoIds.push(a.id)
-    else entry.orgPromoStatuses.push(a.status)
+    else { entry.orgPromoStatuses.push(a.status); entry.orgPromoIds.push(a.id) }
     bySpeaker.set(a.speaker_id, entry)
   }
 
@@ -59,10 +61,13 @@ export async function fetchAnnouncementStatus(speakerIds: string[]): Promise<Map
     sentAnnouncementIds = new Set((sends ?? []).map(s => s.announcement_id))
   }
 
+  const awaiting = await fetchAwaitingApprovalIds([...bySpeaker.values()].flatMap(e => e.orgPromoIds))
+
   for (const [speakerId, entry] of bySpeaker) {
     const socialPostStatus: TriState =
       entry.orgPromoStatuses.length === 0 ? 'pending'
       : entry.orgPromoStatuses.includes('published') ? 'published'
+      : entry.orgPromoIds.some(id => awaiting.has(id)) ? 'awaiting_approval'
       : 'created'
     const selfPromoStatus: SelfPromoState =
       entry.selfPromoIds.length === 0 ? 'pending'

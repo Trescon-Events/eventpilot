@@ -143,3 +143,33 @@ export async function resolveRoundForLocated(parentId: string, layer: 'external'
     .eq('parent_approval_id', parentId)
   return resolveApprovalRound(main ?? null, ccRows ?? [])
 }
+
+/* Which of these announcements are WAITING on the speaker/partner or the client right now — an external or
+   client round has been sent and nobody (main recipient or any CC) has answered yet. Batched (a few queries
+   for a whole roster) for the Hub roster / Status Board "Pending approval" state. Latest round per layer only,
+   same convention as fetchAndResolveApprovalRound. */
+export async function fetchAwaitingApprovalIds(announcementIds: string[]): Promise<Set<string>> {
+  const waiting = new Set<string>()
+  if (announcementIds.length === 0) return waiting
+  const { data: mains } = await supabaseAdmin
+    .from('announcement_approvals')
+    .select('id, announcement_id, layer, status, comments, actioned_at, notified_at, external_name, external_email, created_at')
+    .in('announcement_id', announcementIds).in('layer', ['external', 'client'])
+    .order('created_at', { ascending: false })
+  const latest = new Map<string, NonNullable<typeof mains>[number]>()
+  for (const m of mains ?? []) { const k = `${m.announcement_id}:${m.layer}`; if (!latest.has(k)) latest.set(k, m) }
+  const rounds = [...latest.values()]
+  if (rounds.length === 0) return waiting
+  const ccFor = async (layer: 'external' | 'client') => {
+    const ids = rounds.filter(r => r.layer === layer).map(r => r.id)
+    if (ids.length === 0) return [] as (CcRow & { parent_approval_id: string })[]
+    const { data } = await supabaseAdmin.from(ccTableFor(layer)).select('parent_approval_id, status, comments, actioned_at, name, email').in('parent_approval_id', ids)
+    return (data ?? []) as (CcRow & { parent_approval_id: string })[]
+  }
+  const cc = [...await ccFor('external'), ...await ccFor('client')]
+  for (const r of rounds) {
+    const res = resolveApprovalRound(r, cc.filter(c => c.parent_approval_id === r.id))
+    if (res.status === 'pending') waiting.add(r.announcement_id)
+  }
+  return waiting
+}
