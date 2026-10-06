@@ -15,6 +15,29 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
+| Who | Madhu + Claude Code (Sonnet 5.5) — 6 Oct 2026. Theme: **Speaker Guest Invites** (personal KonfHub guest-registration links, generated invite + reminder emails, bulk send). |
+| Date | 2026-10-06 |
+| DB changes (production, additive, applied via psql) | `guest_invites_migration.sql` (events.guest_invite_pass_name/deadline, event_speakers.guest_invite_* columns, email_templates.event_id/kind), `guest_invite_code_details_migration.sql` (limit/ticket/open/expiry read from KonfHub), `guest_invite_sends_migration.sql` (`guest_invite_sends` send log). |
+| Data | FIFF: invite + reminder templates saved (plain, non-promotional wording — no "offer"), deadline 23 Oct 2026, **19 speaker links loaded** from the team's sheet (Casiana Dusa 5/5 used, Nurym Ayazbayev 4/5 used on KonfHub — check with the delegate team). John Travis (TEST FIFF) untouched. |
+| Handed off to | **Ayshle (FIFF producer)** to start using; Madhu tested single send end-to-end, **bulk send not yet tried live**. |
+| Deployed | Railway auto-deploy from `main`; verify with `gh run list --workflow CI --limit 1`. |
+
+### What was built (6 Oct)
+- **Per-speaker tab** (`stakeholders/[id]` tab "Guest Invite", `GuestInviteTab.tsx`): paste the delegate team's KonfHub link → Save reads the code from KonfHub (pass type, allotted, available, open/expiry, ↻ refresh; warnings for not-found / wrong pass / expired / used up). Send invite / reminder via the Communications-style composer (editable To/Cc/body, fixed thread subject `<Speaker> @ <Event>`); To = speaker, or first Additional Contact if no speaker email; other contacts on Cc.
+- **Guest Invites page** (`stakeholders/guest-invites`): settings (pass name + deadline only — limits are NEVER set here, the delegate team sets them on KonfHub), the two generated emails (`TemplatesCard.tsx`, Gemini + event content rules, stored in `email_templates` event-scoped kinds `guest_invite` / `guest_invite_reminder`), speaker table with filters (Not yet invited / Invited / Reminder due / Can't send), checkboxes, **bulk send** (`BulkSendDialog.tsx` → `POST /api/events/guest-invites/bulk-send`, 8 per request, re-validates + re-reads KonfHub, skips already-invited), and a **send history** (`guest_invite_sends`).
+- **Shared logic**: `app/lib/guest-invites/{send,sync,codes,template,generate,link,access}.ts` — single and bulk use the same compose/send. KonfHub limits are read from the coupon export (`/coupons/download`), not typed.
+- The email shows the link as a button plus copyable plain text (email can't do click-to-copy). Status Board has a "Guest Link" column.
+
+### What's next (6 Oct)
+1. Ayshle: try a small bulk invite on FIFF (watch the review dialog's To/Cc — some speakers have no email and go to an additional contact), then reminders closer to 23 Oct.
+2. Code expiry on KonfHub is 6 Nov vs the 23 Oct deadline in the email — KonfHub won't stop registrations in between.
+3. Other events: add their templates on the Guest Invites page (Generate → review → Save), set their deadline.
+4. Open FIFF items: 12 sessions on KonfHub have no speakers (import into Agenda Builder), missing passports/IDs/emails for some speakers, HubSpot linking for remaining events; the 5 Oct list below still stands.
+
+## Previous Session (4 → 5 Oct)
+
+| Field | Value |
+|---|---|
 | Who | Madhu + Claude Code (Sonnet 5.5) — 4 → 5 Oct 2026. Themes: **speaker email threading**, **multi-role KonfHub records**, **event timezone**, **Agenda Builder rebuilt (phases 1–5)**, **HubSpot: EventPilot no longer creates Events**. |
 | Date | 2026-10-05 |
 | DB changes (applied to production by Claude via psql, all additive) | `speaker_email_threads_migration.sql`, `konfhub_multi_role_migration.sql` (backfilled 14 event roles / 267 primary roles / 3 extra-role records), `event_timezone_migration.sql` (8 events backfilled from KonfHub), `agenda_v3_migration.sql` (session status/capacity/checks, per-session speaker roles, `replace_session_speakers()`), `agenda_v3b_migration.sql` (rooms, roundtable type, `event_konfhub_tag_map`, stage KonfHub track title, day window), `events_hubspot_event_migration.sql` (`events.hubspot_event_id/_name`). |
