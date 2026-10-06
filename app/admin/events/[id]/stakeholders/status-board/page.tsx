@@ -62,6 +62,8 @@ type Row = {
   website_status: TriState
   social_post_status: TriState
   self_promo_status: SelfPromoState
+  // Speaker guest invite (2026-10-06): no registration link yet / link ready / invite sent
+  guest_invite_status: 'guest_missing' | 'guest_ready' | 'sent'
   confirmation_status: string | null
   // Who originally sourced/introduced this speaker (2026-09-08) — plain
   // text, informational only, sourced from the producers' own Excel
@@ -84,10 +86,11 @@ const BOOL_COLUMNS: { key: 'email' | 'assistant_email' | 'full_bio' | 'photo'; l
 ]
 const COLLECTION_BOOL_COLUMNS = BOOL_COLUMNS
 
-const TRISTATE_COLUMNS: { key: 'website_status' | 'social_post_status' | 'self_promo_status'; label: string }[] = [
+const TRISTATE_COLUMNS: { key: 'website_status' | 'social_post_status' | 'self_promo_status' | 'guest_invite_status'; label: string }[] = [
   { key: 'website_status', label: 'Website' },
   { key: 'social_post_status', label: 'Social Post' },
   { key: 'self_promo_status', label: 'Self Promo' },
+  { key: 'guest_invite_status', label: 'Guest Link' },
 ]
 // Speaker, Producer, REF, Confirmation Status (4) + Collection's own bool
 // columns + UAE Resident + Passport + National ID (up to 3, hand-rendered,
@@ -125,10 +128,10 @@ const STATUS_AMBER = 'var(--amber)'
 const STATUS_GREEN = 'var(--success)'
 
 const TRISTATE_COLOR: Record<string, string> = {
-  pending: STATUS_RED, created: STATUS_AMBER, published: STATUS_GREEN, sent: STATUS_GREEN,
+  pending: STATUS_RED, created: STATUS_AMBER, published: STATUS_GREEN, sent: STATUS_GREEN, guest_missing: STATUS_RED, guest_ready: STATUS_AMBER,
 }
 const TRISTATE_LABEL: Record<string, string> = {
-  pending: 'Pending', created: 'In Progress', published: 'Published', sent: 'Sent',
+  pending: 'Pending', created: 'In Progress', published: 'Published', sent: 'Sent', guest_missing: 'No Link', guest_ready: 'Link Ready',
 }
 
 // Word-wraps naturally inside a narrow column (e.g. "In Progress" breaks
@@ -356,6 +359,7 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
       'Website': TRISTATE_LABEL[r.website_status],
       'Social Post': TRISTATE_LABEL[r.social_post_status],
       'Self Promo': TRISTATE_LABEL[r.self_promo_status],
+      'Guest Link': TRISTATE_LABEL[r.guest_invite_status],
     }))
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetRows), 'Status Board')
@@ -563,7 +567,7 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
                       hideable per this event's feature toggles. */}
                   <Th colSpan={COLLECTION_BOOL_COLUMNS.length + docColumnCount} cellStyle={{ ...stickyStyle({ top: 0, z: 3 }), ...groupHeaderStyle('Collection'), ...groupStartStyle('Collection') }} contentStyle={thContentStyle('center')}>Collection</Th>
                   <Th colSpan={2} cellStyle={{ ...stickyStyle({ top: 0, z: 3 }), ...groupHeaderStyle('Production'), ...groupStartStyle('Production') }} contentStyle={thContentStyle('center')}>Production</Th>
-                  <Th colSpan={3} cellStyle={{ ...stickyStyle({ top: 0, z: 3 }), ...groupHeaderStyle('Publish'), ...groupStartStyle('Publish') }} contentStyle={thContentStyle('center')}>Publish</Th>
+                  <Th colSpan={TRISTATE_COLUMNS.length} cellStyle={{ ...stickyStyle({ top: 0, z: 3 }), ...groupHeaderStyle('Publish'), ...groupStartStyle('Publish') }} contentStyle={thContentStyle('center')}>Publish</Th>
                 </tr>
                 <tr style={{ background: 'var(--card-hi)' }}>
                   {/* Collection's own order (2026-09-09, per Madhu): Email,

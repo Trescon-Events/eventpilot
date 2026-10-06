@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
 
   const { data: speakers, error } = await supabaseAdmin
     .from('event_speakers')
-    .select('id, name, public_name, role, company, producer_staff_id, bio, bio_full_url, photo_url, website_card_url, konfhub_speaker_id, status, active, announcement_status, confirmation_status, is_uae_resident, reference, email, custom_fields')
+    .select('id, name, public_name, role, company, producer_staff_id, bio, bio_full_url, photo_url, website_card_url, konfhub_speaker_id, status, active, announcement_status, confirmation_status, is_uae_resident, reference, email, custom_fields, guest_invite_url, guest_invite_sent_at')
     .eq('event_id', eventId)
     .neq('announcement_status', 'archived')
     .order('name', { ascending: true })
@@ -137,6 +137,8 @@ export async function GET(req: NextRequest) {
     website_status: websiteStatus(s),
     social_post_status: announcementStatus.get(s.id)?.socialPostStatus ?? 'pending',
     self_promo_status: announcementStatus.get(s.id)?.selfPromoStatus ?? 'pending',
+    // Guest invite (2026-10-06): no link yet / link ready to send / invite sent
+    guest_invite_status: !s.guest_invite_url ? 'guest_missing' as const : s.guest_invite_sent_at ? 'sent' as const : 'guest_ready' as const,
     confirmation_status: s.confirmation_status,
     reference: s.reference,
   }))
