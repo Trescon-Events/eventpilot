@@ -14,10 +14,10 @@ import TemplatesCard, { type TemplateInfo } from './TemplatesCard'
    happens on that speaker's "Guest Invite" tab. EventPilot only stores links and reads
    KonfHub for usage — it never creates or edits codes. */
 
-type Settings = { pass_name: string; cap: number; deadline: string | null }
+type Settings = { pass_name: string; deadline: string | null }
 type Row = {
   id: string; name: string; email: string | null; status: 'missing' | 'ready' | 'sent'; url: string | null; code: string | null
-  cap: number; cap_is_override: boolean; used: number | null; usage_checked_at: string | null
+  code_found: boolean | null; ticket_name: string | null; limit: number | null; used: number | null; available: number | null; usage_checked_at: string | null
   sent_at: string | null; sent_count: number; reminder_sent_at: string | null; reminder_count: number
 }
 type Kind = 'guest_invite' | 'guest_invite_reminder'
@@ -70,7 +70,7 @@ export default function GuestInvitesPage({ params }: { params: Promise<{ id: str
     say(`Checked ${d.checked} speaker${d.checked === 1 ? '' : 's'} against KonfHub.`); void load()
   }
 
-  const dirtySettings = !!(settings && draftSettings && (settings.pass_name !== draftSettings.pass_name || settings.cap !== draftSettings.cap || settings.deadline !== draftSettings.deadline))
+  const dirtySettings = !!(settings && draftSettings && (settings.pass_name !== draftSettings.pass_name || settings.deadline !== draftSettings.deadline))
   const counts = rows ? { missing: rows.filter(r => r.status === 'missing').length, ready: rows.filter(r => r.status === 'ready').length, sent: rows.filter(r => r.status === 'sent').length } : null
 
   return (
@@ -91,15 +91,13 @@ export default function GuestInvitesPage({ params }: { params: Promise<{ id: str
             <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <label style={{ display: 'grid', gap: '4px', fontSize: '11.5px', fontWeight: 700, color: 'var(--ink3)' }}>Pass name
                 <Input value={draftSettings.pass_name} disabled={!canEdit} onChange={e => setDraftSettings({ ...draftSettings, pass_name: e.target.value })} style={{ width: '200px' }} /></label>
-              <label style={{ display: 'grid', gap: '4px', fontSize: '11.5px', fontWeight: 700, color: 'var(--ink3)' }}>Guests per speaker
-                <Input type="number" min={0} max={50} value={draftSettings.cap} disabled={!canEdit} onChange={e => setDraftSettings({ ...draftSettings, cap: Number(e.target.value) })} style={{ width: '110px' }} /></label>
               <label style={{ display: 'grid', gap: '4px', fontSize: '11.5px', fontWeight: 700, color: 'var(--ink3)' }}>Registration deadline
                 <Input type="date" value={draftSettings.deadline ?? ''} disabled={!canEdit} onChange={e => setDraftSettings({ ...draftSettings, deadline: e.target.value || null })} style={{ width: '170px' }} /></label>
               {canEdit && dirtySettings && <Button variant="teal" onClick={saveSettings}>Save settings</Button>}
             </div>
           )}
           <div style={{ fontSize: '12px', color: 'var(--ink4)', marginTop: '10px', lineHeight: 1.6 }}>
-            The cap is also built into each code on KonfHub, so these numbers only decide what the email says. A speaker’s own cap can be changed on their Guest Invite tab.
+            How many guests each speaker may invite isn’t set here — the delegate team sets the limit on each speaker’s code on KonfHub, and EventPilot reads it when the link is saved.
             Event name, dates and venue come from <Link href={`/admin/events/${eventId}/details`} style={{ color: 'var(--teal-mid)', fontWeight: 700 }}>Event Details</Link>.
           </div>
         </Card>
@@ -112,13 +110,13 @@ export default function GuestInvitesPage({ params }: { params: Promise<{ id: str
         <Card padded>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
             <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>3 · Speakers {counts && <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--ink3)' }}>· {counts.sent} sent · {counts.ready} ready · {counts.missing} without a link</span>}</div>
-            {canEdit && <Button variant="ghost" onClick={refreshUsage} disabled={refreshing}>{refreshing ? 'Checking KonfHub… (about 15 seconds)' : 'Refresh usage from KonfHub'}</Button>}
+            {canEdit && <Button variant="ghost" onClick={refreshUsage} disabled={refreshing}>{refreshing ? 'Reading KonfHub…' : 'Refresh from KonfHub'}</Button>}
           </div>
           {!rows ? <div style={{ color: 'var(--ink3)' }}>Loading…</div> : rows.length === 0 ? <div style={{ color: 'var(--ink3)' }}>No speakers yet.</div> : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead><tr style={{ textAlign: 'left', color: 'var(--ink3)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                  {['Speaker', 'Status', 'Code', 'Guests registered', 'Invite sent', 'Reminder sent', ''].map(h => <th key={h} style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>{h}</th>)}
+                  {['Speaker', 'Status', 'Code', 'Pass type', 'Passes available', 'Invite sent', 'Reminder sent', ''].map(h => <th key={h} style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>{h}</th>)}
                 </tr></thead>
                 <tbody>
                   {rows.map(r => (
@@ -126,7 +124,8 @@ export default function GuestInvitesPage({ params }: { params: Promise<{ id: str
                       <td style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--ink)' }}>{r.name}{!r.email && <span title="No email on file" style={{ marginLeft: '6px', color: 'var(--amber)' }}>⚠ no email</span>}</td>
                       <td style={{ padding: '8px 10px' }}><Badge color={STATUS[r.status].color}>{STATUS[r.status].text}</Badge></td>
                       <td style={{ padding: '8px 10px', fontFamily: 'ui-monospace, Menlo, monospace', fontSize: '12px', color: 'var(--ink2)' }}>{r.code ?? '—'}</td>
-                      <td style={{ padding: '8px 10px', color: 'var(--ink2)' }}>{r.code ? (r.used === null ? <span style={{ color: 'var(--ink4)' }}>not checked</span> : <><strong>{r.used}</strong> of {r.cap}{r.usage_checked_at && <span style={{ color: 'var(--ink4)' }}> · {fmt(r.usage_checked_at)}</span>}</>) : '—'}</td>
+                      <td style={{ padding: '8px 10px', color: 'var(--ink3)', fontSize: '12.5px' }}>{r.code ? (r.code_found === false ? <span style={{ color: 'var(--red)' }}>not on KonfHub</span> : r.ticket_name ?? <span style={{ color: 'var(--ink4)' }}>not read</span>) : '—'}</td>
+                      <td style={{ padding: '8px 10px', color: 'var(--ink2)' }}>{r.code && r.code_found !== false ? (r.limit === null ? <span style={{ color: 'var(--ink4)' }}>—</span> : <><strong style={{ color: r.available === 0 ? 'var(--amber)' : 'var(--ink)' }}>{r.available ?? '?'}</strong> of {r.limit}{r.usage_checked_at && <span style={{ color: 'var(--ink4)' }}> · {fmt(r.usage_checked_at)}</span>}</>) : '—'}</td>
                       <td style={{ padding: '8px 10px', color: 'var(--ink3)' }}>{fmt(r.sent_at)}{r.sent_count > 1 ? ` (×${r.sent_count})` : ''}</td>
                       <td style={{ padding: '8px 10px', color: 'var(--ink3)' }}>{fmt(r.reminder_sent_at)}{r.reminder_count > 1 ? ` (×${r.reminder_count})` : ''}</td>
                       <td style={{ padding: '8px 10px', textAlign: 'right' }}><Link href={`/admin/events/${eventId}/stakeholders/${r.id}?tab=guest`} style={{ color: 'var(--teal-mid)', fontWeight: 700, fontSize: '12.5px', textDecoration: 'none' }}>Open →</Link></td>

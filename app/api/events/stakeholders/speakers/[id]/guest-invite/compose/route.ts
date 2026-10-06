@@ -5,20 +5,20 @@ import { requireGuestInviteAccess, speakerEmailOf } from '@/app/lib/guest-invite
 import { resolveSenderIdentity } from '@/app/lib/email/sender-identity'
 import { speakerThreadSubject } from '@/app/lib/email/speaker-thread'
 import { type GuestKind, loadGuestTemplate, loadEventGuestSettings, guestVariables, renderGuestTemplate } from '@/app/lib/guest-invites/template'
-import { fetchCodeRegistrations } from '@/app/lib/guest-invites/usage'
+import { syncSpeakerGuestCode } from '@/app/lib/guest-invites/sync'
 
 /* POST /api/events/stakeholders/speakers/[id]/guest-invite/compose   Body: { kind: 'invite' | 'reminder' }
-   Renders the event's template for this speaker (stateless — nothing is sent or saved).
-   A REMINDER first re-reads KonfHub for how many guests have already registered with
-   their code, so the wording reflects where they stand (none yet / N of M used). It's
-   refused when all places are used or the deadline has passed. */
+   Renders the event's template for this speaker (stateless — nothing is sent). The code's limit and
+   usage are read from KonfHub right now, so the email quotes the real number of places and a
+   REMINDER reflects where they stand (none yet / N of M used). Refused if the code isn't on KonfHub,
+   has no limit, is used up, or the registration deadline has passed. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json().catch(() => null) as { kind?: string } | null
   if (body?.kind !== 'invite' && body?.kind !== 'reminder') return NextResponse.json({ error: 'kind must be invite or reminder' }, { status: 400 })
   const kind: GuestKind = body.kind === 'invite' ? 'guest_invite' : 'guest_invite_reminder'
 
-  const { data: s } = await supabaseAdmin.from('event_speakers').select('id, event_id, name, public_name, email, custom_fields, producer_staff_id, guest_invite_url, guest_invite_code, guest_invite_cap, guest_invite_sent_at').eq('id', id).maybeSingle()
+  const { data: s } = await supabaseAdmin.from('event_speakers').select('id, event_id, name, public_name, email, custom_fields, producer_staff_id, guest_invite_url, guest_invite_code, guest_invite_sent_at').eq('id', id).maybeSingle()
   if (!s) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
   const denied = await requireGuestInviteAccess(req, s.event_id, 'edit'); if (denied) return denied
 
@@ -32,18 +32,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!template) return NextResponse.json({ error: `No ${kind === 'guest_invite' ? 'guest invite' : 'reminder'} template for this event yet — generate it on the event’s Guest Invites page.` }, { status: 404 })
   if (kind === 'guest_invite_reminder' && !s.guest_invite_sent_at) return NextResponse.json({ error: 'Send the invite before a reminder.' }, { status: 409 })
 
-  const cap = s.guest_invite_cap ?? settings.cap
-  let used = 0
-  if (kind === 'guest_invite_reminder') {
-    const { data: web } = await supabaseAdmin.from('event_websites').select('konfhub_event_id, konfhub_client_id, konfhub_client_secret').eq('event_id', s.event_id).maybeSingle()
-    if (!web?.konfhub_event_id || !web.konfhub_client_id || !web.konfhub_client_secret) return NextResponse.json({ error: 'KonfHub isn’t configured for this event, so registrations can’t be checked.' }, { status: 422 })
-    try {
-      const counts = await fetchCodeRegistrations(web.konfhub_event_id, web.konfhub_client_id, web.konfhub_client_secret, { fresh: true })
-      used = (counts.get(s.guest_invite_code) ?? []).length
-      await supabaseAdmin.from('event_speakers').update({ guest_invite_used: used, guest_invite_usage_checked_at: new Date().toISOString() }).eq('id', id)
-    } catch (e) { return NextResponse.json({ error: `Couldn’t check registrations on KonfHub (${e instanceof Error ? e.message : 'error'}). Try again.` }, { status: 502 }) }
-    if (used >= cap && cap > 0) return NextResponse.json({ error: `All ${cap} places are already used — no reminder needed.`, used, cap }, { status: 409 })
-  }
+  // The limit and usage come from KonfHub itself (read now), never from anything typed here.
+  let sync
+  try { sync = await syncSpeakerGuestCode(id, { fresh: true }) }
+  catch (e) { return NextResponse.json({ error: `Couldn’t read this code from KonfHub (${e instanceof Error ? e.message : 'error'}). Try again.` }, { status: 502 }) }
+  if ('error' in sync) return NextResponse.json({ error: sync.error }, { status: 422 })
+  if (!sync.details.found) return NextResponse.json({ error: sync.warnings[0] ?? 'This code wasn’t found on KonfHub.' }, { status: 422 })
+  const cap = sync.details.limit
+  const used = sync.details.used ?? 0
+  if (cap === null) return NextResponse.json({ error: 'This code has no limit set on KonfHub — ask the delegate team to set one before inviting.' }, { status: 422 })
+  if (kind === 'guest_invite_reminder' && used >= cap) return NextResponse.json({ error: `All ${cap} places are already used — no reminder needed.`, used, cap }, { status: 409 })
+  if (kind === 'guest_invite' && used >= cap) return NextResponse.json({ error: `All ${cap} places on this code are already used.`, used, cap }, { status: 409 })
 
   const session = getSession(req)
   const sender = await resolveSenderIdentity(session, template, s.producer_staff_id)

@@ -19,7 +19,7 @@ const isKind = (k: unknown): k is GuestKind => KINDS.includes(k as GuestKind)
 
 async function preview(eventId: string, kind: GuestKind, subject: string, body: string) {
   const { eventName, dates, venue, settings } = await loadEventGuestSettings(eventId)
-  const vars = guestVariables({ speakerName: 'Dr. Jane Sample', eventName, dates, venue, settings, cap: settings.cap, link: 'https://konfhub.com/checkout/sample?selectedCode=SAMPLEGUEST', producerName: 'The Producer', used: 2 })
+  const vars = guestVariables({ speakerName: 'Dr. Jane Sample', eventName, dates, venue, settings, cap: 5, link: 'https://konfhub.com/checkout/sample?selectedCode=SAMPLEGUEST', producerName: 'The Producer', used: 2 })
   const rendered = renderGuestTemplate({ subject, body_html: body, header_image_url: null, header_alt_text: null }, vars)
   const { errors, warnings } = await checkEmailCompliance(eventId, htmlToPlainText(rendered.html) + '\n' + rendered.subject)
   return { html: rendered.html, errors: errors.map(f => ({ message: f.message, match: f.match })), warnings: warnings.map(f => ({ message: f.message, match: f.match })) }

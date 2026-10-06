@@ -69,15 +69,16 @@ export const SKELETON: Record<GuestKind, { subject: string; body: string }> = {
   },
 }
 
-export type EventGuestSettings = { pass_name: string; cap: number; deadline: string | null }
+// The number of guests per speaker is NOT a setting: it's whatever limit the delegate team put on that speaker's code on KonfHub.
+export type EventGuestSettings = { pass_name: string; deadline: string | null }
 
 export async function loadEventGuestSettings(eventId: string): Promise<{ eventName: string; dates: string; venue: string; settings: EventGuestSettings }> {
-  const { data: e } = await supabaseAdmin.from('events').select('name, public_name, public_dates_display, public_venue_display, guest_invite_pass_name, guest_invite_cap, guest_invite_deadline').eq('id', eventId).single()
+  const { data: e } = await supabaseAdmin.from('events').select('name, public_name, public_dates_display, public_venue_display, guest_invite_pass_name, guest_invite_deadline').eq('id', eventId).single()
   return {
     eventName: (e?.public_name || e?.name || '').replace(/\s+/g, ' ').trim(),
     dates: (e?.public_dates_display ?? '').replace(/\s+/g, ' ').trim(),
     venue: (e?.public_venue_display ?? '').replace(/\s+/g, ' ').trim(),
-    settings: { pass_name: e?.guest_invite_pass_name || 'Conference Pass', cap: e?.guest_invite_cap ?? 5, deadline: e?.guest_invite_deadline ?? null },
+    settings: { pass_name: e?.guest_invite_pass_name || 'Conference Pass', deadline: e?.guest_invite_deadline ?? null },
   }
 }
 

@@ -38,7 +38,7 @@ export async function generateGuestTemplate(eventId: string, kind: GuestKind): P
   const { eventName, dates, venue, settings } = await loadEventGuestSettings(eventId)
   const rules = await resolveEffectiveRules(eventId)
   const excerpt = await referenceExcerpt(eventId)
-  const sampleVars = guestVariables({ speakerName: 'Dr. Jane Sample', eventName, dates, venue, settings, cap: settings.cap, link: 'https://konfhub.com/checkout/sample?selectedCode=SAMPLEGUEST', producerName: 'The Producer', used: 2 })
+  const sampleVars = guestVariables({ speakerName: 'Dr. Jane Sample', eventName, dates, venue, settings, cap: 5, link: 'https://konfhub.com/checkout/sample?selectedCode=SAMPLEGUEST', producerName: 'The Producer', used: 2 })
 
   const check = async (body: string, subject: string) => {
     const rendered = renderGuestTemplate({ subject, body_html: body, header_image_url: null, header_alt_text: null }, sampleVars)
