@@ -170,21 +170,17 @@ function Composer({ kind, speakerId, stakeholderName, onClose, onSent }: { kind:
   const [senderName, setSenderName] = useState('')
   const [senderEmail, setSenderEmail] = useState('')
   const [info, setInfo] = useState<{ used: number; cap: number } | null>(null)
+  const [toIsContact, setToIsContact] = useState(false)
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
 
   useEffect(() => {
     fetch(`/api/events/stakeholders/speakers/${speakerId}/guest-invite/compose`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind }) })
       .then(async res => { const d = await res.json().catch(() => ({})); if (!res.ok) throw new Error(d.error || 'Could not compose the email'); return d })
-      .then(d => { setRecipientEmail(d.recipient_email); setSubject(d.subject); setHtml(d.html); setSenderName(d.sender_name); setSenderEmail(d.sender_email); setInfo({ used: d.used, cap: d.cap }) })
+      .then(d => { setRecipientEmail(d.recipient_email); setCcInput(d.cc_emails.join(', ')); setToIsContact(!!d.to_is_contact); setSubject(d.subject); setHtml(d.html); setSenderName(d.sender_name); setSenderEmail(d.sender_email); setInfo({ used: d.used, cap: d.cap }) })
       .catch(e => setLoadError(e instanceof Error ? e.message : 'Could not compose the email'))
       .finally(() => setLoading(false))
   }, [speakerId, kind])
-
-  useEffect(() => {
-    fetch(`/api/events/stakeholders/speakers/${speakerId}/additional-contacts`).then(r => r.json())
-      .then(d => { const cs = (d.contacts ?? []) as { email: string }[]; setCcInput(prev => prev || cs.map(c => c.email).join(', ')) }).catch(() => {})
-  }, [speakerId])
 
   async function send() {
     setSending(true); setSendError(null)
@@ -207,6 +203,7 @@ function Composer({ kind, speakerId, stakeholderName, onClose, onSent }: { kind:
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '20px', color: 'var(--ink3)', cursor: 'pointer' }}>×</button>
         </div>
         {kind === 'reminder' && info && <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '12px' }}>KonfHub shows <strong>{info.used}</strong> of {info.cap} places used — the reminder is worded to match.</div>}
+        {toIsContact && <div style={{ fontSize: '12.5px', color: 'var(--amber)', marginBottom: '12px' }}>No email on file for the speaker — addressed to their first additional contact instead.</div>}
         {loading ? <div style={{ fontSize: '13px', color: 'var(--ink4)' }}>{kind === 'reminder' ? 'Checking KonfHub for registrations…' : 'Loading…'}</div>
           : loadError ? <div style={{ fontSize: '14.5px', color: 'var(--red)' }}>{loadError}</div>
           : <ComposeEmailFields senderName={senderName} senderEmail={senderEmail} recipientEmail={recipientEmail} setRecipientEmail={setRecipientEmail} ccInput={ccInput} setCcInput={setCcInput} subject={subject} setSubject={setSubject} subjectReadOnly html={html} setHtml={setHtml} sendError={sendError} sending={sending} sendLabel={sending ? 'Sending…' : kind === 'invite' ? 'Send invite' : 'Send reminder'} onSend={send} />}

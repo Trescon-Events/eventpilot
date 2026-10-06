@@ -23,8 +23,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const denied = await requireGuestInviteAccess(req, s.event_id, 'edit'); if (denied) return denied
 
   if (!s.guest_invite_url || !s.guest_invite_code) return NextResponse.json({ error: 'Add this speaker’s registration link first.' }, { status: 422 })
-  const recipient = speakerEmailOf(s.custom_fields as Record<string, unknown> | null, s.email)
-  if (!recipient) return NextResponse.json({ error: 'No email address on file for this speaker — add one under the Registration tab first.' }, { status: 422 })
+  // Same recipients as the Communications tab: the speaker, with every Additional Contact on Cc. With no
+  // speaker email on file the first Additional Contact becomes the To (the rest stay on Cc).
+  const { data: contactRows } = await supabaseAdmin.from('speaker_additional_contacts').select('email').eq('speaker_id', id).order('created_at', { ascending: true })
+  const contactEmails = [...new Set((contactRows ?? []).map(c => (c.email ?? '').trim()).filter(Boolean))]
+  const speakerEmail = speakerEmailOf(s.custom_fields as Record<string, unknown> | null, s.email)
+  const recipient = speakerEmail || contactEmails[0] || ''
+  const ccEmails = contactEmails.filter(e => e.toLowerCase() !== recipient.toLowerCase())
+  if (!recipient) return NextResponse.json({ error: 'No email address on file for this speaker or any additional contact — add one under the Registration tab or Additional Contacts first.' }, { status: 422 })
 
   const { eventName, dates, venue, settings } = await loadEventGuestSettings(s.event_id)
   if (settings.deadline && new Date(settings.deadline + 'T23:59:59Z') < new Date()) return NextResponse.json({ error: 'The registration deadline has passed.' }, { status: 409 })
@@ -50,7 +56,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const vars = guestVariables({ speakerName, eventName, dates, venue, settings, cap, link: s.guest_invite_url, producerName: sender.name, used })
   const { html } = renderGuestTemplate(template, vars)
   return NextResponse.json({
-    kind, template_id: template.id, recipient_email: recipient, subject: speakerThreadSubject(speakerName, eventName), html,
+    kind, template_id: template.id, recipient_email: recipient, cc_emails: ccEmails, to_is_contact: !speakerEmail, subject: speakerThreadSubject(speakerName, eventName), html,
     sender_name: sender.name, sender_email: sender.email, used, cap, remaining: Math.max(cap - used, 0),
   })
 }
