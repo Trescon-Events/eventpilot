@@ -1,6 +1,6 @@
 'use client'
 import { useRef, useState } from 'react'
-import { Button, Badge, Input, Textarea } from '@/app/components/ui'
+import { Button, Badge, Textarea } from '@/app/components/ui'
 
 /* The event's two guest-invite emails (the invite and the reminder). Generate drafts
    one from Event Details + the Messaging Doc (nothing is saved until Save). The editor
