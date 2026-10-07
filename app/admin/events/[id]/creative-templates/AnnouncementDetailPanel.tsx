@@ -22,6 +22,7 @@ import ScheduleConfirmModal from './ScheduleConfirmModal'
 import NotifyExternalComposer from './NotifyExternalComposer'
 import NotifyExternalReminderComposer from './NotifyExternalReminderComposer'
 import RemovePostModal from './RemovePostModal'
+import ManageScheduleModal from './ManageScheduleModal'
 
 // The four (org_promo) / two (self_promo) steps of the left-hand workflow
 // stepper — see its own comment further down for how "current" is derived.
@@ -107,6 +108,7 @@ export default function AnnouncementDetailPanel({
   const [bypassing, setBypassing] = useState<'internal' | 'external' | 'client' | null>(null)
   const [publishModalMode, setPublishModalMode] = useState<'now' | 'retry' | null>(null)
   const [removePostOpen, setRemovePostOpen] = useState(false)
+  const [manageSchedule, setManageSchedule] = useState<'cancel' | 'reschedule' | null>(null)
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false)
   const [confirmingTagging, setConfirmingTagging] = useState(false)
   const [notifyingInternal, setNotifyingInternal] = useState(false)
@@ -1118,11 +1120,21 @@ export default function AnnouncementDetailPanel({
           // timestamp already in the past is really "posting now, still
           // confirming" — different situations, different copy.
           const isImmediate = new Date(announcement.scheduled_for) <= new Date()
+          // Still comfortably in the future (matches CANCEL_LEAD_MS in lib/events/postiz-unschedule.ts) — after that Postiz is delivering it and it can't be recalled.
+          const changeable = new Date(announcement.scheduled_for).getTime() - new Date().getTime() >= 2 * 60 * 1000
           return (
             <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '12px' }}>
               {isImmediate
                 ? 'Posting now — Postiz is delivering it, this typically confirms within a few minutes.'
                 : `Scheduled for ${new Date(announcement.scheduled_for).toLocaleString()} — Postiz confirms delivery within 15 minutes of that time.`}
+              {!isImmediate && can('sae.announcements.publish') && (
+                changeable ? (
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                    <Button variant="ghost" onClick={() => setManageSchedule('reschedule')}>Reschedule</Button>
+                    <Button variant="red" onClick={() => setManageSchedule('cancel')}>Cancel schedule</Button>
+                  </div>
+                ) : <div style={{ marginTop: '6px', color: 'var(--amber)' }}>Due in under 2 minutes — it can no longer be changed here.</div>
+              )}
             </div>
           )
         })()}
@@ -1366,6 +1378,17 @@ export default function AnnouncementDetailPanel({
           postizChannels={postizChannels}
           mode={publishModalMode}
           onClose={() => setPublishModalMode(null)}
+          onDone={onUpdate}
+        />
+      )}
+
+      {manageSchedule && announcement.scheduled_for && (
+        <ManageScheduleModal
+          mode={manageSchedule}
+          announcementId={announcement.id}
+          scheduledFor={announcement.scheduled_for}
+          channelLabels={(announcement.postiz_channel_ids ?? []).map(cid => { const c = postizChannels.find(p => p.id === cid); return c ? `${c.name} (${PLATFORM_LABELS[c.identifier] ?? c.identifier})` : 'a channel' })}
+          onClose={() => setManageSchedule(null)}
           onDone={onUpdate}
         />
       )}
