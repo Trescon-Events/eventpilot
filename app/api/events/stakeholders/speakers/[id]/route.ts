@@ -155,7 +155,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // with a generic "Save failed" — retrying could never have helped).
     // Staff editing an existing internal record should be able to save
     // partial progress freely, same as any other admin tool.
-    const { columns, customFields } = mapFieldsToRecord('speaker', schema, body.fields, {})
+    // The Details card sends ONLY the field that was edited, so editing First Name alone arrives as { first_name }.
+    // mapFieldsToRecord builds the internal `name` from whatever first/last it is given — which would overwrite
+    // "Jonathan Keyes" with just "Jonathan" (found live 2026-10-07, 5 real records affected). Fill the missing half from
+    // the saved record first, so the full name is always first + last.
+    const sentFields: Record<string, SubmittedValue> = { ...body.fields }
+    if (!sentFields.full_name && (sentFields.first_name !== undefined || sentFields.last_name !== undefined)) {
+      const saved = (existing.custom_fields ?? {}) as Record<string, SubmittedValue>
+      const part = (v: SubmittedValue | undefined) => String(Array.isArray(v) ? v.join(' ') : v ?? '').trim()
+      const fullName = [part(sentFields.first_name ?? saved.first_name), part(sentFields.last_name ?? saved.last_name)].filter(Boolean).join(' ')
+      if (fullName) sentFields.full_name = fullName
+    }
+    const { columns, customFields } = mapFieldsToRecord('speaker', schema, sentFields, {})
     // Merge onto the EXISTING custom_fields rather than replacing it
     // wholesale (real bug found live, 2026-09-23 — a test speaker's
     // custom_fields.email, set via a HubSpot crm_property mapping, was
