@@ -12,7 +12,7 @@ import { uploadSensitiveDocument } from '@/app/lib/events/sensitive-storage'
 import { computeRetention } from '@/app/lib/events/sensitive-retention'
 import { sensitiveDocumentFileName, publicNameForFile } from '@/app/lib/events/sensitive-doc-name'
 import { hasEventPermission } from '@/app/lib/access/event-access'
-import { sendGraphMail } from '@/app/lib/email/graph-mail'
+import { sendSystemMail } from '@/app/lib/email/system-mail'
 import { renderEmailTemplate } from '@/app/lib/email/render-template'
 import { MissingItemKey, missingItemLabel } from '@/app/lib/stakeholders/missing-items'
 import { SENSITIVE_CONSENT_VERSION, SENSITIVE_CONSENT_REQUIRED_ERROR } from '@/app/lib/stakeholders/sensitive-consent'
@@ -299,18 +299,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
 // Notifies whoever actually sent THIS request round (request.requested_by)
 // — falling back to the speaker's assigned producer only for the rare
 // case that round was sent by the synthetic 'super-admin' session (which
-// has no staff_members row of its own). Sent from a fixed system identity
-// (the template's own stored sender), same convention as the existing
-// internal "MM notification" on the announcement-approval flow
-// (approve/route.ts's notifyMM) — this is an internal system notification
-// triggered by an external actor's submission, not an outbound message
-// that should read as coming from any particular staffer.
+// has no staff_members row of its own). Sent from the no-reply system address
+// (lib/email/system-mail.ts) — an internal system notification triggered by an
+// external actor's submission, not a message that should read as coming from
+// any staffer. (Until 2026-10-07 it used the email template's stored sender —
+// Madhu's mailbox — so every producer got these "from" him.)
 async function notifyProducer(eventId: string, speakerId: string, submittedFields: string[], requestedByStaffId: string | null, remaining: MissingItemKey[]) {
   const { data: speaker } = await supabaseAdmin.from('event_speakers').select('name, public_name, producer_staff_id').eq('id', speakerId).single()
   if (!speaker) return
-
-  const { data: template } = await supabaseAdmin.from('email_templates').select('sender_name, sender_email').eq('slug', 'speaker_outstanding_items_request').eq('is_active', true).single()
-  if (!template) return
 
   const recipientStaffId = requestedByStaffId ?? speaker.producer_staff_id
   if (!recipientStaffId) return
@@ -333,8 +329,7 @@ async function notifyProducer(eventId: string, speakerId: string, submittedField
     {}
   )
 
-  await sendGraphMail({
-    senderEmail: template.sender_email, senderName: template.sender_name,
+  await sendSystemMail({
     to: recipient.email,
     subject: `${speakerName} submitted outstanding items — ${event?.public_name || event?.name || 'your event'}`,
     html,
