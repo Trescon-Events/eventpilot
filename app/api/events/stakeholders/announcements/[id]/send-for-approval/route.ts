@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'node:crypto'
+import { systemFrom } from '@/app/lib/email/system-mail'
 import { Resend } from 'resend'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getStakeholderEmailHeaderHtml } from '@/app/lib/branding/email-header'
@@ -91,7 +92,7 @@ type ApprovalRow = {
 async function sendApprovalEmails(announcement: AnnouncementRow, approvals: ApprovalRow[]) {
   if (!process.env.RESEND_API_KEY) return
   const resend = new Resend(process.env.RESEND_API_KEY)
-  const from = process.env.RESEND_FROM || 'Event Pilot <noreply@eventpilot.tresconglobal.com>'
+  const from = systemFrom()
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com'
   const event = Array.isArray(announcement.event) ? announcement.event[0] : announcement.event
   const headerHtml = await getStakeholderEmailHeaderHtml()

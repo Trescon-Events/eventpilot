@@ -7,6 +7,7 @@
 import { Resend } from 'resend'
 import type { RankedRow, StaffLite, SilentStaff } from './leaderboard'
 import { supabaseAdmin } from './supabase'
+import { systemFrom } from './email/system-mail'
 
 let _resend: Resend | null = null
 function getResend() {
@@ -14,7 +15,7 @@ function getResend() {
   return _resend
 }
 
-const FROM  = process.env.RESEND_FROM_EMAIL ?? 'Event Pilot <noreply@eventpilot.tresconglobal.com>'
+const FROM  = systemFrom()
 const BRAND = '#00A5A3'
 const DARK  = '#080A0B'
 const LIME  = '#C0F43C'

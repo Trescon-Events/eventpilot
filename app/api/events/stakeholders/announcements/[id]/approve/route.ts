@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
+import { systemFrom } from '@/app/lib/email/system-mail'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getStakeholderEmailHeaderHtml } from '@/app/lib/branding/email-header'
 import { locateApprovalToken, resolveRoundForLocated } from '@/app/lib/events/approval-round'
@@ -190,7 +191,7 @@ async function notifyMM(announcementId: string, newStatus: string, layer: 'inter
   if (!recipientEmail) return
 
   const resend = new Resend(process.env.RESEND_API_KEY)
-  const from = process.env.RESEND_FROM || 'Event Pilot <noreply@eventpilot.tresconglobal.com>'
+  const from = systemFrom()
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com'
   const headerHtml = await getStakeholderEmailHeaderHtml()
 

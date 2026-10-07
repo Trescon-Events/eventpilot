@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { systemFrom } from '@/app/lib/email/system-mail'
 import { Resend } from 'resend'
 
 export async function GET(req: NextRequest) {
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com'
     const resend = new Resend(process.env.RESEND_API_KEY)
     await resend.emails.send({
-      from: process.env.RESEND_FROM || 'Event Pilot <noreply@eventpilot.tresconglobal.com>',
+      from: systemFrom(),
       to: email,
       subject: `You've been added to the ${eventName} website team`,
       html: `

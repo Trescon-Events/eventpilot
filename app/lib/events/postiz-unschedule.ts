@@ -8,6 +8,7 @@
 // Only possible while the time is still comfortably in the future — once Postiz is delivering (or has delivered)
 // a post it can't be recalled through the API (see remove-post/route.ts for what "Clear This Post" really does).
 import { Resend } from 'resend'
+import { systemFrom } from '@/app/lib/email/system-mail'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { deletePostizPost, listPostizIntegrations, PostizError } from '@/app/lib/postiz'
 import { publishAnnouncementToPostiz, PublishValidationError } from '@/app/lib/events/postiz-publish'
@@ -119,7 +120,7 @@ async function notifyScheduleChange(kind: 'cancelled' | 'rescheduled', row: Row,
     ? `The scheduled post for ${eventName} that was due ${was} has been cancelled. Nothing will be published — it is back to ready-to-publish, with its approvals intact.`
     : `The scheduled post for ${eventName} has been moved from ${was} to ${fmt(newIso!)}. It will go out at the new time.`
   const resend = new Resend(process.env.RESEND_API_KEY)
-  const from = process.env.RESEND_FROM || 'Event Pilot <noreply@eventpilot.tresconglobal.com>'
+  const from = systemFrom()
   for (const s of staff ?? []) {
     if (!s.email) continue
     // eslint-disable-next-line no-restricted-syntax -- email HTML; clients can't render CSS custom properties

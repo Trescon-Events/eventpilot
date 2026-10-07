@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
+import { systemFrom } from '@/app/lib/email/system-mail'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { toStoredBioPdf } from '@/app/lib/events/full-bio-upload'
@@ -239,7 +240,7 @@ async function sendNotifications(eventId: string, eventName: string, formType: F
   if (recipients.length === 0) return
 
   await resend.emails.send({
-    from,
+    from: systemFrom(), // internal staff notification — "EventPilot" no-reply (the submitter's thank-you above keeps `from`)
     to: recipients,
     subject: `New ${formType.replace(/_/g, ' ')} submission: ${displayName} — ${eventName}`,
     /* eslint-disable no-restricted-syntax -- email HTML; clients can't render CSS custom properties, literal colors required (matches app/api/content/posts/[id]/approve/route.ts's existing convention) */

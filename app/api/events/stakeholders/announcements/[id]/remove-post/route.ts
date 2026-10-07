@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
+import { systemFrom } from '@/app/lib/email/system-mail'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
@@ -107,7 +108,7 @@ async function notifyOfRemoval(sid: string | undefined, eventId: string, announc
   if (!staff?.email) return
 
   const resend = new Resend(process.env.RESEND_API_KEY)
-  const from = process.env.RESEND_FROM || 'Event Pilot <noreply@eventpilot.tresconglobal.com>'
+  const from = systemFrom()
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com'
   const stakeholderId = announcement.speaker_id ?? announcement.partner_id
   if (!stakeholderId) return

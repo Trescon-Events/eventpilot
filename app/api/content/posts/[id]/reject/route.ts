@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { systemFrom } from '@/app/lib/email/system-mail'
 import { Resend } from 'resend'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -24,7 +25,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         const resend = new Resend(process.env.RESEND_API_KEY)
         const eventName = data.campaign?.events?.name || 'your campaign'
         await resend.emails.send({
-          from: process.env.RESEND_FROM || 'Event Pilot <noreply@eventpilot.tresconglobal.com>',
+          from: systemFrom(),
           to: creator.email,
           subject: `Revision needed — ${data.platform} post for ${eventName}`,
           html: `<div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px">
