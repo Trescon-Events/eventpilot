@@ -26,7 +26,7 @@ export default function ManageScheduleModal({ mode, announcementId, scheduledFor
   const [when, setWhen] = useState(toLocalInput(scheduledFor))
   const [doneLabel, setDoneLabel] = useState('')
   const current = new Date(scheduledFor).toLocaleString()
-  const newTooSoon = mode === 'reschedule' && (!when || new Date(when).getTime() - Date.now() < 5 * 60 * 1000)
+  const newTooSoon = mode === 'reschedule' && (!when || new Date(when).getTime() - new Date().getTime() < 5 * 60 * 1000)
   const unchanged = mode === 'reschedule' && when === toLocalInput(scheduledFor)
 
   async function go() {
