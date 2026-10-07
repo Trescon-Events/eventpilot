@@ -68,7 +68,9 @@ async function rasterizePdfPage(bytes: Uint8Array, pageIndex: number): Promise<{
   // standardFontDataUrl: PDFs that reference the standard fonts without embedding
   // them (common for generated PDFs) would otherwise render with missing text.
   const standardFontDataUrl = path.join(process.cwd(), 'node_modules', 'pdfjs-dist', 'standard_fonts') + path.sep
-  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(bytes), standardFontDataUrl }).promise
+  // wasmUrl: the JBIG2 / JPEG2000 / colour decoders. Without it, scanner PDFs (copier "high compression" mode keeps the text as JBIG2 layers) lose their text and show only the soft background.
+  const wasmUrl = path.join(process.cwd(), 'node_modules', 'pdfjs-dist', 'wasm') + path.sep
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(bytes), standardFontDataUrl, wasmUrl }).promise
   const pageCount = Math.min(pdf.numPages, MAX_PAGES)
   if (pageIndex >= pageCount) return null
   const page = await pdf.getPage(pageIndex + 1)
