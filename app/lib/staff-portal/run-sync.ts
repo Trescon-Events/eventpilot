@@ -131,10 +131,12 @@ export async function runStaffPortalSync() {
   const rolesByUser: Record<string, string[]> = {}
   for (const r of roles) (rolesByUser[r.user_id] ??= []).push(r.role)
 
-  const { data: existingStaff } = await supabaseAdmin.from('staff_members').select('email, profile_complete, job_level')
+  const { data: existingStaff } = await supabaseAdmin.from('staff_members').select('email, profile_complete, job_level, account_type')
   const existingMap = Object.fromEntries((existingStaff ?? []).map(s => [s.email.toLowerCase(), s]))
 
-  const staffRows = staffPortalStaff.map(p => {
+  // External vendors (e.g. a former employee converted to a vendor) are managed in
+  // EventPilot only — never let a Staff Portal record re-disable or overwrite them.
+  const staffRows = staffPortalStaff.filter(p => existingMap[p.email?.trim().toLowerCase()]?.account_type !== 'vendor').map(p => {
     const email = p.email?.trim().toLowerCase()
     const existingLevel = existingMap[email]?.job_level
     return {
@@ -190,7 +192,12 @@ export async function runStaffPortalSync() {
   if (staffErr) throw new Error(`Staff upsert failed: ${staffErr.message}`)
 
   // ── Resolve manager links ───────────────────────────────────────────────
-  const spIdToEmail = Object.fromEntries(staffPortalStaff.map(p => [p.id, p.email?.trim().toLowerCase()]))
+  // Vendors are left out so their old assignments/timesheets/leave never re-link to them.
+  const spIdToEmail = Object.fromEntries(
+    staffPortalStaff
+      .filter(p => existingMap[p.email?.trim().toLowerCase()]?.account_type !== 'vendor')
+      .map(p => [p.id, p.email?.trim().toLowerCase()])
+  )
   const { data: allStaff } = await supabaseAdmin.from('staff_members').select('id, email, name')
   const emailToLocalStaff = Object.fromEntries((allStaff ?? []).map(s => [s.email.toLowerCase(), s]))
 

@@ -54,8 +54,55 @@ export async function POST(req: NextRequest) {
   const invalidKeys = moduleKeys.filter(k => !validKeys.has(k))
   if (invalidKeys.length > 0) return NextResponse.json({ error: `Unknown module key(s): ${invalidKeys.join(', ')}` }, { status: 400 })
 
-  const { data: existing } = await supabaseAdmin.from('staff_members').select('id').eq('email', email).maybeSingle()
-  if (existing) return NextResponse.json({ error: 'A staff member with this email already exists.' }, { status: 409 })
+  const { data: existing } = await supabaseAdmin
+    .from('staff_members')
+    .select('id, account_type, access_enabled, data_source')
+    .eq('email', email)
+    .maybeSingle()
+
+  // An ex-employee marked inactive in Staff Portal (the sync leaves access_enabled=false)
+  // can be converted into a vendor in place — keeps their history on the same row.
+  // Anyone else (active staff, existing vendor, manual rows) still gets the 409.
+  const isInactiveStaffPortalPerson =
+    !!existing && existing.data_source === 'staff_portal' && existing.access_enabled === false && existing.account_type !== 'vendor'
+  if (existing && !isInactiveStaffPortalPerson) {
+    return NextResponse.json({ error: 'A staff member with this email already exists.' }, { status: 409 })
+  }
+
+  if (existing) {
+    const { data: converted, error: convertErr } = await supabaseAdmin
+      .from('staff_members')
+      .update({
+        name: vendorLabel,
+        vendor_label: vendorLabel,
+        account_type: 'vendor',
+        access_roles: ['standard'],
+        job_level: 'staff', // the sync preserves elevated levels; a vendor must not keep one
+        data_source: 'manual', // detaches from the Staff Portal sync (run-sync also skips vendors)
+        access_enabled: body?.access_enabled ?? true,
+        profile_complete: true,
+        is_active: true,
+      })
+      .eq('id', existing.id)
+      .select('id, name, email, vendor_label, access_enabled, created_at')
+      .single()
+    if (convertErr || !converted) return NextResponse.json({ error: convertErr?.message ?? 'Failed to convert account' }, { status: 500 })
+
+    // Drop everything left over from their staff days, then apply only the chosen grants.
+    await supabaseAdmin.from('module_access').delete().eq('staff_id', existing.id)
+    await supabaseAdmin.from('event_staff').delete().eq('staff_id', existing.id)
+    if (moduleKeys.length > 0) {
+      await supabaseAdmin.from('module_access').insert(
+        moduleKeys.map(module_key => ({
+          staff_id: existing.id,
+          module_key,
+          tier: 'user',
+          granted_by: session!.sid === 'super-admin' ? null : session!.sid,
+        }))
+      )
+    }
+    return NextResponse.json({ ...converted, converted_from_staff: true }, { status: 201 })
+  }
 
   const { data: vendor, error: insertErr } = await supabaseAdmin
     .from('staff_members')
