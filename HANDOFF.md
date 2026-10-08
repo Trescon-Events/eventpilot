@@ -15,14 +15,23 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5.5) — 6 Oct 2026. Theme: **Speaker Guest Invites** (personal KonfHub guest-registration links, generated invite + reminder emails, bulk send). |
-| Date | 2026-10-06 |
-| DB changes (production, additive, applied via psql) | `guest_invites_migration.sql` (events.guest_invite_pass_name/deadline, event_speakers.guest_invite_* columns, email_templates.event_id/kind), `guest_invite_code_details_migration.sql` (limit/ticket/open/expiry read from KonfHub), `guest_invite_sends_migration.sql` (`guest_invite_sends` send log). |
-| Data | FIFF: invite + reminder templates saved (plain, non-promotional wording — no "offer"), deadline 23 Oct 2026, **19 speaker links loaded** from the team's sheet (Casiana Dusa 5/5 used, Nurym Ayazbayev 4/5 used on KonfHub — check with the delegate team). John Travis (TEST FIFF) untouched. |
-| Handed off to | **Ayshle (FIFF producer)** to start using; Madhu tested single send end-to-end, **bulk send not yet tried live**. |
-| Deployed | Railway auto-deploy from `main`; verify with `gh run list --workflow CI --limit 1`. |
+| Who | Madhu + Claude Code (Sonnet 5.5) — 8 Oct 2026. Theme: **external vendor login for Task Manager** (ex-staff converted to vendor). |
+| Date | 2026-10-08 |
+| DB changes | None. |
+| Handed off to | Durga |
+| Deployed | Pushed `191f2a3` to `main`, CI green; Railway auto-deploy. Live site 200 / 307 on login + SSO. |
 
-### What was built (6 Oct)
+### What was built (8 Oct)
+- **Vendor from an inactive ex-employee** (`app/api/vendor-accounts/route.ts`): creating a vendor for an email that belongs to a Staff Portal person who is now inactive (`data_source='staff_portal'`, `access_enabled=false`) used to 409 ("already exists"). It now **converts that row in place**: `account_type='vendor'`, `vendor_label`, `job_level='staff'`, roles `{standard}`, `data_source='manual'`, enabled; old `module_access` and `event_staff` rows removed; only the ticked modules granted. Active staff / existing vendors / manual rows still 409.
+- **Sync never touches vendors** (`app/lib/staff-portal/run-sync.ts`): vendor emails are skipped in the staff upsert AND left out of `spIdToEmail`, so old Staff Portal assignments/timesheets/leave don't re-link. Before this, the sync would re-disable a converted vendor on every run.
+- **How vendors log in:** production = Microsoft SSO only (password login disabled); the vendor needs an active Entra account (or guest invite for non-tenant emails like Gmail). `/vendor-portal` is a separate Ops-only login and doesn't open Task Manager.
+
+### Pending (8 Oct)
+- Madhu to create the vendor for `rajesh@tresconglobal.com` (Vendor Accounts, Task Manager) once deployed, then confirm he can sign in (needs an active Entra account — unverified).
+- Gmail vendor record `rajeshvm04@gmail.com` still exists (workaround, can't use SSO); deactivate or delete after the above works.
+- The new conversion path has not been exercised live.
+
+### What was built (6 Oct, previous session)
 - **Per-speaker tab** (`stakeholders/[id]` tab "Guest Invite", `GuestInviteTab.tsx`): paste the delegate team's KonfHub link → Save reads the code from KonfHub (pass type, allotted, available, open/expiry, ↻ refresh; warnings for not-found / wrong pass / expired / used up). Send invite / reminder via the Communications-style composer (editable To/Cc/body, fixed thread subject `<Speaker> @ <Event>`); To = speaker, or first Additional Contact if no speaker email; other contacts on Cc.
 - **Guest Invites page** (`stakeholders/guest-invites`): settings (pass name + deadline only — limits are NEVER set here, the delegate team sets them on KonfHub), the two generated emails (`TemplatesCard.tsx`, Gemini + event content rules, stored in `email_templates` event-scoped kinds `guest_invite` / `guest_invite_reminder`), speaker table with filters (Not yet invited / Invited / Reminder due / Can't send), checkboxes, **bulk send** (`BulkSendDialog.tsx` → `POST /api/events/guest-invites/bulk-send`, 8 per request, re-validates + re-reads KonfHub, skips already-invited), and a **send history** (`guest_invite_sends`).
 - **Shared logic**: `app/lib/guest-invites/{send,sync,codes,template,generate,link,access}.ts` — single and bulk use the same compose/send. KonfHub limits are read from the coupon export (`/coupons/download`), not typed.
