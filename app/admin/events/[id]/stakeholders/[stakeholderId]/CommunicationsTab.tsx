@@ -25,6 +25,7 @@ type RequestRow = {
   reminder_count: number
   last_reminder_at: string | null
   closed_at: string | null
+  upload_issues?: { at: string; kind: string | null; status: number | null; ping_ok: boolean | null; total_bytes: number | null }[]
 }
 
 const LABELS: Record<ItemKey, string> = { bio_full: 'Full Bio', photo: 'Photo', short_bio: 'Short Bio', country: 'Country of Residence', passport: 'Passport', national_id: 'National ID' }
@@ -135,6 +136,11 @@ export default function CommunicationsTab({ speakerId, stakeholderName, canEdit 
                       </div>
                       <Badge color={badge.color}>{badge.label}</Badge>
                     </div>
+                    {r.status === 'pending' && (r.upload_issues?.length ?? 0) > 0 && (() => {
+                      const last = r.upload_issues![r.upload_issues!.length - 1]
+                      const why = last.kind === 'network' ? 'their network appears to block uploads' : last.kind === 'files_blocked' ? 'the files appear to be blocked or too large (a small test upload worked)' : last.kind === 'too_large' ? 'a file appears too large' : 'the upload appears to be blocked before reaching us'
+                      return <div style={{ fontSize: '12px', color: 'var(--red)', marginTop: '8px' }}>⚠ Upload problem reported by the speaker ({r.upload_issues!.length}×, last {fmtDate(last.at)}): {why}. They were told to try another network or email the files — upload them from the Documents section if they do.</div>
+                    })()}
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
                       {r.status === 'pending' && (
                         <>

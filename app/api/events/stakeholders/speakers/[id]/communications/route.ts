@@ -27,7 +27,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const [{ data: rows, error }, { data: docs }] = await Promise.all([
     supabaseAdmin
       .from('speaker_communication_requests')
-      .select('id, requested_fields, status, requested_at, submitted_at, reminder_count, last_reminder_at, closed_at')
+      .select('id, requested_fields, status, requested_at, submitted_at, reminder_count, last_reminder_at, closed_at, upload_issues')
       .eq('speaker_id', speakerId)
       .order('requested_at', { ascending: false }),
     supabaseAdmin.from('speaker_sensitive_documents').select('document_type').eq('speaker_id', speakerId).is('deleted_at', null),

@@ -16,7 +16,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ spea
 
   const { data: request, error: requestErr } = await supabaseAdmin
     .from('speaker_communication_requests')
-    .select('status, token_expires_at, requested_fields, submitted_at')
+    .select('status, token_expires_at, requested_fields, submitted_at, requested_by')
     .eq('speaker_id', speakerId)
     .eq('token', token)
     .single()
@@ -36,6 +36,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ spea
 
   const { data: event } = await supabaseAdmin.from('events').select('name, public_name').eq('id', speaker.event_id).single()
 
+  // Who sent this request — the speaker's email fallback if uploading fails (they already have this address from the request email).
+  const { data: sender } = request.requested_by ? await supabaseAdmin.from('staff_members').select('email').eq('id', request.requested_by).maybeSingle() : { data: null }
+
   const allRequested = (request.requested_fields as MissingItemKey[]) ?? []
   // Only what's still outstanding is shown — the link stays open across partial submissions.
   const requestedFields = request.status === 'pending' ? await remainingRequestedItems(speakerId, allRequested) : allRequested
@@ -44,6 +47,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ spea
   return NextResponse.json({
     speaker_name: speaker.public_name || speaker.name,
     event_name: event?.public_name || event?.name || null,
+    producer_email: sender?.email ?? null,
     status: request.status,
     submitted_at: request.submitted_at,
     received_fields: receivedFields.map(key => ({ key, label: missingItemLabel(key) })),

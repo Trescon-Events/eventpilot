@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, use } from 'react'
+import { classifyUploadFailure, uploadFailureMessage } from '@/app/lib/stakeholders/upload-diagnosis'
 import { HUBSPOT_COUNTRIES } from '@/app/lib/forms/hubspot-countries'
 import {
   SENSITIVE_CONSENT_VERSION, PRIVACY_POLICY_URL, SENSITIVE_CONSENT_TITLE, sensitiveConsentBullets,
@@ -44,6 +45,7 @@ type ReviewData = {
   is_uae_resident: boolean | null
   ask_assistant: boolean
   received_fields: { key: string; label: string }[]
+  producer_email?: string | null
 }
 
 const PROFILE_KEYS = ['photo', 'bio_full', 'short_bio', 'country']
@@ -230,9 +232,10 @@ export default function SpeakerSubmissionPage({ params }: { params: Promise<{ sp
         form.append('assistant_mobile', assistant.mobile)
       }
     }
-    const res = await fetch(`/api/public/speaker-submission/${speakerId}/submit?token=${token}`, { method: 'POST', body: form })
-    const result = await res.json().catch(() => ({}))
-    if (res.ok && result.complete === false) {
+    let res: Response | null = null
+    try { res = await fetch(`/api/public/speaker-submission/${speakerId}/submit?token=${token}`, { method: 'POST', body: form }) } catch { res = null }
+    const result = res ? await res.json().catch(() => null) : null
+    if (res && res.ok && result?.complete === false) {
       // Partial: what they sent is saved; the same link stays open for the rest.
       try { localStorage.removeItem(draftKey) } catch { /* best-effort */ }
       setFiles({}); setConsent(false); setShortBio(''); setCountry(''); setAssistantAnswer(null); setRestored(false)
@@ -240,8 +243,29 @@ export default function SpeakerSubmissionPage({ params }: { params: Promise<{ sp
       setFormKey(k => k + 1)
       window.scrollTo({ top: 0 })
       await loadData().then(setData).catch(() => {})
-    } else if (res.ok) { try { localStorage.removeItem(draftKey) } catch { /* best-effort */ } setDoneWithDocs(sendingDocs); setDone(true) }
-    else setSubmitError(result.error || 'Could not submit — please try again.')
+    } else if (res && res.ok) { try { localStorage.removeItem(draftKey) } catch { /* best-effort */ } setDoneWithDocs(sendingDocs); setDone(true) }
+    else {
+      // Failed. If our own API answered with an error, show it. Otherwise (no response, or a non-JSON reply from a firewall/proxy)
+      // run a tiny test upload to tell "uploads to us are blocked" from "only these files fail", and say so.
+      const jsonError = typeof result?.error === 'string' ? result.error : null
+      let pingOk: boolean | null = null
+      if (!jsonError) {
+        try {
+          const pf = new FormData(); pf.append('ping', new Blob([new Uint8Array(64 * 1024)]), 'ping.bin')
+          const pr = await fetch(`/api/public/speaker-submission/${speakerId}/diagnostics?token=${token}&mode=ping`, { method: 'POST', body: pf })
+          pingOk = pr.ok
+        } catch { pingOk = false }
+      }
+      const kind = classifyUploadFailure({ threw: !res, status: res?.status ?? null, jsonError, pingOk })
+      setSubmitError(uploadFailureMessage(kind, jsonError, data?.producer_email ?? null))
+      if (kind !== 'server') {
+        const totalBytes = shownFiles.reduce((a, k) => a + (files[k]?.size ?? 0), 0)
+        fetch(`/api/public/speaker-submission/${speakerId}/diagnostics?token=${token}&mode=report`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+          body: JSON.stringify({ kind, status: res?.status ?? null, content_type: res?.headers.get('content-type') ?? null, total_bytes: totalBytes, ping_ok: pingOk }),
+        }).catch(() => { /* if even this is blocked, nothing more we can do from the browser */ })
+      }
+    }
     setSubmitting(false)
   }
 
