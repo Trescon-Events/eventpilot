@@ -38,7 +38,7 @@ const FILTERS: { value: string; label: string; test: (r: Row) => boolean }[] = [
   { value: 'complete', label: 'All documents reviewed', test: r => !outstanding(r) },
 ]
 
-export default function SpeakerDocumentsView() {
+export function SpeakerDocumentsPanel() {
   const scope = useOpsScope()
   const [data, setData] = useState<Data | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -50,8 +50,6 @@ export default function SpeakerDocumentsView() {
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
-  useBreadcrumbLabel(scope.id, data?.scope.name ?? null)
-
   const load = useCallback(async () => {
     const res = await fetch(`/api/events/operations/speakers?${scope.query}`)
     const body = await res.json().catch(() => ({}))
@@ -129,10 +127,8 @@ export default function SpeakerDocumentsView() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--surface)' }}>
-      <PageHeader eyebrow="Operations" title="Speaker Documents" backHref={scope.basePath} backLabel="Operations"
-        description="Confirmed speakers and the status of their Passport and National ID. You see where each document stands, not the documents themselves." />
-      <div style={{ padding: '24px 32px', maxWidth: '1180px', display: 'grid', gap: '16px' }}>
+    <>
+      <div style={{ display: 'grid', gap: '16px' }}>
         {error && <div style={{ color: 'var(--red)', fontSize: '14px' }}>{error}</div>}
         {!data && !error && <div style={{ color: 'var(--ink3)' }}>Loading…</div>}
         {data && (<>
@@ -202,6 +198,22 @@ export default function SpeakerDocumentsView() {
         </>)}
       </div>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+    </>
+  )
+}
+
+export default function SpeakerDocumentsView() {
+  const scope = useOpsScope()
+  const [name, setName] = useState<string | null>(null)
+  useBreadcrumbLabel(scope.id, name)
+  useEffect(() => {
+    fetch(`/api/events/operations/vendors?${scope.query}`).then(r => r.ok ? r.json() : null).then(b => setName(b?.scope?.name ?? null)).catch(() => {})
+  }, [scope.query])
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--surface)' }}>
+      <PageHeader eyebrow="Operations" title="Speaker Documents" backHref={scope.basePath} backLabel="Operations"
+        description="Confirmed speakers and the status of their Passport and National ID. You see where each document stands, not the documents themselves." />
+      <div style={{ padding: '24px 32px', maxWidth: '1180px' }}><SpeakerDocumentsPanel /></div>
     </div>
   )
 }

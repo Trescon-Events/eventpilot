@@ -7,6 +7,7 @@ import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import SensitiveDocViewer from '@/app/components/SensitiveDocViewer'
 import { useOpsScope } from './scope-context'
 import EventDaysNotice from './EventDaysNotice'
+import { SpeakerDocumentsPanel } from './SpeakerDocumentsView'
 
 type Doc = { id: string; file_name: string; mime_type: string }
 type Candidate = {
@@ -46,7 +47,7 @@ export default function LicensesView() {
   const [data, setData] = useState<Data | null>(null)
   const [eventName, setEventName] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useState<'ready' | 'batches'>('ready')
+  const [tab, setTab] = useState<'ready' | 'batches' | 'status'>('ready')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [vendorId, setVendorId] = useState('')
   const [days, setDays] = useState(7)
@@ -119,6 +120,7 @@ export default function LicensesView() {
         <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
           <button onClick={() => setTab('ready')} style={tab === 'ready' ? tabOn : tabOff}>Ready to apply ({ready.length})</button>
           <button onClick={() => setTab('batches')} style={tab === 'batches' ? tabOn : tabOff}>Batches ({data?.batches.length ?? 0})</button>
+          <button onClick={() => setTab('status')} style={tab === 'status' ? tabOn : tabOff}>Status Board</button>
           {data && data.notReadyCount > 0 && (
             <span style={{ fontSize: '12px', color: 'var(--ink3)', marginLeft: 'auto' }}>
               {data.notReadyCount} more speaker{data.notReadyCount === 1 ? '' : 's'} still awaiting reviewed documents
@@ -127,6 +129,8 @@ export default function LicensesView() {
         </div>
 
         {!data && !error && <div style={{ color: 'var(--ink3)', fontSize: '13px' }}>Loading…</div>}
+
+        {tab === 'status' && <SpeakerDocumentsPanel />}
 
         {data && tab === 'ready' && (
           <>

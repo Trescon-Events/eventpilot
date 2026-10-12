@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
   const scope = await resolveScope(scopeFromParams(req.nextUrl.searchParams))
   if (!scope) return NextResponse.json({ error: 'event_id or umbrella_id required' }, { status: 400 })
   const session = getSession(req)
-  if (!(await hasSectionAccess(session, scope, 'speakers'))) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
+  // The Speaker Licences team sees the same status board (a tab on their page); reminders stay with Speaker Documents.
+  if (!(await hasSectionAccess(session, scope, 'speakers')) && !(await hasSectionAccess(session, scope, 'licenses'))) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
 
   const [rows, senders] = await Promise.all([
     loadSpeakerDocRows(scope.eventIds),
