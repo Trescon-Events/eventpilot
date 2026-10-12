@@ -90,13 +90,25 @@ export function SpeakerDocumentsPanel() {
       && (!q || `${r.name} ${r.company ?? ''}`.toLowerCase().includes(q)))
   }, [inEvent, filter, resident, producer, search])
 
-  const groups = useMemo(() => {
-    const m = new Map<string, Row[]>()
-    for (const r of shown) m.set(r.event_id, [...(m.get(r.event_id) ?? []), r])
-    return [...m.entries()].map(([id, list]) => ({ id, name: list[0].event_name, list })).sort((a, b) => a.name.localeCompare(b.name))
-  }, [shown])
-
   const remindable = (r: Row) => outstanding(r) && !!r.producer_id
+
+  // One card per event (events with no confirmed speakers are left out). Stats come from ALL the event's speakers; the
+  // list inside is the filtered subset. Cards start collapsed so no event is missed; filtering opens the ones with matches.
+  const filtering = !!search.trim() || filter !== 'all' || resident !== 'all' || producer !== 'all'
+  const groups = useMemo(() => {
+    const all = new Map<string, Row[]>(); for (const r of inEvent) all.set(r.event_id, [...(all.get(r.event_id) ?? []), r])
+    const matched = new Map<string, Row[]>(); for (const r of shown) matched.set(r.event_id, [...(matched.get(r.event_id) ?? []), r])
+    return [...all.entries()].map(([id, full]) => {
+      const idRows = full.filter(r => r.national_id_applicable)
+      return { id, name: full[0].event_name, full, list: matched.get(id) ?? [],
+        passport: full.filter(r => r.passport === 'reviewed').length, idDone: idRows.filter(r => r.national_id === 'reviewed').length, idTotal: idRows.length,
+        out: full.filter(outstanding).length, canRemind: full.filter(remindable).map(r => r.id) }
+    }).sort((a, b) => a.name.localeCompare(b.name))
+  }, [inEvent, shown])
+  const [open, setOpen] = useState<Set<string>>(new Set())
+  const isOpen = (g: { id: string; list: Row[] }) => (filtering ? g.list.length > 0 : open.has(g.id))
+  const flip = (id: string) => setOpen(p => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
+
   const toggle = (id: string) => setPicked(p => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
 
   // Step 1: show exactly what each producer would receive. Nothing is sent until the person confirms in the dialog.
@@ -173,18 +185,30 @@ export function SpeakerDocumentsPanel() {
             <Button variant="lime" disabled={busy || picked.size === 0} onClick={() => void openPreview([...picked])}>{busy ? 'Preparing…' : `Remind producers (${picked.size})`}</Button>
           </div>
 
-          {groups.length === 0 && <div style={{ color: 'var(--ink3)', fontSize: '14px', padding: '32px 0', textAlign: 'center' }}>No speakers match these filters.</div>}
+          {groups.length === 0 && <div style={{ color: 'var(--ink3)', fontSize: '14px', padding: '32px 0', textAlign: 'center' }}>No confirmed speakers yet.</div>}
           {groups.map(g => {
             const ids = g.list.filter(remindable).map(r => r.id)
+            const expanded = isOpen(g)
             return (
               <div key={g.id} style={{ border: '1px solid var(--border-light)', borderRadius: '12px', background: 'var(--card)', overflow: 'hidden' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', padding: '12px 16px', borderBottom: '1px solid var(--border-light)' }}>
-                  <div style={{ flex: '1 1 260px', minWidth: 0 }}>
-                    <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>{g.name} <span style={{ fontWeight: 500, color: 'var(--ink3)' }}>· {g.list.length} speaker{g.list.length === 1 ? '' : 's'} · {g.list.filter(outstanding).length} outstanding</span></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap', padding: '14px 16px', borderBottom: expanded ? '1px solid var(--border-light)' : 'none' }}>
+                  <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+                    <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>{g.name}</div>
                     <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>{senderNote(g.id)}</div>
                   </div>
-                  <Button variant="ghost" disabled={busy || ids.length === 0} onClick={() => setPicked(new Set([...picked, ...ids]))}>Select outstanding ({ids.length})</Button>
+                  <div style={{ display: 'flex', gap: '22px', flexWrap: 'wrap', fontSize: '13px', color: 'var(--ink2)' }}>
+                    <div><div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--ink)' }}>{g.full.length}</div>confirmed</div>
+                    <div><div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--ink)' }}>{g.passport}/{g.full.length}</div>passport</div>
+                    <div><div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--ink)' }}>{g.idDone}/{g.idTotal}</div>national ID</div>
+                    <div><div style={{ fontSize: '18px', fontWeight: 900, color: g.out ? 'var(--amber)' : 'var(--success)' }}>{g.out}</div>outstanding</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <Button variant="lime" disabled={busy || g.canRemind.length === 0} onClick={() => void openPreview(g.canRemind)}>Remind producers ({g.canRemind.length})</Button>
+                    {expanded && <Button variant="ghost" disabled={busy || ids.length === 0} onClick={() => setPicked(new Set([...picked, ...ids]))}>Select outstanding ({ids.length})</Button>}
+                    {!filtering && <Button variant="ghost" onClick={() => flip(g.id)}>{expanded ? 'Hide speakers' : `Show speakers (${g.full.length})`}</Button>}
+                  </div>
                 </div>
+                {expanded && (
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13.5px' }}>
                     <thead><tr style={{ textAlign: 'left', color: 'var(--ink3)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.04em' }}>
@@ -207,6 +231,7 @@ export function SpeakerDocumentsPanel() {
                     </tbody>
                   </table>
                 </div>
+                )}
               </div>
             )
           })}
