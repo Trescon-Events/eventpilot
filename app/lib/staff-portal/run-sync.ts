@@ -119,9 +119,16 @@ export async function runStaffPortalSync() {
     umbrella_id:              p.umbrella_event_id ? (umbrellaIdToLocalId[p.umbrella_event_id] ?? null) : null,
   }))
   if (eventRows.length > 0) {
-    const { error } = await supabaseAdmin.from('events')
-      .upsert(eventRows, { onConflict: 'hrms_project_id', ignoreDuplicates: false })
-    if (error) throw new Error(`Events upsert failed: ${error.message}`)
+    // A project Staff Portal does NOT file under an umbrella keeps whatever umbrella EventPilot has set (2026-10-12: the Dubai Family
+    // Wealth Summit is a separate managed-event contract in Staff Portal but sits under the DFFW umbrella in EventPilot, per DIFC's style
+    // guide). So umbrella_id is only written when Staff Portal names one; those rows go in a separate upsert that omits the column.
+    const withUmbrella = eventRows.filter(r => r.umbrella_id)
+    const withoutUmbrella = eventRows.filter(r => !r.umbrella_id).map(r => Object.fromEntries(Object.entries(r).filter(([k]) => k !== 'umbrella_id')) as Omit<typeof r, 'umbrella_id'>)
+    for (const batch of [withUmbrella, withoutUmbrella]) {
+      if (batch.length === 0) continue
+      const { error } = await supabaseAdmin.from('events').upsert(batch, { onConflict: 'hrms_project_id', ignoreDuplicates: false })
+      if (error) throw new Error(`Events upsert failed: ${error.message}`)
+    }
   }
 
   // ── 3. Staff + roles (RBAC) ─────────────────────────────────────────────
