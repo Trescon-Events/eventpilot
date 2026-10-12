@@ -1,3 +1,4 @@
+import { guestRecipients } from '@/app/lib/guest-invites/send'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const body = await req.json().catch(() => null) as {
     template_id?: string; recipient_email?: string; cc_emails?: string[]; subject?: string; html?: string
   } | null
-  const ccEmails = (body?.cc_emails ?? []).map(e => e.trim()).filter(Boolean)
+  let ccEmails = (body?.cc_emails ?? []).map(e => e.trim()).filter(Boolean)
 
   const { data: request } = await supabaseAdmin.from('speaker_communication_requests').select('*').eq('id', requestId).eq('speaker_id', speakerId).single()
   if (!request) return NextResponse.json({ error: 'Request not found' }, { status: 404 })
@@ -59,9 +60,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   let html = body?.html?.trim()
 
   if (!recipientEmail || !subject || !html) {
-    const v = (speaker.custom_fields as Record<string, unknown> | null)?.email
-    recipientEmail = (typeof v === 'string' ? v : Array.isArray(v) ? v[0] : '')?.trim() || (speaker.email ?? '').trim()
-    if (!recipientEmail) return NextResponse.json({ error: 'No email address on file for this speaker.' }, { status: 422 })
+    const rec = await guestRecipients(speakerId, speaker.custom_fields as Record<string, unknown> | null, speaker.email)
+    recipientEmail = rec.to
+    if (!recipientEmail) return NextResponse.json({ error: 'No email address on file for this speaker or any additional contact — add one under the Registration tab or Additional Contacts first.' }, { status: 422 })
+    if (!ccEmails.length) ccEmails = rec.cc
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com'
     const submissionUrl = `${siteUrl}/public/speaker-submission/${speakerId}?token=${request.token}`

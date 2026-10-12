@@ -1,3 +1,4 @@
+import { guestRecipients } from '@/app/lib/guest-invites/send'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
@@ -24,12 +25,6 @@ const TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000 // 14 days — documents take long
 // custom_fields.email is the canonical, actively-maintained speaker email
 // (see StakeholderRecord's own comment) — read defensively since
 // custom_fields values can also be string[] (multi-value form fields).
-function speakerEmail(customFields: Record<string, unknown> | null, legacyEmail: string | null): string {
-  const v = customFields?.email
-  const fromCustom = Array.isArray(v) ? v[0] : v
-  return (typeof fromCustom === 'string' ? fromCustom : '').trim() || (legacyEmail ?? '').trim()
-}
-
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: speakerId } = await params
   const body = await req.json().catch(() => null) as { item_keys?: MissingItemKey[] } | null
@@ -53,9 +48,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'There is already an open request for this speaker. Send a reminder on it (same link) or close it first.', open_request_id: openRequest.id }, { status: 409 })
   }
 
-  const recipientEmail = speakerEmail(speaker.custom_fields as Record<string, unknown> | null, speaker.email)
+  // The speaker's own address is the To; with none, the first Additional Contact is (the rest stay on Cc).
+  const rec = await guestRecipients(speakerId, speaker.custom_fields as Record<string, unknown> | null, speaker.email)
+  const recipientEmail = rec.to
   if (!recipientEmail) {
-    return NextResponse.json({ error: 'No email address on file for this speaker — add one under the Registration tab first.' }, { status: 422 })
+    return NextResponse.json({ error: 'No email address on file for this speaker or any additional contact — add one under the Registration tab or Additional Contacts first.' }, { status: 422 })
   }
 
   const { data: docs } = await supabaseAdmin
@@ -113,7 +110,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     token,
     token_expires_at: new Date(Date.now() + TOKEN_TTL_MS).toISOString(),
     requested_fields: chosen.map(m => m.key),
-    recipient_email: recipientEmail,
+    recipient_email: recipientEmail, cc_emails: rec.cc, to_is_contact: rec.toIsContact,
     subject, html,
     sender_name: sender.name, sender_email: sender.email,
   })

@@ -242,7 +242,7 @@ function RequestComposer({ speakerId, stakeholderName, allMissingItems, initialS
   }, [speakerId])
 
   function parseCc(): string[] {
-    return ccInput.split(',').map(s => s.trim()).filter(Boolean)
+    return ccInput.split(',').map(s => s.trim()).filter(e => e && e.toLowerCase() !== recipientEmail.trim().toLowerCase())
   }
 
   function toggle(key: ItemKey) {
@@ -268,6 +268,7 @@ function RequestComposer({ speakerId, stakeholderName, allMissingItems, initialS
       setToken(data.token)
       setRequestedFields(data.requested_fields)
       setRecipientEmail(data.recipient_email)
+      if (Array.isArray(data.cc_emails)) setCcInput(data.cc_emails.join(', '))
       setSubject(data.subject)
       setHtml(data.html)
       setSenderName(data.sender_name)
@@ -363,6 +364,7 @@ function ReminderComposer({ speakerId, stakeholderName, requestId, onClose, onSe
       .then(data => {
         setTemplateId(data.template_id)
         setRecipientEmail(data.recipient_email)
+        if (Array.isArray(data.cc_emails)) setCcInput(data.cc_emails.join(', '))
         setSubject(data.subject)
         setHtml(data.html)
         setSenderName(data.sender_name)
@@ -384,7 +386,7 @@ function ReminderComposer({ speakerId, stakeholderName, requestId, onClose, onSe
   }, [speakerId])
 
   function parseCc(): string[] {
-    return ccInput.split(',').map(s => s.trim()).filter(Boolean)
+    return ccInput.split(',').map(s => s.trim()).filter(e => e && e.toLowerCase() !== recipientEmail.trim().toLowerCase())
   }
 
   async function send() {

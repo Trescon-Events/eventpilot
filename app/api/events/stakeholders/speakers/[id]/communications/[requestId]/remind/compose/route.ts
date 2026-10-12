@@ -1,3 +1,4 @@
+import { guestRecipients } from '@/app/lib/guest-invites/send'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
@@ -36,9 +37,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   }
 
-  const v = (speaker.custom_fields as Record<string, unknown> | null)?.email
-  const recipientEmail = (typeof v === 'string' ? v : Array.isArray(v) ? v[0] : '')?.trim() || (speaker.email ?? '').trim()
-  if (!recipientEmail) return NextResponse.json({ error: 'No email address on file for this speaker.' }, { status: 422 })
+  const rec = await guestRecipients(speakerId, speaker.custom_fields as Record<string, unknown> | null, speaker.email)
+  const recipientEmail = rec.to
+  if (!recipientEmail) return NextResponse.json({ error: 'No email address on file for this speaker or any additional contact — add one under the Registration tab or Additional Contacts first.' }, { status: 422 })
 
   const [{ data: event }, { data: template }] = await Promise.all([
     supabaseAdmin.from('events').select('name, public_name').eq('id', speaker.event_id).single(),
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   return NextResponse.json({
     template_id: template.id,
-    recipient_email: recipientEmail,
+    recipient_email: recipientEmail, cc_emails: rec.cc, to_is_contact: rec.toIsContact,
     subject, html,
     sender_name: sender.name, sender_email: sender.email,
   })
