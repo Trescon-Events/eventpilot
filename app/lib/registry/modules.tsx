@@ -1103,7 +1103,7 @@ export function getModuleRegistry(): ModuleDef[] {
       access: { kind: 'admin_only' },
     },
     {
-      key: 'admin-umbrella-operations-speakers', label: 'Speaker Documents',
+      key: 'admin-umbrella-operations-speakers', label: 'Speaker Doc Request',
       description: "Umbrella Operations — confirmed speakers and the status of their Passport / National ID, with producer reminders.",
       icon: I.dashboard, color: '#009C89',
       href: ctx => `/admin/umbrellas/${ctx.umbrellaId}/operations/speakers`,

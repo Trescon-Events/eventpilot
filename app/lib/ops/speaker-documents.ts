@@ -5,7 +5,7 @@ import { isEventFeatureEnabled } from '@/app/lib/access/event-access'
 import { sendGraphMail } from '@/app/lib/email/graph-mail'
 import { staffForSection } from '@/app/lib/ops/section-access'
 
-/* Operations > Speaker Documents (2026-10-12): every CONFIRMED speaker of the scope's events with the STATUS of their
+/* Operations > Speaker Doc Request (2026-10-12): every CONFIRMED speaker of the scope's events with the STATUS of their
    Passport / National ID — never the files. 'missing' = not received, 'in_progress' = received but the producer hasn't
    marked it reviewed, 'reviewed' = done. Same meanings as the producer Status Board (speakers/status-board/route.ts). */
 
@@ -61,7 +61,7 @@ export async function loadSpeakerDocRows(eventIds: string[]): Promise<SpeakerDoc
   }))
 }
 
-/** Who the reminder goes out as: the Ops person ASSIGNED to Speaker Documents for the event (the clicker, if they are one of them). Null → noreply. */
+/** Who the reminder goes out as: the Ops person ASSIGNED to Speaker Doc Request for the event (the clicker, if they are one of them). Null → noreply. */
 export async function resolveReminderSender(eventId: string, clickerStaffId: string | undefined): Promise<{ name: string; email: string } | null> {
   const { staff, assigned } = await staffForSection(eventId, 'speakers')
   if (!assigned || !staff.length) return null

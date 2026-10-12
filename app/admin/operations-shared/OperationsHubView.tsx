@@ -72,7 +72,7 @@ export default function OperationsHubView() {
           {canSpeakers && (
             <Link href={`${workBase}/speakers`} style={{ textDecoration: 'none' }}>
               <div style={{ padding: '18px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)' }}>
-                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>Speaker Documents</div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>Speaker Doc Request</div>
                 <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '6px', lineHeight: 1.5 }}>
                   Every confirmed speaker with their Passport and National ID status, including what is still outstanding. Remind producers from here.
                 </div>

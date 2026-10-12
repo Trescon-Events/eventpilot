@@ -10,7 +10,7 @@ import { useOpsScope } from './scope-context'
 /* Operations > Access: who handles which Operations section. Assigning someone gives them access to the section and
    its notifications. For the Operations Lead / Project Manager / Coordinator (ops.access.manage). */
 
-type Section = { key: string; label: string }
+type Section = { key: string; label: string; single?: boolean }
 type Assignment = { id: string; section: string; staff_id: string; name: string; email: string }
 type Candidate = { id: string; name: string; email: string; role: string | null }
 type Data = { scope: { kind: 'event' | 'umbrella'; id: string; name: string }; can_manage: boolean; sections: Section[]; assignments: Assignment[]; candidates: Candidate[] }
@@ -18,7 +18,7 @@ type Data = { scope: { kind: 'event' | 'umbrella'; id: string; name: string }; c
 const BLURB: Record<string, string> = {
   licenses: 'Reviews licence batches and sends them to the licence vendor. Gets the licence notifications.',
   badges: 'Reviews speaker badge print files, sends them to the print vendor and is told when they are printed.',
-  speakers: 'Tracks which confirmed speakers still owe a Passport or National ID, and reminds their producers. Reminders go out from this person’s own Outlook.',
+  speakers: 'Chases Passport and National ID for confirmed speakers by reminding their producers. One person only: reminders go out from their own Outlook.',
 }
 
 export default function OpsAccessView() {
@@ -84,7 +84,7 @@ export default function OpsAccessView() {
                   ))}
                 </div>
               )}
-              {data.can_manage && (
+              {data.can_manage && !(sec.single && mine.length >= 1) && (
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   <div style={{ flex: '1 1 240px', minWidth: 0 }}>
                     <SearchableSelect value={pick[sec.key] ?? ''} onChange={id => setPick(p => ({ ...p, [sec.key]: id }))} placeholder="Search for a person to add…"

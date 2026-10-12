@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
   }
   return NextResponse.json({
     scope: { kind: scope.kind, id: scope.id, name: scope.name }, can_manage: canManage,
-    sections: OPS_SECTIONS.map(s => ({ key: s.key, label: s.label })),
+    sections: OPS_SECTIONS.map(s => ({ key: s.key, label: s.label, single: !!s.single })),
     assignments: (rows ?? []).map(r => {
       const sm = (Array.isArray(r.staff_members) ? r.staff_members[0] : r.staff_members) as { name: string; email: string } | null
       return { id: r.id, section: r.section, staff_id: r.staff_id, name: sm?.name ?? '', email: sm?.email ?? '', assigned_at: r.assigned_at }
@@ -62,6 +62,14 @@ export async function POST(req: NextRequest) {
 
   const { data: existing } = await supabaseAdmin.from('ops_section_assignments').select('id').eq(ownerColumn(scope), scope.id).eq('section', body.section).eq('staff_id', body.staff_id).maybeSingle()
   if (existing) return NextResponse.json({ error: `${person.name} is already assigned to this section.` }, { status: 409 })
+
+  if (OPS_SECTIONS.find(s => s.key === body.section)?.single) {
+    const { data: current } = await supabaseAdmin.from('ops_section_assignments').select('staff_members!staff_id(name)').eq(ownerColumn(scope), scope.id).eq('section', body.section).limit(1)
+    if (current?.length) {
+      const sm = (Array.isArray(current[0].staff_members) ? current[0].staff_members[0] : current[0].staff_members) as { name: string } | null
+      return NextResponse.json({ error: `Only one person can be assigned to this section. Remove ${sm?.name ?? 'the current person'} first.` }, { status: 409 })
+    }
+  }
 
   const by = await knownStaffId(session?.sid)
   const { data: row, error } = await supabaseAdmin.from('ops_section_assignments').insert({ ...ownerFields(scope), section: body.section, staff_id: body.staff_id, assigned_by: by }).select('id').single()

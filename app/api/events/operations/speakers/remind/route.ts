@@ -9,7 +9,7 @@ import { buildReminder, loadSpeakerDocRows, outstandingDocs, REMIND_COOLDOWN_HOU
 
 /* POST /api/events/operations/speakers/remind { event_id | umbrella_id, speaker_ids: string[] }
    One email per PRODUCER listing their outstanding speakers (never one per speaker), sent from the Ops person assigned to
-   Speaker Documents for that event (shared noreply if nobody is assigned). Speakers reminded in the last 24h are skipped.
+   Speaker Doc Request for that event (shared noreply if nobody is assigned). Speakers reminded in the last 24h are skipped.
    { preview: true } returns exactly what would go to each producer (from, to, subject, body) without sending anything.
    Gate: admin, ops.speakers.manage, or assigned to the section. The speakers themselves are never emailed. */
 export async function POST(req: NextRequest) {

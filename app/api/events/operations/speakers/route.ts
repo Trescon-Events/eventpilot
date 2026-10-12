@@ -7,12 +7,12 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 
 /* GET /api/events/operations/speakers?event_id= | ?umbrella_id=
    Confirmed speakers of the scope's events (an umbrella lists all its children) with Passport / National ID STATUS only.
-   Gate: admin, ops.speakers.view, or assigned to Speaker Documents. Also says who reminders will be sent as per event. */
+   Gate: admin, ops.speakers.view, or assigned to Speaker Doc Request. Also says who reminders will be sent as per event. */
 export async function GET(req: NextRequest) {
   const scope = await resolveScope(scopeFromParams(req.nextUrl.searchParams))
   if (!scope) return NextResponse.json({ error: 'event_id or umbrella_id required' }, { status: 400 })
   const session = getSession(req)
-  // The Speaker Licences team sees the same status board (a tab on their page); reminders stay with Speaker Documents.
+  // The Speaker Licences team sees the same status board (a tab on their page); reminders stay with Speaker Doc Request.
   if (!(await hasSectionAccess(session, scope, 'speakers')) && !(await hasSectionAccess(session, scope, 'licenses'))) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
 
   const [rows, senders] = await Promise.all([

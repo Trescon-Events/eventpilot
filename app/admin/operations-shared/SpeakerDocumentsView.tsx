@@ -139,7 +139,7 @@ export function SpeakerDocumentsPanel() {
 
   const senderNote = (eid: string) => {
     const s = data?.senders[eid]
-    return s?.length ? `Reminders go out from ${s.join(' / ')}.` : 'No Ops person is assigned to Speaker Documents (Operations › Access), so reminders go out from the shared Event Pilot address.'
+    return s?.length ? `Reminders go out from ${s.join(' / ')}.` : 'No Ops person is assigned to Speaker Doc Request (Operations › Access), so reminders go out from the shared Event Pilot address.'
   }
 
   return (
@@ -256,7 +256,7 @@ export default function SpeakerDocumentsView() {
   }, [scope.query])
   return (
     <div style={{ minHeight: '100vh', background: 'var(--surface)' }}>
-      <PageHeader eyebrow="Operations" title="Speaker Documents" backHref={scope.basePath} backLabel="Operations"
+      <PageHeader eyebrow="Operations" title="Speaker Doc Request" backHref={scope.basePath} backLabel="Operations"
         description="Confirmed speakers and the status of their Passport and National ID. You see where each document stands, not the documents themselves." />
       <div style={{ padding: '24px 32px', maxWidth: '1180px' }}><SpeakerDocumentsPanel /></div>
     </div>
