@@ -15,6 +15,34 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
+| Who | Madhu + Claude Code (Sonnet 5.5) — 7–12 Oct 2026. Theme: **FTF/FSF onboarding + KonfHub re-push, guest-pass auto-creation, upload error handling, DFWS merge**. |
+| Date | 2026-10-12 |
+| DB changes | Applied by hand (all additive): `speaker_request_upload_issues_migration.sql`, `guest_invite_auto_migration.sql`, `guest_invite_coupon_id_migration.sql`. Data fixes: DFWS events merged (see below). |
+| Handed off to | Durga |
+| Deployed | `b02a4a2` (upload error handling), `11e33a7` (sync keeps an EventPilot-set umbrella), `7558025` (guest-code auto-creation) — CI green, Railway auto-deploy. |
+
+### What was built / done
+- **FTF (Future Tokenization Forum):** 12 speakers in EventPilot (Paul Kayrouz added from Sonali's sheet, EventPilot-only, no photo/email yet, NOT on KonfHub from EventPilot); Guest Pass links loaded for 11. KonfHub FTF category (26135) deleted + re-pushed from EventPilot in the saved order (script `scripts/konfhub-ftf-repush-2026-10-08.ts`, gitignored; snapshot in `.scratch/`). Paul Kayrouz's manual KonfHub record (id 30106, order 4) was left in place — the producer will push a fresh one later, delete the old record first or it duplicates. **Gotcha:** the repush script's "restore sessions" step rewrote 7 FSF sessions to empty because the category's own speakers weren't in them; restored from the snapshot. Don't reuse that script for a shared KonfHub event without scoping the session restore to speakers actually deleted.
+- **FSF:** KonfHub category delete + re-push done earlier (sessions restored).
+- **Speaker submission form — upload failure handling** (`app/public/speaker-submission/[speakerId]/page.tsx`, `app/lib/stakeholders/upload-diagnosis.ts`, `…/diagnostics/route.ts`): a failed submit now says whether our server rejected it, uploads appear blocked (corporate network/firewall), or only the files are blocked, with an email fallback; the browser reports failures into `speaker_communication_requests.upload_issues`, shown in the Communications tab. Trigger: Glen Fernandes (BNY) — his POST never reached Railway.
+- **Guest-pass codes auto-created on KonfHub** (`app/lib/guest-invites/provision.ts`, `konfhub-coupons.ts`, `…/guest-invites/auto` + `provision` routes, `AutoCodesCard.tsx`, `CodesDialog.tsx`): per event pick the guest ticket, guests per speaker, link name and a mode (off / review / automatic). KonfHub API found by probing: `POST /event/:id/coupons` (required: coupon_code, start/end_timestamp "YYYY-MM-DDTHH:MM:SS" UTC, coupon_type 2, discount ≥1 (we use 100), attached_ticket_ids, is_enabled, is_access_code true, max_limit_type 1, max_limit); `DELETE /event/:id/coupons?coupon_ids=<uuid>`. Codes: shorter of first/last name + GUEST, then longer name, then a number; uniqueness checked across all codes on the KonfHub event (shared events!) and all speakers; link readback-verified, otherwise the coupon is deleted. Off by default everywhere. Leftover test code `ZZQXGUEST` on the FTF KonfHub event must be deleted in the dashboard (coupon id was not recorded).
+- **Staff Portal sync** (`app/lib/staff-portal/run-sync.ts`): umbrella_id is only written when Staff Portal names one. Staff Portal now also stops exporting archived projects (done by Lovable; `archived_at` field + `include_archived`).
+- **DFWS:** Staff Portal had two projects for Dubai Family Wealth Summit; Madhu merged them into `e3c899c6` (EventPilot `186a86e4`, under the DFFW umbrella). The orphan EventPilot copy `e7b2b400` was deleted; HubSpot link, manual access grant, compiled reference and 11 tasks kept on `186a86e4`. Staff/timesheets refill on the next sync.
+- Earlier this stretch: system notification sender "EventPilot" noreply (internal mail only), half-name fix on the speaker PATCH route, HubSpot lookups (FIFF Eric Salomons = spelling; FTF Andrew Horbury used the application form, not onboarding).
+
+### Pending
+- Delete `ZZQXGUEST` on KonfHub (FTF event). Turn guest-code creation on per event when ready (start in Review mode).
+- FTF → KonfHub: Paul Kayrouz needs photo + email, then the producer pushes; delete his old manual KonfHub record first. Anita Wieja-Caruba / Ruben passport / Herman EID / Justin Sun + William emails still open.
+- 4 half-names unfixed (Anjuli Pandit, Glen Fernandes, Rajiv Kumar Sharma, Dr. R. Balasubramaniam internal `name`); KonfHub designation en/em dash not auto-sanitised on push.
+- Forms thank-you and vendor-portal emails still "Event Pilot <noreply>" (decide a real staff sender).
+- Confirm the DFWS staff (24) + timesheets appear on `186a86e4` after the next Staff Portal sync.
+
+---
+
+## Previous Session (8 Oct)
+
+| Field | Value |
+|---|---|
 | Who | Madhu + Claude Code (Sonnet 5.5) — 8 Oct 2026. Theme: **external vendor login for Task Manager** (ex-staff converted to vendor). |
 | Date | 2026-10-08 |
 | DB changes | None. |
