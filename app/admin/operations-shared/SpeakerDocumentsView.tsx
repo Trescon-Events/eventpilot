@@ -17,6 +17,7 @@ type Row = {
   producer_id: string | null; producer_name: string | null; is_uae_resident: boolean | null; national_id_applicable: boolean
   passport: DocStatus; national_id: DocStatus; last_reminded_at: string | null
 }
+type Preview = { producer: string; to: string; from: string; from_fallback: boolean; subject: string; html: string; speakers: string[] }
 type Data = { scope: { kind: 'event' | 'umbrella'; id: string; name: string }; cooldown_hours: number; events: { id: string; name: string }[]; senders: Record<string, string[] | null>; rows: Row[] }
 
 const DOC: Record<DocStatus, { label: string; color: 'red' | 'amber' | 'teal' }> = {
@@ -49,6 +50,7 @@ export function SpeakerDocumentsPanel() {
   const [search, setSearch] = useState('')
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
+  const [review, setReview] = useState<{ ids: string[]; previews: Preview[]; skipped: { name: string; reason: string }[] } | null>(null)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const load = useCallback(async () => {
     const res = await fetch(`/api/events/operations/speakers?${scope.query}`)
@@ -97,6 +99,20 @@ export function SpeakerDocumentsPanel() {
   const remindable = (r: Row) => outstanding(r) && !!r.producer_id
   const toggle = (id: string) => setPicked(p => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
 
+  // Step 1: show exactly what each producer would receive. Nothing is sent until the person confirms in the dialog.
+  async function openPreview(ids: string[]) {
+    if (!ids.length) return
+    setBusy(true)
+    const res = await fetch('/api/events/operations/speakers/remind', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...scope.body, speaker_ids: ids, preview: true }) })
+    const body = await res.json().catch(() => ({}))
+    setBusy(false)
+    if (!res.ok) { setToast({ message: body.error ?? 'Could not prepare the reminders.', type: 'error' }); return }
+    const previews = (body.previews ?? []) as Preview[]
+    const skipped = (body.skipped ?? []) as { name: string; reason: string }[]
+    if (!previews.length) { setToast({ message: `Nothing to send. ${skipped.slice(0, 3).map(s => `${s.name}: ${s.reason}`).join('; ')}`, type: 'error' }); return }
+    setReview({ ids, previews, skipped })
+  }
+
   async function remind(ids: string[]) {
     if (!ids.length) return
     setBusy(true)
@@ -110,7 +126,7 @@ export function SpeakerDocumentsPanel() {
       ? `Reminded ${sent.length} producer${sent.length === 1 ? '' : 's'} about ${sent.reduce((n, s) => n + s.speakers, 0)} speaker${sent.reduce((n, s) => n + s.speakers, 0) === 1 ? '' : 's'}${skipped.length ? `. Skipped ${skipped.length}: ${skipped.slice(0, 3).map(s => `${s.name} (${s.reason})`).join(', ')}${skipped.length > 3 ? '…' : ''}` : '.'}`
       : `Nothing sent. ${skipped.slice(0, 3).map(s => `${s.name}: ${s.reason}`).join('; ')}`
     setToast({ message: msg, type: sent.length ? 'success' : 'error' })
-    setPicked(new Set()); await load()
+    setReview(null); setPicked(new Set()); await load()
   }
 
   const statCard = (label: string, value: string, sub: string | null, onClick?: () => void) => (
@@ -154,7 +170,7 @@ export function SpeakerDocumentsPanel() {
               <option value="all">All producers</option>{producers.map(([id, name]) => <option key={id} value={id}>{name}</option>)}<option value="none">No producer</option>
             </Select>
             <div style={{ flex: '1 1 180px', minWidth: '160px' }}><Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name or company…" /></div>
-            <Button variant="lime" disabled={busy || picked.size === 0} onClick={() => void remind([...picked])}>{busy ? 'Sending…' : `Remind producers (${picked.size})`}</Button>
+            <Button variant="lime" disabled={busy || picked.size === 0} onClick={() => void openPreview([...picked])}>{busy ? 'Preparing…' : `Remind producers (${picked.size})`}</Button>
           </div>
 
           {groups.length === 0 && <div style={{ color: 'var(--ink3)', fontSize: '14px', padding: '32px 0', textAlign: 'center' }}>No speakers match these filters.</div>}
@@ -185,7 +201,7 @@ export function SpeakerDocumentsPanel() {
                           <td style={{ padding: '8px' }}><Badge color={DOC[r.passport].color}>{DOC[r.passport].label}</Badge></td>
                           <td style={{ padding: '8px' }}>{r.national_id_applicable ? <Badge color={DOC[r.national_id].color}>{DOC[r.national_id].label}</Badge> : <span style={{ color: 'var(--ink3)' }}>Not required</span>}</td>
                           <td style={{ padding: '8px', color: 'var(--ink3)' }}>{r.last_reminded_at ? ago(r.last_reminded_at) : '—'}</td>
-                          <td style={{ padding: '8px 16px', textAlign: 'right' }}>{remindable(r) && <Button variant="ghost" disabled={busy} onClick={() => void remind([r.id])}>Remind</Button>}</td>
+                          <td style={{ padding: '8px 16px', textAlign: 'right' }}>{remindable(r) && <Button variant="ghost" disabled={busy} onClick={() => void openPreview([r.id])}>Remind</Button>}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -197,6 +213,35 @@ export function SpeakerDocumentsPanel() {
           <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>Reminders go to the speaker’s producer only, one email per producer, and a speaker can be reminded once every {data.cooldown_hours} hours.</div>
         </>)}
       </div>
+      {review && (
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--overlay-scrim)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+          <div style={{ background: 'var(--card)', borderRadius: '14px', width: 'min(760px, 100%)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', border: '1px solid var(--border)' }}>
+            <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border-light)' }}>
+              <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--ink)' }}>Review before sending — {review.previews.length} email{review.previews.length === 1 ? '' : 's'}</div>
+              <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '4px' }}>One email per producer. This is exactly what will be sent; nothing goes out until you press Send.</div>
+            </div>
+            <div style={{ overflowY: 'auto', padding: '16px 22px', display: 'grid', gap: '16px' }}>
+              {review.previews.map(p => (
+                <div key={p.to} style={{ border: '1px solid var(--border-light)', borderRadius: '10px', overflow: 'hidden' }}>
+                  <div style={{ padding: '10px 14px', background: 'var(--surface)', fontSize: '13px', lineHeight: 1.7, color: 'var(--ink2)' }}>
+                    <div><strong>To:</strong> {p.producer} &lt;{p.to}&gt;</div>
+                    <div><strong>From:</strong> {p.from}{p.from_fallback && <span style={{ color: 'var(--amber)' }}> (no Ops person assigned)</span>}</div>
+                    <div><strong>Subject:</strong> {p.subject}</div>
+                  </div>
+                  <iframe title={`Email to ${p.producer}`} sandbox="" srcDoc={p.html} style={{ width: '100%', height: '260px', border: 0, colorScheme: 'light' }} />
+                </div>
+              ))}
+              {review.skipped.length > 0 && (
+                <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>Not included: {review.skipped.map(s => `${s.name} (${s.reason})`).join(', ')}</div>
+              )}
+            </div>
+            <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <Button variant="ghost" disabled={busy} onClick={() => setReview(null)}>Cancel</Button>
+              <Button variant="lime" disabled={busy} onClick={() => void remind(review.ids)}>{busy ? 'Sending…' : `Send ${review.previews.length} email${review.previews.length === 1 ? '' : 's'}`}</Button>
+            </div>
+          </div>
+        </div>
+      )}
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </>
   )
