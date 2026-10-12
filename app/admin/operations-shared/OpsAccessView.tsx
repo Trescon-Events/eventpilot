@@ -18,6 +18,7 @@ type Data = { scope: { kind: 'event' | 'umbrella'; id: string; name: string }; c
 const BLURB: Record<string, string> = {
   licenses: 'Reviews licence batches and sends them to the licence vendor. Gets the licence notifications.',
   badges: 'Reviews speaker badge print files, sends them to the print vendor and is told when they are printed.',
+  speakers: 'Tracks which confirmed speakers still owe a Passport or National ID, and reminds their producers. Reminders go out from this person’s own Outlook.',
 }
 
 export default function OpsAccessView() {

@@ -148,6 +148,10 @@ export const ACCESS_REGISTRY: AccessModule[] = [
       // holding these keys — see app/lib/ops/section-access.ts.
       { key: 'ops.badges.view',     label: 'View the Badge Printing list and print batches',            enforced: true },
       { key: 'ops.badges.manage',   label: 'Review badge print files, send them to the print vendor, revoke or resend',                        enforced: true },
+      // Speaker Documents (2026-10-12): Ops sees every confirmed speaker's Passport / National ID STATUS (never the files — that stays
+      // sae.sensitive_documents.view) and reminds the producer from the assigned Ops person's own mailbox.
+      { key: 'ops.speakers.view',   label: 'See confirmed speakers and their Passport / National ID status',  enforced: true },
+      { key: 'ops.speakers.manage', label: 'Send document reminders to producers',                           enforced: true },
       // Who handles what: assigning ops staff to sections (Speaker Licences, Badge Printing …). For the Ops Lead / Project Manager / Coordinator.
       { key: 'ops.access.manage',   label: 'Assign operations staff to Operations sections',           enforced: true },
       // Vendor Portal accounts (2026-09-25): creating vendor logins, sending

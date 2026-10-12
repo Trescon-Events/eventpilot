@@ -1103,6 +1103,14 @@ export function getModuleRegistry(): ModuleDef[] {
       access: { kind: 'admin_only' },
     },
     {
+      key: 'admin-umbrella-operations-speakers', label: 'Speaker Documents',
+      description: "Umbrella Operations — confirmed speakers and the status of their Passport / National ID, with producer reminders.",
+      icon: I.dashboard, color: '#009C89',
+      href: ctx => `/admin/umbrellas/${ctx.umbrellaId}/operations/speakers`,
+      breadcrumbPattern: '/admin/umbrellas/:umbrellaId/operations/speakers', breadcrumbParent: 'admin-umbrella-operations',
+      access: { kind: 'admin_only' },
+    },
+    {
       key: 'admin-umbrella-operations-access', label: 'Access',
       description: "Umbrella Operations — who handles each Operations section.",
       icon: I.dashboard, color: '#009C89',

@@ -7,10 +7,11 @@ import type { OpsScope } from '@/app/lib/ops/scope'
    umbrella in Ops > Access (ops_section_assignments). An assignment gives (a) access to the section and (b) its
    notifications. Permissions still work too, so an existing Operations-role holder isn't locked out. */
 
-export type OpsSection = 'licenses' | 'badges'
+export type OpsSection = 'licenses' | 'badges' | 'speakers'
 export const OPS_SECTIONS: Array<{ key: OpsSection; label: string; permissionPrefix: string }> = [
   { key: 'licenses', label: 'Speaker Licences', permissionPrefix: 'ops.licenses' },
   { key: 'badges', label: 'Badge Printing', permissionPrefix: 'ops.badges' },
+  { key: 'speakers', label: 'Speaker Documents', permissionPrefix: 'ops.speakers' },
 ]
 const sectionInfo = (s: OpsSection) => OPS_SECTIONS.find(x => x.key === s)!
 

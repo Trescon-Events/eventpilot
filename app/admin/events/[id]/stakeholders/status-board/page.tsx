@@ -180,6 +180,7 @@ const MISSING_FILTER_OPTIONS: { value: string; label: string; requires?: 'sensit
   { value: 'assistant_email', label: 'Missing Assistant Email' },
   { value: 'full_bio', label: 'Missing Full Bio' },
   { value: 'photo', label: 'Missing Photo' },
+  { value: 'documents', label: 'Passport or National ID Not Reviewed', requires: 'sensitiveDocs' },
   { value: 'passport', label: 'Passport Not Reviewed', requires: 'sensitiveDocs' },
   { value: 'national_id', label: 'National ID Not Reviewed', requires: 'sensitiveDocs' },
   { value: 'uae_not_determined', label: 'UAE Residency Not Set', requires: 'uaeField' },
@@ -214,6 +215,15 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
   const [missingFilter, setMissingFilter] = useState('all')
   const [producerDropdownOpen, setProducerDropdownOpen] = useState(false)
   const producerDropdownRef = useRef<HTMLDivElement | null>(null)
+
+  // Deep link from an Ops reminder email: ?missing=documents&producer=<staff id> opens the board already filtered.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search)
+    const m = q.get('missing'); const pr = q.get('producer')
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time read of the URL on mount
+    if (m && MISSING_FILTER_OPTIONS.some(o => o.value === m)) setMissingFilter(m)
+    if (pr) setSelectedProducerIds(new Set([pr]))
+  }, [])
 
   // Sticky header (2026-09-08, per Madhu — freeze the header rows and the
   // Speaker column while scrolling). The group-label row's real rendered
@@ -284,6 +294,7 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
           || (sensitiveDocsEnabled && (nationalIdMissing(r) || r.passport_status !== 'reviewed'))
           || r.short_bio_status !== 'approved' || !r.website_photo
       }
+      if (missingFilter === 'documents') return sensitiveDocsEnabled && (nationalIdMissing(r) || r.passport_status !== 'reviewed')
       if (missingFilter === 'passport') return sensitiveDocsEnabled && r.passport_status !== 'reviewed'
       if (missingFilter === 'national_id') return sensitiveDocsEnabled && nationalIdMissing(r)
       if (missingFilter === 'uae_not_determined') return uaeFieldEnabled && r.is_uae_resident === null

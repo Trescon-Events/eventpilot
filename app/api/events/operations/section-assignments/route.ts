@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   const session = getSession(req)
   const canManage = await canManageSectionAccess(session, scope)
   // Anyone who can see either section may see who is responsible; only managers can change it.
-  const canSee = canManage || (await hasSectionAccess(session, scope, 'badges')) || (await hasSectionAccess(session, scope, 'licenses'))
+  const canSee = canManage || (await hasSectionAccess(session, scope, 'badges')) || (await hasSectionAccess(session, scope, 'licenses')) || (await hasSectionAccess(session, scope, 'speakers'))
   if (!canSee) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
 
   const { data: rows } = await supabaseAdmin.from('ops_section_assignments').select('id, section, staff_id, assigned_at, staff_members!staff_id(name, email)').eq(ownerColumn(scope), scope.id).order('assigned_at')
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
   await logOpsAccess({ ...auditOwner(scope), actorType: 'staff', actorId: by, action: 'ops_section_assigned', targetType: 'ops_section', targetId: row.id, meta: { section: body.section, staff_id: body.staff_id }, ip: clientIp(req) })
   // Tell the person what they are now responsible for (email + bell). Best effort.
   const label = OPS_SECTIONS.find(s => s.key === body.section)!.label
-  const path = `${operationsBasePath(scope)}/${body.section === 'badges' ? 'badges' : 'licenses'}`
+  const path = `${operationsBasePath(scope)}/${body.section === 'badges' ? 'badges' : body.section === 'speakers' ? 'speakers' : 'licenses'}`
   const message = `You've been assigned to ${label} for ${scope.name}. You now have access to this section and will be notified when something needs you.`
   await Promise.all([
     sendOpsNotice({ to: [person.email as string], subject: `You're now responsible for ${label} — ${scope.name}`, heading: `You're assigned to ${label}`, message, link: { href: `${PORTAL_BASE}${path}`, label: `Open ${label}` } }).catch(() => {}),
