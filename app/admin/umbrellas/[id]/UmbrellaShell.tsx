@@ -58,6 +58,7 @@ export default function UmbrellaShell({ umbrellaId, name, isAdmin, canOps, child
               <Link href={opsBase} style={linkStyle(pathname === opsBase)}>Operations</Link>
               <div style={{ paddingLeft: '14px', marginTop: '2px', display: 'grid', gap: '1px' }}>
                 <Link href={`${opsBase}/licenses`} style={subStyle(opsSub('licenses'))}>Licences</Link>
+                <Link href={`${opsBase}/speakers`} style={subStyle(opsSub('speakers'))}>Speaker Documents</Link>
                 <Link href={`${opsBase}/vendors`} style={subStyle(opsSub('vendors'))}>Vendors</Link>
                 <Link href={`${opsBase}/badges`} style={subStyle(inOps && pathname.startsWith(`${opsBase}/badges`))}>Badge Printing</Link>
                 <Link href={`${opsBase}/access`} style={subStyle(opsSub('access'))}>Access</Link>
