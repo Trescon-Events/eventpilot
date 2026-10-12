@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { requireGuestInviteAccess, speakerEmailOf } from '@/app/lib/guest-invites/access'
 import { loadEventGuestSettings, loadGuestTemplate } from '@/app/lib/guest-invites/template'
+import { loadAutoSettings } from '@/app/lib/guest-invites/provision'
 
 /* GET /api/events/guest-invites/overview?event_id=X
    One row per active speaker for the Guest Invites page and the Status Board: link
@@ -12,9 +13,9 @@ export async function GET(req: NextRequest) {
   if (!eventId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
   const denied = await requireGuestInviteAccess(req, eventId, 'view'); if (denied) return denied
 
-  const [{ settings }, invite, reminder, { data: sp }] = await Promise.all([
-    loadEventGuestSettings(eventId), loadGuestTemplate(eventId, 'guest_invite'), loadGuestTemplate(eventId, 'guest_invite_reminder'),
-    supabaseAdmin.from('event_speakers').select('id, name, public_name, email, custom_fields, confirmation_status, guest_invite_url, guest_invite_code, guest_invite_code_found, guest_invite_ticket_name, guest_invite_limit, guest_invite_used, guest_invite_usage_checked_at, guest_invite_sent_at, guest_invite_sent_count, guest_invite_reminder_sent_at, guest_invite_reminder_count').eq('event_id', eventId).eq('active', true).order('public_name'),
+  const [{ settings }, auto, invite, reminder, { data: sp }] = await Promise.all([
+    loadEventGuestSettings(eventId), loadAutoSettings(eventId), loadGuestTemplate(eventId, 'guest_invite'), loadGuestTemplate(eventId, 'guest_invite_reminder'),
+    supabaseAdmin.from('event_speakers').select('id, name, public_name, email, custom_fields, confirmation_status, guest_invite_url, guest_invite_code, guest_invite_code_found, guest_invite_ticket_name, guest_invite_limit, guest_invite_used, guest_invite_usage_checked_at, guest_invite_sent_at, guest_invite_sent_count, guest_invite_reminder_sent_at, guest_invite_reminder_count, guest_invite_proposed_code, guest_invite_provision_error').eq('event_id', eventId).eq('active', true).order('public_name'),
   ])
   const { data: contactRows } = await supabaseAdmin.from('speaker_additional_contacts').select('speaker_id, email').in('speaker_id', (sp ?? []).map(s => s.id)).order('created_at', { ascending: true })
   const contactsOf = new Map<string, string[]>()
@@ -39,6 +40,8 @@ export async function GET(req: NextRequest) {
     id: s.id, name: s.public_name || s.name, email: own || null, to, cc,
     blocked, can_invite: !blocked && !s.guest_invite_sent_at, can_remind: !blocked && !!s.guest_invite_sent_at,
     confirmation_status: s.confirmation_status,
+    // Confirmed with no link yet: a code can be created for them (proposed first in review mode).
+    needs_code: !s.guest_invite_url && s.confirmation_status === 'Confirmed', proposed_code: s.guest_invite_proposed_code, provision_error: s.guest_invite_provision_error,
     status: !s.guest_invite_url ? 'missing' : s.guest_invite_sent_at ? 'sent' : 'ready',
     url: s.guest_invite_url, code: s.guest_invite_code, code_found: s.guest_invite_code_found, ticket_name: s.guest_invite_ticket_name,
     limit: s.guest_invite_limit, used: s.guest_invite_used,
@@ -47,5 +50,5 @@ export async function GET(req: NextRequest) {
     sent_at: s.guest_invite_sent_at, sent_count: s.guest_invite_sent_count, reminder_sent_at: s.guest_invite_reminder_sent_at, reminder_count: s.guest_invite_reminder_count,
     }
   })
-  return NextResponse.json({ settings, deadline_passed: deadlinePassed, templates: { guest_invite: !!invite, guest_invite_reminder: !!reminder }, speakers })
+  return NextResponse.json({ settings, auto_mode: auto.mode, deadline_passed: deadlinePassed, templates: { guest_invite: !!invite, guest_invite_reminder: !!reminder }, speakers })
 }

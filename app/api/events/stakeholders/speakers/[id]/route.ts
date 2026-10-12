@@ -1,3 +1,4 @@
+import { ensureGuestCode } from '@/app/lib/guest-invites/provision'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
@@ -126,7 +127,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = await req.json().catch(() => null) as SpeakerPatchBody | null
   if (!body) return NextResponse.json({ error: 'body required' }, { status: 400 })
 
-  const { data: existing } = await supabaseAdmin.from('event_speakers').select('event_id, announcement_status, crm_contact_id, custom_fields, konfhub_booking_id').eq('id', id).single()
+  const { data: existing } = await supabaseAdmin.from('event_speakers').select('event_id, announcement_status, crm_contact_id, custom_fields, konfhub_booking_id, confirmation_status').eq('id', id).single()
   if (!existing) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
 
   const session = getSession(req)
@@ -250,6 +251,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // Newly confirmed: propose / create their guest-pass code if the event has that switched on (never throws, never emails).
+  if (body.confirmation_status === 'Confirmed' && existing.confirmation_status !== 'Confirmed') await ensureGuestCode(id)
   const resolvedSchema = schema ?? await resolveFormSchema(existing.event_id, 'speaker')
   return NextResponse.json({ ...fromRow(data), fields: recordToFields('speaker', resolvedSchema, data) })
 }

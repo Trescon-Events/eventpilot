@@ -8,6 +8,8 @@ import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import TemplatesCard, { type TemplateInfo } from './TemplatesCard'
 import BulkSendDialog from './BulkSendDialog'
+import AutoCodesCard from './AutoCodesCard'
+import CodesDialog from './CodesDialog'
 
 /* Guest Invites (2026-10-06) — speakers invite their own guests through a personal KonfHub
    registration link (a code with a cap, made by the delegate team). This page holds the
@@ -20,6 +22,7 @@ type Row = {
   id: string; name: string; email: string | null; to: string | null; cc: string[]; blocked: string | null; can_invite: boolean; can_remind: boolean; status: 'missing' | 'ready' | 'sent'; url: string | null; code: string | null
   code_found: boolean | null; ticket_name: string | null; limit: number | null; used: number | null; available: number | null; usage_checked_at: string | null
   sent_at: string | null; sent_count: number; reminder_sent_at: string | null; reminder_count: number
+  needs_code: boolean; proposed_code: string | null; provision_error: string | null
 }
 type Kind = 'guest_invite' | 'guest_invite_reminder'
 type Send = { id: string; speaker_id: string; kind: Kind; to_email: string; cc_emails: string[]; status: 'sent' | 'failed'; error: string | null; used_at_send: number | null; limit_at_send: number | null; bulk_batch_id: string | null; created_at: string }
@@ -43,6 +46,8 @@ export default function GuestInvitesPage({ params }: { params: Promise<{ id: str
   const [filter, setFilter] = useState<Filter>('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulk, setBulk] = useState<'invite' | 'reminder' | null>(null)
+  const [codesOpen, setCodesOpen] = useState(false)
+  const [autoMode, setAutoMode] = useState<'off' | 'review' | 'auto'>('off')
   const [sends, setSends] = useState<Send[] | null>(null)
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
   useBreadcrumbLabel(eventId, eventName)
@@ -55,7 +60,7 @@ export default function GuestInvitesPage({ params }: { params: Promise<{ id: str
       fetch(`/api/events/access/me?event_id=${eventId}`), fetch(`/api/events?id=${eventId}`),
     ])
     const ov = await ovRes.json().catch(() => ({})); const t = await tplRes.json().catch(() => ({}))
-    if (ovRes.ok) { setSettings(ov.settings); setDraftSettings(cur => cur ?? ov.settings); setRows(ov.speakers) } else setRows([])
+    if (ovRes.ok) { setAutoMode(ov.auto_mode ?? 'off'); setSettings(ov.settings); setDraftSettings(cur => cur ?? ov.settings); setRows(ov.speakers) } else setRows([])
     if (tplRes.ok) setTpl({ templates: t.templates, variables: t.variables })
     setPerms(new Set((await permRes.json().catch(() => ({ permissions: [] }))).permissions ?? []))
     const hist = await fetch(`/api/events/guest-invites/history?event_id=${eventId}`).then(r => r.json()).catch(() => null)
@@ -91,6 +96,7 @@ export default function GuestInvitesPage({ params }: { params: Promise<{ id: str
   const picked = (kind: 'invite' | 'reminder') => (rows ?? []).filter(r => selected.has(r.id) && (kind === 'invite' ? r.can_invite : r.can_remind))
   const nameOf = (id: string) => rows?.find(r => r.id === id)?.name ?? 'Speaker'
   const dirtySettings = !!(settings && draftSettings && (settings.pass_name !== draftSettings.pass_name || settings.deadline !== draftSettings.deadline))
+  const needCode = (rows ?? []).filter(r => r.needs_code)
   const counts = rows ? { missing: rows.filter(r => r.status === 'missing').length, ready: rows.filter(r => r.status === 'ready').length, sent: rows.filter(r => r.status === 'sent').length } : null
 
   return (
@@ -137,6 +143,8 @@ export default function GuestInvitesPage({ params }: { params: Promise<{ id: str
           </Card>
         )}
 
+        {section === 'settings' && <AutoCodesCard eventId={eventId} canEdit={canEdit} say={say} onChanged={load} />}
+
         {section === 'emails' && (
           <Card padded>
             <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '12px' }}>Email templates</div>
@@ -150,6 +158,12 @@ export default function GuestInvitesPage({ params }: { params: Promise<{ id: str
               <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Send Invites {counts && <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--ink3)' }}>· {counts.sent} sent · {counts.ready} ready · {counts.missing} without a link</span>}</div>
               {canEdit && <Button variant="ghost" onClick={refreshUsage} disabled={refreshing}>{refreshing ? 'Reading KonfHub…' : 'Refresh from KonfHub'}</Button>}
             </div>
+            {canEdit && needCode.length > 0 && (
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', padding: '10px 12px', marginBottom: '10px', borderRadius: '10px', background: 'var(--card-hi)', border: '1px solid var(--border)' }}>
+                <span style={{ fontSize: '13px', color: 'var(--ink2)' }}><strong>{needCode.length}</strong> confirmed speaker{needCode.length === 1 ? ' has' : 's have'} no link yet{autoMode === 'off' ? ' — turn on code creation in Settings, or paste their links.' : '.'}</span>
+                {autoMode !== 'off' && <Button variant="teal" onClick={() => setCodesOpen(true)}>{autoMode === 'review' ? 'Review & create codes' : 'Create codes now'}</Button>}
+              </div>
+            )}
             {seg && (
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px', alignItems: 'center' }}>
                 {([['all', `All ${rows?.length ?? 0}`], ['ready', `Not yet invited ${seg.ready}`], ['invited', `Invited ${seg.invited}`], ['remind', `Reminder due ${seg.remind}`], ['blocked', `Can’t send ${seg.blocked}`]] as [Filter, string][]).map(([f, label]) => (
@@ -224,6 +238,7 @@ export default function GuestInvitesPage({ params }: { params: Promise<{ id: str
 
         </div>
       </div>
+      {codesOpen && <CodesDialog eventId={eventId} rows={needCode.map(r => ({ id: r.id, name: r.name, proposed_code: r.proposed_code, provision_error: r.provision_error }))} onClose={() => setCodesOpen(false)} onFinished={() => void load()} />}
       {bulk && rows && (
         <BulkSendDialog eventId={eventId} kind={bulk} deadlineText={settings?.deadline ? new Date(settings.deadline + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : 'on the date set above'}
           rows={picked(bulk).map(r => ({ id: r.id, name: r.name, to: r.to, cc: r.cc, available: r.available, limit: r.limit, sent_at: r.sent_at }))}

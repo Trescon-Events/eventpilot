@@ -59,7 +59,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = await req.json().catch(() => null) as { link?: string | null } | null
   if (!body || body.link === undefined) return NextResponse.json({ error: 'link required (or null to remove it)' }, { status: 400 })
 
-  const clear = { guest_invite_url: null, guest_invite_code: null, guest_invite_code_found: null, guest_invite_ticket_name: null, guest_invite_limit: null, guest_invite_used: null, guest_invite_opens_at: null, guest_invite_expires_at: null, guest_invite_usage_checked_at: null }
+  const clear = { guest_invite_url: null, guest_invite_code: null, guest_invite_coupon_id: null, guest_invite_code_found: null, guest_invite_ticket_name: null, guest_invite_limit: null, guest_invite_used: null, guest_invite_opens_at: null, guest_invite_expires_at: null, guest_invite_usage_checked_at: null }
   if (body.link === null || body.link.trim() === '') {
     await supabaseAdmin.from('event_speakers').update(clear).eq('id', id)
     return NextResponse.json({ ok: true, details: null, warnings: [] })
