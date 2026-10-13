@@ -138,6 +138,8 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   const [badgeSetup, setBadgeSetup] = useState<{ trim_w: string; trim_h: string; bleed: string } | null>(null) // step 2 of New Variant > Speaker Badge
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
+  // "Copy this" asks where the copy goes: this event (the old behaviour) or another event's template editor.
+  const [copyDialog, setCopyDialog] = useState<{ variantId: string; targets: { id: string; name: string; status: string | null; umbrella: string | null }[] | null; targetId: string; search: string; copying: boolean } | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [msgType, setMsgType] = useState<ToastType>('error')
   // Lifted out of LayerRow (was private per-row state) so LayerBoxOverlay
@@ -447,6 +449,41 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   // snap references pointing at the ORIGINAL variant's now-foreign layer ids
   // once those diverge, so every layer gets a new id and any snap_below
   // reference is rewritten through the same old-id -> new-id map.
+  async function openCopyDialog(variantId: string) {
+    setCopyDialog({ variantId, targets: null, targetId: '', search: '', copying: false })
+    const res = await fetch(`/api/events/templates/copy-targets?exclude=${eventId}`)
+    const data = await res.json().catch(() => null)
+    if (!res.ok || !Array.isArray(data)) {
+      setCopyDialog(null); setMsgType('error'); setMsg(data?.error || 'Could not load the event list.'); return
+    }
+    setCopyDialog(d => d && d.variantId === variantId ? { ...d, targets: data } : d)
+  }
+
+  function copyHere() {
+    if (!copyDialog) return
+    duplicateVariant(copyDialog.variantId)
+    setCopyDialog(null)
+  }
+
+  async function copyToOtherEvent() {
+    if (!copyDialog?.targetId) return
+    const variant = variants.find(v => v.id === copyDialog.variantId)
+    if (!variant) return
+    setCopyDialog({ ...copyDialog, copying: true })
+    const res = await fetch('/api/events/templates/copy-variant', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source_event_id: eventId, target_event_id: copyDialog.targetId, stakeholder_type: activeType, variant }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok) {
+      setMsgType('success'); setMsg(`Copied to ${data.target_event_name} as "${data.new_variant_name}" (${data.files_copied} file${data.files_copied === 1 ? '' : 's'} copied). Open that event's template editor to swap in its design layers.`)
+      setCopyDialog(null)
+    } else {
+      setMsgType('error'); setMsg(data.error || 'Copy failed.')
+      setCopyDialog(d => d ? { ...d, copying: false } : d)
+    }
+  }
+
   function duplicateVariant(id: string) {
     const variant = variants.find(v => v.id === id)
     if (!variant) return
@@ -730,8 +767,8 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
                         <span style={{ fontSize: '11px', color: 'var(--ink4)' }}>{v.layers.length}</span>
                         <button
-                          onClick={e => { e.stopPropagation(); duplicateVariant(v.id) }}
-                          title="Copy this variant — duplicates it with all its layers intact"
+                          onClick={e => { e.stopPropagation(); openCopyDialog(v.id) }}
+                          title="Copy this variant — into this event or another event, with all its layers intact"
                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink4)', fontSize: '13px', padding: '2px 4px', lineHeight: 1 }}>
                           ⧉
                         </button>
@@ -843,7 +880,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                         <Button variant="ghost" title="A slot that fills in with each real speaker/partner's own photo or logo at generation time. Not static art." onClick={() => addLayer('photo_slot')}>+ Photo/Logo Slot</Button>
                         <Button variant="ghost" title="A field of text (name, title, company, a static caption, etc.) rendered live at generation time." onClick={() => addLayer('text')}>+ Text Layer</Button>
                         <Button variant="ghost" title="A mockup to place text and photos against. Shown in Generate Preview only — never in real announcements, website photos or print." onClick={addPreviewLayer}>+ Preview Layer</Button>
-                        <Button variant="ghost" title="Duplicates this variant with all its layers intact, ready to tweak — for building several near-identical variants faster." onClick={() => duplicateVariant(activeVariant.id)}>Copy this</Button>
+                        <Button variant="ghost" title="Copies this variant with all its layers intact — into this event, or into another event (e.g. the same badge for a sister event)." onClick={() => openCopyDialog(activeVariant.id)}>Copy this</Button>
                         <Button variant="red" onClick={() => deleteVariant(activeVariant.id)}>Delete Variant</Button>
                       </div>
                       {/* Inline, not just hover tooltips (2026-08-01) — the
@@ -966,6 +1003,48 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
       {quickPreviewOpen && activeVariant && (
         <QuickPreviewModal variant={activeVariant} eventId={eventId} activeType={activeType} onClose={() => setQuickPreviewOpen(false)} />
       )}
+      {copyDialog && (() => {
+        const v = variants.find(x => x.id === copyDialog.variantId)
+        const q = copyDialog.search.trim().toLowerCase()
+        const list = (copyDialog.targets ?? []).filter(t => !q || `${t.name} ${t.umbrella ?? ''}`.toLowerCase().includes(q))
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'var(--overlay-scrim)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={() => !copyDialog.copying && setCopyDialog(null)}>
+            <div onClick={e => e.stopPropagation()} style={{ width: '460px', maxWidth: '100%', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '22px' }}>
+              <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Copy “{v?.name || 'Untitled Variant'}”</div>
+              <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginBottom: '14px' }}>Where should the copy go?</div>
+              <button disabled={copyDialog.copying} onClick={copyHere} style={{
+                display: 'block', width: '100%', padding: '11px 14px', borderRadius: '10px', border: '1.5px solid var(--border)', background: 'var(--surface)',
+                cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', marginBottom: '14px' }}>
+                <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>This event</div>
+                <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '2px' }}>A copy next to the original, ready to tweak</div>
+              </button>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--ink2)', marginBottom: '6px' }}>Another event</div>
+              <Input value={copyDialog.search} onChange={e => setCopyDialog({ ...copyDialog, search: e.target.value })} placeholder="Search events…" style={{ width: '100%', marginBottom: '8px' }} />
+              <div style={{ maxHeight: '240px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '10px' }}>
+                {copyDialog.targets === null ? (
+                  <div style={{ padding: '14px', fontSize: '12px', color: 'var(--ink3)' }}>Loading events…</div>
+                ) : list.length === 0 ? (
+                  <div style={{ padding: '14px', fontSize: '12px', color: 'var(--ink3)' }}>No matching events you can copy into.</div>
+                ) : list.map(t => (
+                  <button key={t.id} disabled={copyDialog.copying} onClick={() => setCopyDialog({ ...copyDialog, targetId: t.id })} style={{
+                    display: 'block', width: '100%', padding: '9px 12px', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                    background: copyDialog.targetId === t.id ? 'var(--teal-light)' : 'transparent' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>{t.name}</div>
+                    {t.umbrella && <div style={{ fontSize: '11px', color: 'var(--ink3)' }}>{t.umbrella}</div>}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--ink3)', margin: '10px 0 14px' }}>
+                Copies the {activeType} variant exactly as it looks now, including every layer file, into that event’s template editor. It is an independent copy — changing one never changes the other.
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <Button variant="lime" onClick={copyToOtherEvent} disabled={!copyDialog.targetId || copyDialog.copying}>{copyDialog.copying ? 'Copying files…' : 'Copy to this event'}</Button>
+                <Button variant="ghost" onClick={() => setCopyDialog(null)} disabled={copyDialog.copying}>Cancel</Button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
       {newVariantPickerOpen && !badgeSetup && (
         <div style={{ position: 'fixed', inset: 0, background: 'color-mix(in srgb, black 60%, transparent)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={() => setNewVariantPickerOpen(false)}>
           <div onClick={e => e.stopPropagation()} style={{ width: '360px', maxWidth: '100%', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '22px' }}>
