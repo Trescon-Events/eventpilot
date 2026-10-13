@@ -137,7 +137,7 @@ export default function GuestInvitesPage({ params }: { params: Promise<{ id: str
               </div>
             )}
             <div style={{ fontSize: '12px', color: 'var(--ink4)', marginTop: '10px', lineHeight: 1.6 }}>
-              How many guests each speaker may invite isn’t set here — the delegate team sets the limit on each speaker’s code on KonfHub, and EventPilot reads it when the link is saved.
+              For codes EventPilot creates, the number of guests per speaker is set in “Create guest codes automatically” below. For codes the delegate team creates by hand on KonfHub, they set the limit there and EventPilot reads it when the link is saved.
               Event name, dates and venue come from <Link href={`/admin/events/${eventId}/details`} style={{ color: 'var(--teal-mid)', fontWeight: 700 }}>Event Details</Link>.
             </div>
           </Card>
