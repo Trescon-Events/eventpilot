@@ -23,13 +23,13 @@ export default function AutoCodesCard({ eventId, canEdit, say, onChanged }: { ev
   const load = useCallback(async () => {
     const d = await fetch(`/api/events/guest-invites/auto?event_id=${eventId}`).then(r => r.json()).catch(() => null) as Auto | null
     if (!d) return
-    setA(d); setDraft({ ticket_id: d.ticket_id ? String(d.ticket_id) : '', limit: d.default_limit ? String(d.default_limit) : '', slug: d.slug ?? '', mode: d.mode })
+    setA(d); setDraft({ ticket_id: d.ticket_id ? String(d.ticket_id) : '', limit: d.default_limit ? String(d.default_limit) : '', slug: d.slug ?? d.detected_slug ?? '', mode: d.mode })
   }, [eventId])
   // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data load
   useEffect(() => { void load() }, [load])
 
   if (!a || !draft) return <Card padded><div style={{ color: 'var(--ink3)' }}>Loading…</div></Card>
-  const dirty = (a.ticket_id ? String(a.ticket_id) : '') !== draft.ticket_id || (a.default_limit ? String(a.default_limit) : '') !== draft.limit || (a.slug ?? '') !== draft.slug || a.mode !== draft.mode
+  const dirty = (a.ticket_id ? String(a.ticket_id) : '') !== draft.ticket_id || (a.default_limit ? String(a.default_limit) : '') !== draft.limit || (a.slug ?? a.detected_slug ?? '') !== draft.slug || a.mode !== draft.mode
 
   async function save() {
     if (!draft) return
