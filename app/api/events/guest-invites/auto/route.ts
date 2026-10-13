@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { requireGuestInviteAccess } from '@/app/lib/guest-invites/access'
 import { loadKonfhubConfig } from '@/app/lib/guest-invites/sync'
-import { loadAutoSettings, resolveSlug, type AutoMode } from '@/app/lib/guest-invites/provision'
+import { loadAutoSettings, type AutoMode } from '@/app/lib/guest-invites/provision'
 import { getKonfhubToken, fetchKonfhubTickets } from '@/app/lib/konfhub-speakers'
 
 /* GET/PUT /api/events/guest-invites/auto?event_id=X
@@ -23,15 +23,14 @@ export async function GET(req: NextRequest) {
       tickets = (await fetchKonfhubTickets(cfg.konfhubEventId, token)).flatMap(c => c.tickets).filter(t => /guest/i.test(t.ticket_name)).map(t => ({ id: t.ticket_id, name: t.ticket_name }))
     } catch (e) { error = e instanceof Error ? e.message : 'Could not read KonfHub tickets.' }
   }
-  const detectedSlug = cfg ? await resolveSlug(eventId, cfg.konfhubEventId, null) : null
-  return NextResponse.json({ ticket_id: st.ticket_id, default_limit: st.default_limit, mode: st.mode, slug: st.slug, detected_slug: detectedSlug, tickets, error })
+  return NextResponse.json({ ticket_id: st.ticket_id, default_limit: st.default_limit, mode: st.mode, tickets, error })
 }
 
 export async function PUT(req: NextRequest) {
   const eventId = req.nextUrl.searchParams.get('event_id')
   if (!eventId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
   const denied = await requireGuestInviteAccess(req, eventId, 'edit'); if (denied) return denied
-  const b = await req.json().catch(() => null) as { ticket_id?: number | null; default_limit?: number | null; mode?: AutoMode; slug?: string | null } | null
+  const b = await req.json().catch(() => null) as { ticket_id?: number | null; default_limit?: number | null; mode?: AutoMode; } | null
   if (!b) return NextResponse.json({ error: 'body required' }, { status: 400 })
   const patch: Record<string, unknown> = {}
   if (b.ticket_id !== undefined) {
@@ -47,11 +46,6 @@ export async function PUT(req: NextRequest) {
   if (b.default_limit !== undefined) {
     if (b.default_limit !== null && (!Number.isInteger(b.default_limit) || b.default_limit < 1 || b.default_limit > 50)) return NextResponse.json({ error: 'Guests per speaker must be a whole number from 1 to 50.' }, { status: 400 })
     patch.guest_invite_default_limit = b.default_limit
-  }
-  if (b.slug !== undefined) {
-    const slug = (b.slug ?? '').trim().toLowerCase()
-    if (slug && !/^[a-z0-9-]+$/.test(slug)) return NextResponse.json({ error: 'The link name can only contain letters, numbers and hyphens.' }, { status: 400 })
-    patch.konfhub_event_slug = slug || null
   }
   if (b.mode !== undefined) {
     if (!['off', 'review', 'auto'].includes(b.mode)) return NextResponse.json({ error: 'Unknown mode.' }, { status: 400 })
@@ -69,5 +63,5 @@ export async function PUT(req: NextRequest) {
   const { error } = await supabaseAdmin.from('events').update(patch).eq('id', eventId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   const st = await loadAutoSettings(eventId)
-  return NextResponse.json({ ticket_id: st.ticket_id, default_limit: st.default_limit, mode: st.mode, slug: st.slug })
+  return NextResponse.json({ ticket_id: st.ticket_id, default_limit: st.default_limit, mode: st.mode })
 }

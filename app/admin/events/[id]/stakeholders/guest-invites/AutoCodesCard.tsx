@@ -6,7 +6,7 @@ import { Button, Card, Input } from '@/app/components/ui'
 /* Settings card: auto-create each confirmed speaker's guest-pass code on KonfHub. Pick the guest ticket, the number of guests per
    speaker and a mode — Off (links pasted by hand), Review (a code is proposed and a producer creates it) or Automatic (created as
    soon as a speaker is Confirmed). Invites are never sent automatically. */
-type Auto = { ticket_id: number | null; default_limit: number | null; mode: 'off' | 'review' | 'auto'; slug: string | null; detected_slug: string | null; tickets: { id: number; name: string }[]; error: string | null }
+type Auto = { ticket_id: number | null; default_limit: number | null; mode: 'off' | 'review' | 'auto'; tickets: { id: number; name: string }[]; error: string | null }
 type Mode = Auto['mode']
 
 const MODES: { key: Mode; label: string; help: string }[] = [
@@ -17,25 +17,25 @@ const MODES: { key: Mode; label: string; help: string }[] = [
 
 export default function AutoCodesCard({ eventId, canEdit, say, onChanged }: { eventId: string; canEdit: boolean; say: (t: string, type?: 'success' | 'error') => void; onChanged: () => void }) {
   const [a, setA] = useState<Auto | null>(null)
-  const [draft, setDraft] = useState<{ ticket_id: string; limit: string; slug: string; mode: Mode } | null>(null)
+  const [draft, setDraft] = useState<{ ticket_id: string; limit: string; mode: Mode } | null>(null)
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
     const d = await fetch(`/api/events/guest-invites/auto?event_id=${eventId}`).then(r => r.json()).catch(() => null) as Auto | null
     if (!d) return
-    setA(d); setDraft({ ticket_id: d.ticket_id ? String(d.ticket_id) : '', limit: d.default_limit ? String(d.default_limit) : '', slug: d.slug ?? d.detected_slug ?? '', mode: d.mode })
+    setA(d); setDraft({ ticket_id: d.ticket_id ? String(d.ticket_id) : '', limit: d.default_limit ? String(d.default_limit) : '', mode: d.mode })
   }, [eventId])
   // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data load
   useEffect(() => { void load() }, [load])
 
   if (!a || !draft) return <Card padded><div style={{ color: 'var(--ink3)' }}>Loading…</div></Card>
-  const dirty = (a.ticket_id ? String(a.ticket_id) : '') !== draft.ticket_id || (a.default_limit ? String(a.default_limit) : '') !== draft.limit || (a.slug ?? a.detected_slug ?? '') !== draft.slug || a.mode !== draft.mode
+  const dirty = (a.ticket_id ? String(a.ticket_id) : '') !== draft.ticket_id || (a.default_limit ? String(a.default_limit) : '') !== draft.limit || a.mode !== draft.mode
 
   async function save() {
     if (!draft) return
     setSaving(true)
     const res = await fetch(`/api/events/guest-invites/auto?event_id=${eventId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticket_id: draft.ticket_id ? Number(draft.ticket_id) : null, default_limit: draft.limit ? Number(draft.limit) : null, slug: draft.slug, mode: draft.mode }) })
+      body: JSON.stringify({ ticket_id: draft.ticket_id ? Number(draft.ticket_id) : null, default_limit: draft.limit ? Number(draft.limit) : null, mode: draft.mode }) })
     const d = await res.json().catch(() => ({}))
     setSaving(false)
     if (!res.ok) { say(d.error ?? 'Could not save.', 'error'); return }
@@ -57,10 +57,7 @@ export default function AutoCodesCard({ eventId, canEdit, say, onChanged }: { ev
           </select></label>
         <label style={{ display: 'grid', gap: '4px', fontSize: '11.5px', fontWeight: 700, color: 'var(--ink3)' }}>Guests per speaker
           <Input type="number" min={1} max={50} value={draft.limit} disabled={!canEdit} onChange={e => setDraft({ ...draft, limit: e.target.value })} style={{ width: '120px' }} /></label>
-        <label style={{ display: 'grid', gap: '4px', fontSize: '11.5px', fontWeight: 700, color: 'var(--ink3)' }}>KonfHub link name
-          <Input value={draft.slug} placeholder={a.detected_slug ?? 'e.g. dubai-future-finance-week-2026'} disabled={!canEdit} onChange={e => setDraft({ ...draft, slug: e.target.value })} style={{ width: '290px' }} /></label>
       </div>
-      <div style={{ fontSize: '11.5px', color: 'var(--ink4)', marginTop: '6px' }}>The link name is the part after konfhub.com/checkout/ {a.detected_slug && !a.slug ? `— found from existing links: ${a.detected_slug}` : ''}</div>
       <div style={{ display: 'grid', gap: '6px', marginTop: '14px' }}>
         {MODES.map(m => (
           <label key={m.key} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '8px 12px', borderRadius: '10px', border: `1px solid ${draft.mode === m.key ? 'var(--teal-mid)' : 'var(--border)'}`, background: draft.mode === m.key ? 'var(--teal-light)' : 'none', cursor: canEdit ? 'pointer' : 'default' }}>

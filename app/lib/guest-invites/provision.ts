@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { parseEventTime } from '@/app/lib/events/timezones'
+import { getKonfhubToken } from '@/app/lib/konfhub-speakers'
 import { fetchKonfhubCodes } from './codes'
 import { loadKonfhubConfig, syncSpeakerGuestCode } from './sync'
 import { parseGuestLink } from './link'
@@ -29,10 +30,15 @@ async function sharedEventIds(eventId: string, konfhubEventId: string): Promise<
   return [...new Set([eventId, ...(data ?? []).map(r => r.event_id as string)])]
 }
 
-/** The KonfHub event slug: the saved setting, else the one in any link already saved for this KonfHub event. */
-export async function resolveSlug(eventId: string, konfhubEventId: string, saved: string | null): Promise<string | null> {
-  if (saved) return saved
-  const { data } = await supabaseAdmin.from('event_speakers').select('guest_invite_url').in('event_id', await sharedEventIds(eventId, konfhubEventId)).not('guest_invite_url', 'is', null).limit(1)
+/** The KonfHub event's own link name (its `event_url`, the part after konfhub.com/checkout/) — read from KonfHub, never typed by a producer.
+    Falls back to the one in any link already saved for this KonfHub event. */
+export async function resolveSlug(eventId: string, cfg: { konfhubEventId: string; clientId: string; clientSecret: string }): Promise<string | null> {
+  try {
+    const token = await getKonfhubToken(cfg.clientId, cfg.clientSecret)
+    const res = await fetch(`https://api.konfhub.com/event/${cfg.konfhubEventId}`, { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) { const j = await res.json() as { event_url?: string }; const u = (j.event_url ?? '').trim().toLowerCase(); if (/^[a-z0-9-]+$/.test(u)) return u }
+  } catch { /* fall through to saved links */ }
+  const { data } = await supabaseAdmin.from('event_speakers').select('guest_invite_url').in('event_id', await sharedEventIds(eventId, cfg.konfhubEventId)).not('guest_invite_url', 'is', null).limit(1)
   const p = data?.[0]?.guest_invite_url ? parseGuestLink(data[0].guest_invite_url) : null
   return p?.ok ? p.slug : null
 }
@@ -89,8 +95,8 @@ async function readiness(eventId: string) {
   if (!st.deadline) return { error: 'Set the registration deadline in Settings first — it becomes the code’s expiry.' } as const
   const expiresAt = parseEventTime(`${st.deadline}T23:59`, cfg.tz)
   if (!expiresAt || expiresAt.getTime() < Date.now()) return { error: 'The registration deadline has passed.' } as const
-  const slug = await resolveSlug(eventId, cfg.konfhubEventId, st.slug)
-  if (!slug) return { error: 'EventPilot doesn’t know this KonfHub event’s link name yet — enter it in Settings (the part after konfhub.com/checkout/).' } as const
+  const slug = await resolveSlug(eventId, cfg)
+  if (!slug) return { error: 'Couldn’t read this KonfHub event’s link from KonfHub. Try again in a moment.' } as const
   return { cfg, st: { ...st, ticket_id: st.ticket_id, default_limit: st.default_limit }, slug, expiresAt } as const
 }
 
