@@ -4,10 +4,11 @@
  * confidence, and sample content. This is a suggestion only — the user
  * confirms in the UI before mappings become "editable" in the workspace.
  *
- * Model: gemini-2.5-flash — fast + accurate enough for structured JSON
- * extraction on a ~30-slide deck. Upgrade to gemini-2.5-pro if quality
+ * Model: gemini-3.7-flash — fast + accurate enough for structured JSON
+ * extraction on a ~30-slide deck. Upgrade to gemini-3.1-pro-preview if quality
  * proves too weak on image-heavy decks.
  */
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GoogleAIFileManager } from '@google/generative-ai/server'
 import { writeFile, unlink } from 'fs/promises'
@@ -15,7 +16,7 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 
 const INLINE_THRESHOLD = 5 * 1024 * 1024   // 5 MB — smaller PDFs go inline
-const MODEL_NAME = 'gemini-2.5-flash'
+const MODEL_NAME = GEMINI_FLASH_MODEL
 
 // The 14 section keys the module supports. Matches the PRD §4.2 list.
 // Gemini is instructed to only use these keys; anything else is dropped.

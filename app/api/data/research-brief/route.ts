@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
@@ -47,7 +48,7 @@ Be specific. Reference their actual title and company. Do not be generic.
 Return ONLY the JSON, no other text.`
 
   try {
-    const model  = genai.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model  = genai.getGenerativeModel({ model: GEMINI_FLASH_MODEL })
     const result = await model.generateContent(prompt)
     const text   = result.response.text()
 

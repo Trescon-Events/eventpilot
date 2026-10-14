@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GoogleAIFileManager } from '@google/generative-ai/server'
 import { writeFile, unlink } from 'fs/promises'
@@ -9,7 +10,7 @@ const INLINE_THRESHOLD = 5 * 1024 * 1024
 
 async function extractPdfText(buffer: Buffer, fileName: string): Promise<string> {
   const genAI  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-  const model  = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+  const model  = genAI.getGenerativeModel({ model: GEMINI_FLASH_MODEL })
   const prompt = 'Extract all text content from this PDF document. Return only the raw text exactly as it appears — preserve headings, paragraphs, lists, and section structure. Do not summarise, do not add commentary, do not add formatting characters. Return the full text.'
 
   if (buffer.byteLength > INLINE_THRESHOLD) {

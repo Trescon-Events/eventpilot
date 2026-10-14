@@ -9,6 +9,7 @@
      - placeholder junk and encoding damage
      - basic spelling/grammar and record contradictions, via one light AI proofread
    It only ever REPORTS. It never rewrites and never blocks a save. */
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import crypto from 'crypto'
 
@@ -86,7 +87,7 @@ export async function proofreadBio(bio: string, record: BioRecord): Promise<BioF
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.findings
   try {
     if (!_gemini) _gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-    const model = _gemini.getGenerativeModel({ model: 'gemini-2.5-flash', generationConfig: { responseMimeType: 'application/json', temperature: 0 } })
+    const model = _gemini.getGenerativeModel({ model: GEMINI_FLASH_MODEL, generationConfig: { responseMimeType: 'application/json', temperature: 0 } })
     const prompt = `You are proofreading a speaker's short bio for accidents made while copy-pasting or generating it. This is the speaker's own text about themselves — do NOT judge style, tone, marketing language, punctuation conventions, abbreviations or figures.
 
 Speaker record: name "${record.public_name || record.name || ''}", title "${record.role || ''}", organisation "${record.company || ''}", country "${record.country || ''}", salutation "${record.salutation || ''}".

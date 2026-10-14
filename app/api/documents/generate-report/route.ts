@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { GoogleGenerativeAI } from '@google/generative-ai'
@@ -123,7 +124,7 @@ Length: Comprehensive but concise — aim for a thorough report that covers all 
 
   try {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model = genAI.getGenerativeModel({ model: GEMINI_FLASH_MODEL })
     const result = await model.generateContent(prompt)
     reportText = result.response.text()
   } catch {

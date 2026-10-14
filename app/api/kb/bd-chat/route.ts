@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { NextRequest, NextResponse } from 'next/server'
 import { getKBContext } from '@/app/lib/kb-context'
@@ -14,7 +15,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
   evolve independently while EventPilot is still under active development,
   with the intent to merge the two later. Reuses the same building blocks
   /api/ask already relies on: getKBContext() for access-filtered document
-  retrieval and gemini-2.5-flash for generation — just with
+  retrieval and gemini-3.7-flash for generation — just with
   pilotUseOnly: false (so proposals, which are pilot_use: false by design,
   are included) and BD-relevant categories.
 
@@ -152,7 +153,7 @@ export async function POST(req: NextRequest) {
     'No accessible documents matched this question — either nothing relevant has been ingested yet, or you may not have access to it.'
 
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+  const model = genAI.getGenerativeModel({ model: GEMINI_FLASH_MODEL })
 
   const thread = (history as Message[]).slice(-8)
     .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.text}`)

@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { GoogleGenerativeAI } from '@google/generative-ai'
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
   if (!apiKey) return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 })
 
   const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+  const model = genAI.getGenerativeModel({ model: GEMINI_FLASH_MODEL })
 
   const prompt = `You are an expert HR recruiter screening a candidate for a role.
 

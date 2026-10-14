@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -595,7 +596,7 @@ Return ONLY valid JSON:
 }`
 
     let result
-    for (const modelName of ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash', 'gemini-1.5-flash-latest']) {
+    for (const modelName of [GEMINI_FLASH_MODEL, 'gemini-flash-latest', 'gemini-2.0-flash', 'gemini-1.5-flash-latest']) {
       try {
         result = await genAI.getGenerativeModel({ model: modelName }).generateContent(prompt)
         credits.gemini++

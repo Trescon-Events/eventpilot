@@ -1,11 +1,12 @@
 // Face-aware photo alignment (SAE Phase C v4) — matches a real speaker's
 // photo to a reference layer's head position/size so different shot types
 // (headshot vs. shoulder vs. waist-level) line up consistently across
-// variants. Uses Gemini (gemini-2.5-flash, structured output) for face
+// variants. Uses Gemini (gemini-3.7-flash, structured output) for face
 // detection — confirmed via a real test against a reference photo that it
 // returns an accurate bounding box. Reuses the existing GEMINI_API_KEY;
 // no new vendor (Google Cloud Vision was the original idea, dropped once
 // this tested out reliable).
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import sharp from 'sharp'
 import { GoogleGenerativeAI, SchemaType, type ObjectSchema } from '@google/generative-ai'
 
@@ -49,7 +50,7 @@ export async function detectHeadBox(imageBuffer: Buffer): Promise<HeadBox | null
   }
 
   const model = getGemini().getGenerativeModel({
-    model: 'gemini-2.5-flash',
+    model: GEMINI_FLASH_MODEL,
     generationConfig: { responseMimeType: 'application/json', responseSchema: schema },
   })
 

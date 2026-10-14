@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -72,7 +73,7 @@ Rules:
 
   try {
     const gemini = getGemini()
-    const model = gemini.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model = gemini.getGenerativeModel({ model: GEMINI_FLASH_MODEL })
     const result = await model.generateContent(prompt)
     const text = result.response.text().trim()
 

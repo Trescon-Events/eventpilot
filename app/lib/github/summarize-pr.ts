@@ -5,6 +5,7 @@
   by pr-safety-summary.js with no AI call) if Gemini is unavailable or the
   diff patch wasn't included, so a Gemini outage never blocks the review flow.
 */
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
 export async function summarizePrForHuman(opts: {
@@ -18,7 +19,7 @@ export async function summarizePrForHuman(opts: {
 
   try {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model = genAI.getGenerativeModel({ model: GEMINI_FLASH_MODEL })
 
     const prompt = `You're explaining a code change to a non-technical product owner who needs to decide whether to approve it — he does not read code.
 

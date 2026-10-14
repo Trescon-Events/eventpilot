@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
@@ -122,7 +123,7 @@ Return ONLY a valid JSON array, no markdown fences, no explanation outside the a
 ]`
 
   try {
-    const model  = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model  = genAI.getGenerativeModel({ model: GEMINI_FLASH_MODEL })
     const result = await model.generateContent(prompt)
     const raw    = result.response.text().trim()
 

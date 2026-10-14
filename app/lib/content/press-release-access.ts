@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL, GEMINI_PRO_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
@@ -44,9 +45,8 @@ export async function loadPressReleaseAndAuthorize(
 
 /*
   Model tiers (2026-09-17) — Gemini 2.5 family retires 16 Oct 2026, so this
-  new tool is built on the 3.x lineup from day one rather than the
-  gemini-2.5-flash used everywhere else in the codebase (that broader
-  migration is a separate, larger piece of work).
+  new tool is built on the 3.x lineup from day one. (The rest of the app
+  followed on 2026-10-14; model names now live in app/lib/ai/models.ts.)
 
   FLASH does the frequent, low-stakes research turns. PRO is reserved for
   the generate step (the one output that actually goes out under Trescon's
@@ -55,8 +55,8 @@ export async function loadPressReleaseAndAuthorize(
   proxy for "this story is genuinely complex," and the per-message cost
   difference is trivial either way. See the chat with Madhu, 2026-09-17,
   for the cost/model reasoning this is based on. */
-export const FLASH_MODEL = 'gemini-3.7-flash'
-export const PRO_MODEL = 'gemini-3.1-pro-preview'
+export const FLASH_MODEL = GEMINI_FLASH_MODEL
+export const PRO_MODEL = GEMINI_PRO_MODEL
 export const RESEARCH_ESCALATE_AFTER = 14 // history.length (messages) at which a research call switches to PRO_MODEL
 
 // Daily per-staff caps (soft, cost-backstop only — see the cost math from

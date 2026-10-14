@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -129,7 +130,7 @@ ${fullBioText.slice(0, 20000)}
 """`
 
   try {
-    const model = getGemini().getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model = getGemini().getGenerativeModel({ model: GEMINI_FLASH_MODEL })
     const result = await model.generateContent([{ text: prompt }])
     const shortBio = result.response.text().trim()
     if (!shortBio) throw new Error('Empty response from Gemini')

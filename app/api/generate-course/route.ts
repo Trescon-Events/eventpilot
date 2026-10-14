@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { requireAdmin } from '@/app/lib/access/require-admin'
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest) {
   }
 
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+  const model = genAI.getGenerativeModel({ model: GEMINI_FLASH_MODEL })
 
   const prompt = `You are Pilot — the AI course designer for Event Pilot at Trescon, a B2B events company with 4 offices: Dubai, Bangalore, Mangalore, and Manipal.
 

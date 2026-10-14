@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { readFileSync } from 'fs'
@@ -114,7 +115,7 @@ async function firecrawlDiscoverUrls(url: string, limit: number): Promise<string
 }
 
 async function scoreArticle(genAI: GoogleGenerativeAI, title: string, markdown: string, eventContext: string) {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash', generationConfig: { responseMimeType: 'application/json' } })
+  const model = genAI.getGenerativeModel({ model: GEMINI_FLASH_MODEL, generationConfig: { responseMimeType: 'application/json' } })
   const prompt = `Score this article 0-100 for relevance to Trescon Global Events.
 Trescon is a UAE-based event management company.
 ${eventContext}
@@ -137,7 +138,7 @@ Article content (first 2000 chars): ${markdown.slice(0, 2000)}`
 }
 
 async function generateSummary(genAI: GoogleGenerativeAI, processorGuide: string, title: string, url: string, markdown: string) {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+  const model = genAI.getGenerativeModel({ model: GEMINI_FLASH_MODEL })
   const prompt = `You are processing a web article for Trescon's EventPilot Knowledge Base.
 
 PROCESSOR GUIDE (follow the "Media article" schema exactly — this is a third-party or owned-property web article, not an uploaded file):
@@ -158,7 +159,7 @@ Start directly with the YAML front matter (---).`
 }
 
 async function extractEventRegistry(genAI: GoogleGenerativeAI, markdown: string) {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash', generationConfig: { responseMimeType: 'application/json' } })
+  const model = genAI.getGenerativeModel({ model: GEMINI_FLASH_MODEL, generationConfig: { responseMimeType: 'application/json' } })
   const prompt = `Extract the list of events from this Trescon events page content. Return ONLY a JSON array, no markdown:
 [{"name": string, "status": string, "website": string or null, "description": string}]
 

@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
@@ -243,7 +244,7 @@ export async function POST(req: NextRequest) {
   /* ── Build Gemini prompt ── */
   const genAI  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
   const model  = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
+    model: GEMINI_FLASH_MODEL,
     tools: [{ functionDeclarations: [findDocuHubDocumentsDeclaration] }],
   })
 

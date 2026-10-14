@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { readFileSync } from 'fs'
 import { join } from 'path'
@@ -177,7 +178,7 @@ async function runIngestJob(
 
     // Generate the structured .md summary
     const genAI  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-    const model  = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model  = genAI.getGenerativeModel({ model: GEMINI_FLASH_MODEL })
     const prompt = `You are processing a document for Trescon's EventPilot Knowledge Base.
 
 PROCESSOR GUIDE (follow these instructions exactly):

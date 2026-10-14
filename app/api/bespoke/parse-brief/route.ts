@@ -12,6 +12,7 @@
  * for it to merge into existing state (respecting anything the user has
  * already typed).
  */
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -104,7 +105,7 @@ export async function POST(req: NextRequest) {
   // ```json fences and the string cleanup couldn't recover.
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
   const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
+    model: GEMINI_FLASH_MODEL,
     generationConfig: {
       responseMimeType: 'application/json',
       temperature: 0.2,          // Low temp — extraction should be deterministic, not creative

@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
 const DEPARTMENTS = ['all', 'marketing', 'finance', 'sales', 'operations', 'events', 'hr', 'it']
@@ -33,7 +34,7 @@ export async function analyseGeneralDocument(
   customType?: string
 ): Promise<GeneralDocAnalysis> {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+  const model = genAI.getGenerativeModel({ model: GEMINI_FLASH_MODEL })
 
   const prompt = `You are the document intelligence system for Event Pilot, Trescon's internal platform.
 

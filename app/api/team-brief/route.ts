@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
@@ -147,7 +148,7 @@ Be direct, professional, and encouraging — not corporate. Use the actual numbe
 
   try {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model = genAI.getGenerativeModel({ model: GEMINI_FLASH_MODEL })
     const result = await model.generateContent(prompt)
     const brief  = result.response.text()
 

@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { NextResponse } from 'next/server'
@@ -25,7 +26,7 @@ export async function GET() {
   ).join('\n')
 
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+  const model = genAI.getGenerativeModel({ model: GEMINI_FLASH_MODEL })
 
   const prompt = `You are analysing platform feedback submitted by staff at Trescon about Event Pilot — their internal AI learning platform.
 

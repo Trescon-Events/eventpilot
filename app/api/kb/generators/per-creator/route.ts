@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { readFileSync } from 'fs'
 import { join } from 'path'
@@ -89,7 +90,7 @@ Generate the full post-event report now, following the exact 16-section structur
 Output as clean markdown with headings. Do not fabricate quotes, attendee names, financial figures, or comparative claims against competitors — use only what is given in the event data above. If a section has no data provided, write "Not available for this edition" rather than inventing content.`
 
     const genAI  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-    const model  = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model  = genAI.getGenerativeModel({ model: GEMINI_FLASH_MODEL })
     const result = await model.generateContent(prompt)
     const report = result.response.text().trim().replace(/^```(?:markdown)?\n([\s\S]*?)\n```$/, '$1').trim()
 

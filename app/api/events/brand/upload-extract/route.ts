@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from '@/app/lib/registry/access'
 
@@ -23,7 +24,7 @@ export const maxDuration = 300
 
 const GEMINI_KEY   = process.env.GEMINI_API_KEY!
 const UPLOAD_URL   = `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${GEMINI_KEY}`
-const GENERATE_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`
+const GENERATE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_FLASH_MODEL}:generateContent?key=${GEMINI_KEY}`
 
 const PROMPT = `You are a brand identity analyst. Read this brand guidelines PDF carefully.
 

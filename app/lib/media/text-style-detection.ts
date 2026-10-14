@@ -11,6 +11,7 @@
 // only ever a ceiling anyway (wrapAndFit() auto-shrinks to fit); the caller
 // derives a reasonable ceiling from the already-known box height and the
 // line_count reported here instead.
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import sharp from 'sharp'
 import { GoogleGenerativeAI, SchemaType, type ObjectSchema } from '@google/generative-ai'
 
@@ -43,7 +44,7 @@ export async function detectTextStyle(trimmedReferenceBuffer: Buffer): Promise<T
   }
 
   const model = getGemini().getGenerativeModel({
-    model: 'gemini-2.5-flash',
+    model: GEMINI_FLASH_MODEL,
     generationConfig: { responseMimeType: 'application/json', responseSchema: schema },
   })
 

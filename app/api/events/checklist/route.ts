@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { GoogleGenerativeAI } from '@google/generative-ai'
@@ -15,7 +16,7 @@ async function generateChecklist(event: {
   client_name: string | null; expected_attendance: number | null
 }): Promise<{ department: string; title: string; sort_order: number }[]> {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+  const model = genAI.getGenerativeModel({ model: GEMINI_FLASH_MODEL })
 
   const weeksOut = event.event_date
     ? Math.round((new Date(event.event_date).getTime() - Date.now()) / (7 * 24 * 60 * 60 * 1000))

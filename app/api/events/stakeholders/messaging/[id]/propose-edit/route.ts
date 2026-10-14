@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -202,7 +203,7 @@ Return JSON only, no markdown fences, in this exact shape:
   }
 
   try {
-    const model  = getGemini().getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model  = getGemini().getGenerativeModel({ model: GEMINI_FLASH_MODEL })
     const result = await model.generateContent([{ text: prompt }])
     const text   = result.response.text().trim()
     const match  = text.match(/\{[\s\S]*\}/)

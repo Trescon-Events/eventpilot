@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { readFileSync } from 'fs'
 import { join } from 'path'
@@ -84,7 +85,7 @@ Generate the full proposal now, following the exact 16-section structure and ton
 Output as clean markdown with headings. Do not fabricate statistics — use only real numbers found in the reference material above. Do not invent dates, venues, or prices not given in the staff input.`
 
     const genAI  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-    const model  = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model  = genAI.getGenerativeModel({ model: GEMINI_FLASH_MODEL })
     const result = await model.generateContent(prompt)
     const proposal = result.response.text().trim().replace(/^```(?:markdown)?\n([\s\S]*?)\n```$/, '$1').trim()
 

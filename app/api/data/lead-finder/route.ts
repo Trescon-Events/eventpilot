@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { smartdataAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
@@ -90,7 +91,7 @@ export async function POST(req: NextRequest) {
   }))
 
   // Call Gemini
-  const model = genai.getGenerativeModel({ model: 'gemini-2.5-flash' })
+  const model = genai.getGenerativeModel({ model: GEMINI_FLASH_MODEL })
   const chat  = model.startChat({
     history: [
       { role: 'user',  parts: [{ text: SYSTEM_PROMPT }] },

@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import type { ContentOwnerRef } from './owner'
@@ -202,7 +203,7 @@ export async function processAnsweredRound(docId: string): Promise<{ nextRound: 
 
   const atCap = doc.clarification_rounds_used >= MAX_CLARIFICATION_ROUNDS
 
-  const model = getGemini().getGenerativeModel({ model: 'gemini-2.5-flash' })
+  const model = getGemini().getGenerativeModel({ model: GEMINI_FLASH_MODEL })
   const prompt = `${ROUND_PROMPT}${doc.raw_text ?? ''}\n\nCURRENT STRUCTURED CONTENT:\n${currentContent}\n\nQUESTIONS ASKED AND ANSWERS GIVEN THIS ROUND:\n${qaBlock}`
   const result = await model.generateContent([{ text: prompt }])
   const text = result.response.text().trim()

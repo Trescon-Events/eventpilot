@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from './supabase'
 import { getStaffCount } from './staff-count'
@@ -25,7 +26,7 @@ export async function generateInsightsReport(
   triggerType: 'manual' | 'cron' = 'manual'
 ): Promise<{ report: InsightReport } | { error: string; status: number }> {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+  const model = genAI.getGenerativeModel({ model: GEMINI_FLASH_MODEL })
 
   const { data: tasks, error: taskError } = await supabaseAdmin
     .from('staff_task_profiles')

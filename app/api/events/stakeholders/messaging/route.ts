@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -333,8 +334,8 @@ async function runExtraction(docId: string, buffer: Buffer, fileName: string): P
     rawText = await extractKbText(buffer, fileName)
     // Cancelled (row deleted) while text extraction ran? Skip the paid structuring call entirely.
     if (!(await docStillExists(docId))) return
-    const model  = getGemini().getGenerativeModel({ model: 'gemini-2.5-flash' })
-    // 200k chars is comfortably within gemini-2.5-flash's context window and
+    const model  = getGemini().getGenerativeModel({ model: GEMINI_FLASH_MODEL })
+    // 200k chars is comfortably within gemini-3.7-flash's context window and
     // far beyond any realistic messaging doc — the old 30k cap silently
     // dropped exactly the kind of reference material (fact banks, "must
     // not appear" lists) a messaging doc exists to protect.

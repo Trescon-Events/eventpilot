@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { getSession } from '@/app/lib/access/session'
@@ -43,7 +44,7 @@ Return JSON only, no markdown fences, no explanation outside the JSON:
 { "reply": "one sentence summarizing what you changed", "proposed_html": "the full new HTML body" }`
 
   try {
-    const model = getGemini().getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model = getGemini().getGenerativeModel({ model: GEMINI_FLASH_MODEL })
     const result = await model.generateContent([{ text: prompt }])
     const text = result.response.text().trim()
     const match = text.match(/\{[\s\S]*\}/)

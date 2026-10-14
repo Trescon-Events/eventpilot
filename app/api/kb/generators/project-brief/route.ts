@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { readFileSync } from 'fs'
 import { join } from 'path'
@@ -93,7 +94,7 @@ Where the past event reports contain real prior-edition numbers for this series,
 Return ONLY the JSON object, no markdown fences, no commentary.`
 
     const genAI  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-    const model  = genAI.getGenerativeModel({ model: 'gemini-2.5-flash', generationConfig: { responseMimeType: 'application/json' } })
+    const model  = genAI.getGenerativeModel({ model: GEMINI_FLASH_MODEL, generationConfig: { responseMimeType: 'application/json' } })
     const result = await model.generateContent(prompt)
     const brief  = JSON.parse(result.response.text())
 

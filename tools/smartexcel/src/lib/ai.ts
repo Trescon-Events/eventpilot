@@ -8,9 +8,9 @@ import type { Json } from "@/db/schema";
 export type ModelTier = "fast" | "balanced" | "advanced";
 
 export const MODELS: Record<ModelTier, string> = {
-  fast: "gemini-2.5-flash-lite",
-  balanced: "gemini-2.5-flash",
-  advanced: "gemini-2.5-pro",
+  fast: "gemini-3.7-flash",
+  balanced: "gemini-3.7-flash",
+  advanced: "gemini-3.1-pro-preview",
 };
 
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";

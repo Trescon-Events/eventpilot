@@ -4,6 +4,7 @@
   falls back to the raw note (wrapped, not rephrased) if Gemini is unavailable
   or fails, so a Gemini outage never blocks the send-back flow.
 */
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
 export async function generateAgentInstructions(opts: {
@@ -18,7 +19,7 @@ export async function generateAgentInstructions(opts: {
 
   try {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model = genAI.getGenerativeModel({ model: GEMINI_FLASH_MODEL })
 
     const prompt = `A product owner (Madhu) is sending a pull request back to a developer (Khalifa) who works with an AI coding assistant called Antigravity. Turn Madhu's note below into a clear, direct instruction set that Khalifa can paste into Antigravity as-is to make the fix.
 

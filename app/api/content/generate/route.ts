@@ -1,3 +1,4 @@
+import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -132,7 +133,7 @@ Do NOT include any preamble or explanation outside the JSON.`
     ].filter(Boolean).join('\n')
 
     // ── Generate with Gemini ──────────────────────────────────────────────
-    const model = getGemini().getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model = getGemini().getGenerativeModel({ model: GEMINI_FLASH_MODEL })
     const result = await model.generateContent([
       { text: systemPrompt + '\n\n' + userPrompt },
     ])

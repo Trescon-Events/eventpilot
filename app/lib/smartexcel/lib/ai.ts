@@ -1,5 +1,6 @@
 // Gemini orchestration layer (PRD §6.3, §7.4), ported as-is. The AI clarifies,
 // classifies, and plans; deterministic processing stays in the Python worker.
+import { GEMINI_FLASH_MODEL, GEMINI_PRO_MODEL } from '@/app/lib/ai/models'
 import { getConfig } from "./env";
 import { OPERATION_KINDS, type Operation } from "./operations";
 import type { Json } from "../db/schema";
@@ -7,9 +8,9 @@ import type { Json } from "../db/schema";
 export type ModelTier = "fast" | "balanced" | "advanced";
 
 export const MODELS: Record<ModelTier, string> = {
-  fast: "gemini-2.5-flash-lite",
-  balanced: "gemini-2.5-flash",
-  advanced: "gemini-2.5-pro",
+  fast: GEMINI_FLASH_MODEL,
+  balanced: GEMINI_FLASH_MODEL,
+  advanced: GEMINI_PRO_MODEL,
 };
 
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
