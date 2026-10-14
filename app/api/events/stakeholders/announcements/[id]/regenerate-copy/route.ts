@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
-import { generateAnnouncementCopy, describeGeminiError } from '@/app/lib/events/announcements'
+import { generateAnnouncementCopy, describeGeminiError, hookOf, type OpenerVariety } from '@/app/lib/events/announcements'
 import { resolveEffectiveRules } from '@/app/lib/content/resolve-validation-rules'
 
 /* POST /api/events/stakeholders/announcements/[id]/regenerate-copy
@@ -58,8 +58,17 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   // announcement_kind the same way the main generate route does.
   const kind: 'org_promo' | 'self_promo' = announcement.announcement_kind === 'self_promo' ? 'self_promo' : 'org_promo'
   let copy: string, xCopy: string, validationFindings: unknown, attempts: 1 | 2
+  // Opener variety ('assembled' org_promo only) — same rule as the generate route, excluding the row being regenerated.
+  let variety: OpenerVariety | undefined
+  if (kind === 'org_promo' && event.sae_copy_mode === 'assembled') {
+    const [{ count }, { data: recent }] = await Promise.all([
+      supabaseAdmin.from('stakeholder_announcements').select('id', { count: 'exact', head: true }).eq('event_id', announcement.event_id).eq('announcement_kind', 'org_promo').neq('id', id),
+      supabaseAdmin.from('stakeholder_announcements').select('post_copy').eq('event_id', announcement.event_id).eq('announcement_kind', 'org_promo').neq('id', id).order('created_at', { ascending: false }).limit(10),
+    ])
+    variety = { openerStyleIndex: (count ?? 0) % 4, recentHooks: (recent ?? []).map(r => hookOf(r.post_copy)).filter(Boolean) }
+  }
   try {
-    ;({ copy, xCopy, validationFindings, attempts } = await generateAnnouncementCopy(event, speaker, partner, messagingDoc?.structured_json ?? null, effectiveRules, kind))
+    ;({ copy, xCopy, validationFindings, attempts } = await generateAnnouncementCopy(event, speaker, partner, messagingDoc?.structured_json ?? null, effectiveRules, kind, variety))
   } catch (e) {
     console.error('Post copy regeneration failed:', e)
     return NextResponse.json({ error: describeGeminiError(e) }, { status: 502 })

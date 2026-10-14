@@ -4,7 +4,7 @@ import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { compositeAnnouncement } from '@/app/lib/announcements/composite'
-import { generateAnnouncementCopy, describeGeminiError, buildCompositeInputs, type CreativeTemplateConfig, type NeededAsset } from '@/app/lib/events/announcements'
+import { generateAnnouncementCopy, describeGeminiError, hookOf, type OpenerVariety, buildCompositeInputs, type CreativeTemplateConfig, type NeededAsset } from '@/app/lib/events/announcements'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 import { resolveEffectiveRules } from '@/app/lib/content/resolve-validation-rules'
 import type { ValidationFinding } from '@/app/lib/content/validate'
@@ -126,13 +126,23 @@ export async function POST(req: NextRequest) {
   // Previously awaited strictly back-to-back (2026-08-04 perf pass: real
   // generates were taking ~20s); this collapses wall-clock time to
   // whichever of the two is slower instead of their sum.
+  // Opener variety ('assembled' org_promo only): rotate the hook style by how many org_promo posts the event already has,
+  // and pass the latest hooks so a repeated opening gets one retry.
+  let variety: OpenerVariety | undefined
+  if (kind === 'org_promo' && event.sae_copy_mode === 'assembled') {
+    const [{ count }, { data: recent }] = await Promise.all([
+      supabaseAdmin.from('stakeholder_announcements').select('id', { count: 'exact', head: true }).eq('event_id', body.event_id).eq('announcement_kind', 'org_promo'),
+      supabaseAdmin.from('stakeholder_announcements').select('post_copy').eq('event_id', body.event_id).eq('announcement_kind', 'org_promo').order('created_at', { ascending: false }).limit(10),
+    ])
+    variety = { openerStyleIndex: (count ?? 0) % 4, recentHooks: (recent ?? []).map(r => hookOf(r.post_copy)).filter(Boolean) }
+  }
   const [postCopyResult, creativeUrl] = await Promise.all([
     (async (): Promise<
       | { ok: true; copy: string; xCopy: string; validationFindings: { post_copy: ValidationFinding[]; post_copy_x: ValidationFinding[] }; attempts: 1 | 2 }
       | { ok: false; error: unknown }
     > => {
       try {
-        const result = await generateAnnouncementCopy(event, speaker, partner, messagingDoc?.structured_json ?? null, effectiveRules, kind)
+        const result = await generateAnnouncementCopy(event, speaker, partner, messagingDoc?.structured_json ?? null, effectiveRules, kind, variety)
         return { ok: true, ...result }
       } catch (e) {
         console.error('Post copy generation failed:', e)

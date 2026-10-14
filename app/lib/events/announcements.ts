@@ -237,6 +237,31 @@ function findingsAddendum(findings: ValidationFinding[]): string {
   return `\n\nYour previous draft had these problems — rewrite ONLY the variable parts of your response to remove them, keep everything else the same:\n${errors.map(f => `- ${f.message} (matched: "${f.match}")`).join('\n')}`
 }
 
+// Opener variety ('assembled' org_promo only) — each post is generated on its
+// own, so the model can't see earlier ones and tends to open every post in a
+// batch the same way. The route counts the event's existing org_promo posts
+// and passes count % 4 here; each index steers the hook to a different shape.
+// Positive directions only, no example sentences (worked examples get lifted
+// verbatim). Undefined index (legacy callers) adds nothing.
+export type OpenerVariety = { openerStyleIndex: number; recentHooks: string[] }
+function openerStyleInstruction(index: number | undefined, isSpeaker: boolean): string {
+  if (index === undefined) return ''
+  const who = isSpeaker ? "speaker's" : "partner's"
+  switch (((index % 4) + 4) % 4) {
+    case 0: return ` Open with a direct question about the ${who} topic.`
+    case 1: return ` Open with one concrete observation drawn from the ${isSpeaker ? 'speaker' : 'partner'}'s ${isSpeaker ? 'talking points or bio' : 'description'}.`
+    case 2: return " Open with a short trend statement tied to the event's themes."
+    default: return ' Open with the topic itself as a plain noun phrase, then a verb.'
+  }
+}
+
+const firstThreeWords = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean).slice(0, 3).join(' ')
+
+/** First paragraph of a stored post_copy — the hook in assembled mode. */
+export function hookOf(postCopy: string | null | undefined): string {
+  return (postCopy ?? '').split(/\n\s*\n/)[0]?.trim() ?? ''
+}
+
 export type PostCopyDraft = { hook: string; announcement: string; credibility: string; cta: string; hashtags: string[]; x_body: string }
 
 function parseDraftResponse(text: string): PostCopyDraft | null {
@@ -277,7 +302,8 @@ export async function generatePostCopyDraft(
   partner: Record<string, unknown> | null,
   messagingJson: Record<string, unknown> | null,
   rules: ValidationRule[],
-  retryAddendum = ''
+  retryAddendum = '',
+  openerStyleIndex?: number
 ): Promise<PostCopyDraft> {
   const dates = event.public_dates_display ?? ''
   const venueLine = event.public_venue_display || (event.venue ? `${event.venue}${event.city ? `, ${event.city}` : ''}` : null)
@@ -318,7 +344,7 @@ Generate LinkedIn post copy as separate short paragraphs (1-2 sentences
 each). Do NOT write the event dates/venue line or a hashtag line — those
 are assembled separately and must not appear in any field below.
 
-1. "hook" — one punchy line grounded in the ${speaker ? "speaker's topic/expertise" : "partner's relevance"} (a bold claim, a sharp question, or a trend statement). Do NOT name the ${speaker ? 'speaker' : 'partner'} yet — save the name for "announcement".
+1. "hook" — one punchy line grounded in the ${speaker ? "speaker's topic/expertise" : "partner's relevance"} (a bold claim, a sharp question, or a trend statement).${openerStyleInstruction(openerStyleIndex, !!speaker)} Do NOT name the ${speaker ? 'speaker' : 'partner'} yet — save the name for "announcement".
 2. "announcement" — a paragraph that names the ${speaker ? 'speaker' : 'partner'} (using the exact wording given above) and explicitly, unambiguously states they ARE speaking at / joining the event — this must be stated outright as fact, never left implied only through a bio. This is the single most important paragraph; do not bury or soften it. Use whatever register the rules below establish for this event — do not default to generic announcement-boilerplate phrasing unless the rules explicitly allow it.
 3. "credibility" — why this ${speaker ? 'speaker' : 'partner'} matters: one line grounded in their real, given experience (years, scale, a notable achievement) tied to the event's themes.
 4. "cta" — a short call to action with the registration link, if given above (empty string "" if none given). This may be discarded and replaced by a fixed line — write it anyway, as a normal closing paragraph.
@@ -409,16 +435,28 @@ async function generateAndValidateOrgPromoCopy(
   speaker: Record<string, unknown> | null,
   partner: Record<string, unknown> | null,
   messagingJson: Record<string, unknown> | null,
-  rules: ValidationRule[]
+  rules: ValidationRule[],
+  variety?: OpenerVariety
 ): Promise<CopyResult> {
-  const draft1 = await generatePostCopyDraft(event, speaker, partner, messagingJson, rules)
+  const draft1 = await generatePostCopyDraft(event, speaker, partner, messagingJson, rules, '', variety?.openerStyleIndex)
   const assembled1 = assembleOrgPromoCopy(draft1, event, rules)
   const findings1 = { post_copy: validateText(assembled1.copy, rules), post_copy_x: validateText(assembled1.xCopy, rules) }
   const hasError1 = findings1.post_copy.some(f => f.severity === 'error') || findings1.post_copy_x.some(f => f.severity === 'error')
-  if (!hasError1) return { ...assembled1, validationFindings: findings1, attempts: 1 }
+  if (!hasError1) {
+    // Duplicate-opener check: if the hook starts with the same 3 words as a recent post for this event, spend the one
+    // allowed retry on a different opening (never blocks; the second draft is used whatever it returns).
+    const mine = firstThreeWords(draft1.hook)
+    const repeats = !!mine && (variety?.recentHooks ?? []).some(h => firstThreeWords(h) === mine)
+    if (!repeats) return { ...assembled1, validationFindings: findings1, attempts: 1 }
+    const dupAddendum = '\n\nThe opening of your hook matches an earlier post for this event. Rewrite the hook so it starts differently and uses a different sentence shape. Keep every other field as it was.'
+    const dup = await generatePostCopyDraft(event, speaker, partner, messagingJson, rules, dupAddendum, variety?.openerStyleIndex)
+    const assembledD = assembleOrgPromoCopy(dup, event, rules)
+    const findingsD = { post_copy: validateText(assembledD.copy, rules), post_copy_x: validateText(assembledD.xCopy, rules) }
+    return { ...assembledD, validationFindings: findingsD, attempts: 2 }
+  }
 
   const addendum = findingsAddendum([...findings1.post_copy, ...findings1.post_copy_x])
-  const draft2 = await generatePostCopyDraft(event, speaker, partner, messagingJson, rules, addendum)
+  const draft2 = await generatePostCopyDraft(event, speaker, partner, messagingJson, rules, addendum, variety?.openerStyleIndex)
   const assembled2 = assembleOrgPromoCopy(draft2, event, rules)
   const findings2 = { post_copy: validateText(assembled2.copy, rules), post_copy_x: validateText(assembled2.xCopy, rules) }
   return { ...assembled2, validationFindings: findings2, attempts: 2 }
@@ -764,7 +802,8 @@ export async function generateAnnouncementCopy(
   partner: Record<string, unknown> | null,
   messagingJson: Record<string, unknown> | null,
   rules: ValidationRule[],
-  kind: 'org_promo' | 'self_promo'
+  kind: 'org_promo' | 'self_promo',
+  variety?: OpenerVariety
 ): Promise<CopyResult> {
   const mode = effectiveMode(event)
 
@@ -775,7 +814,7 @@ export async function generateAnnouncementCopy(
     return { ...draft, validationFindings, attempts: 1 }
   }
 
-  if (mode === 'assembled') return generateAndValidateOrgPromoCopy(event, speaker, partner, messagingJson, rules)
+  if (mode === 'assembled') return generateAndValidateOrgPromoCopy(event, speaker, partner, messagingJson, rules, variety)
   const draft = await generatePostCopy(event, speaker, partner, messagingJson)
   const validationFindings = { post_copy: validateText(draft.copy, rules), post_copy_x: validateText(draft.xCopy, rules) }
   return { ...draft, validationFindings, attempts: 1 }
