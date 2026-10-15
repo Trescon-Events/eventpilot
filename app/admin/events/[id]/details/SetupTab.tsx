@@ -32,13 +32,19 @@ export default function SetupTab({ eventId }: { eventId: string }) {
   const [busy, setBusy] = useState<'approve' | 'samples' | null>(null)
   const [samples, setSamples] = useState<Sample[] | null>(null)
 
-  const load = useCallback(async () => {
-    const res = await fetch(`/api/events/sae-setup?event_id=${eventId}`)
-    const d = await res.json().catch(() => ({}))
-    if (!res.ok) { setError(d.error ?? 'Could not load setup.'); return }
-    setError(null); setS(d as Setup)
-  }, [eventId])
-  useEffect(() => { void load() }, [load])
+  const [reloadKey, setReloadKey] = useState(0)
+  const load = useCallback(async () => { setReloadKey(k => k + 1) }, [])
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/events/sae-setup?event_id=${eventId}`)
+      .then(async res => ({ ok: res.ok, d: await res.json().catch(() => ({})) }))
+      .then(({ ok, d }) => {
+        if (cancelled) return
+        if (!ok) setError((d as { error?: string }).error ?? 'Could not load setup.')
+        else { setError(null); setS(d as Setup) }
+      })
+    return () => { cancelled = true }
+  }, [eventId, reloadKey])
 
   async function approve() {
     setBusy('approve'); setMsg(null)
