@@ -4,6 +4,7 @@ import { useState, useEffect, use } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
 import { Button, Card } from '@/app/components/ui'
+import RulesPanel from '@/app/components/rules/RulesPanel'
 import {
   DraftReview, LiveDocView, DOC_ROLE_LABELS, UploadDocButton,
   type MessagingDoc, type DocRole, type UploadChoice,
@@ -136,6 +137,8 @@ export default function UmbrellaReferenceDocs({ params }: { params: Promise<{ id
           </div>
         )
       })}
+
+      <div style={{ margin: '24px 0 12px' }}><RulesPanel ownerType="umbrella" ownerId={umbrellaId} title="Rules" /></div>
 
       <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', margin: '24px 0 12px' }}>Content Check</div>
       <Card padded>

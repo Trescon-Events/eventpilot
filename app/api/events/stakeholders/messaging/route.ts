@@ -150,8 +150,9 @@ export async function GET(req: NextRequest) {
   // Umbrella/event separation (2026-09-11) — defaults to 'event' so every
   // caller that predates this migration keeps working unchanged; only the
   // umbrella workspace page passes owner_type=umbrella.
-  const ownerType = req.nextUrl.searchParams.get('owner_type') === 'umbrella' ? 'umbrella' : 'event'
-  const ownerColumn = ownerType === 'umbrella' ? 'umbrella_id' : 'event_id'
+  const ownerTypeParam = req.nextUrl.searchParams.get('owner_type')
+  const ownerType = ownerTypeParam === 'umbrella' ? 'umbrella' : ownerTypeParam === 'org' ? 'org' : 'event'
+  const ownerColumn = ownerType === 'umbrella' ? 'umbrella_id' : ownerType === 'org' ? 'org_scope' : 'event_id'
   // Defaults to 'messaging' — every caller that predates Stage 1 (the SAE
   // generate route included) keeps getting exactly the doc it always got.
   const role     = (req.nextUrl.searchParams.get('role') as DocRole | null) ?? 'messaging'
@@ -193,8 +194,10 @@ export async function POST(req: NextRequest) {
   // Umbrella/event separation (2026-09-11) — defaults to 'event' so the
   // existing event-details upload UI needs no changes; only the umbrella
   // workspace page passes owner_type=umbrella.
-  const ownerType: 'event' | 'umbrella' = form.get('owner_type') === 'umbrella' ? 'umbrella' : 'event'
-  const ownerColumn = ownerType === 'umbrella' ? 'umbrella_id' : 'event_id'
+  // 'org' (2026-10-15) = the Trescon-wide house style guide; event_id carries the literal 'trescon'.
+  const ownerTypeForm = form.get('owner_type')
+  const ownerType: 'event' | 'umbrella' | 'org' = ownerTypeForm === 'umbrella' ? 'umbrella' : ownerTypeForm === 'org' ? 'org' : 'event'
+  const ownerColumn = ownerType === 'umbrella' ? 'umbrella_id' : ownerType === 'org' ? 'org_scope' : 'event_id'
 
   if (!eventId || !file) {
     return NextResponse.json({ error: 'event_id and file required' }, { status: 400 })
@@ -210,7 +213,11 @@ export async function POST(req: NextRequest) {
   }
 
   let ownerTypeColumnValue: string | null // events.type or event_umbrellas.type, for the provenance default rule
-  if (ownerType === 'umbrella') {
+  if (ownerType === 'org') {
+    if (eventId !== 'trescon') return NextResponse.json({ error: 'Unknown Trescon-wide scope.' }, { status: 400 })
+    if (!getSession(req)?.adm) return NextResponse.json({ error: 'Only a platform admin can upload a Trescon-wide document.' }, { status: 403 })
+    ownerTypeColumnValue = null
+  } else if (ownerType === 'umbrella') {
     const { data: umbrellaRow, error: umbrellaErr } = await supabaseAdmin
       .from('event_umbrellas').select('type').eq('id', eventId).single()
     if (umbrellaErr || !umbrellaRow) return NextResponse.json({ error: 'Umbrella event not found' }, { status: 404 })
@@ -263,7 +270,7 @@ export async function POST(req: NextRequest) {
 
   // Upload PDF
   const sourceUrl = await uploadPublicAsset(
-    `${ownerType === 'umbrella' ? 'umbrellas' : 'events'}/${eventId}/messaging/v${nextVersion}-${Date.now()}.pdf`,
+    `${ownerType === 'umbrella' ? 'umbrellas' : ownerType === 'org' ? 'org' : 'events'}/${eventId}/messaging/v${nextVersion}-${Date.now()}.pdf`,
     buffer,
     'application/pdf'
   )
@@ -279,6 +286,7 @@ export async function POST(req: NextRequest) {
     .insert({
       event_id:        ownerType === 'event' ? eventId : null,
       umbrella_id:     ownerType === 'umbrella' ? eventId : null,
+      org_scope:       ownerType === 'org' ? 'trescon' : null,
       version:         nextVersion,
       title:           title ?? `Topline Messaging v${nextVersion}`,
       raw_text:        null,

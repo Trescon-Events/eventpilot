@@ -57,7 +57,8 @@ export function runReadiness({ event, docs, compiled }: ReadinessInput): Readine
   if (!liveMessaging) add('messaging_doc', 'block', 'No live messaging document (event or umbrella).', refDocs)
   else if (!compiled) add('messaging_doc', 'block', 'The reference has not been compiled yet — approve or re-approve a document to compile it.', refDocs)
   const dirty = CLEAN_EVENT_FIELDS.filter(f => isDirty((event as unknown as Record<string, string | null>)[f]))
-  if (dirty.length) add('clean_text', 'block', `Hidden characters or stray spaces in: ${dirty.join(', ')}. Re-save them on Event Details to clean them.`)
+  // Never blocks (2026-10-15): loadSetupSnapshot() cleans these fields itself, losslessly, and logs it — a stray space must not lock an event.
+  if (dirty.length) add('clean_text', 'warn', `Hidden characters or stray spaces in: ${dirty.join(', ')} (cleaned automatically).`)
 
   // ── warnings ──
   if (event.event_hashtag && event.public_name && /^#[A-Za-z0-9]+$/.test(event.event_hashtag)) {

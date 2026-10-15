@@ -1039,6 +1039,14 @@ export function getModuleRegistry(): ModuleDef[] {
       access: { kind: 'admin_only' },
     },
     {
+      key: 'admin-house-style', label: 'Trescon house style',
+      description: 'Trescon-wide style guide and house rules — applied to every event below client rules. Platform admins only.',
+      icon: I.doc, color: '#009C89',
+      href: '/admin/content/house-style',
+      breadcrumbPattern: '/admin/content/house-style', breadcrumbParent: 'admin',
+      access: { kind: 'admin_only' },
+    },
+    {
       key: 'admin-umbrella-workspace', label: 'Umbrella Workspace',
       description: 'Workspace for one umbrella event — details, reference documents and Operations. The trail shows its real name.',
       icon: I.dashboard, color: '#009C89',

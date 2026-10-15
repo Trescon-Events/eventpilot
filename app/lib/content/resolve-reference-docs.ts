@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import type { ContentOwnerRef } from './owner'
+import { tresconDocsReach } from './trescon-layer'
 
 /* Reference Documents spec, Stage 2 (2026-09-10) — resolver. Rewritten
    2026-09-11 for the umbrella/event structural separation (see
@@ -19,6 +20,7 @@ export type MessagingDocRow = {
   id: string
   event_id: string | null
   umbrella_id: string | null
+  org_scope?: 'trescon' | null
   version: number
   title: string
   status: 'draft' | 'live' | 'superseded'
@@ -30,7 +32,7 @@ export type MessagingDocRow = {
   updated_at: string
 }
 
-async function liveDocsFor(column: 'event_id' | 'umbrella_id', id: string): Promise<MessagingDocRow[]> {
+async function liveDocsFor(column: 'event_id' | 'umbrella_id' | 'org_scope', id: string): Promise<MessagingDocRow[]> {
   const { data } = await supabaseAdmin.from('event_messaging_docs').select('*').eq(column, id).eq('status', 'live')
   return (data ?? []) as MessagingDocRow[]
 }
@@ -39,15 +41,23 @@ export async function resolveEffectiveDocs(owner: ContentOwnerRef): Promise<Mess
   if (owner.kind === 'umbrella') {
     return liveDocsFor('umbrella_id', owner.id)
   }
+  if (owner.kind === 'org') {
+    return liveDocsFor('org_scope', owner.id)
+  }
 
-  const { data: event } = await supabaseAdmin.from('events').select('id, umbrella_id').eq('id', owner.id).single()
+  const { data: event } = await supabaseAdmin.from('events').select('id, type, umbrella_id').eq('id', owner.id).single()
   if (!event) return []
 
-  const [ownDocs, umbrellaDocs] = await Promise.all([
+  const [ownDocs, umbrellaDocs, umbrella] = await Promise.all([
     liveDocsFor('event_id', event.id),
     event.umbrella_id ? liveDocsFor('umbrella_id', event.umbrella_id) : Promise.resolve([]),
+    event.umbrella_id
+      ? supabaseAdmin.from('event_umbrellas').select('type, client_name').eq('id', event.umbrella_id).maybeSingle().then(r => r.data)
+      : Promise.resolve(null),
   ])
-  return [...ownDocs, ...umbrellaDocs]
+  // Trescon-wide documents are added only for a Trescon-owned event whose umbrella (if any) is not a client's — see trescon-layer.ts.
+  const orgDocs = tresconDocsReach(event, umbrella) ? await liveDocsFor('org_scope', 'trescon') : []
+  return [...ownDocs, ...umbrellaDocs, ...orgDocs]
 }
 
 // Every child event of a given umbrella — used when an umbrella-level

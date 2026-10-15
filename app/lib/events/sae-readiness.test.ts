@@ -26,7 +26,10 @@ test('CTA label is required in assembled mode only', () => {
 test('no live messaging doc / no compiled reference block', () => {
   assert.ok(keys({}, { docs: [] }).includes('block:messaging_doc')); assert.ok(keys({}, { compiled: null }).includes('block:messaging_doc'))
 })
-test('trailing NBSP in name blocks as clean_text', () => assert.ok(keys({ name: 'Future Islamic Finance Forum 2026 ' }).includes('block:clean_text')))
+test('trailing NBSP in name only warns as clean_text (cleaned automatically, never blocks)', () => {
+  const k = keys({ name: 'Future Islamic Finance Forum 2026 ' })
+  assert.ok(k.includes('warn:clean_text')); assert.ok(!k.includes('block:clean_text'))
+})
 test('WAIS Malaysia: Al vs AI warns; year/punctuation differences do not', () => {
   assert.ok(keys({ public_name: 'World Al Show - Malaysia', name: 'World AI Show Malaysia 2026' }).includes('warn:public_vs_internal_name'))
   assert.ok(!keys({ public_name: 'World AI Show - Malaysia', name: 'World AI Show Malaysia 2026' }).includes('warn:public_vs_internal_name'))

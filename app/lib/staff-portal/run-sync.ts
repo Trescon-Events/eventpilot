@@ -78,8 +78,8 @@ export async function runStaffPortalSync() {
   const { rows: umbrellas } = await fetchAllStaffPortal<StaffPortalUmbrella>('umbrellas')
   const umbrellaRows = umbrellas.map(u => ({
     staff_portal_umbrella_id: u.id,
-    name:                     u.name,
-    client_name:              u.client_name ?? null,
+    name:                     cleanField(u.name),
+    client_name:              cleanField(u.client_name) ?? null,
     description:              u.notes ?? null,
     status:                   STATUS_MAP[u.status] ?? 'planning',
     event_date:               u.start_date ?? null,
@@ -109,7 +109,7 @@ export async function runStaffPortalSync() {
   const eventRows = projects.map(p => ({
     hrms_project_id:          p.id,
     name:                     cleanField(p.name),
-    client_name:              p.client_name ?? null,
+    client_name:              cleanField(p.client_name) ?? null,
     description:              p.description ?? p.notes ?? null,
     status:                   STATUS_MAP[p.status] ?? 'planning',
     event_date:               p.start_date ?? null,

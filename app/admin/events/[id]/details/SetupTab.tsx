@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Button, Card } from '@/app/components/ui'
+import RulesPanel from '@/app/components/rules/RulesPanel'
 
 /* Event Details → Setup. One screen an admin approves per event (docs/build_suggestions/sae-readiness-and-setup-approval.md, Part 3):
    readiness checklist, the fixed lines as they will print, the source documents, the active rules, three sample posts, and Approve.
@@ -67,7 +68,6 @@ export default function SetupTab({ eventId }: { eventId: string }) {
 
   const blocks = s.checks.filter(c => c.level === 'block'); const warns = s.checks.filter(c => c.level === 'warn')
   const approved = !!s.approval.approved_at
-  const rulesByOwner = (['umbrella', 'event'] as const).map(o => ({ owner: o, rows: s.rules.filter(r => r.owner === o) })).filter(g => g.rows.length)
 
   return (
     <div style={{ display: 'grid', gap: '20px' }}>
@@ -118,7 +118,7 @@ export default function SetupTab({ eventId }: { eventId: string }) {
           <div style={{ display: 'grid', gap: '6px', fontSize: '12.5px', color: 'var(--ink2)' }}>
             {s.docs.map(d => (
               <div key={d.id}>
-                <strong>{d.role.replace('_', ' ')}</strong> v{d.version} · {d.status}{d.extraction_status === 'processing' ? ' (extracting)' : ''} · rank {d.authority_rank ?? '—'} · {d.provenance?.replace('_', ' ') ?? 'no provenance'} · {d.owner === 'umbrella' ? `umbrella (${d.owner_name ?? ''})` : 'this event'} · uploaded {d.uploaded_by ? `by ${d.uploaded_by} ` : ''}{fmt(d.created_at)}
+                <strong>{d.role.replace('_', ' ')}</strong> v{d.version} · {d.status}{d.extraction_status === 'processing' ? ' (extracting)' : ''} · rank {d.authority_rank ?? '—'} · {d.provenance?.replace('_', ' ') ?? 'no provenance'} · {d.owner === 'umbrella' ? `umbrella (${d.owner_name ?? ''})` : d.owner === 'org' ? 'Trescon-wide' : 'this event'} · uploaded {d.uploaded_by ? `by ${d.uploaded_by} ` : ''}{fmt(d.created_at)}
               </div>
             ))}
           </div>
@@ -128,18 +128,7 @@ export default function SetupTab({ eventId }: { eventId: string }) {
         </div>
       </Card>
 
-      <Card padded>
-        <div style={label}>4 · Active rules ({s.rules.length})</div>
-        {rulesByOwner.length === 0 && <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>No active rules.</div>}
-        {rulesByOwner.map(g => (
-          <div key={g.owner} style={{ marginBottom: '10px' }}>
-            <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--ink2)', marginBottom: '4px' }}>{g.owner === 'umbrella' ? 'From the umbrella event' : 'From this event'}</div>
-            <div style={{ display: 'grid', gap: '4px', fontSize: '12px', color: 'var(--ink3)' }}>
-              {g.rows.map(r => <div key={r.id}><strong style={{ color: r.severity === 'error' ? 'var(--red)' : 'var(--amber)' }}>{r.severity}</strong> · {r.rule_type.replace('_', ' ')} · {r.message}{r.source_clause ? ` — “${r.source_clause}”` : ''}</div>)}
-            </div>
-          </div>
-        ))}
-      </Card>
+      <RulesPanel ownerType="event" ownerId={eventId} title="4 · Rules" />
 
       {s.speaker_issues.length > 0 && (
         <Card padded>

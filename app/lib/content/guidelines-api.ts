@@ -31,7 +31,7 @@ import { TRACKED_EVENT_FIELDS, FIELD_LABELS, type TrackedEventField } from '@/ap
 export type GuidelineSection = CompiledSection & {
   topic?: string
   confidence?: 'high' | 'medium' | 'low'
-  source: 'event' | 'umbrella'
+  source: 'event' | 'umbrella' | 'org'
 }
 
 export type EventGuidelines = {
@@ -63,10 +63,10 @@ export async function getEventGuidelines(eventId: string): Promise<EventGuidelin
 
   const sourceDocIds = (compiled?.source_doc_ids ?? []) as string[]
   const { data: sourceDocs } = sourceDocIds.length
-    ? await supabaseAdmin.from('event_messaging_docs').select('id, event_id, umbrella_id, updated_at').in('id', sourceDocIds)
-    : { data: [] as Array<{ id: string; event_id: string | null; umbrella_id: string | null; updated_at: string }> }
+    ? await supabaseAdmin.from('event_messaging_docs').select('id, event_id, umbrella_id, org_scope, updated_at').in('id', sourceDocIds)
+    : { data: [] as Array<{ id: string; event_id: string | null; umbrella_id: string | null; org_scope: string | null; updated_at: string }> }
 
-  const ownerByDocId = new Map((sourceDocs ?? []).map(d => [d.id, d.event_id ? 'event' as const : 'umbrella' as const]))
+  const ownerByDocId = new Map((sourceDocs ?? []).map(d => [d.id, d.event_id ? 'event' as const : d.umbrella_id ? 'umbrella' as const : 'org' as const]))
   const approvedAt = (sourceDocs ?? []).reduce<string | null>(
     (latest, d) => (!latest || d.updated_at > latest ? d.updated_at : latest), null
   )

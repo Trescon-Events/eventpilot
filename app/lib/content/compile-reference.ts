@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { resolveEffectiveDocs, getChildEventIds, type MessagingDocRow } from './resolve-reference-docs'
 import type { ContentOwnerRef } from './owner'
+import { getTresconOwnedEventIds } from './trescon-layer'
 
 /* Reference Documents spec, Stage 2 (2026-09-10) — compile.
 
@@ -46,6 +47,8 @@ export type CompiledSection = SourceSection & {
   authority_rank: number
   provenance: MessagingDocRow['provenance']
   diverged_from_source: boolean
+  // 'Trescon-wide' for a section that came from the Trescon-wide layer, otherwise absent (2026-10-15).
+  scope_label?: 'Trescon-wide'
 }
 
 export type ConflictSide = {
@@ -60,8 +63,11 @@ export type ConflictFlag = {
 
 const ROLE_ORDER: Record<MessagingDocRow['role'], number> = { style_guide: 0, messaging: 1, production_pack: 2 }
 
+// Trescon-wide documents always sort after every event and umbrella document, whatever their authority_rank — a conflict
+// therefore always records the more specific (client/event) side as the winner and the Trescon-wide side as the flagged loser.
 function sortDocs(docs: MessagingDocRow[]): MessagingDocRow[] {
   return [...docs].sort((a, b) =>
+    Number(!!a.org_scope) - Number(!!b.org_scope) ||
     a.authority_rank - b.authority_rank ||
     ROLE_ORDER[a.role] - ROLE_ORDER[b.role] ||
     a.created_at.localeCompare(b.created_at)
@@ -160,6 +166,7 @@ export async function compileEventReference(eventId: string): Promise<{ version:
         role: doc.role,
         authority_rank: doc.authority_rank,
         provenance: doc.provenance,
+        ...(doc.org_scope ? { scope_label: 'Trescon-wide' as const } : {}),
       })
 
       if (s.kind === 'rules') {
@@ -227,7 +234,8 @@ export async function compileEventReference(eventId: string): Promise<{ version:
 // from the version-history "Make live" PATCH path, best-effort (a compile
 // failure shouldn't block the doc-status change that triggered it).
 export async function recompileEventAndChildren(owner: ContentOwnerRef): Promise<void> {
-  const targets = owner.kind === 'event' ? [owner.id] : await getChildEventIds(owner.id)
+  // A Trescon-wide document reaches every Trescon-owned event (trescon-layer.ts), so approving one recompiles all of them.
+  const targets = owner.kind === 'event' ? [owner.id] : owner.kind === 'org' ? await getTresconOwnedEventIds() : await getChildEventIds(owner.id)
   // The outcome is also recorded on the event (sae_compile_error) so the Setup tab's readiness check can show a failed recompile —
   // before 2026-10-15 it was only logged and swallowed.
   await Promise.all(targets.map(async id => {

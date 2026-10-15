@@ -1,7 +1,7 @@
 import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
-import type { ContentOwnerRef } from './owner'
+import { ownerOfRow, ownerInsertColumns, type ContentOwnerRef } from './owner'
 
 /* Reference Documents spec — extraction-time clarification Q&A (2026-09-10,
    agreed with Madhu after Stage 3). See
@@ -117,8 +117,8 @@ async function insertSuggestedRules(
       const sourceClarificationId = answeredByKey.get(answeredQuestionKey)
         ?? (answeredRows.length === 1 ? answeredRows[0].id : null)
       return {
-        event_id: owner.kind === 'event' ? owner.id : null,
-        umbrella_id: owner.kind === 'umbrella' ? owner.id : null,
+        ...ownerInsertColumns(owner),
+        origin: 'client' as const,
         // Prefixed so a model-proposed key can't collide with a manually
         // authored one (e.g. the Stage 3 DFFW seed set's "difc-*" keys).
         rule_key: `clarification-${ruleKeyRaw}`.slice(0, 200),
@@ -136,7 +136,7 @@ async function insertSuggestedRules(
 
   if (rows.length === 0) return
   const { error } = await supabaseAdmin.from('event_validation_rules')
-    .upsert(rows, { onConflict: owner.kind === 'event' ? 'event_id,rule_key' : 'umbrella_id,rule_key', ignoreDuplicates: true })
+    .upsert(rows, { onConflict: owner.kind === 'event' ? 'event_id,rule_key' : owner.kind === 'umbrella' ? 'umbrella_id,rule_key' : 'org_scope,rule_key', ignoreDuplicates: true })
   if (error) console.error('Failed to insert suggested validation rules:', error)
 }
 
@@ -176,11 +176,11 @@ type StructuredJson = { sections: Array<Record<string, unknown>>; default_fields
 export async function processAnsweredRound(docId: string): Promise<{ nextRound: number; newClarifications: number }> {
   const { data: doc, error: docErr } = await supabaseAdmin
     .from('event_messaging_docs')
-    .select('id, event_id, umbrella_id, raw_text, structured_json, clarification_rounds_used')
+    .select('id, event_id, umbrella_id, org_scope, raw_text, structured_json, clarification_rounds_used')
     .eq('id', docId)
     .single()
   if (docErr || !doc) throw new Error('Messaging doc not found')
-  const owner: ContentOwnerRef = doc.event_id ? { kind: 'event', id: doc.event_id } : { kind: 'umbrella', id: doc.umbrella_id }
+  const owner: ContentOwnerRef = ownerOfRow(doc)
 
   const { data: answered } = await supabaseAdmin
     .from('event_messaging_doc_clarifications')

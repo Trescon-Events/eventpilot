@@ -2,6 +2,7 @@ import { cleanField } from '@/app/lib/text/clean-field'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { logEventFieldChanges } from '@/app/lib/events/detail-field-log'
+import { ownerOfRow } from '@/app/lib/content/owner'
 import { recompileEventAndChildren } from '@/app/lib/content/compile-reference'
 
 /* POST /api/events/stakeholders/messaging/[id]/apply-edit
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: doc, error: docErr } = await supabaseAdmin
     .from('event_messaging_docs')
-    .select('id, event_id, umbrella_id, status, structured_json')
+    .select('id, event_id, umbrella_id, org_scope, status, structured_json')
     .eq('id', id)
     .single()
   if (docErr || !doc) return NextResponse.json({ error: 'Messaging doc not found' }, { status: 404 })
@@ -123,6 +124,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { error: logErr } = await supabaseAdmin.from('event_messaging_doc_edits').insert({
     event_id:       doc.event_id,
     umbrella_id:    doc.umbrella_id,
+    org_scope:      doc.org_scope,
     doc_id:         doc.id,
     section_id:     logSectionId,
     instruction:    instruction.trim(),
@@ -138,7 +140,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // set yet (see resolve-reference-docs.ts), so editing one doesn't need
   // a recompile until it's later approved (approve/route.ts triggers it).
   if (doc.status === 'live') {
-    await recompileEventAndChildren(doc.event_id ? { kind: 'event', id: doc.event_id } : { kind: 'umbrella', id: doc.umbrella_id! })
+    await recompileEventAndChildren(ownerOfRow(doc))
   }
 
   return NextResponse.json(updatedDoc)

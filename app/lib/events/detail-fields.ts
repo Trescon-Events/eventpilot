@@ -4,7 +4,7 @@
 // and detail-field-log.ts are the source of truth for the tracked field
 // set; keep them in sync if either changes.
 
-export type ChangeSource = 'manual' | 'ai_extraction'
+export type ChangeSource = 'manual' | 'ai_extraction' | 'auto_clean'
 
 export const TRACKED_EVENT_FIELDS = [
   'public_name', 'public_dates_display', 'public_venue_display',

@@ -4,6 +4,7 @@ import { recompileEventAndChildren } from '@/app/lib/content/compile-reference'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { deletePublicAssetByUrl } from '@/app/lib/events/storage'
+import { ownerOfRow } from '@/app/lib/content/owner'
 
 /* PATCH /api/events/stakeholders/messaging/[id]
    Body: { status?, structured_json?, role?, authority_rank?, provenance? }
@@ -26,6 +27,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.role !== undefined || body.authority_rank !== undefined || body.provenance !== undefined) {
     return NextResponse.json({ error: 'Rank, provenance and role are locked once a document is uploaded. Delete this version and upload it again to change them.' }, { status: 409 })
   }
+
+  // A Trescon-wide document changes every Trescon-owned event — platform admins only.
+  const { data: target } = await supabaseAdmin.from('event_messaging_docs').select('event_id, umbrella_id, org_scope').eq('id', id).maybeSingle()
+  if (target?.org_scope && !getSession(req)?.adm) return NextResponse.json({ error: 'Only a platform admin can change a Trescon-wide document.' }, { status: 403 })
 
   const update: Record<string, unknown> = {}
   if (body.status !== undefined) update.status = body.status
@@ -62,7 +67,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // recompile. structured_json-only edits go through apply-edit/route.ts,
   // which does its own recompile trigger, not this one.
   if (body.status !== undefined || body.role !== undefined || body.authority_rank !== undefined || body.provenance !== undefined) {
-    await recompileEventAndChildren(data.event_id ? { kind: 'event', id: data.event_id } : { kind: 'umbrella', id: data.umbrella_id })
+    await recompileEventAndChildren(ownerOfRow(data))
   }
 
   return NextResponse.json(data)
@@ -83,12 +88,12 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const body = await req.json().catch(() => null) as { confirm?: string } | null
   if (body?.confirm !== 'DELETE') return NextResponse.json({ error: 'Confirmation required.' }, { status: 400 })
 
-  const { data: doc } = await supabaseAdmin.from('event_messaging_docs').select('id, event_id, umbrella_id, status, role, version, source_url').eq('id', id).maybeSingle()
+  const { data: doc } = await supabaseAdmin.from('event_messaging_docs').select('id, event_id, umbrella_id, org_scope, status, role, version, source_url').eq('id', id).maybeSingle()
   if (!doc) return NextResponse.json({ error: 'Document not found (it may already have been deleted).' }, { status: 404 })
 
-  const ownerId = (doc.event_id ?? doc.umbrella_id) as string
+  const ownerId = (doc.event_id ?? doc.umbrella_id) as string | null
   const session = getSession(req)
-  const allowed = session?.adm || await hasEventPermission(session?.sid, ownerId, doc.umbrella_id ? 'sae.messaging.umbrella_manage' : 'sae.forms.manage')
+  const allowed = session?.adm || (ownerId ? await hasEventPermission(session?.sid, ownerId, doc.umbrella_id ? 'sae.messaging.umbrella_manage' : 'sae.forms.manage') : false)
   if (!allowed) return NextResponse.json({ error: 'Not authorized to delete this document.' }, { status: 403 })
 
   const { error } = await supabaseAdmin.from('event_messaging_docs').delete().eq('id', id)
@@ -97,7 +102,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   console.log(`[messaging-doc ${id}] deleted (${doc.role} v${doc.version}, was ${doc.status}) by ${session?.sid ?? 'unknown'}`)
 
   if (doc.status === 'live') {
-    await recompileEventAndChildren(doc.event_id ? { kind: 'event', id: doc.event_id } : { kind: 'umbrella', id: doc.umbrella_id })
+    await recompileEventAndChildren(ownerOfRow(doc))
   }
   return NextResponse.json({ ok: true, was_live: doc.status === 'live' })
 }

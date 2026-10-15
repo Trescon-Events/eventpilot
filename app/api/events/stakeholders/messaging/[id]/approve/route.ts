@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { TRACKED_EVENT_FIELDS, logEventFieldChanges } from '@/app/lib/events/detail-field-log'
 import { recompileEventAndChildren } from '@/app/lib/content/compile-reference'
+import { ownerOfRow, ownerColumn } from '@/app/lib/content/owner'
+import { getSession } from '@/app/lib/access/session'
 
 /* POST /api/events/stakeholders/messaging/[id]/approve
    Body: { approved_by?: string }
@@ -39,19 +41,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: doc, error: docErr } = await supabaseAdmin
     .from('event_messaging_docs')
-    .select('id, event_id, umbrella_id, status, role, structured_json')
+    .select('id, event_id, umbrella_id, org_scope, status, role, structured_json')
     .eq('id', id)
     .single()
   if (docErr || !doc) return NextResponse.json({ error: 'Messaging doc not found' }, { status: 404 })
   if (doc.status !== 'draft') return NextResponse.json({ error: 'Only a draft document can be approved.' }, { status: 400 })
 
-  const ownerColumn = doc.event_id ? 'event_id' : 'umbrella_id'
-  const ownerId = doc.event_id ?? doc.umbrella_id
+  if (doc.org_scope && !getSession(req)?.adm) return NextResponse.json({ error: 'Only a platform admin can approve a Trescon-wide document.' }, { status: 403 })
+  const { column: ownerCol, value: ownerId } = ownerColumn(ownerOfRow(doc))
 
   const { data: currentLive } = await supabaseAdmin
     .from('event_messaging_docs')
     .select('id')
-    .eq(ownerColumn, ownerId).eq('role', doc.role).eq('status', 'live')
+    .eq(ownerCol, ownerId).eq('role', doc.role).eq('status', 'live')
     .maybeSingle()
 
   if (currentLive) {
@@ -89,7 +91,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Stage 2 (2026-09-10): this doc just entered the effective document set
   // (or replaced what was there) — recompile it into event_compiled_reference,
   // and every child event's too if this is an umbrella-level document.
-  await recompileEventAndChildren(doc.event_id ? { kind: 'event', id: doc.event_id } : { kind: 'umbrella', id: doc.umbrella_id })
+  await recompileEventAndChildren(ownerOfRow(doc))
 
   return NextResponse.json(updatedDoc)
 }
