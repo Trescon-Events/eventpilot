@@ -1,3 +1,4 @@
+import { cleanField } from '@/app/lib/text/clean-field'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { logEventFieldChanges } from '@/app/lib/events/detail-field-log'
@@ -92,7 +93,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // default_field sync only makes sense for a real event — event_umbrellas
     // has no Common Detail columns to write into.
     if (!doc.event_id) return NextResponse.json({ error: 'Default fields can only be synced on a document owned by a real event, not an umbrella.' }, { status: 400 })
-    const newValue = typeof newContent === 'string' ? newContent : null
+    const newValue = typeof newContent === 'string' ? cleanField(newContent) : null
     const { data: currentEvent } = await supabaseAdmin.from('events').select(targetKey).eq('id', doc.event_id).single() as { data: Record<string, unknown> | null }
     const oldValue = (currentEvent?.[targetKey] as string | null | undefined) ?? null
     beforeExcerpt = excerpt(oldValue)

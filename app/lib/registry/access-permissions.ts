@@ -79,6 +79,10 @@ export const ACCESS_REGISTRY: AccessModule[] = [
       // the scattered inline-edit panels and the Website Builder's own
       // "KonfHub Integration" card. Delegatable the same way Producer and
       // Sensitive Documents are — admins today, a named person tomorrow.
+      // SAE setup approval (2026-10-15) — approving an event's setup (fixed lines, reference documents, rules) before generation is
+      // allowed. Deliberately admin-only: the approve route checks the platform-admin session, not this key, so it is granted to
+      // nobody; it exists so the Access screen documents the rule.
+      { key: 'sae.setup.approve',          label: 'Approve an event’s SAE setup (platform admins only — not delegatable)', enforced: true },
       { key: 'sae.integrations.manage',    label: 'Manage KonfHub/HubSpot/Postiz integration settings for this event', enforced: true },
       // Agenda Builder (2026-09-15) — the new track/session editor with a
       // real speaker-picker, replacing the old free-text event_agenda tab.

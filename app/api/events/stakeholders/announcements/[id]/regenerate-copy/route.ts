@@ -1,3 +1,4 @@
+import { setupGateResponse } from '@/app/lib/events/sae-setup'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { generateAnnouncementCopy, describeGeminiError, hookOf, type OpenerVariety } from '@/app/lib/events/announcements'
@@ -24,6 +25,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     .eq('id', id)
     .single()
   if (annErr || !announcement) return NextResponse.json({ error: 'Announcement not found' }, { status: 404 })
+  const notReady = await setupGateResponse(announcement.event_id)
+  if (notReady) return notReady
 
   const { data: event, error: eventErr } = await supabaseAdmin
     .from('events')

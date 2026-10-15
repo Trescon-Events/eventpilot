@@ -1,3 +1,4 @@
+import { setupGateResponse } from '@/app/lib/events/sae-setup'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
@@ -53,6 +54,8 @@ export async function POST(req: NextRequest) {
   if (!canGenerate) {
     return NextResponse.json({ error: 'You do not have permission to generate announcements for this event' }, { status: 403 })
   }
+  const notReady = await setupGateResponse(body.event_id)
+  if (notReady) return notReady
   if (body.stakeholder_type === 'speaker' && !body.speaker_id) {
     return NextResponse.json({ error: 'speaker_id required for stakeholder_type speaker' }, { status: 400 })
   }

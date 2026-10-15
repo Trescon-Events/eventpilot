@@ -149,7 +149,7 @@ function gracefulTrim(text: string, maxLen: number): string {
 // rewrites them (the bug this build exists to fix: "3-5 November 2026"
 // vs. the event's actual "3–5 November 2026"). Omitted entirely if either
 // value is empty, never invented.
-function buildDateVenueLine(event: EventContext): string | null {
+export function buildDateVenueLine(event: EventContext): string | null {
   const dates = event.public_dates_display?.trim() || null
   const venueLine = event.public_venue_display?.trim() || (event.venue ? `${event.venue}${event.city ? `, ${event.city}` : ''}` : null)
   if (!dates && !venueLine) return null
@@ -162,7 +162,7 @@ function buildDateVenueLine(event: EventContext): string | null {
 // Only used when the event has an explicit announcement_cta_label — when
 // null, the model's own "cta" field (see PostCopyDraft) is used instead,
 // preserving today's model-written CTA exactly (Madhu, 2026-09-28).
-function buildFixedCtaLine(event: EventContext): string | null {
+export function buildFixedCtaLine(event: EventContext): string | null {
   if (!event.registration_url) return null
   const label = event.announcement_cta_label?.trim()
   if (!label) return null
@@ -171,7 +171,7 @@ function buildFixedCtaLine(event: EventContext): string | null {
 
 // 'assembled' mode only. Reused VERBATIM from the event record — this is
 // approved client wording and the model must never rewrite or extend it.
-function buildAttributionLine(event: EventContext): string | null {
+export function buildAttributionLine(event: EventContext): string | null {
   return event.announcement_attribution_line?.trim() || null
 }
 

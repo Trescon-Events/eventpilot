@@ -9,6 +9,7 @@ import DeleteSensitiveDocumentModal from '../stakeholders/[stakeholderId]/Delete
 import { FORM_TITLES, FormType } from '@/app/lib/forms/types'
 import { TRACKED_EVENT_FIELDS, FIELD_LABELS, TrackedEventField } from '@/app/lib/events/detail-fields'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
+import SetupTab from './SetupTab'
 import EventDaysCard from '@/app/admin/operations-shared/EventDaysCard'
 import { COMMON_TIMEZONES, normalizeTimezone, timezoneOffsetLabel } from '@/app/lib/events/timezones'
 import { FEATURE_REGISTRY, type FeatureKey, type FeatureGroup } from '@/app/lib/registry/feature-flags'
@@ -26,7 +27,7 @@ import { FEATURE_REGISTRY, type FeatureKey, type FeatureGroup } from '@/app/lib/
    Overview stale, so Overview offers "Sync with Messaging Doc" to re-
    derive just the fields that drifted. */
 
-type EventRow = { id: string; name: string; type: string | null; umbrella_id?: string | null; requires_client_approval: boolean | null; country?: string | null; timezone?: string | null; enabled_features?: Record<string, boolean> | null } & Record<TrackedEventField, string | null>
+type EventRow = { id: string; name: string; type: string | null; umbrella_id?: string | null; requires_client_approval: boolean | null; country?: string | null; timezone?: string | null; enabled_features?: Record<string, boolean> | null; announcement_cta_label?: string | null; announcement_attribution_line?: string | null; sae_copy_mode?: string | null } & Record<TrackedEventField, string | null>
 
 type PageLink = { form_type: string; hubspot_form_name: string | null; public_page_url: string | null }
 
@@ -539,16 +540,16 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
   const searchParams = useSearchParams()
   const router = useRouter()
 
-  const [tab, setTabState] = useState<'overview' | 'messaging'>(searchParams.get('tab') === 'messaging' ? 'messaging' : 'overview')
+  const [tab, setTabState] = useState<'overview' | 'messaging' | 'setup'>(searchParams.get('tab') === 'messaging' ? 'messaging' : searchParams.get('tab') === 'setup' ? 'setup' : 'overview')
   // Reference Docs sub-navigation (2026-09-27) — one panel per document type (Topline Messaging / Style Guide /
   // Production Pack), addressable as ?tab=messaging&doc=<role>. The tab= value is unchanged so old links still work.
   const [docRole, setDocRoleState] = useState<DocRole>(
     (['messaging', 'style_guide', 'production_pack'] as DocRole[]).find(r => r === searchParams.get('doc')) ?? 'messaging'
   )
   function refDocsUrl(role: DocRole) { return `/admin/events/${eventId}/details?tab=messaging${role !== 'messaging' ? `&doc=${role}` : ''}` }
-  function setTab(t: 'overview' | 'messaging') {
+  function setTab(t: 'overview' | 'messaging' | 'setup') {
     setTabState(t)
-    router.replace(t === 'messaging' ? refDocsUrl(docRole) : `/admin/events/${eventId}/details`, { scroll: false })
+    router.replace(t === 'messaging' ? refDocsUrl(docRole) : t === 'setup' ? `/admin/events/${eventId}/details?tab=setup` : `/admin/events/${eventId}/details`, { scroll: false })
   }
   function setDocRole(r: DocRole) {
     setDocRoleState(r)
@@ -564,6 +565,8 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
   const [editForm, setEditForm] = useState<Record<TrackedEventField, string>>(
     Object.fromEntries(TRACKED_EVENT_FIELDS.map(k => [k, ''])) as Record<TrackedEventField, string>
   )
+  // Fixed-line settings (2026-10-15): CTA label, attribution line and copy mode were SQL-only before.
+  const [saeForm, setSaeForm] = useState({ announcement_cta_label: '', announcement_attribution_line: '', sae_copy_mode: 'legacy' })
   const [pageLinks, setPageLinks] = useState<PageLink[]>([])
   const [pageLinkDrafts, setPageLinkDrafts] = useState<Record<string, string>>({})
   const [history, setHistory] = useState<HistoryRow[] | null>(null)
@@ -645,6 +648,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
     setPermissions(new Set(permRes.permissions ?? []))
     const ev = Array.isArray(eventRes) ? eventRes[0] : eventRes
     setEvent(ev ?? null)
+    if (ev) setSaeForm({ announcement_cta_label: ev.announcement_cta_label ?? '', announcement_attribution_line: ev.announcement_attribution_line ?? '', sae_copy_mode: ev.sae_copy_mode ?? 'legacy' })
     if (ev) setEditForm(Object.fromEntries(TRACKED_EVENT_FIELDS.map(k => [k, ev[k] ?? ''])) as Record<TrackedEventField, string>)
     setPageLinks(Array.isArray(linksRes) ? linksRes : [])
     setPageLinkDrafts(Object.fromEntries((Array.isArray(linksRes) ? linksRes : []).map((l: PageLink) => [l.form_type, l.public_page_url ?? ''])))
@@ -682,7 +686,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
   async function saveCommonDetails() {
     setSaving(true); setMsg(null)
     const res = await fetch(`/api/events?id=${eventId}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editForm),
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...editForm, ...saeForm, announcement_cta_label: saeForm.announcement_cta_label || null, announcement_attribution_line: saeForm.announcement_attribution_line || null }),
     })
     const data = await res.json().catch(() => ({}))
     setSaving(false)
@@ -841,7 +845,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
       />
 
       <div style={{ padding: '20px 32px 0', display: 'flex', gap: '4px', borderBottom: '1px solid var(--border-light)' }}>
-        {([['overview', 'Overview'], ['messaging', 'Reference Docs']] as const).map(([key, label]) => (
+        {([['overview', 'Overview'], ['messaging', 'Reference Docs'], ['setup', 'Setup']] as const).map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             style={{
               padding: '10px 18px', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit',
@@ -867,6 +871,8 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
             {msg}
           </div>
         )}
+
+        {tab === 'setup' && <SetupTab eventId={eventId} />}
 
         {tab === 'overview' && (
           <>
@@ -940,6 +946,21 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
                     />
                   </div>
                 ))}
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>Call-to-action label</label>
+                  <Input disabled={!canManage} value={saeForm.announcement_cta_label} placeholder="e.g. Register your interest:" onChange={e => setSaeForm(f => ({ ...f, announcement_cta_label: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>Announcement copy mode</label>
+                  <Select disabled={!canManage} value={saeForm.sae_copy_mode} onChange={e => setSaeForm(f => ({ ...f, sae_copy_mode: e.target.value }))}>
+                    <option value="assembled">Assembled (fixed lines built in code)</option>
+                    <option value="legacy">Legacy (model writes everything)</option>
+                  </Select>
+                </div>
+                <div style={{ gridColumn: '1/-1' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>Attribution line (verbatim, printed after the date/venue line)</label>
+                  <Input disabled={!canManage} value={saeForm.announcement_attribution_line} placeholder="e.g. Organised by … and part of …" onChange={e => setSaeForm(f => ({ ...f, announcement_attribution_line: e.target.value }))} />
+                </div>
               </div>
               {canManage && (
                 <div style={{ marginTop: '14px' }}>

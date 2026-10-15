@@ -1,3 +1,4 @@
+import { setupGateResponse } from '@/app/lib/events/sae-setup'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
@@ -32,6 +33,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!session?.adm && !(await hasEventPermission(session?.sid, speaker.event_id, 'sae.stakeholders.edit'))) {
     return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   }
+  const notReady = await setupGateResponse(speaker.event_id)
+  if (notReady) return notReady
 
   const [eventRes, compiledRef, effectiveRules] = await Promise.all([
     supabaseAdmin

@@ -1,3 +1,4 @@
+import { cleanField } from '@/app/lib/text/clean-field'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { TRACKED_EVENT_FIELDS, logEventFieldChanges } from '@/app/lib/events/detail-field-log'
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     if (currentEvent) {
       const patch: Record<string, string | null> = {}
-      for (const key of TRACKED_EVENT_FIELDS) patch[key] = defaultFields[key] ?? null
+      for (const key of TRACKED_EVENT_FIELDS) patch[key] = cleanField(defaultFields[key]) ?? null
 
       const { error: eventUpdateErr } = await supabaseAdmin.from('events').update(patch).eq('id', doc.event_id)
       if (eventUpdateErr) console.error('Failed to write approved default_fields to events:', eventUpdateErr)

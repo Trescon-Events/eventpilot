@@ -1,3 +1,4 @@
+import { cleanEventPatch, cleanField } from '@/app/lib/text/clean-field'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
@@ -110,7 +111,7 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabaseAdmin
     .from('events')
     .insert({
-      name:        body.name,
+      name:        cleanField(String(body.name)),
       type:        body.type        || 'conference',
       status:      body.status      || 'planning',
       event_date:  body.event_date  || null,
@@ -190,6 +191,12 @@ export async function PATCH(req: NextRequest) {
 
   // Supabase can't infer column types from a dynamically-built select
   // string, hence the cast — the columns themselves are real (TRACKED_EVENT_FIELDS).
+  // Setup approval is admin-only and has its own route (/api/events/sae-setup) — never writable through this general save.
+  for (const k of ['sae_setup_approved_at', 'sae_setup_approved_by', 'sae_setup_fingerprint', 'sae_setup_enforce']) delete body[k]
+  // Lossless clean-up of the text fields the posts are built from (NBSP, zero-width characters, repeated/edge spaces).
+  Object.assign(body, cleanEventPatch(body))
+  if (Object.keys(body).length === 0) return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 })
+
   const { data: before } = await supabaseAdmin.from('events').select(TRACKED_EVENT_FIELDS.join(', ')).eq('id', id).maybeSingle() as { data: Record<string, unknown> | null }
 
   const { data, error } = await supabaseAdmin.from('events').update(body).eq('id', id).select().single()

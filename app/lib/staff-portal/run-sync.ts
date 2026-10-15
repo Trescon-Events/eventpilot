@@ -1,3 +1,4 @@
+import { cleanField } from '@/app/lib/text/clean-field'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { fetchAllStaffPortal } from './client'
 import { applyRoleAccessMapping } from '@/app/lib/hrms/apply-role-access-map'
@@ -107,7 +108,7 @@ export async function runStaffPortalSync() {
   const { rows: projects } = await fetchAllStaffPortal<StaffPortalEvent>('events')
   const eventRows = projects.map(p => ({
     hrms_project_id:          p.id,
-    name:                     p.name,
+    name:                     cleanField(p.name),
     client_name:              p.client_name ?? null,
     description:              p.description ?? p.notes ?? null,
     status:                   STATUS_MAP[p.status] ?? 'planning',

@@ -228,7 +228,17 @@ export async function compileEventReference(eventId: string): Promise<{ version:
 // failure shouldn't block the doc-status change that triggered it).
 export async function recompileEventAndChildren(owner: ContentOwnerRef): Promise<void> {
   const targets = owner.kind === 'event' ? [owner.id] : await getChildEventIds(owner.id)
-  await Promise.all(targets.map(id => compileEventReference(id).catch(e => console.error(`Recompile failed for event ${id}:`, e))))
+  // The outcome is also recorded on the event (sae_compile_error) so the Setup tab's readiness check can show a failed recompile —
+  // before 2026-10-15 it was only logged and swallowed.
+  await Promise.all(targets.map(async id => {
+    try {
+      await compileEventReference(id)
+      await supabaseAdmin.from('events').update({ sae_compile_error: null, sae_compile_error_at: null }).eq('id', id)
+    } catch (e) {
+      console.error(`Recompile failed for event ${id}:`, e)
+      await supabaseAdmin.from('events').update({ sae_compile_error: (e instanceof Error ? e.message : String(e)).slice(0, 500), sae_compile_error_at: new Date().toISOString() }).eq('id', id)
+    }
+  }))
 }
 
 export async function getLatestCompiledReference(eventId: string) {
