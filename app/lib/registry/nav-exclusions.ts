@@ -52,6 +52,10 @@ export const PAGEHEADER_EXEMPT: NavExclusion[] = [
     path: '/admin/umbrellas/[id]',
     reason: 'Umbrella workspace hub (2026-10-02 redesign) — a module-tile landing page that mirrors the event workspace hub, which also has its own custom hero (title, status pill, meta line) instead of the standard PageHeader. Rendered by UmbrellaOverview.tsx via a thin server page.tsx.',
   },
+  ...(['/brand-content/brand/book', '/brand-content/brand/fonts', '/brand-content/content/style-guide'] as const).map(path => ({
+    path,
+    reason: 'Brand & Content, Part 1 (2026-10-16): thin wrapper re-exporting the existing page (admin/branding/corporate, admin/branding/fonts, admin/content/house-style), which renders <PageHeader/> itself. Part 2/3 move the page code here and drop this entry.',
+  })),
   ...(['', '/licenses', '/vendors', '/badges', '/speakers', '/access'] as const).flatMap(sub => ([
     {
       path: `/admin/events/[id]/operations${sub}`,

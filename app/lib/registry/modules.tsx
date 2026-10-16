@@ -64,7 +64,7 @@ export type ModuleHrefCtx = { staffId?: string; eventId?: string; umbrellaId?: s
 // that immediately makes every switch/case over SidebarSection fail to
 // typecheck until it's handled — that's the actual enforcement mechanism,
 // not a comment asking someone to remember.
-export type SidebarSection = 'home' | 'events' | 'pilots' | 'admin' | 'toolkit'
+export type SidebarSection = 'home' | 'events' | 'pilots' | 'admin' | 'toolkit' | 'brand'
 
 type Feature = { icon: string; label: string; detail: string }
 
@@ -142,6 +142,8 @@ export type ModuleDef = {
   sidebar?: {
     section: SidebarSection
     parent?: string
+    /** Sub-heading the entry sits under inside its section (Brand & Content: 'Brand' | 'Content'). */
+    group?: string
     order?: number
     /** Sidebar-specific label/icon override — falls back to the top-level
      *  fields when omitted, same convention as pageBadge above. */
@@ -530,6 +532,54 @@ export function getModuleRegistry(): ModuleDef[] {
       access: { kind: 'admin_only' },
       platformMenu: { section: 'Administration' },
       sidebar: { section: 'admin', parent: 'admin', order: 6, label: 'Branding' },
+    },
+    /* ── Brand & Content (2026-10-16) — standards: what Trescon follows. Everyone signed in can open every page;
+       editing is gated per page/API (platform.branding.manage for Brand, platform.content.manage for Content,
+       approvals super admin only). Docs: docs/build_suggestions/brand-and-content-section.md ── */
+    {
+      key: 'bc-brand-book', label: 'Brand book',
+      description: 'The Trescon brand book: guidelines, logos and brand assets.',
+      icon: I.layers, color: '#A172F2',
+      href: '/brand-content/brand/book',
+      breadcrumbPattern: '/brand-content/brand/book', breadcrumbParent: 'dashboard',
+      access: { kind: 'always' },
+      sidebar: { section: 'brand', group: 'Brand', order: 1 },
+    },
+    {
+      key: 'bc-fonts', label: 'Font library',
+      description: 'Platform-wide brand fonts for stakeholder announcement creatives.',
+      icon: I.doc, color: '#A172F2',
+      href: '/brand-content/brand/fonts',
+      breadcrumbPattern: '/brand-content/brand/fonts', breadcrumbParent: 'dashboard',
+      access: { kind: 'always' },
+      sidebar: { section: 'brand', group: 'Brand', order: 2 },
+    },
+    {
+      key: 'bc-creative-standards', label: 'Creative standards',
+      description: 'Logo handling, speaker photo handling and creative placeholders: the rules every creative follows.',
+      icon: I.target, color: '#A172F2',
+      href: '/brand-content/brand/creative-standards',
+      breadcrumbPattern: '/brand-content/brand/creative-standards', breadcrumbParent: 'dashboard',
+      access: { kind: 'always' },
+      sidebar: { section: 'brand', group: 'Brand', order: 3 },
+    },
+    {
+      key: 'bc-style-guide', label: 'Content style guide',
+      description: 'The Trescon-wide content style guide and the rules EventPilot checks.',
+      icon: I.docLines, color: '#009C89',
+      href: '/brand-content/content/style-guide',
+      breadcrumbPattern: '/brand-content/content/style-guide', breadcrumbParent: 'dashboard',
+      access: { kind: 'always' },
+      sidebar: { section: 'brand', group: 'Content', order: 4 },
+    },
+    {
+      key: 'bc-company-profile', label: 'Company profile',
+      description: 'The approved About Trescon texts and the company figures they quote.',
+      icon: I.library, color: '#009C89',
+      href: '/brand-content/content/company-profile',
+      breadcrumbPattern: '/brand-content/content/company-profile', breadcrumbParent: 'dashboard',
+      access: { kind: 'always' },
+      sidebar: { section: 'brand', group: 'Content', order: 5 },
     },
     {
       key: 'platform-api-tokens', label: 'AI Access',

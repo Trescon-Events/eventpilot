@@ -196,6 +196,7 @@ export const ACCESS_REGISTRY: AccessModule[] = [
     key: 'platform', label: 'Platform Administration',
     items: [
       { key: 'platform.branding.manage', label: 'Manage brand fonts (Font Library)', enforced: true },
+      { key: 'platform.content.manage', label: 'Edit Brand & Content: Content pages (style guide, company profile)', enforced: true },
     ],
   },
 ]

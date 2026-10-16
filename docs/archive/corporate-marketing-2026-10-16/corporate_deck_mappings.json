@@ -1,0 +1,242 @@
+[
+  {
+    "id": "3a720d23-bc9e-4b85-b7fc-cdafe972524b",
+    "deck_id": "b7c9e6ca-5017-4197-be77-8a046c455b29",
+    "section_key": "tagline",
+    "section_label": "Company Tagline",
+    "slide_numbers": [
+      1,
+      12
+    ],
+    "confirmed": true,
+    "ai_confidence": 1,
+    "created_at": "2026-08-10T05:54:51.108895+00:00",
+    "updated_at": "2026-08-10T10:38:40.08+00:00"
+  },
+  {
+    "id": "18ea83c3-1f3a-4b7b-ac29-0ff2cff0a113",
+    "deck_id": "b7c9e6ca-5017-4197-be77-8a046c455b29",
+    "section_key": "boilerplate",
+    "section_label": "Company Boilerplate",
+    "slide_numbers": [
+      2,
+      47
+    ],
+    "confirmed": true,
+    "ai_confidence": 1,
+    "created_at": "2026-08-10T05:54:51.108895+00:00",
+    "updated_at": "2026-08-10T10:38:40.119+00:00"
+  },
+  {
+    "id": "6c421cd4-d50a-47f0-b5cf-7088eddc142d",
+    "deck_id": "b7c9e6ca-5017-4197-be77-8a046c455b29",
+    "section_key": "company_stats",
+    "section_label": "Company Statistics",
+    "slide_numbers": [
+      3,
+      13,
+      26,
+      47
+    ],
+    "confirmed": true,
+    "ai_confidence": 1,
+    "created_at": "2026-08-10T05:54:51.108895+00:00",
+    "updated_at": "2026-08-10T10:38:40.167+00:00"
+  },
+  {
+    "id": "86151696-9c62-4238-80fa-cddd9d37db73",
+    "deck_id": "b7c9e6ca-5017-4197-be77-8a046c455b29",
+    "section_key": "testimonials",
+    "section_label": "Testimonials",
+    "slide_numbers": [
+      8,
+      9,
+      10,
+      11,
+      37,
+      38,
+      39,
+      41,
+      46,
+      48,
+      49,
+      50,
+      51
+    ],
+    "confirmed": true,
+    "ai_confidence": 1,
+    "created_at": "2026-08-10T05:54:51.108895+00:00",
+    "updated_at": "2026-08-10T10:38:40.214+00:00"
+  },
+  {
+    "id": "7d3f1901-1ea6-4aaf-8bcb-54e4db79decf",
+    "deck_id": "b7c9e6ca-5017-4197-be77-8a046c455b29",
+    "section_key": "event_series_stats",
+    "section_label": "Event Series Statistics",
+    "slide_numbers": [
+      8,
+      10,
+      11
+    ],
+    "confirmed": true,
+    "ai_confidence": 1,
+    "created_at": "2026-08-10T05:54:51.108895+00:00",
+    "updated_at": "2026-08-10T10:38:40.272+00:00"
+  },
+  {
+    "id": "92a973b9-a2c1-4e20-99cb-e56e0997d712",
+    "deck_id": "b7c9e6ca-5017-4197-be77-8a046c455b29",
+    "section_key": "event_stats",
+    "section_label": "Individual Event Statistics",
+    "slide_numbers": [
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      37,
+      38,
+      39,
+      40,
+      41
+    ],
+    "confirmed": true,
+    "ai_confidence": 1,
+    "created_at": "2026-08-10T05:54:51.108895+00:00",
+    "updated_at": "2026-08-10T10:38:40.294+00:00"
+  },
+  {
+    "id": "cb36563d-f9fb-4206-902f-161a1ec17773",
+    "deck_id": "b7c9e6ca-5017-4197-be77-8a046c455b29",
+    "section_key": "upcoming_events",
+    "section_label": "Upcoming Events Details",
+    "slide_numbers": [
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      37,
+      38,
+      39,
+      40,
+      41
+    ],
+    "confirmed": true,
+    "ai_confidence": 1,
+    "created_at": "2026-08-10T05:54:51.108895+00:00",
+    "updated_at": "2026-08-10T10:38:40.332+00:00"
+  },
+  {
+    "id": "b42f1790-330e-4edd-a6e5-8acf019d597c",
+    "deck_id": "b7c9e6ca-5017-4197-be77-8a046c455b29",
+    "section_key": "past_events",
+    "section_label": "Past Events Details",
+    "slide_numbers": [
+      22
+    ],
+    "confirmed": true,
+    "ai_confidence": 1,
+    "created_at": "2026-08-10T05:54:51.108895+00:00",
+    "updated_at": "2026-08-10T10:38:40.358+00:00"
+  },
+  {
+    "id": "61938d2d-af27-446a-a704-a787a5c3463f",
+    "deck_id": "b7c9e6ca-5017-4197-be77-8a046c455b29",
+    "section_key": "company_overview",
+    "section_label": "Company Overview Details",
+    "slide_numbers": [
+      25,
+      43,
+      46
+    ],
+    "confirmed": true,
+    "ai_confidence": 0.9,
+    "created_at": "2026-08-10T05:54:51.108895+00:00",
+    "updated_at": "2026-08-10T10:38:40.387+00:00"
+  },
+  {
+    "id": "c9180f38-d374-46e4-9e3a-3e0ba8426551",
+    "deck_id": "b7c9e6ca-5017-4197-be77-8a046c455b29",
+    "section_key": "success_stories",
+    "section_label": "Client Success Stories",
+    "slide_numbers": [
+      28,
+      29,
+      30,
+      31
+    ],
+    "confirmed": true,
+    "ai_confidence": 1,
+    "created_at": "2026-08-10T05:54:51.108895+00:00",
+    "updated_at": "2026-08-10T10:38:40.411+00:00"
+  },
+  {
+    "id": "7955591b-ea5f-4ecf-bc2a-b3259165d82e",
+    "deck_id": "b7c9e6ca-5017-4197-be77-8a046c455b29",
+    "section_key": "leadership",
+    "section_label": "Leadership Team & Advisory Board",
+    "slide_numbers": [
+      44,
+      45
+    ],
+    "confirmed": true,
+    "ai_confidence": 1,
+    "created_at": "2026-08-10T05:54:51.108895+00:00",
+    "updated_at": "2026-08-10T10:38:40.443+00:00"
+  },
+  {
+    "id": "d5e2ad79-585f-4ab3-b9bc-7ac066b804ff",
+    "deck_id": "b7c9e6ca-5017-4197-be77-8a046c455b29",
+    "section_key": "mission",
+    "section_label": "Company Mission",
+    "slide_numbers": [
+      1
+    ],
+    "confirmed": true,
+    "ai_confidence": 1,
+    "created_at": "2026-08-10T05:54:51.108895+00:00",
+    "updated_at": "2026-08-10T10:38:39.903+00:00"
+  },
+  {
+    "id": "6d0be870-a9c9-4b34-b359-8ce5389bd60a",
+    "deck_id": "b7c9e6ca-5017-4197-be77-8a046c455b29",
+    "section_key": "images",
+    "section_label": "Photo Galleries and Hero Images",
+    "slide_numbers": [
+      1,
+      2,
+      7,
+      8,
+      12,
+      14,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      35,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      47
+    ],
+    "confirmed": true,
+    "ai_confidence": 1,
+    "created_at": "2026-08-10T05:54:51.108895+00:00",
+    "updated_at": "2026-08-10T10:38:39.984+00:00"
+  }
+]

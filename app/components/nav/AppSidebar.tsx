@@ -38,6 +38,10 @@ export default function AppSidebar() {
   const pilots = resolveSectionEntries(registry, accessibleKeys, 'pilots', ctx)
   const admin = resolveSectionEntries(registry, accessibleKeys, 'admin', ctx)
   const toolkit = resolveSectionEntries(registry, accessibleKeys, 'toolkit', ctx)
+  const brandAll = resolveSectionEntries(registry, accessibleKeys, 'brand', ctx)
+  const groupOf = (key: string) => registry.find(m => m.key === key)?.sidebar?.group
+  const brand = brandAll.filter(e => groupOf(e.key) === 'Brand')
+  const content = brandAll.filter(e => groupOf(e.key) === 'Content')
 
   // Vendor accounts (session.vt) get no dashboard at all (app/dashboard/layout.tsx
   // redirects them to /admin/task-manager) — "My Events" isn't a registry module
@@ -74,6 +78,15 @@ export default function AppSidebar() {
           <AppSidebarSection title="Home" entries={home} collapsedRail={collapsedRail} />
           <AppSidebarSection title="Pilot Projects" entries={pilots} collapsedRail={collapsedRail} />
           <AppSidebarSection title="Toolkit" entries={toolkit} collapsedRail={collapsedRail} />
+          {brandAll.length > 0 && (
+            <div style={{ marginBottom: '4px' }}>
+              {!collapsedRail && <div style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '1.2px', textTransform: 'uppercase', color: 'var(--ink4)', padding: '9px 12px 3px' }}>Brand &amp; Content</div>}
+              {!collapsedRail && <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--ink3)', padding: '4px 12px 2px' }}>Brand</div>}
+              <AppSidebarSection title="" entries={brand} collapsedRail={collapsedRail} hideTitle />
+              {!collapsedRail && <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--ink3)', padding: '6px 12px 2px' }}>Content</div>}
+              <AppSidebarSection title="" entries={content} collapsedRail={collapsedRail} hideTitle />
+            </div>
+          )}
           <AppSidebarSection title="Admin" entries={admin} collapsedRail={collapsedRail} />
           <AppSidebarGroup title="AI Learning" entries={learning} collapsedRail={collapsedRail} />
         </div>

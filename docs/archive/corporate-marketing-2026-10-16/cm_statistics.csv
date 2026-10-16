@@ -1,0 +1,24 @@
+id,scope,scope_ref_id,scope_ref_label,category,name,current_value,previous_value,unit,description,source,owner_id,approval_status,notes,updated_by,updated_at,created_at
+"cc2611ee-704f-424e-968e-f0f850c001c6","company",,,,"Years","",,"years","Years in business",,,"draft",,,"2026-08-11T05:46:11.845066+00:00","2026-08-11T05:46:11.845066+00:00"
+"7ee2c71a-481c-4a57-907c-f8ab305534d7","company",,,,"Sponsors","",,"sponsors","Total distinct sponsors 
+  served",,,"draft",,,"2026-08-11T05:46:11.845066+00:00","2026-08-11T05:46:11.845066+00:00"
+"db2f0999-286f-48b7-b4dd-64ae16656a81","company",,,,"Partners","",,"partners","Total distinct partners",,,"draft",,,"2026-08-11T05:46:11.845066+00:00","2026-08-11T05:46:11.845066+00:00"
+"a862391a-701b-4a20-aba5-074be5e81425","company",,,,"Revenue","",,"USD","Cumulative gross revenue 
+  (public-facing headline)",,,"draft",,,"2026-08-11T05:46:11.845066+00:00","2026-08-11T05:46:11.845066+00:00"
+"99ab4e1c-3ccc-4322-bba5-4c002b398098","company",,,,"Clients","",,"clients","Total distinct client 
+  organisations",,,"draft",,,"2026-08-11T05:46:11.845066+00:00","2026-08-11T05:46:11.845066+00:00"
+"3f686862-392d-4253-a1cd-1433acf2112a","company",,,,"Media Reach","",,"impressions","Cumulative media 
+  impressions across owned + earned",,,"draft",,,"2026-08-11T05:46:11.845066+00:00","2026-08-11T05:46:11.845066+00:00"
+"6a30bea8-fed1-4af3-97a1-65ce2c41b768","company",,,,"Association and Media Partners","500+",,"partners","Association and media partners across events","Corporate profile deck 2026; confirmed by Madhu 15 Oct 2026",,"pending_review",,,"2026-10-16T06:03:09.687923+00:00","2026-10-16T06:03:09.687923+00:00"
+"b8a31601-3ce9-4889-b019-57ceda216179","company",,,,"Investors Engaged","3,500+",,"investors","Venture capital, angel investors and HNWIs connected through events","Corporate profile deck 2026; confirmed by Madhu 15 Oct 2026",,"pending_review",,,"2026-10-16T06:03:09.687923+00:00","2026-10-16T06:03:09.687923+00:00"
+"60afc1b4-205c-4576-959e-15262da41837","company",,,,"Speakers Featured","3,000+",,"speakers","Speakers featured across events","Corporate profile deck 2026; confirmed by Madhu 15 Oct 2026",,"pending_review",,,"2026-10-16T06:03:09.687923+00:00","2026-10-16T06:03:09.687923+00:00"
+"1075c399-2ae5-4ae5-b2de-8076279d1c40","company",,,,"Exhibitors Showcased","5,000+",,"exhibitors","Exhibitors showcased across Signature Events","Corporate profile deck 2026; confirmed by Madhu 15 Oct 2026",,"pending_review",,,"2026-10-16T06:03:09.687923+00:00","2026-10-16T06:03:09.687923+00:00"
+"ffdfbd29-a442-4900-9d96-b773477ca590","company",,,,"Events Delivered","500+",,"events","Total events Trescon has 
+  delivered globally","Corporate profile deck 2026; confirmed by Madhu 15 Oct 2026",,"pending_review",,,"2026-10-16T06:03:09.687923+00:00","2026-08-11T05:46:11.845066+00:00"
+"ce2a8257-05ff-48aa-8c15-39ac1d4d0ff2","company",,,,"Attendees","500,000+",,"people","Cumulative C-level attendees across events","Corporate profile deck 2026; confirmed by Madhu 15 Oct 2026",,"pending_review","Corporate deck conflict: impact slide says 250,000+ attendees hosted, Signature Events slide says 500,000+ C-level attendees. Madhu chose 500,000+ on 15 Oct 2026; the deck needs correcting.",,"2026-10-16T06:03:09.687923+00:00","2026-08-11T05:46:11.845066+00:00"
+"51fbbff9-1292-4f75-b1fc-bd9817e2a72b","company",,,,"Countries","120+",,"countries","Countries represented by attendees, partners and speakers","Corporate profile deck 2026; confirmed by Madhu 15 Oct 2026",,"pending_review",,,"2026-10-16T06:03:09.687923+00:00","2026-08-11T05:46:11.845066+00:00"
+"31e92fb4-fdbe-4d17-affd-23cff5ffa789","company",,,,"Employees","250+",,"people","Current headcount across 
+  all offices","Corporate profile deck 2026; confirmed by Madhu 15 Oct 2026",,"pending_review",,,"2026-10-16T06:03:09.687923+00:00","2026-08-11T05:46:11.845066+00:00"
+"19b86b2d-4b25-4167-a83a-40f502531761","company",,,,"Government Partners","50+",,"partners","Distinct government / 
+  public-sector partners","Corporate profile deck 2026; confirmed by Madhu 15 Oct 2026",,"pending_review","Corporate deck conflict: impact slide says 100+, ecosystem slide says 50+. Madhu chose 50+ on 15 Oct 2026.",,"2026-10-16T06:03:09.687923+00:00","2026-08-11T05:46:11.845066+00:00"
+"8629a2f5-4338-45eb-b5c9-00dce1b3944b","company",,,,"Founded","2016",,"year","Year Trescon was founded","Corporate profile deck 2026; confirmed by Madhu 15 Oct 2026",,"pending_review",,,"2026-10-16T06:15:44.022935+00:00","2026-10-16T06:03:09.687923+00:00"

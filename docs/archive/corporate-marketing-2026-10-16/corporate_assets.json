@@ -1,0 +1,34 @@
+[
+  {
+    "id": "e6ae9a3a-c599-42b0-87cd-d1eaeb27c113",
+    "asset_type": "image",
+    "title": "1700725905521",
+    "storage_path": "assets/1783577172265-ild6ux-1700725905521.jpg",
+    "public_url": null,
+    "file_name": "1700725905521.jpg",
+    "file_bytes": 403818,
+    "mime_type": "image/jpeg",
+    "tags": [],
+    "approved": true,
+    "include_in_deck": true,
+    "display_order": 0,
+    "uploaded_by": "4de60059-147a-4594-9c89-78c95baac184",
+    "uploaded_at": "2026-07-09T06:06:12.400942+00:00"
+  },
+  {
+    "id": "832c09c9-2538-4b61-b7b0-c76c6517505a",
+    "asset_type": "image",
+    "title": "1700817593007",
+    "storage_path": "assets/1783581435678-vixpg9-1700817593007.jpg",
+    "public_url": null,
+    "file_name": "1700817593007.jpg",
+    "file_bytes": 239226,
+    "mime_type": "image/jpeg",
+    "tags": [],
+    "approved": true,
+    "include_in_deck": true,
+    "display_order": 0,
+    "uploaded_by": "4de60059-147a-4594-9c89-78c95baac184",
+    "uploaded_at": "2026-07-09T07:17:15.853686+00:00"
+  }
+]
