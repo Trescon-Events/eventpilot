@@ -14,11 +14,13 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { isBoilerplateKey, approvalState } from '@/app/lib/corporate-marketing/boilerplate-keys'
 import { BRAND, Card, SectionLabel, H2, PrimaryButton, GhostButton, ErrorBox, inputStyle, textareaStyle, fmtDate, initials } from './_shared'
 
-type ContentMap = Record<string, { label: string; value_text: string | null; value_json: unknown; updated_at: string }>
+type ContentMap = Record<string, { label: string; value_text: string | null; value_json: unknown; updated_at: string; approved_text?: string | null; approved_at?: string | null }>
+type Finding = { rule_key: string; severity: string; message: string; match: string }
 
-const PROSE_KEYS = ['company_overview', 'vision', 'mission', 'tagline', 'boilerplate'] as const
+const PROSE_KEYS = ['company_overview', 'vision', 'mission', 'tagline', 'boilerplate', 'boilerplate_short', 'boilerplate_long', 'boilerplate_signature_module', 'boilerplate_managed_module'] as const
 const STAT_KEYS  = ['company_stats', 'event_series_stats', 'event_stats'] as const
 
 type EventRow = { id: string; name: string; event_date: string | null; city: string | null; venue: string | null; type: string | null; status: string }
@@ -33,6 +35,10 @@ const PROSE_LABELS: Record<string, string> = {
   mission:          'Mission',
   tagline:          'Tagline',
   boilerplate:      'Corporate Boilerplate',
+  boilerplate_short:            'Boilerplate: short',
+  boilerplate_long:             'Boilerplate: long',
+  boilerplate_signature_module: 'Boilerplate module: Signature Events',
+  boilerplate_managed_module:   'Boilerplate module: Managed Events',
 }
 const STAT_LABELS: Record<string, string> = {
   company_stats:       'Company Statistics',
@@ -93,12 +99,16 @@ function CompanyContentPanel() {
   const [drafts, setDrafts]   = useState<Record<string, string>>({})
   const [savedNote, setSavedNote] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [canApprove, setCanApprove] = useState(false)
+  const [approving, setApproving] = useState<string | null>(null)
+  const [findings, setFindings] = useState<Record<string, { errors: Finding[]; warnings: Finding[]; ok?: boolean }>>({})
 
   const load = useCallback(async () => {
     const res = await fetch('/api/corporate-marketing/content', { cache: 'no-store' })
     if (res.ok) {
       const d = await res.json()
       setContent(d.content ?? {})
+      setCanApprove(!!d.can_approve)
       const drafts: Record<string, string> = {}
       for (const k of PROSE_KEYS) drafts[k] = d.content?.[k]?.value_text ?? ''
       setDrafts(drafts)
@@ -130,6 +140,21 @@ function CompanyContentPanel() {
     }
   }
 
+  // Approve = copy the SAVED working copy to approved_text (super admin only; the server checks the Trescon-wide house rules first).
+  async function approveKey(key: string) {
+    setErr(null); setApproving(key)
+    try {
+      const res = await fetch('/api/corporate-marketing/content', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key, action: 'approve' }) })
+      const d = await res.json().catch(() => ({}))
+      setFindings(f => ({ ...f, [key]: { errors: d.errors ?? [], warnings: d.warnings ?? [], ok: res.ok } }))
+      if (!res.ok && !d.errors) throw new Error(d?.error ?? 'Approve failed')
+      if (res.ok) { setSavedNote(`Approved ${PROSE_LABELS[key] ?? key}`); setTimeout(() => setSavedNote(null), 2000) }
+      await load()
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally { setApproving(null) }
+  }
+
   return (
     <Card>
       <SectionLabel>Company Content</SectionLabel>
@@ -154,6 +179,12 @@ function CompanyContentPanel() {
                     Updated {fmtDate(meta.updated_at)}
                   </span>
                 )}
+                {isBoilerplateKey(key) && (() => {
+                  const state = approvalState({ value_text: meta?.value_text ?? null, approved_text: meta?.approved_text ?? null })
+                  const chip = state === 'approved' ? { t: `Approved ${meta?.approved_at ? fmtDate(meta.approved_at) : ''}`, c: 'var(--teal-mid)' }
+                    : state === 'edited_since_approval' ? { t: 'Edited since approval', c: 'var(--amber)' } : { t: 'Not approved', c: 'var(--ink3)' }
+                  return <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '0.4px', textTransform: 'uppercase', color: chip.c, border: `1px solid ${chip.c}`, borderRadius: '10px', padding: '1px 8px' }}>{chip.t}</span>
+                })()}
               </div>
               {isTagline ? (
                 <input
@@ -175,7 +206,18 @@ function CompanyContentPanel() {
                 <PrimaryButton onClick={() => saveKey(key)} style={{ padding: '8px 16px', fontSize: '12px' }}>
                   Save
                 </PrimaryButton>
+                {isBoilerplateKey(key) && canApprove && (
+                  <GhostButton onClick={() => approveKey(key)} style={{ padding: '8px 16px', fontSize: '12px', marginLeft: '8px' }}>
+                    {approving === key ? 'Approving…' : 'Approve'}
+                  </GhostButton>
+                )}
               </div>
+              {isBoilerplateKey(key) && (findings[key]?.errors.length || findings[key]?.warnings.length) ? (
+                <div style={{ marginTop: '8px', display: 'grid', gap: '4px', fontSize: '12px' }}>
+                  {findings[key].errors.map((f, i) => <div key={`e${i}`} style={{ color: 'var(--red)' }}><strong>Blocks approval</strong> · “{f.match}” — {f.message}</div>)}
+                  {findings[key].warnings.map((f, i) => <div key={`w${i}`} style={{ color: 'var(--amber)' }}><strong>Warning</strong> · “{f.match}” — {f.message}</div>)}
+                </div>
+              ) : null}
             </div>
           )
         })}

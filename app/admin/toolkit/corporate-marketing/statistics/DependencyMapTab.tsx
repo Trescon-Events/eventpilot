@@ -20,6 +20,7 @@ type Row = {
 
 const MODULE_LABELS: Record<string, string> = {
   corporate_deck:    'Corporate Deck',
+  content:           'Company Content',
   knowledge_hub:     'Knowledge Hub',
   proposal_template: 'Proposal Template',
   sales_deck:        'Sales Deck',

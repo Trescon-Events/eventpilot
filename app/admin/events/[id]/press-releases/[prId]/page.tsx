@@ -114,6 +114,7 @@ export default function PressReleaseWorkspace({ params }: { params: Promise<{ id
   const [customInstruction, setCustomInstruction] = useState('')
   const [approving, setApproving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [boilerplateWarning, setBoilerplateWarning] = useState<string | null>(null)
   const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH)
   const [applyingEdit, setApplyingEdit] = useState(false)
   const [customEditDrafts, setCustomEditDrafts] = useState<Record<number, string>>({})
@@ -251,6 +252,7 @@ export default function PressReleaseWorkspace({ params }: { params: Promise<{ id
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Generation failed.'); return }
       if (data.generate_usage) setGenerateUsage(data.generate_usage)
+      setBoilerplateWarning(data.boilerplate_warning ?? null)
       await loadDetail()
       setSelectedVersionId(data.id)
       setCustomInstruction('')
@@ -568,6 +570,9 @@ export default function PressReleaseWorkspace({ params }: { params: Promise<{ id
         )}
       </div>
 
+      {boilerplateWarning && (
+        <div style={{ margin: '0 0 12px', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--amber)', color: 'var(--amber)', fontSize: '13px', fontWeight: 600 }}>{boilerplateWarning}</div>
+      )}
       {error && (
         <div style={{ flexShrink: 0, padding: '8px 20px', background: 'var(--red-light)', color: 'var(--red)', fontSize: '13px' }}>
           {error}

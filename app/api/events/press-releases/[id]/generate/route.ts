@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getEventGuidelines, renderGuidelinesMarkdown } from '@/app/lib/content/guidelines-api'
+import { getAboutTresconForEvent, isTresconOwnedEvent } from '@/app/lib/content/trescon-profile'
 import {
   loadPressReleaseAndAuthorize, getPriorApprovedReleasesContext, countTodayGenerations, getLatestVersion,
   PRO_MODEL, DAILY_GENERATE_LIMIT,
@@ -65,7 +66,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     ? renderGuidelinesMarkdown(guidelines, ['style_guide', 'messaging', 'production_pack'])
     : ''
 
-  const systemPrompt = `You are the senior PR writer for Trescon — a B2B events company that runs the World AI Show, World Blockchain Summit, DATE, and CARE summits across 15+ countries.
+  // Approved About Trescon (docs/build_suggestions/trescon-profile-boilerplate.md): for a Trescon-owned event with approved text, CODE sets the
+  // boilerplate and the model is not asked for one. Managed events, and Trescon-owned events with nothing approved yet, keep today's prompt exactly.
+  const trescon = await isTresconOwnedEvent(pr.event_id).catch(() => false)
+  const about = trescon ? await getAboutTresconForEvent(pr.event_id).catch(() => null) : null
+  const boilerplate_warning = trescon && !about
+    ? 'No approved Trescon boilerplate yet, so the model wrote this boilerplate. Ask a super admin to approve it in Corporate Marketing → Company Content.'
+    : null
+
+  const systemPrompt = about ? `You are the senior PR writer for Trescon — a B2B events company that runs the World AI Show, World Blockchain Summit, DATE, and CARE summits across 15+ countries.
+
+Write a press release for "${eventName}" using the research conversation and event guidelines below. Standard press release structure: headline, dateline, lead paragraph (who/what/when/where/why), supporting body paragraphs, and a quote if one is available from the research. Do not write a company boilerplate; it is added separately.
+
+If this event has previously approved releases (below), don't repeat their angle or phrasing — this one should read as a distinct, continuing story.
+
+Return ONLY valid JSON, no preamble, no markdown fences:
+{ "headline": "...", "dateline": "...", "body": "... (full release, markdown paragraphs)" }` : `You are the senior PR writer for Trescon — a B2B events company that runs the World AI Show, World Blockchain Summit, DATE, and CARE summits across 15+ countries.
 
 Write a press release for "${eventName}" using the research conversation and event guidelines below. Standard press release structure: headline, dateline, lead paragraph (who/what/when/where/why), supporting body paragraphs, a quote if one is available from the research, and a company boilerplate.
 
@@ -94,7 +110,7 @@ Return ONLY valid JSON, no preamble, no markdown fences:
     headline = parsed.headline ?? ''
     dateline = parsed.dateline ?? ''
     body = parsed.body ?? text
-    boilerplate = parsed.boilerplate ?? ''
+    boilerplate = about ? about.text : (parsed.boilerplate ?? '')
   } catch (err) {
     console.error('press-release generate Gemini error:', err)
     const { isQuotaError, QUOTA_ERROR_MESSAGE } = await import('@/app/lib/gemini-error')
@@ -122,5 +138,5 @@ Return ONLY valid JSON, no preamble, no markdown fences:
   await supabaseAdmin.from('press_releases').update({ updated_at: new Date().toISOString() }).eq('id', pr.id)
 
   const generateUsed = staffId ? await countTodayGenerations(staffId) : 0
-  return NextResponse.json({ ...version, generate_usage: { used: generateUsed, limit: isAdmin ? null : DAILY_GENERATE_LIMIT } })
+  return NextResponse.json({ ...version, boilerplate_warning, boilerplate_source: about ? 'approved' : 'model', generate_usage: { used: generateUsed, limit: isAdmin ? null : DAILY_GENERATE_LIMIT } })
 }

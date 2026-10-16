@@ -48,6 +48,7 @@ type Tab = 'general' | 'history' | 'dependencies' | 'approval'
 
 const MODULES = [
   { key: 'corporate_deck',    label: 'Corporate Deck' },
+  { key: 'content',           label: 'Company Content' },
   { key: 'knowledge_hub',     label: 'Knowledge Hub' },
   { key: 'proposal_template', label: 'Proposal Template' },
   { key: 'sales_deck',        label: 'Sales Deck' },
