@@ -33,6 +33,7 @@ export default function DocuHubUploadPage() {
   const [selectedType, setSelectedType] = useState<DocType | null>(null)
   const [format, setFormat] = useState<'file' | 'link'>('file')
   const [title, setTitle] = useState('')
+  const [linkName, setLinkName] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [externalUrl, setExternalUrl] = useState('')
   const [visibility, setVisibility] = useState('internal')
@@ -85,6 +86,8 @@ export default function DocuHubUploadPage() {
   async function submit() {
     if (!selectedType) return
     if (!title.trim()) { setMsg('Title is required.'); return }
+    const needsLinkName = selectedType.key === 'corporate_deck'
+    if (needsLinkName && !linkName.trim()) { setMsg('Link name is required for this document type (for example middle-east).'); return }
     if (format === 'file' && !file) { setMsg('Please choose a file.'); return }
     if (format === 'link' && !externalUrl.trim()) { setMsg('Please paste a link.'); return }
     if (selectedType.requires_event_attribution && !eventLabel.trim()) { setMsg('Event name is required for this document type.'); return }
@@ -106,6 +109,7 @@ export default function DocuHubUploadPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           doc_type_id: selectedType.id, title, format,
+          ...(needsLinkName ? { slug: linkName.trim(), slug_exact: true } : {}),
           object_key: objectKey, external_url: format === 'link' ? externalUrl : undefined,
           visibility,
           event_id: eventId || undefined, event_label: eventLabel || undefined,
@@ -175,6 +179,17 @@ export default function DocuHubUploadPage() {
               <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Dubai FinTech Summit 2026 — Post-Event Report"
                 style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
             </div>
+
+            {selectedType.key === 'corporate_deck' && (
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '5px' }}>Link name (the variant)</label>
+                <input value={linkName} onChange={e => setLinkName(e.target.value.toLowerCase().replace(/\s+/g, '-'))} placeholder="e.g. middle-east, global-long, global-short"
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                <div style={{ fontSize: '12px', color: 'var(--ink4)', marginTop: '4px' }}>
+                  The permanent link ends with this: https://{docuhubDomain(visibility)}/{selectedType.slug_prefix}/{linkName || 'link-name'}. Lowercase letters, numbers and hyphens. A name already in use is refused.
+                </div>
+              </div>
+            )}
 
             {selectedType.allowed_formats.length > 1 && (
               <div style={{ marginBottom: '12px', display: 'flex', gap: '14px' }}>

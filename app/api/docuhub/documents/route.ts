@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
     doc_type_id, title, slug: slugInput, format, object_key, external_url,
     visibility, event_id, event_label, event_type, event_start_date, event_end_date,
     event_city, event_country, event_venue, series, event_format, event_region,
-    client_name, owner_staff_id, link_expires_at, description,
+    client_name, owner_staff_id, link_expires_at, description, slug_exact,
   } = body ?? {}
 
   if (!doc_type_id || !title?.trim() || !format) {
@@ -90,6 +90,16 @@ export async function POST(req: NextRequest) {
 
   // Slug: use as given (validated) or auto-generate from title; ensure uniqueness within this doc type.
   let slug = slugify(slugInput?.trim() || title)
+  // slug_exact (2026-10-16, Corporate deck variants): the link name is the variant (middle-east, global-long), so a taken name is an error
+  // rather than being quietly renamed to "-1". Replace the file on the existing document instead.
+  if (slug_exact === true) {
+    if (!slugInput?.trim() || slugify(slugInput.trim()) !== slugInput.trim()) {
+      return NextResponse.json({ error: 'Link name can only use lowercase letters, numbers and hyphens (for example middle-east).' }, { status: 400 })
+    }
+    const { data: taken } = await supabaseAdmin
+      .from('docuhub_documents').select('id').eq('doc_type_id', doc_type_id).eq('slug', slug).maybeSingle()
+    if (taken) return NextResponse.json({ error: `The link name "${slug}" is already used by another document of this type. Replace the file on that document to keep its link, or pick a different name.` }, { status: 409 })
+  }
   let suffix = 0
   while (true) {
     const candidate = suffix === 0 ? slug : `${slug}-${suffix}`

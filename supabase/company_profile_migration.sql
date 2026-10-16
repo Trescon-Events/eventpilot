@@ -62,8 +62,12 @@ BEGIN
   IF NEW.approved_value IS DISTINCT FROM OLD.approved_value THEN
     INSERT INTO public.company_figure_history (figure_key, kind, old_value, new_value, changed_by)
     VALUES (NEW.key, 'approved_value', OLD.approved_value, NEW.approved_value, NEW.approved_by);
-    UPDATE public.company_profile_texts SET needs_review = true
-     WHERE NEW.key = ANY (figure_keys) AND approved_text IS NOT NULL;
+    -- Only a CHANGE to a figure that was already approved flags the texts that quote it. The first approval (OLD.approved_value IS NULL)
+    -- is not a change, so it never sets needs_review. needs_review is a flag for people only: press releases read approved_text.
+    IF OLD.approved_value IS NOT NULL THEN
+      UPDATE public.company_profile_texts SET needs_review = true
+       WHERE NEW.key = ANY (figure_keys) AND approved_text IS NOT NULL;
+    END IF;
   END IF;
   RETURN NEW;
 END $$;
@@ -112,13 +116,13 @@ Its work spans three event types:
 
 Trescon has delivered more than 500 events, each planned around clear objectives and measurable outcomes, including events of more than 10,000 attendees. Its events have hosted more than 500,000 C-level attendees and connected more than 3,500 investors and more than 3,000 speakers with their audiences, with participants from more than 120 countries. Its network includes more than 50 government and policy partners and more than 500 association and media partners.
 
-Based in Dubai, with offices in Bengaluru, Mangalore, Manipal, Doha and Mauritius, Trescon has a team of more than 250 people. Learn more at tresconglobal.com.$q$, $q$323f2caf-7a9b-47e0-b703-02d2d6ecfc95$q$::uuid, $q$2026-10-16T06:48:29.565+00:00$q$::timestamptz, ARRAY['founded','events_delivered','attendees','investors_engaged','speakers_featured','countries','government_partners','association_media_partners','employees']::text[], 3)
+Based in Dubai, with offices in Bengaluru, Mangalore, Manipal, Doha and Mauritius, Trescon has a team of more than 250 people. Learn more at tresconglobal.com.$q$, $q$323f2caf-7a9b-47e0-b703-02d2d6ecfc95$q$::uuid, $q$2026-10-16T06:48:29.565+00:00$q$::timestamptz, ARRAY['founded','events_delivered','attendees','investors_engaged','speakers_featured','countries','government_partners','association_media_partners','employees','largest_event_attendees']::text[], 3)
 ON CONFLICT (key) DO NOTHING;
 INSERT INTO public.company_profile_texts (key, label, working_text, approved_text, approved_by, approved_at, figure_keys, sort_order)
 VALUES ('module_signature', $q$Signature Events module$q$, $q$Trescon's Signature Events bring C-level executives and technology leaders together to share knowledge, build relationships and solve business challenges. The active series are World AI Show, World Cyber Security Show and World FinTech Show. Together, the Signature Events have welcomed more than 5,000 exhibitors.$q$, $q$Trescon's Signature Events bring C-level executives and technology leaders together to share knowledge, build relationships and solve business challenges. The active series are World AI Show, World Cyber Security Show and World FinTech Show. Together, the Signature Events have welcomed more than 5,000 exhibitors.$q$, $q$323f2caf-7a9b-47e0-b703-02d2d6ecfc95$q$::uuid, $q$2026-10-16T06:48:33.943+00:00$q$::timestamptz, ARRAY['exhibitors_showcased']::text[], 4)
 ON CONFLICT (key) DO NOTHING;
 INSERT INTO public.company_profile_texts (key, label, working_text, approved_text, approved_by, approved_at, figure_keys, sort_order)
-VALUES ('module_managed', $q$Managed Events module$q$, $q$Trescon delivers end-to-end event management for governments, enterprises and institutions, from content and speaker acquisition to marketing, partnerships and on-site operations. Its managed events have engaged more than 40,000 delegates, served more than 700 exhibitors and featured more than 1,000 global speakers, and Trescon has experience delivering events of 10,000 attendees and above.$q$, $q$Trescon delivers end-to-end event management for governments, enterprises and institutions, from content and speaker acquisition to marketing, partnerships and on-site operations. Its managed events have engaged more than 40,000 delegates, served more than 700 exhibitors and featured more than 1,000 global speakers, and Trescon has experience delivering events of 10,000 attendees and above.$q$, $q$323f2caf-7a9b-47e0-b703-02d2d6ecfc95$q$::uuid, $q$2026-10-16T06:48:38.269+00:00$q$::timestamptz, '{}'::text[], 5)
+VALUES ('module_managed', $q$Managed Events module$q$, $q$Trescon delivers end-to-end event management for governments, enterprises and institutions, from content and speaker acquisition to marketing, partnerships and on-site operations. Its managed events have engaged more than 40,000 delegates, served more than 700 exhibitors and featured more than 1,000 global speakers, and Trescon has experience delivering events of 10,000 attendees and above.$q$, $q$Trescon delivers end-to-end event management for governments, enterprises and institutions, from content and speaker acquisition to marketing, partnerships and on-site operations. Its managed events have engaged more than 40,000 delegates, served more than 700 exhibitors and featured more than 1,000 global speakers, and Trescon has experience delivering events of 10,000 attendees and above.$q$, $q$323f2caf-7a9b-47e0-b703-02d2d6ecfc95$q$::uuid, $q$2026-10-16T06:48:38.269+00:00$q$::timestamptz, ARRAY['managed_delegates','managed_exhibitors','managed_speakers','largest_event_attendees']::text[], 5)
 ON CONFLICT (key) DO NOTHING;
 INSERT INTO public.company_profile_texts (key, label, working_text, approved_text, approved_by, approved_at, figure_keys, sort_order)
 VALUES ('tagline', $q$Tagline$q$, $q$Connecting Businesses with Opportunities$q$, NULL, NULL, NULL, '{}'::text[], 6)
@@ -130,7 +134,7 @@ INSERT INTO public.company_profile_texts (key, label, working_text, approved_tex
 VALUES ('vision', $q$Vision$q$, $q$To continue pioneering the future of business events through innovation, sustainability, and meaningful connections that drive global economic growth.$q$, NULL, NULL, NULL, '{}'::text[], 8)
 ON CONFLICT (key) DO NOTHING;
 
--- ── Seed: figures (all ten pending review; the six empty drafts from the old table are not carried) ──
+-- ── Seed: figures (all fourteen pending review; the six empty drafts from the old table are not carried) ──
 INSERT INTO public.company_figures (key, label, value, unit, description, source, notes, status, sort_order)
 VALUES ('founded', $q$Founded$q$, $q$2016$q$, $q$year$q$, $q$Year Trescon was founded$q$, $q$Corporate profile deck 2026; confirmed by Madhu 15 Oct 2026$q$, NULL, 'pending_review', 1)
 ON CONFLICT (key) DO NOTHING;
@@ -162,8 +166,21 @@ INSERT INTO public.company_figures (key, label, value, unit, description, source
 VALUES ('exhibitors_showcased', $q$Exhibitors showcased$q$, $q$5,000+$q$, $q$exhibitors$q$, $q$Exhibitors showcased across Signature Events$q$, $q$Corporate profile deck 2026; confirmed by Madhu 15 Oct 2026$q$, NULL, 'pending_review', 10)
 ON CONFLICT (key) DO NOTHING;
 
+INSERT INTO public.company_figures (key, label, value, unit, description, source, notes, status, sort_order)
+VALUES ('managed_delegates', $q$Managed events: delegates engaged$q$, $q$40,000+$q$, $q$delegates$q$, $q$Delegates engaged across Trescon managed events$q$, $q$Approved Managed Events and About Trescon texts; confirmed by Madhu 16 Oct 2026$q$, NULL, 'pending_review', 11)
+ON CONFLICT (key) DO NOTHING;
+INSERT INTO public.company_figures (key, label, value, unit, description, source, notes, status, sort_order)
+VALUES ('managed_exhibitors', $q$Managed events: exhibitors served$q$, $q$700+$q$, $q$exhibitors$q$, $q$Exhibitors served across Trescon managed events$q$, $q$Approved Managed Events and About Trescon texts; confirmed by Madhu 16 Oct 2026$q$, NULL, 'pending_review', 12)
+ON CONFLICT (key) DO NOTHING;
+INSERT INTO public.company_figures (key, label, value, unit, description, source, notes, status, sort_order)
+VALUES ('managed_speakers', $q$Managed events: speakers featured$q$, $q$1,000+$q$, $q$speakers$q$, $q$Global speakers featured across Trescon managed events$q$, $q$Approved Managed Events and About Trescon texts; confirmed by Madhu 16 Oct 2026$q$, NULL, 'pending_review', 13)
+ON CONFLICT (key) DO NOTHING;
+INSERT INTO public.company_figures (key, label, value, unit, description, source, notes, status, sort_order)
+VALUES ('largest_event_attendees', $q$Largest event attendance$q$, $q$10,000+$q$, $q$people$q$, $q$Attendance of the largest events Trescon has delivered$q$, $q$Approved Managed Events and About Trescon texts; confirmed by Madhu 16 Oct 2026$q$, NULL, 'pending_review', 14)
+ON CONFLICT (key) DO NOTHING;
+
 -- ── Verify (paste after running) ────────────────────────────────────────────
 -- SELECT key, approved_text IS NOT NULL AS approved, needs_review FROM company_profile_texts ORDER BY sort_order;  -- 8 rows; first 5 approved
--- SELECT key, value, status FROM company_figures ORDER BY sort_order;                                              -- 10 rows, all pending_review
+-- SELECT key, value, status FROM company_figures ORDER BY sort_order;                                              -- 14 rows, all pending_review
 
 commit;
