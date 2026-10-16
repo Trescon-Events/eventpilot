@@ -1,8 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import Link from 'next/link'
-import PageHeader from '@/app/components/PageHeader'
 import { Button, Card, Input } from '@/app/components/ui'
 
 /* Platform-level font library (SAE Phase C v4) — not event-scoped. Fonts
@@ -121,19 +119,8 @@ export default function BrandingFontsPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--surface)' }}>
-      <PageHeader
-        eyebrow="Branding"
-        title="Font Library"
-        description="Upload brand fonts or fetch any free Google Font by name. Once added, any text layer in any event's Creative Templates editor can use it."
-      />
 
       <div style={{ padding: '24px 32px', maxWidth: '860px' }}>
-        <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '5px', width: 'fit-content' }}>
-          <div style={{ padding: '8px 16px', borderRadius: '8px', background: 'var(--surface)', color: 'var(--lime)', fontSize: '13px', fontWeight: 800 }}>Fonts</div>
-          <Link href="/admin/branding/corporate" style={{ padding: '8px 16px', borderRadius: '8px', color: 'var(--ink3)', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>Corporate Brand</Link>
-          <Link href="/admin/branding/placeholder-defaults" style={{ padding: '8px 16px', borderRadius: '8px', color: 'var(--ink3)', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>Placeholder Defaults</Link>
-          <Link href="/admin/branding/cleaning-cycle-template" style={{ padding: '8px 16px', borderRadius: '8px', color: 'var(--ink3)', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>Cleaning Cycle Template</Link>
-        </div>
         {msg && (
           <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '12.5px', marginBottom: '16px' }}>
             {msg} <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>

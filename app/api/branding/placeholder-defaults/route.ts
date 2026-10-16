@@ -1,3 +1,4 @@
+import { requireBrandWriteAccess } from '@/app/lib/branding/brand-access'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
@@ -49,6 +50,8 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
+  const denied = await requireBrandWriteAccess(req)
+  if (denied) return denied
   const body = await req.json().catch(() => null) as {
     stakeholder_type?: 'speaker' | 'partner'; name?: string; job_title?: string; company_name?: string; country?: string
     headline_lead?: string; headline_emphasis?: string; headline_trail?: string; headline_full?: string

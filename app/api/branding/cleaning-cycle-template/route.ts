@@ -1,3 +1,4 @@
+import { requireBrandWriteAccess } from '@/app/lib/branding/brand-access'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
@@ -25,6 +26,8 @@ export async function GET() {
 type Body = Partial<CleaningCycleTemplate>
 
 export async function PUT(req: NextRequest) {
+  const denied = await requireBrandWriteAccess(req)
+  if (denied) return denied
   const body = await req.json().catch(() => null) as Body | null
   if (!body) return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
 

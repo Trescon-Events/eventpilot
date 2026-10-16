@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
-import { hasEventPermission } from '@/app/lib/access/event-access'
+import { hasEventPermission, hasPlatformPermission } from '@/app/lib/access/event-access'
 import { ownerLabel, type ContentOwnerRef } from './owner'
 import { buildDateVenueLine, buildAttributionLine, buildFixedCtaLine } from '@/app/lib/events/announcements'
 
@@ -25,7 +25,7 @@ export async function canManageRules(req: NextRequest, owner: ContentOwnerRef): 
   const sid = session?.sid ?? null
   if (!session) return { ok: false, sid }
   if (session.adm) return { ok: true, sid }
-  if (owner.kind === 'org') return { ok: false, sid }
+  if (owner.kind === 'org') return { ok: await hasPlatformPermission(session.sid, 'platform.content.manage'), sid }
   const key = owner.kind === 'umbrella' ? 'sae.messaging.umbrella_manage' : 'sae.forms.manage'
   return { ok: await hasEventPermission(session.sid, owner.id, key), sid }
 }

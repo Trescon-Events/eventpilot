@@ -10,10 +10,24 @@ import { orgDocsReachEvent } from './trescon-layer'
     the series the module names (World AI Show, World Cyber Security Show, World FinTech Show) are stored as type 'flagship'. */
 export const SIGNATURE_EVENT_TYPES = ['signature', 'flagship']
 
-/** The approved text for a corporate_company_content key, or null when it has never been approved (or the migration has not been run). */
+/** Old Corporate Marketing keys, used ONLY while supabase/company_profile_migration.sql has not been run (the new table does not exist yet), so a
+    press release never loses its approved boilerplate across the switch. Removed with the Corporate Marketing code in Part 6. */
+const LEGACY_KEY: Record<string, string> = {
+  about_short: 'boilerplate_short', about_standard: 'boilerplate', about_long: 'boilerplate_long',
+  module_signature: 'boilerplate_signature_module', module_managed: 'boilerplate_managed_module',
+}
+
+/** The approved text for a company_profile_texts key, or null when it has never been approved. Reads approved_text only, never the working copy. */
 export async function getApprovedText(key: string): Promise<string | null> {
-  const { data, error } = await supabaseAdmin.from('corporate_company_content').select('approved_text').eq('key', key).maybeSingle()
-  if (error) { console.error(`[trescon-profile] could not read approved_text for ${key}:`, error.message); return null }
+  const { data, error } = await supabaseAdmin.from('company_profile_texts').select('approved_text').eq('key', key).maybeSingle()
+  if (error) {
+    const legacy = LEGACY_KEY[key]
+    if (!legacy) { console.error(`[trescon-profile] could not read approved_text for ${key}:`, error.message); return null }
+    const old = await supabaseAdmin.from('corporate_company_content').select('approved_text').eq('key', legacy).maybeSingle()
+    if (old.error) { console.error(`[trescon-profile] could not read approved_text for ${key}:`, old.error.message); return null }
+    const o = old.data?.approved_text
+    return typeof o === 'string' && o.trim() ? o : null
+  }
   const t = data?.approved_text
   return typeof t === 'string' && t.trim() ? t : null
 }
@@ -27,11 +41,11 @@ export async function isTresconOwnedEvent(eventId: string): Promise<boolean> {
     null for a managed event / client-umbrella event, or when the standard boilerplate has not been approved. */
 export async function getAboutTresconForEvent(eventId: string): Promise<{ text: string; kind: 'standard' | 'signature' } | null> {
   if (!(await isTresconOwnedEvent(eventId))) return null
-  const standard = await getApprovedText('boilerplate')
+  const standard = await getApprovedText('about_standard')
   if (!standard) return null
   const { data: ev } = await supabaseAdmin.from('events').select('type').eq('id', eventId).maybeSingle()
   if (ev?.type && SIGNATURE_EVENT_TYPES.includes(ev.type)) {
-    const sigModule = await getApprovedText('boilerplate_signature_module')
+    const sigModule = await getApprovedText('module_signature')
     if (sigModule) return { text: `${standard}\n\n${sigModule}`, kind: 'signature' }
   }
   return { text: standard, kind: 'standard' }

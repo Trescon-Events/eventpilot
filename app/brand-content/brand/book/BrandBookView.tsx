@@ -362,23 +362,17 @@ export default function CorporateBrandPage() {
 
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 32px 80px' }}>
 
-        <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '5px', width: 'fit-content' }}>
-          <Link href="/admin/branding/fonts" style={{ padding: '8px 16px', borderRadius: '8px', color: 'var(--ink3)', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>Fonts</Link>
-          <div style={{ padding: '8px 16px', borderRadius: '8px', background: 'var(--surface)', color: 'var(--lime)', fontSize: '13px', fontWeight: 800 }}>Corporate Brand</div>
-          <Link href="/admin/branding/placeholder-defaults" style={{ padding: '8px 16px', borderRadius: '8px', color: 'var(--ink3)', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>Placeholder Defaults</Link>
-          <Link href="/admin/branding/cleaning-cycle-template" style={{ padding: '8px 16px', borderRadius: '8px', color: 'var(--ink3)', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>Cleaning Cycle Template</Link>
-        </div>
 
         {msg && (
           <div style={{ marginBottom: '20px', padding: '12px 18px', borderRadius: '10px', background: msg.ok ? 'rgba(192,244,60,0.08)' : 'rgba(241,102,122,0.08)', border: `1px solid ${msg.ok ? 'rgba(192,244,60,0.3)' : 'rgba(241,102,122,0.3)'}`, color: msg.ok ? 'var(--lime)' : 'var(--red)', fontSize: '14px', fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             {msg.text}
-            <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontSize: '18px', padding: '0 4px' }}>×</button>
+            <button data-keep onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontSize: '18px', padding: '0 4px' }}>×</button>
           </div>
         )}
 
         <div style={{ display: 'flex', gap: '4px', marginBottom: '28px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '5px', overflowX: 'auto', flexWrap: 'nowrap' }}>
           {TABS.map(t => (
-            <button key={t.id} onClick={() => { setTab(t.id); if (t.id === 'versions') fetchVersions() }}
+            <button data-keep key={t.id} onClick={() => { setTab(t.id); if (t.id === 'versions') fetchVersions() }}
               style={{ padding: '8px 16px', borderRadius: '9px', border: 'none', background: tab === t.id ? 'var(--surface)' : 'transparent', color: tab === t.id ? 'var(--lime)' : 'var(--ink3)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
               {t.label}
             </button>
@@ -671,7 +665,7 @@ function ColorTab({ colors, busyId, onAdd, onPatch, onDelete }: {
 // ── Typography tab ──────────────────────────────────────────────────────────────
 // Deliberately does NOT store a font-family name as free text. Every entry
 // here references a real row in the platform Font Library (brand_fonts,
-// already populated separately at /admin/branding/fonts) by id, so the
+// already populated separately at /brand-content/brand/fonts) by id, so the
 // preview always reflects the actual uploaded font file — and if that file
 // is ever replaced in the library, every guideline entry that points at it
 // updates automatically instead of silently drifting out of sync.
@@ -803,13 +797,13 @@ function FontTab({ fonts, busyId, onAdd, onPatch, onDelete }: {
         <button onClick={() => setAdding(v => !v)} style={S.addBtn}>{adding ? 'Cancel' : '+ Add Guideline'}</button>
       </div>
       <p style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: 0, marginBottom: '18px' }}>
-        Each entry picks a real font from the <Link href="/admin/branding/fonts" style={{ color: 'var(--teal-mid)' }}>Font Library</Link> and documents which content it's for — matching how the brand guidelines document itself pairs each typeface with an &quot;about&quot; and an &quot;in use&quot; sample.
+        Each entry picks a real font from the <Link href="/brand-content/brand/fonts" style={{ color: 'var(--teal-mid)' }}>Font Library</Link> and documents which content it's for — matching how the brand guidelines document itself pairs each typeface with an &quot;about&quot; and an &quot;in use&quot; sample.
       </p>
 
       {loadingLibrary && <div style={{ fontSize: '13px', color: 'var(--ink3)', marginBottom: '18px' }}>Loading font library…</div>}
       {!loadingLibrary && library.length === 0 && (
         <div style={{ padding: '14px 16px', borderRadius: '10px', background: 'rgba(245,185,77,0.08)', border: '1px solid rgba(245,185,77,0.3)', color: 'var(--amber)', fontSize: '13px', marginBottom: '18px' }}>
-          No fonts in the <Link href="/admin/branding/fonts" style={{ color: 'inherit', fontWeight: 700 }}>Font Library</Link> yet — upload the actual font files there first, then come back here to document how each one should be used.
+          No fonts in the <Link href="/brand-content/brand/fonts" style={{ color: 'inherit', fontWeight: 700 }}>Font Library</Link> yet — upload the actual font files there first, then come back here to document how each one should be used.
         </div>
       )}
 
@@ -962,7 +956,7 @@ function SuggestedFontsPanel({ doc, existingFonts, onAdd }: {
     <div style={S.card}>
       <div style={{ ...S.sectionTitle, marginBottom: '6px' }}>Suggested From Your Brand Book</div>
       <p style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6, marginTop: 0, marginBottom: '18px' }}>
-        Gemini found these font roles in the PDF. Pick the matching font from your <Link href="/admin/branding/fonts" style={{ color: 'var(--teal-mid)' }}>Font Library</Link> (Gemini's guess is a starting point, not auto-matched) and add the ones you want to the Typography guidelines.
+        Gemini found these font roles in the PDF. Pick the matching font from your <Link href="/brand-content/brand/fonts" style={{ color: 'var(--teal-mid)' }}>Font Library</Link> (Gemini's guess is a starting point, not auto-matched) and add the ones you want to the Typography guidelines.
       </p>
       <div style={{ display: 'grid', gap: '10px' }}>
         {pending.map(s => (

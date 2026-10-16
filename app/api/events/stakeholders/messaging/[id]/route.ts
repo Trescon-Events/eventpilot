@@ -1,3 +1,4 @@
+import { requireContentEditAccess, requireContentEditIfOrgDoc } from '@/app/lib/content/content-access'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { recompileEventAndChildren } from '@/app/lib/content/compile-reference'
@@ -30,7 +31,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // A Trescon-wide document changes every Trescon-owned event — platform admins only.
   const { data: target } = await supabaseAdmin.from('event_messaging_docs').select('event_id, umbrella_id, org_scope').eq('id', id).maybeSingle()
-  if (target?.org_scope && !getSession(req)?.adm) return NextResponse.json({ error: 'Only a platform admin can change a Trescon-wide document.' }, { status: 403 })
+  if (target?.org_scope) { const denied = await requireContentEditAccess(req); if (denied) return denied }
 
   const update: Record<string, unknown> = {}
   if (body.status !== undefined) update.status = body.status
@@ -93,7 +94,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   const ownerId = (doc.event_id ?? doc.umbrella_id) as string | null
   const session = getSession(req)
-  const allowed = session?.adm || (ownerId ? await hasEventPermission(session?.sid, ownerId, doc.umbrella_id ? 'sae.messaging.umbrella_manage' : 'sae.forms.manage') : false)
+  if (doc.org_scope) { const denied = await requireContentEditAccess(req); if (denied) return denied }
+  const allowed = doc.org_scope || session?.adm || (ownerId ? await hasEventPermission(session?.sid, ownerId, doc.umbrella_id ? 'sae.messaging.umbrella_manage' : 'sae.forms.manage') : false)
   if (!allowed) return NextResponse.json({ error: 'Not authorized to delete this document.' }, { status: 403 })
 
   const { error } = await supabaseAdmin.from('event_messaging_docs').delete().eq('id', id)

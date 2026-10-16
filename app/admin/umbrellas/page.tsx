@@ -105,7 +105,7 @@ export default function UmbrellasListPage() {
       </div>
 
       <div style={{ marginTop: '16px', fontSize: '12.5px' }}>
-        <a href="/admin/content/house-style" style={{ color: 'var(--teal-mid)', fontWeight: 700 }}>Trescon house style →</a>
+        <a href="/brand-content/content/style-guide" style={{ color: 'var(--teal-mid)', fontWeight: 700 }}>Trescon house style →</a>
         <span style={{ color: 'var(--ink3)' }}> Trescon-wide rules and style guide.</span>
       </div>
     </div>

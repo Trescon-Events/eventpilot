@@ -1,3 +1,4 @@
+import { requireBrandWriteAccess } from '@/app/lib/branding/brand-access'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 
@@ -12,6 +13,8 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 const PATCHABLE_FIELDS = ['title', 'status', 'canva_url', 'structured_json'] as const
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireBrandWriteAccess(req)
+  if (denied) return denied
   const { id } = await params
   const body = await req.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'body required' }, { status: 400 })

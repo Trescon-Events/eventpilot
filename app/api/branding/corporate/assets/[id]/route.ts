@@ -1,3 +1,4 @@
+import { requireBrandWriteAccess } from '@/app/lib/branding/brand-access'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { deletePublicAsset } from '@/app/lib/events/storage'
@@ -11,6 +12,8 @@ import { deletePublicAsset } from '@/app/lib/events/storage'
 const PATCHABLE_FIELDS = ['name', 'subcategory', 'metadata', 'display_order', 'vector_url'] as const
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireBrandWriteAccess(req)
+  if (denied) return denied
   const { id } = await params
   const body = await req.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'body required' }, { status: 400 })
@@ -36,6 +39,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireBrandWriteAccess(_req)
+  if (denied) return denied
   const { id } = await params
 
   const { data: existing } = await supabaseAdmin

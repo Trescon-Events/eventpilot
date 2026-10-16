@@ -1,8 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import Link from 'next/link'
-import PageHeader from '@/app/components/PageHeader'
 import { Button, Card, Input, Toast, type ToastType } from '@/app/components/ui'
 import type { PlaceholderProfile, GlobalPlaceholderDefault } from '@/app/lib/announcements/composite'
 import type { HeadBox } from '@/app/lib/media/face-alignment'
@@ -61,7 +59,7 @@ export default function PlaceholderDefaultsPage() {
     setDefaults({ speaker: data.speaker ?? null, partner: data.partner ?? null })
     setLoading(false)
   }
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount; matches app/admin/branding/fonts/page.tsx's own fetchAll effect
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount; matches app/brand-content/brand/fonts/page.tsx's own fetchAll effect
   useEffect(() => { fetchAll() }, [])
 
   async function saveText(profile: PlaceholderProfile) {
@@ -110,25 +108,14 @@ export default function PlaceholderDefaultsPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--surface)' }}>
-      <PageHeader
-        eyebrow="Branding"
-        title="Placeholder Defaults"
-        description="Sample speaker/partner content shown by default across every event's Creative Templates preview, until that event sets its own override."
-      />
 
       <div style={{ padding: '24px 32px', maxWidth: '1200px' }}>
-        <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '5px', width: 'fit-content' }}>
-          <Link href="/admin/branding/fonts" style={{ padding: '8px 16px', borderRadius: '8px', color: 'var(--ink3)', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>Fonts</Link>
-          <Link href="/admin/branding/corporate" style={{ padding: '8px 16px', borderRadius: '8px', color: 'var(--ink3)', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>Corporate Brand</Link>
-          <div style={{ padding: '8px 16px', borderRadius: '8px', background: 'var(--surface)', color: 'var(--lime)', fontSize: '13px', fontWeight: 800 }}>Placeholder Defaults</div>
-          <Link href="/admin/branding/cleaning-cycle-template" style={{ padding: '8px 16px', borderRadius: '8px', color: 'var(--ink3)', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>Cleaning Cycle Template</Link>
-        </div>
 
         <Toast message={msg} type={msgType} onClose={() => setMsg(null)} />
 
         <div style={{ display: 'flex', gap: '4px', marginBottom: '16px' }}>
           {(['speaker', 'partner'] as StakeholderKind[]).map(t => (
-            <button key={t} onClick={() => setActiveType(t)}
+            <button data-keep key={t} onClick={() => setActiveType(t)}
               style={{
                 padding: '7px 16px', borderRadius: '8px', border: '1px solid var(--border)', cursor: 'pointer', fontSize: '12.5px', fontWeight: 800, textTransform: 'capitalize',
                 background: activeType === t ? 'var(--teal-mid)' : 'var(--surface)', color: activeType === t ? 'white' : 'var(--ink2)',

@@ -3,7 +3,6 @@
   "registryMissing": [],
   "pageHeaderMissing": [
     "/admin/access-requests",
-    "/admin/branding/corporate",
     "/admin/events/[id]",
     "/admin/events/[id]/announcements/[announcementId]/review",
     "/admin/events/[id]/brand",

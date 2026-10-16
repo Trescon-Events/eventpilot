@@ -1,8 +1,6 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import Link from 'next/link'
-import PageHeader from '@/app/components/PageHeader'
 import { Button, Card, Textarea, ProcessingOverlay, Toast, type ToastType } from '@/app/components/ui'
 import type { CleaningCycleTemplate } from '@/app/lib/announcements/composite'
 import { CLEANING_CYCLE_CANVAS_SIZE } from '@/app/lib/media/cleaning-cycle-constants'
@@ -135,19 +133,8 @@ export default function CleaningCycleTemplatePage() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--surface)' }}>
-      <PageHeader
-        eyebrow="Branding"
-        title="Cleaning Cycle Template"
-        description="The single standard every speaker's Cleaned Photo is measured against, across every event."
-      />
 
       <div style={{ padding: '24px 32px', maxWidth: '860px' }}>
-        <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '5px', width: 'fit-content' }}>
-          <Link href="/admin/branding/fonts" style={{ padding: '8px 16px', borderRadius: '8px', color: 'var(--ink3)', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>Fonts</Link>
-          <Link href="/admin/branding/corporate" style={{ padding: '8px 16px', borderRadius: '8px', color: 'var(--ink3)', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>Corporate Brand</Link>
-          <Link href="/admin/branding/placeholder-defaults" style={{ padding: '8px 16px', borderRadius: '8px', color: 'var(--ink3)', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>Placeholder Defaults</Link>
-          <div style={{ padding: '8px 16px', borderRadius: '8px', background: 'var(--surface)', color: 'var(--lime)', fontSize: '13px', fontWeight: 800 }}>Cleaning Cycle Template</div>
-        </div>
 
         <Toast message={msg} type={msgType} onClose={() => setMsg(null)} />
 

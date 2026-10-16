@@ -1,3 +1,4 @@
+import { requireContentEditIfOrgDoc } from '@/app/lib/content/content-access'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
@@ -16,6 +17,7 @@ import { logRuleChange } from '@/app/lib/content/rule-admin'
    to confirm the rule belongs to that doc's event before acting on it. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string; ruleId: string }> }) {
   const { id, ruleId } = await params
+  { const denied = await requireContentEditIfOrgDoc(req, id); if (denied) return denied }
   const body = await req.json().catch(() => null) as { action?: 'accept' | 'dismiss'; origin?: 'client' | 'trescon' } | null
   if (body?.action !== 'accept' && body?.action !== 'dismiss') {
     return NextResponse.json({ error: "action must be 'accept' or 'dismiss'" }, { status: 400 })

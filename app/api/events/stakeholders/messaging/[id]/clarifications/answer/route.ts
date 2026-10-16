@@ -1,3 +1,4 @@
+import { requireContentEditIfOrgDoc } from '@/app/lib/content/content-access'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { processAnsweredRound } from '@/app/lib/content/clarifications'
@@ -12,6 +13,7 @@ import { processAnsweredRound } from '@/app/lib/content/clarifications'
    answered in one batch; there's no partial-answer or skip path. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  { const denied = await requireContentEditIfOrgDoc(req, id); if (denied) return denied }
   const body = await req.json().catch(() => null)
   const answers = body?.answers as Array<{ question_key: string; answer_value: string; answer_note?: string }> | undefined
   const answeredBy = (body?.answered_by as string | null) ?? null

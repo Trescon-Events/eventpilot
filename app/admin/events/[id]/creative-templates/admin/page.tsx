@@ -1225,7 +1225,7 @@ function PlaceholderSourceControl({ activeType, profile, globalValue, onSave, us
         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: togglingOverride ? 'default' : 'pointer', marginBottom: '8px' }}>
           <input type="checkbox" checked={!useOverride} disabled={togglingOverride} onChange={() => setUseOverride(false)} style={{ margin: 0 }} />
           <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Use Global Default</span>
-          <Link href="/admin/branding/placeholder-defaults" onClick={e => e.stopPropagation()} style={{ marginLeft: 'auto', fontSize: '11.5px', fontWeight: 700, color: 'var(--teal-mid)' }}>Manage →</Link>
+          <Link href="/brand-content/brand/creative-standards?tab=placeholders" onClick={e => e.stopPropagation()} style={{ marginLeft: 'auto', fontSize: '11.5px', fontWeight: 700, color: 'var(--teal-mid)' }}>Manage →</Link>
         </label>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           {globalValue?.photo_url && (

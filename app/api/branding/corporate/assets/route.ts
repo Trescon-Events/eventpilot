@@ -1,3 +1,4 @@
+import { requireBrandWriteAccess } from '@/app/lib/branding/brand-access'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
@@ -51,6 +52,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = await requireBrandWriteAccess(req)
+  if (denied) return denied
   const form = await req.formData()
   const category = form.get('category') as Category | null
   const name = form.get('name') as string | null

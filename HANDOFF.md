@@ -11,6 +11,9 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 ---
 
+## Follow-up (16 Oct 2026): platform-level role assignment without an anchor event
+`platform.*` permissions (Branding: `platform.branding.manage`, Content editor: `platform.content.manage`) are held through access roles that can only be assigned on an event or umbrella (`event_access_assignments`). Today the Branding and Content editor roles are assigned on World AI Show Malaysia 2026 purely as an anchor, so those people appear in that event's access list. Build platform-level assignment (a `platform_access_assignments` table read by `hasPlatformPermission`, plus a picker in Access Center) so neither needs an anchor event. Decided by Madhu: fine for now, build later.
+
 ## Last Session
 
 | Field | Value |

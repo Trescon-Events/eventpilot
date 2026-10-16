@@ -910,7 +910,7 @@ function AdminPageInner() {
             toolkit: '/admin/toolkit',
             finance: '/finance',
             hr: '/hr',
-            branding: '/admin/branding/fonts',
+            branding: '/brand-content/brand/fonts',
           }
           return (
             <div id="tour-tabs" style={{ display: 'flex', gap: '6px', marginBottom: '28px', flexWrap: 'wrap' }}>

@@ -1,3 +1,4 @@
+import { requireBrandWriteAccess } from '@/app/lib/branding/brand-access'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
@@ -11,6 +12,8 @@ import { processLogo } from '@/app/lib/media/logo-engine'
    through processLogo(), same as creation. */
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireBrandWriteAccess(req)
+  if (denied) return denied
   const { id } = await params
   const form = await req.formData()
   const file = form.get('file') as File | null

@@ -1,26 +1,39 @@
-import Link from 'next/link'
+'use client'
+
+import { Suspense, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader'
-import { Card } from '@/app/components/ui'
+import { ViewOnly, useBrandContentAccess } from '@/app/components/brand-content/access'
+import LogoHandlingTab from './LogoHandlingTab'
+import PhotoHandlingTab from './PhotoHandlingTab'
+import PlaceholdersTab from './PlaceholdersTab'
 
-/* Part 1 placeholder (docs/build_suggestions/brand-and-content-section.md): Part 2 replaces this with one page and three tabs
-   (Logo handling, Speaker photo handling, Creative placeholders). Until then it points at the existing standards pages. */
-const LINKS = [
-  { href: '/admin/branding/cleaning-cycle-template', label: 'Speaker photo handling', note: 'The Cleaned Photo standard every speaker photo is measured against.' },
-  { href: '/admin/branding/placeholder-defaults', label: 'Creative placeholders', note: 'Default placeholders for speaker announcements, self-promo and badges.' },
-]
+const TABS = [
+  { id: 'logo', label: 'Logo handling' },
+  { id: 'photo', label: 'Speaker photo handling' },
+  { id: 'placeholders', label: 'Creative placeholders' },
+] as const
+type TabId = typeof TABS[number]['id']
 
-export default function CreativeStandardsPage() {
+function CreativeStandards() {
+  const access = useBrandContentAccess()
+  const param = useSearchParams().get('tab')
+  const [tab, setTab] = useState<TabId>(TABS.some(t => t.id === param) ? (param as TabId) : 'logo')
   return (
-    <div style={{ maxWidth: '900px', margin: '0 auto', padding: '24px 16px' }}>
-      <PageHeader eyebrow="Brand" title="Creative standards" description="The rules every creative follows: logo handling, speaker photo handling and creative placeholders." />
-      <div style={{ display: 'grid', gap: '12px' }}>
-        {LINKS.map(l => (
-          <Card key={l.href} padded>
-            <Link href={l.href} style={{ fontSize: '14px', fontWeight: 800, color: 'var(--teal-mid)', textDecoration: 'none' }}>{l.label} →</Link>
-            <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '4px' }}>{l.note}</div>
-          </Card>
+    <div style={{ padding: '24px 32px' }}>
+      <PageHeader eyebrow="Brand" title="Creative standards" description="The rules every creative follows: how logos are handled, how speaker photos are cleaned, and the default placeholders." />
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '8px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '5px', width: 'fit-content', flexWrap: 'wrap' }}>
+        {TABS.map(t => (
+          <button key={t.id} data-keep onClick={() => setTab(t.id)} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: 800, background: tab === t.id ? 'var(--surface)' : 'transparent', color: tab === t.id ? 'var(--lime)' : 'var(--ink3)' }}>{t.label}</button>
         ))}
       </div>
+      {tab === 'logo' && <LogoHandlingTab />}
+      {tab === 'photo' && <ViewOnly canEdit={access?.can_edit_brand}><PhotoHandlingTab /></ViewOnly>}
+      {tab === 'placeholders' && <ViewOnly canEdit={access?.can_edit_brand}><PlaceholdersTab /></ViewOnly>}
     </div>
   )
+}
+
+export default function CreativeStandardsPage() {
+  return <Suspense fallback={null}><CreativeStandards /></Suspense>
 }

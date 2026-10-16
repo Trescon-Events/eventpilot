@@ -1,3 +1,4 @@
+import { requireBrandWriteAccess } from '@/app/lib/branding/brand-access'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
@@ -21,6 +22,8 @@ const MAX_SIZE_MB = 10
    per-layer reference upload's reference_head_box). Skipped for the
    partner default — that photo fills a logo slot, no face concept. */
 export async function POST(req: NextRequest) {
+  const denied = await requireBrandWriteAccess(req)
+  if (denied) return denied
   const form = await req.formData().catch(() => null)
   const file = form?.get('file') as File | null
   const stakeholderType = form?.get('stakeholder_type') as string | null

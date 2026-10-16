@@ -524,15 +524,6 @@ export function getModuleRegistry(): ModuleDef[] {
       access: { kind: 'admin_only' },
       platformMenu: { section: 'Administration' },
     },
-    {
-      key: 'branding-fonts', label: 'Font Library',
-      description: 'Platform-wide brand fonts for stakeholder announcement creatives — upload or fetch from Google Fonts.',
-      icon: I.layers, color: '#A172F2',
-      href: '/admin/branding/fonts',
-      access: { kind: 'admin_only' },
-      platformMenu: { section: 'Administration' },
-      sidebar: { section: 'admin', parent: 'admin', order: 6, label: 'Branding' },
-    },
     /* ── Brand & Content (2026-10-16) — standards: what Trescon follows. Everyone signed in can open every page;
        editing is gated per page/API (platform.branding.manage for Brand, platform.content.manage for Content,
        approvals super admin only). Docs: docs/build_suggestions/brand-and-content-section.md ── */
@@ -1086,14 +1077,6 @@ export function getModuleRegistry(): ModuleDef[] {
       icon: I.dashboard, color: '#009C89',
       href: '/admin/umbrellas',
       breadcrumbPattern: '/admin/umbrellas', breadcrumbParent: 'admin',
-      access: { kind: 'admin_only' },
-    },
-    {
-      key: 'admin-house-style', label: 'Trescon house style',
-      description: 'Trescon-wide style guide and house rules — applied to every event below client rules. Platform admins only.',
-      icon: I.doc, color: '#009C89',
-      href: '/admin/content/house-style',
-      breadcrumbPattern: '/admin/content/house-style', breadcrumbParent: 'admin',
       access: { kind: 'admin_only' },
     },
     {

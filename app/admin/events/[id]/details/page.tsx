@@ -77,6 +77,8 @@ export type MessagingDoc = {
   role: DocRole; authority_rank: number; provenance: Provenance
   structured_json: { sections: Section[]; default_fields?: Record<string, string | null> } | null
   source_url: string | null; updated_at: string; created_at: string
+  /** Word copy of a Trescon-wide document (Brand & Content): stored and downloadable only, never extracted or used in a prompt. */
+  word_file_url?: string | null; word_file_name?: string | null
   // Background extraction (2026-09-16) — a freshly-uploaded doc lands as
   // 'processing' with structured_json still null; the two Gemini calls
   // that fill it in run after the upload request already returned (see
@@ -1240,7 +1242,9 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
   )
 }
 
-export function DraftReview({ doc, canManage, session, onApproved }: {
+export function DraftReview({ doc, canManage, canApprove, session, onApproved }: {
+  /** Approving may be narrower than editing (the Trescon-wide style guide: editors edit, only a super admin approves). Defaults to canManage. */
+  canApprove?: boolean
   doc: MessagingDoc
   canManage: boolean
   session: { sid: string } | null
@@ -1370,7 +1374,7 @@ export function DraftReview({ doc, canManage, session, onApproved }: {
             </div>
           ))}
         </div>
-        {canManage && (
+        {(canApprove ?? canManage) && (
           <>
             <Button variant="lime" onClick={approveDraft} disabled={approving || blockedByClarifications}>{approving ? 'Approving…' : 'Approve — make this version live'}</Button>
             {blockedByClarifications && (

@@ -1,3 +1,4 @@
+import { requireBrandWriteAccess } from '@/app/lib/branding/brand-access'
 import { NextRequest, NextResponse } from 'next/server'
 import sharp from 'sharp'
 import { deriveAlignmentTarget } from '@/app/lib/media/face-alignment'
@@ -16,6 +17,8 @@ import { uploadPublicAsset } from '@/app/lib/events/storage'
    detection, reference_head_box derivation) that doesn't apply here, and
    its upload path is hardcoded under `events/${eventId}/...`. */
 export async function POST(req: NextRequest) {
+  const denied = await requireBrandWriteAccess(req)
+  if (denied) return denied
   const form = await req.formData().catch(() => null)
   const file = form?.get('file') as File | null
   if (!file) return NextResponse.json({ error: 'file required' }, { status: 400 })

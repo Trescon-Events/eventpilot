@@ -1,3 +1,4 @@
+import { requireContentEditIfOrgDoc } from '@/app/lib/content/content-access'
 import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
@@ -78,6 +79,7 @@ function excerpt(content: unknown): string {
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  { const denied = await requireContentEditIfOrgDoc(req, id); if (denied) return denied }
   const body = await req.json().catch(() => null)
   const syncMode = body?.sync === true
   const message = body?.message as string | undefined

@@ -44,6 +44,18 @@ const nextConfig: NextConfig = {
   // throws MODULE_NOT_FOUND even though the package is installed — this tells
   // Next to require() it directly from node_modules at runtime instead.
   serverExternalPackages: ['@napi-rs/canvas', 'pdfjs-dist'],
+  // Brand & Content (2026-10-16): the old Branding and house-style URLs now live under /brand-content. Temporary (307) redirects so a
+  // bookmark keeps working; the moved pages themselves are the only copies.
+  async redirects() {
+    return [
+      { source: '/admin/branding/corporate', destination: '/brand-content/brand/book', permanent: false },
+      { source: '/admin/branding/fonts', destination: '/brand-content/brand/fonts', permanent: false },
+      { source: '/admin/branding/cleaning-cycle-template', destination: '/brand-content/brand/creative-standards?tab=photo', permanent: false },
+      { source: '/admin/branding/placeholder-defaults', destination: '/brand-content/brand/creative-standards?tab=placeholders', permanent: false },
+      { source: '/admin/content/house-style', destination: '/brand-content/content/style-guide', permanent: false },
+      { source: '/admin/branding', destination: '/brand-content/brand/book', permanent: false },
+    ]
+  },
   async headers() {
     return [
       {

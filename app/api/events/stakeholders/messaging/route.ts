@@ -1,3 +1,4 @@
+import { requireContentEditAccess, requireContentEditIfOrgDoc } from '@/app/lib/content/content-access'
 import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
@@ -215,7 +216,8 @@ export async function POST(req: NextRequest) {
   let ownerTypeColumnValue: string | null // events.type or event_umbrellas.type, for the provenance default rule
   if (ownerType === 'org') {
     if (eventId !== 'trescon') return NextResponse.json({ error: 'Unknown Trescon-wide scope.' }, { status: 400 })
-    if (!getSession(req)?.adm) return NextResponse.json({ error: 'Only a platform admin can upload a Trescon-wide document.' }, { status: 403 })
+    const denied = await requireContentEditAccess(req)
+    if (denied) return denied
     ownerTypeColumnValue = null
   } else if (ownerType === 'umbrella') {
     const { data: umbrellaRow, error: umbrellaErr } = await supabaseAdmin

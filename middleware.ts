@@ -263,10 +263,6 @@ export async function middleware(req: NextRequest) {
     // forbidden) lives in app/lib/github/dev-approvals-access.ts and is
     // enforced by the API routes, not this middleware.
     pathname.startsWith('/admin/dev-approvals') ||
-    // 2026-08-16: delegatable via the platform-wide RBAC permission
-    // platform.branding.manage — see app/admin/branding/fonts/layout.tsx.
-    // Scoped to /fonts only, not the sibling /admin/branding/corporate page.
-    pathname.startsWith('/admin/branding/fonts') ||
     /^\/admin\/events\/[^/]+\/(website|brand|market-intel|creative-templates|stakeholders|plan|execution|brief|details|announcements|messaging|operations)/.test(pathname) ||
     // 2026-09-25: umbrella-level Operations (licence processing for a whole umbrella, e.g. DFFW). Auth-only here; app/admin/umbrellas/[id]/operations/layout.tsx does the real check.
     /^\/admin\/umbrellas\/[^/]+\/operations(\/|$)/.test(pathname) ||
