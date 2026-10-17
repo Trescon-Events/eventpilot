@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { ProcessingOverlay } from '@/app/components/ui'
 
 /* Trescon Corporate Brand — admin Branding tab, "Corporate Brand" section
    (2026-08-06, restructured same day into a Canva Brand Kit-style asset
@@ -184,6 +185,8 @@ function BatchUpload({ category, subcategory, onAdd, accept = 'image/png,image/j
   }
 
   return (
+    <>
+    <ProcessingOverlay active={uploading} label={`Uploading ${progress?.done ?? 0} of ${progress?.total ?? 0}…`} sublabel="Sending your files. Please keep this page open." estimatedMs={8000} />
     <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '14px 18px', border: `1.5px dashed ${uploading ? 'var(--teal-mid)' : 'var(--border)'}`, borderRadius: '10px', background: uploading ? 'rgba(18,201,189,0.04)' : 'var(--border-light)', cursor: uploading ? 'wait' : 'pointer', marginBottom: '18px' }}>
       <input type="file" multiple accept={accept} style={{ display: 'none' }} disabled={uploading}
         onChange={e => { handleFiles(e.target.files); e.target.value = '' }} />
@@ -191,6 +194,7 @@ function BatchUpload({ category, subcategory, onAdd, accept = 'image/png,image/j
         {uploading ? `Uploading ${progress?.done ?? 0}/${progress?.total ?? 0}…` : 'Batch upload — select multiple files at once'}
       </span>
     </label>
+    </>
   )
 }
 
@@ -339,6 +343,7 @@ export default function CorporateBrandPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--surface)', fontFamily: 'var(--font-manrope), Manrope, sans-serif', color: 'var(--ink)' }}>
+      <ProcessingOverlay active={pdfUploading} label="Reading your brand book…" sublabel="Uploading the PDF and extracting its colours, fonts and tone of voice. This usually takes one to two minutes." estimatedMs={70000} />
 
       <nav style={{ background: 'var(--card)', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '0 32px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
         <div>

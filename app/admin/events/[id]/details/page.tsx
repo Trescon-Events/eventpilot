@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo, use } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
-import { Button, Card, Input, Select } from '@/app/components/ui'
+import { Button, Card, Input, Select, ProcessingBanner, ProcessingOverlay } from '@/app/components/ui'
 import DeleteSensitiveDocumentModal from '../stakeholders/[stakeholderId]/DeleteSensitiveDocumentModal'
 import { FORM_TITLES, FormType } from '@/app/lib/forms/types'
 import { TRACKED_EVENT_FIELDS, FIELD_LABELS, TrackedEventField } from '@/app/lib/events/detail-fields'
@@ -197,6 +197,7 @@ export function UploadDocButton({ role, saving, existing, onPicked, label = 'Upl
         style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.6 : 1, fontFamily: 'inherit' }}>
         {saving ? 'Uploading…' : label}
       </button>
+      <ProcessingOverlay active={saving} label="Uploading your document…" sublabel="Sending the file. Reading it starts right after, and you can follow that on this page." estimatedMs={9000} />
       <input ref={fileInput} type="file" accept="application/pdf" style={{ display: 'none' }}
         onChange={e => { const f = e.target.files?.[0]; if (f && chosen.current) onPicked(f, chosen.current); e.target.value = '' }} />
       {open && (
@@ -1267,11 +1268,11 @@ export function DraftReview({ doc, canManage, canApprove, session, onApproved }:
   // this is now a background step instead of blocking the upload request.
   if (doc.extraction_status === 'processing') {
     return (
-      <div style={{ padding: '24px', fontSize: '13px', color: 'var(--ink3)' }}>
-        Extracting content — this can take a minute or two for a long document. This updates automatically; you can also leave and come back.
+      <div style={{ padding: '8px 0' }}>
+        <ProcessingBanner title="Reading your document…" detail="Extracting its sections, facts and rules. This usually takes one to three minutes for a long document. This page updates by itself when it is ready, and you can leave and come back." startedAt={doc.created_at} />
         <div style={{ marginTop: '14px' }}>
           <DeleteDocControl doc={doc} canManage={canManage} onDeleted={onApproved} />
-          <div style={{ fontSize: '11px', color: 'var(--ink4)', marginTop: '6px' }}>Uploaded to the wrong tab, or the wrong file? Cancel it here — nothing goes live.</div>
+          <div style={{ fontSize: '11px', color: 'var(--ink4)', marginTop: '6px' }}>Uploaded to the wrong tab, or the wrong file? Cancel it here, nothing goes live.</div>
         </div>
       </div>
     )
