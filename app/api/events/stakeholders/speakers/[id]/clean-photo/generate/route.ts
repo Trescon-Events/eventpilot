@@ -96,7 +96,7 @@ import { MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine
    exact buffer is the only way to tell whether a bad result is the AI not
    following the template's own head-size/margin instructions, versus
    something later in the pipeline). The wizard's "AI Edited" step shows it. */
-type Body = { mode?: 'ai_fill' | 'enhance' | 'good' | 'chat_refine'; quality?: 'medium' | 'high'; source_url?: string; head_box?: HeadBox; instruction?: string }
+type Body = { mode?: 'ai_fill' | 'enhance' | 'good' | 'chat_refine'; quality?: 'medium' | 'high'; source_url?: string; head_box?: HeadBox; instruction?: string; allow_face_changes?: boolean }
 
 const MAX_INSTRUCTION_LENGTH = 500
 
@@ -146,7 +146,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .single()
     if (jobErr || !job) return NextResponse.json({ error: 'Could not start the refine job' }, { status: 500 })
 
-    runChatRefineJob(job.id, speakerId, speaker.event_id, sourceUrl, instruction)
+    // Face lock (2026-10-17): unless the producer ticked "allow changes to the face", the original head is put back over the result. The head
+    // sits at the Cleaning Cycle template's own target by construction, so that is where the lock goes.
+    let protectHead: { centerXRatio: number; centerYRatio: number; heightRatio: number } | undefined
+    if (body?.allow_face_changes !== true) {
+      const { data: tpl } = await supabaseAdmin.from('cleaning_cycle_template_global').select('target_head_center_x, target_head_center_y, target_head_height').eq('id', 1).maybeSingle()
+      if (tpl) protectHead = { centerXRatio: tpl.target_head_center_x, centerYRatio: tpl.target_head_center_y, heightRatio: tpl.target_head_height }
+    }
+
+    runChatRefineJob(job.id, speakerId, speaker.event_id, sourceUrl, instruction, protectHead)
       .catch(async e => {
         console.error(`[clean-photo chat_refine job ${job.id}] uncaught error:`, e)
         await supabaseAdmin.from('speaker_photo_clean_jobs').update({
@@ -341,12 +349,13 @@ async function runChatRefineJob(
   eventId: string,
   sourceUrl: string,
   instruction: string,
+  protectHead?: { centerXRatio: number; centerYRatio: number; heightRatio: number },
 ) {
   const imgRes = await fetch(sourceUrl)
   if (!imgRes.ok) throw new Error(`Failed to fetch current photo: ${imgRes.status}`)
   const buffer = Buffer.from(await imgRes.arrayBuffer())
 
-  const refined = await refineWithInstruction(buffer, instruction)
+  const refined = await refineWithInstruction(buffer, instruction, protectHead ? { protectHead } : undefined)
   // Same despill step every other mode's output goes through — a
   // chat-refined result is not treated as already-final, per Madhu: "auto
   // pushed to do the rest of the cleanup job... and rest follows as usual."

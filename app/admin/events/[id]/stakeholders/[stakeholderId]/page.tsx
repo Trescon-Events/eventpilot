@@ -1620,7 +1620,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                     </div>
                     {record.photo_low_resolution && (
                       <div style={{ fontSize: '11.5px', color: 'var(--amber)', marginTop: '10px', maxWidth: '260px' }}>
-                        ⚠ Lower resolution than ideal — creatives may look soft. Ask for a higher-res original if possible, or use &quot;✨ Make it High-Res&quot; at the start of Clean Photo.
+                        ⚠ Lower resolution than ideal — creatives may look soft. Ask the speaker for a higher-resolution original.
                       </div>
                     )}
                   </div>

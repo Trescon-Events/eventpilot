@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/app/components/ui'
 import type { HeadBox } from '@/app/lib/media/face-alignment'
 import PhotoFitEditor from './PhotoFitEditor'
-import MakeHighResModal from './MakeHighResModal'
 
 /* The guided Photo Cleaning flow (2026-08-21, replaces CleanPhotoWizard +
    HeadBoxEditorModal's standalone "Fix Head Position" use) — one modal that
@@ -155,7 +154,6 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
   const [uploadProgress, setUploadProgress] = useState(0)
 
   const [rawPhotoUrl, setRawPhotoUrl] = useState<string | null>(entry.kind === 'existing' ? entry.url : null)
-  const [showHighRes, setShowHighRes] = useState(false)
   const [composeBox, setComposeBox] = useState<HeadBox>(entry.kind === 'existing' ? (entry.headBox ?? DEFAULT_BOX) : DEFAULT_BOX)
   // The Cleaning Cycle template's own target ratios — fetched once on
   // mount so the Compose step's fixed ring can render before the producer
@@ -243,6 +241,7 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
   // gets the same safety net any other AI Fill result does.
   const [chatWorkingHasGap, setChatWorkingHasGap] = useState(false)
   const [chatInstruction, setChatInstruction] = useState('')
+  const [allowFaceChanges, setAllowFaceChanges] = useState(false)
   const [chatLog, setChatLog] = useState<string[]>([])
   const [chatBusy, setChatBusy] = useState(false)
   // Same ref-not-state reasoning as gapPromptCountRef — reset at the same
@@ -556,7 +555,7 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
     try {
       const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/generate`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'chat_refine', source_url: chatWorkingUrl, instruction }),
+        body: JSON.stringify({ mode: 'chat_refine', source_url: chatWorkingUrl, instruction, allow_face_changes: allowFaceChanges }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok || !data.job_id) {
@@ -886,16 +885,6 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
           <div style={{ display: 'grid', gap: '7px' }}>
             {phase === 'compose' && !templateError && cleaningTarget && (
               <>
-                {/* Make it High-Res (2026-09-28) — the sequence's own first
-                    OPTIONAL step, deliberately separate from the three real
-                    Compose actions below (it doesn't decide anything about
-                    framing/fill, it just optionally improves the source
-                    those actions then work from) — see MakeHighResModal's
-                    own doc comment for the confirm-first warning it shows
-                    before any API call runs. */}
-                {rawPhotoUrl && (
-                  <Button variant="ghost" onClick={() => setShowHighRes(true)} disabled={busy}>✨ Make it High-Res</Button>
-                )}
                 <Button variant="lime" onClick={() => chooseComposeAction('good')} disabled={busy || !composePhotoReachesBottom}>Looks Good, Continue</Button>
                 <Button variant="teal" onClick={() => chooseComposeAction('enhance')} disabled={busy || !composePhotoReachesBottom}>Enhance Only</Button>
                 <Button variant="indigo" onClick={() => chooseComposeAction('ai_fill')} disabled={busy}>AI Fill + Enhance</Button>
@@ -1164,6 +1153,10 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
                     maxLength={500}
                     style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink)', fontSize: '14.5px', lineHeight: 1.5, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }}
                   />
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '12.5px', color: 'var(--ink2)', lineHeight: 1.5, cursor: chatBusy ? 'default' : 'pointer' }}>
+                    <input type="checkbox" checked={allowFaceChanges} disabled={chatBusy} onChange={e => setAllowFaceChanges(e.target.checked)} style={{ marginTop: '3px' }} />
+                    <span>Allow changes to the face and head. Leave this off to keep the face exactly as in the original photo; the AI can then only change clothing and background.</span>
+                  </label>
                   <Button variant="indigo" onClick={sendChatRefine} disabled={chatBusy || !chatInstruction.trim()}>
                     {chatBusy ? 'Working…' : 'Ask AI to Fix This'}
                   </Button>
@@ -1232,15 +1225,6 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
           )}
         </div>
       </div>
-      {showHighRes && rawPhotoUrl && (
-        <MakeHighResModal
-          speakerId={speakerId}
-          currentPhotoUrl={rawPhotoUrl}
-          onApplied={(photoUrl, photoProcessedUrl) => setRawPhotoUrl(photoProcessedUrl || photoUrl)}
-          onSaved={onSaved}
-          onClose={() => setShowHighRes(false)}
-        />
-      )}
     </div>
   )
 }

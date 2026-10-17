@@ -27,7 +27,8 @@
 import sharp from 'sharp'
 import { alignAndCropPhoto, type AlignmentTarget, type CropPadding, type HeadBox } from './face-alignment'
 
-export { CLEANING_CYCLE_CANVAS_SIZE } from './cleaning-cycle-constants'
+import { CLEANING_CYCLE_CANVAS_SIZE } from './cleaning-cycle-constants'
+export { CLEANING_CYCLE_CANVAS_SIZE }
 
 // Shared by finalizeCleaningCycle (what counts as a real per-edge gap
 // worth flagging) and generateAIFilledPhoto (which edges' prompt
@@ -157,6 +158,55 @@ const PADDING_WARNING_THRESHOLD_PX = 3
 //     word-for-word. A plain-hair case must still extend ONLY hair,
 //     exactly enough, no more — re-verify this didn't regress before
 //     considering this checklist entry closed.
+// FACE FIDELITY (2026-10-17, per Madhu: a speaker's face came out re-drawn). gpt-image-2 regenerates the whole picture whatever the mask says, so
+// every AI step now puts the ORIGINAL pixels back on top of its output. `original` is the deterministic crop (RGBA): wherever it is opaque,
+// its pixels win bit-for-bit; the AI result only ever shows through in the padding bands outside the photo (the gaps it was asked to fill). Pure and synchronous in effect, so it can be unit tested without calling any model.
+export async function restoreOriginalOver(aiOutput: Buffer, original: Buffer, bands?: CropPadding | null): Promise<Buffer> {
+  const meta = await sharp(original).metadata()
+  const w = meta.width ?? CLEANING_CYCLE_CANVAS_SIZE, h = meta.height ?? CLEANING_CYCLE_CANVAS_SIZE
+  const ai = await sharp(aiOutput).resize(w, h, { fit: 'fill' }).removeAlpha().png().toBuffer()
+  let base = ai
+  if (bands) {
+    // The model may only supply what is OUTSIDE the photo (the padding bands the deterministic crop left empty). Inside the photo's own extent
+    // the original alone decides: where it is transparent (the removed background) the chroma-key green stays, so the model's own re-drawn
+    // silhouette (a ghost edge beside the head or shoulders, seen on the first real test) can never show through. The bands reach a few px
+    // inward so the model's continuation meets the original without a hairline gap.
+    const overlap = 6
+    const rects: string[] = []
+    if (bands.top > 0) rects.push(`<rect x="0" y="0" width="${w}" height="${Math.min(h, bands.top + overlap)}"/>`)
+    if (bands.bottom > 0) rects.push(`<rect x="0" y="${Math.max(0, h - bands.bottom - overlap)}" width="${w}" height="${h}"/>`)
+    if (bands.left > 0) rects.push(`<rect x="0" y="0" width="${Math.min(w, bands.left + overlap)}" height="${h}"/>`)
+    if (bands.right > 0) rects.push(`<rect x="${Math.max(0, w - bands.right - overlap)}" y="0" width="${w}" height="${h}"/>`)
+    const maskSvg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="${w}" height="${h}" fill="black"/><g fill="white">${rects.join('')}</g></svg>`)
+    const maskRaw = await sharp(maskSvg).greyscale().raw().toBuffer()
+    const rgba = await sharp(ai).ensureAlpha().raw().toBuffer()
+    for (let k = 0; k < w * h; k++) rgba[k * 4 + 3] = maskRaw[k]
+    const aiInBands = await sharp(rgba, { raw: { width: w, height: h, channels: 4 } }).png().toBuffer()
+    base = await sharp({ create: { width: w, height: h, channels: 3, background: { r: 0, g: 255, b: 0 } } }).composite([{ input: aiInBands, blend: 'over' }]).png().toBuffer()
+  }
+  return sharp(base).composite([{ input: original, blend: 'over' }]).png().toBuffer()
+}
+
+// Same idea for the free-text Refine step, which has no mask: put the original back only inside the head (an ellipse around the face, hair and
+// ears, feathered at the edge) so the producer can still change clothing or background but the face cannot drift. Ratios are of the image size,
+// the same as the template's head target. `original` may be RGBA or opaque.
+export type HeadEllipse = { centerXRatio: number; centerYRatio: number; heightRatio: number }
+export async function restoreHeadOriginal(aiOutput: Buffer, original: Buffer, head: HeadEllipse): Promise<Buffer> {
+  const meta = await sharp(original).metadata()
+  const w = meta.width ?? CLEANING_CYCLE_CANVAS_SIZE, h = meta.height ?? CLEANING_CYCLE_CANVAS_SIZE
+  const cx = head.centerXRatio * w, cy = head.centerYRatio * h
+  const ry = Math.max(8, 0.62 * head.heightRatio * h), rx = Math.max(8, 0.5 * head.heightRatio * h)
+  const feather = Math.max(2, Math.round(ry * 0.06))
+  const maskSvg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="white"/></svg>`)
+  const mask = await sharp(maskSvg).blur(feather).greyscale().raw().toBuffer({ resolveWithObject: true })
+  const originalRgba = await sharp(original).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+  const px = originalRgba.data
+  for (let i = 0; i < w * h; i++) px[i * 4 + 3] = Math.round((px[i * 4 + 3] * mask.data[i]) / 255)
+  const headLayer = await sharp(px, { raw: { width: w, height: h, channels: 4 } }).png().toBuffer()
+  const base = await sharp(aiOutput).resize(w, h, { fit: 'fill' }).removeAlpha().png().toBuffer()
+  return sharp(base).composite([{ input: headLayer, blend: 'over' }]).png().toBuffer()
+}
+
 export async function generateAIFilledPhoto(
   sourceBuffer: Buffer,
   headBox: HeadBox,
@@ -203,6 +253,14 @@ export async function generateAIFilledPhoto(
   // guessed at.
   console.log('[generateAIFilledPhoto] edge padding (px):', cropWarning, '→ fill top/bottom/left/right:', needsTopFill, needsBottomFill, needsLeftFill, needsRightFill)
 
+  // No real gap on any edge: nothing for the model to fill, so do not call it at all (2026-10-17). The result is the original crop on the
+  // chroma-key background, which the caller's despill step turns back into the same cut-out. This also means a photo with no gap can never be
+  // re-drawn by this step.
+  if (!needsTopFill && !needsBottomFill && !needsLeftFill && !needsRightFill) {
+    console.log('[generateAIFilledPhoto] no gap on any edge: skipping the model, original pixels kept')
+    return sharp(placed).flatten({ background: { r: 0, g: 255, b: 0 } }).png().toBuffer()
+  }
+
   // `image`: what GPT edits — needs a real (non-transparent) background to
   // generate against, same reason the old prompt asked for a green-screen
   // OUTPUT (GPT Image 2 can't output transparency for this model either).
@@ -245,7 +303,7 @@ ${leftInstruction}
 ${rightInstruction}
 ${bottomInstruction}
 - CRITICAL: where a masked area is empty space away from their body (not adjacent to them), you MUST fill it with a single, perfectly flat, uniform chroma-key green — the EXACT same green already visible elsewhere in this image, matched precisely, not merely a similar shade. This background must be completely solid: absolutely no gradients, no shadows, no texture, no vignetting, no lighting variation, no blur, and no color drift anywhere within it. Downstream processing depends on this region being pixel-perfect solid green — any deviation breaks it.
-- While filling, also apply a light overall enhancement to the whole image — subtly improve exposure, contrast, and sharpness — but keep it minimal: the person's existing pixels, position, scale, and clothing color/pattern must stay exactly as instructed above.${customNotes ? `\n\nAdditional notes from the branding team: ${customNotes}` : ''}`
+- Do NOT enhance, retouch, sharpen, smooth, relight, recolor or otherwise improve anything that already exists in the image. Fill the masked areas only; every existing pixel must stay exactly as it is.${customNotes ? `\n\nAdditional notes from the branding team: ${customNotes}` : ''}`
 
   const form = new FormData()
   form.append('model', 'gpt-image-2')
@@ -267,80 +325,13 @@ ${bottomInstruction}
   const json = await res.json()
   const b64 = json?.data?.[0]?.b64_json
   if (!b64) throw new Error('GPT Image 2 returned no image')
-  return Buffer.from(b64, 'base64')
+  // The model re-draws the whole image whatever the mask says: put the original pixels back on top so only the gaps come from the model.
+  return restoreOriginalOver(Buffer.from(b64, 'base64'), placed, cropWarning)
 }
 
-// "Make it High-Res" (2026-09-28, per Madhu) — an optional, standalone step
-// for a raw photo that's genuinely low-resolution (or low-res AND cropped/
-// missing body parts at once, e.g. a tight WhatsApp thumbnail) — run on the
-// RAW photo, BEFORE Clean Photo, so the rest of the pipeline (Compose/AI
-// Fill+Enhance/Website Photo) then has better source material to work from
-// instead of trying to fix sharpness as a side effect of a completely
-// different job (positioning + gap-filling). Real incident this exists for:
-// a low-res raw photo still looked soft after several AI Fill + Enhance
-// attempts, because that step was never asked to (and isn't prompted to)
-// fix resolution — it fills transparent gaps and applies only a "light"
-// enhancement by design (see generateAIFilledPhoto's own prompt).
-//
-// No mask (whole-image edit, same as refineWithInstruction) — there's no
-// gap to fill here, every pixel needs the same treatment. 'high' quality
-// unconditionally (unlike generateAIFilledPhoto's medium-by-default): this
-// is an explicit, occasional producer action whose entire point is maximum
-// fidelity, not a step that runs on every speaker by default.
-//
-// Same OpenAI-documented caveat as generateAIFilledPhoto above applies here
-// too — gpt-image-2's edit endpoint regenerates the whole image as a new
-// output, it is not a literal pixel-preserving upscale (that would be a
-// dedicated super-resolution model, e.g. Real-ESRGAN/GFPGAN via Replicate —
-// noted as the fallback option if this doesn't hold up on real photos).
-// This prompt is the strongest instruction this endpoint allows toward
-// "clarity only, nothing else" — Madhu is testing real output quality
-// against real low-res speaker photos before this is trusted further.
-export async function generateHighResPhoto(sourceBuffer: Buffer): Promise<Buffer> {
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) throw new Error('OPENAI_API_KEY not configured')
-
-  // Closest fixed enum size to the source's own aspect ratio — gpt-image-2
-  // takes one of exactly three concrete sizes for an edit (no free-form
-  // output resolution), so this picks whichever preserves the source
-  // photo's orientation instead of always forcing the Cleaning Cycle's own
-  // square canvas (wrong here: a raw photo can be any aspect ratio, and
-  // this step runs BEFORE the deterministic crop, not after it).
-  const meta = await sharp(sourceBuffer).metadata()
-  const ratio = (meta.width ?? 1) / (meta.height ?? 1)
-  const size = ratio > 1.15 ? '1536x1024' : ratio < 0.87 ? '1024x1536' : '1024x1024'
-
-  // Flattened onto white, not green (2026-08-22's green-screen convention is
-  // specific to the masked-fill pipeline's own despill step downstream —
-  // this result is never composited through that step, it goes straight
-  // back to being the speaker's own raw photo_url).
-  const imageBuffer = await sharp(sourceBuffer).flatten({ background: { r: 255, g: 255, b: 255 } }).png().toBuffer()
-
-  const prompt = `This is a real photograph that needs ONLY its resolution and clarity improved — nothing else about it should change. Increase sharpness and fine detail, and reduce blur, pixelation, compression artifacts, and graininess, as if the exact same photo had been captured with a much higher-resolution camera.
-
-Absolutely do not change anything about what is depicted: do not alter the person's face, expression, pose, body proportions, skin tone, hair, clothing (exact color/pattern/style), accessories, jewelry, or the background in any way. Do not add, remove, invent, retouch, smooth, beautify, or reinterpret any detail — do not "improve" their appearance, only the image's clarity. Do not crop, reframe, resize, or change the composition. The result must be unmistakably the exact same photograph, just clearer and higher resolution.`
-
-  const form = new FormData()
-  form.append('model', 'gpt-image-2')
-  form.append('prompt', prompt)
-  form.append('size', size)
-  form.append('quality', 'high')
-  form.append('image[]', new Blob([new Uint8Array(imageBuffer)], { type: 'image/png' }), 'source.png')
-
-  const res = await fetch('https://api.openai.com/v1/images/edits', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body: form,
-  })
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`GPT Image 2 high-res pass failed (${res.status}): ${text.slice(0, 300)}`)
-  }
-  const json = await res.json()
-  const b64 = json?.data?.[0]?.b64_json
-  if (!b64) throw new Error('GPT Image 2 returned no image')
-  return Buffer.from(b64, 'base64')
-}
+// "Make it High-Res" was retired on 2026-10-17. It sent the whole photo through gpt-image-2, which re-draws it (faces came out altered) and
+// caps the output at 1536px, so it was never a real upscale. There is no replacement upscaler: a low-resolution photo shows the amber
+// "Low Resolution" badge and the producer asks the speaker for a better original.
 
 // Chat-based refine (2026-09-08, per Madhu) — a producer-authored free-text
 // fix for whatever a prompt tweak can't anticipate (e.g. the ghutra/fake-
@@ -356,7 +347,7 @@ Absolutely do not change anything about what is depicted: do not alter the perso
 // on whatever the producer is CURRENTLY looking at in that step (which
 // changes round to round, capped at a small number of rounds by the
 // caller) — never re-derives from the original raw photo.
-export async function refineWithInstruction(sourceBuffer: Buffer, instruction: string): Promise<Buffer> {
+export async function refineWithInstruction(sourceBuffer: Buffer, instruction: string, opts?: { protectHead?: HeadEllipse }): Promise<Buffer> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new Error('OPENAI_API_KEY not configured')
 
@@ -394,7 +385,9 @@ Where you make the requested change, blend it naturally with the surrounding ima
   const json = await res.json()
   const b64 = json?.data?.[0]?.b64_json
   if (!b64) throw new Error('GPT Image 2 returned no image')
-  return Buffer.from(b64, 'base64')
+  const refined = Buffer.from(b64, 'base64')
+  // Face lock (2026-10-17): unless the producer explicitly allows face changes, the original head is put back over the result.
+  return opts?.protectHead ? restoreHeadOriginal(refined, sourceBuffer, opts.protectHead) : refined
 }
 
 // Strips GPT Image 2's baked-in green-screen backdrop via PhotoRoom's own
