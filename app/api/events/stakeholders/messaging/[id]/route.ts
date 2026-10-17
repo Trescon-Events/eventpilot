@@ -1,4 +1,4 @@
-import { requireContentEditAccess } from '@/app/lib/content/content-access'
+import { requireContentEditAccess, requireDocWriteAccess } from '@/app/lib/content/content-access'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { recompileEventAndChildren } from '@/app/lib/content/compile-reference'
@@ -32,6 +32,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // A Trescon-wide document changes every Trescon-owned event — platform admins only.
   const { data: target } = await supabaseAdmin.from('event_messaging_docs').select('event_id, umbrella_id, org_scope').eq('id', id).maybeSingle()
   if (target?.org_scope) { const denied = await requireContentEditAccess(req); if (denied) return denied }
+  else { const denied = await requireDocWriteAccess(req, id); if (denied) return denied }
 
   const update: Record<string, unknown> = {}
   if (body.status !== undefined) update.status = body.status

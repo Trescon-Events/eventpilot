@@ -1,4 +1,4 @@
-import { requireContentEditIfOrgDoc } from '@/app/lib/content/content-access'
+import { requireDocWriteAccess } from '@/app/lib/content/content-access'
 import { cleanField } from '@/app/lib/text/clean-field'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -38,7 +38,7 @@ function excerpt(content: unknown): string {
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  { const denied = await requireContentEditIfOrgDoc(req, id); if (denied) return denied }
+  { const denied = await requireDocWriteAccess(req, id); if (denied) return denied }
   const body = await req.json().catch(() => null)
   const targetType  = body?.target_type as 'section' | 'default_field' | undefined
   const targetKey   = body?.target_key as string | undefined

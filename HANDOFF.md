@@ -11,8 +11,8 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 ---
 
-## Follow-up (due before 2 Nov 2026): event-access checks on event and umbrella document routes
-Under `app/api/events/stakeholders/messaging/[id]/` these routes have no permission check for EVENT and UMBRELLA documents (only Trescon-wide documents are gated, since 16 Oct): `apply-edit`, `propose-edit`, `suggested-rules/[ruleId]` (accept), `clarifications/answer`, and the Word upload (org-only today, so only relevant if it is ever opened to events). Add `sae.forms.manage` (event) / `sae.messaging.umbrella_manage` (umbrella) checks, as the upload and delete routes already do. Separate task, after the Brand & Content push.
+## Done (17 Oct 2026): event-access checks on the messaging document routes
+`apply-edit`, `propose-edit`, `suggested-rules/[ruleId]` (accept), `clarifications/answer`, `approve` (event and umbrella documents) and the document `PATCH` now check access on the server through `requireDocWriteAccess` (app/lib/content/content-access.ts): super admin; Trescon-wide needs `platform.content.manage`; umbrella docs need `sae.messaging.umbrella_manage`; event docs need `sae.forms.manage`. Same keys the upload and delete routes and the page already use. The Word upload route is Trescon-wide only and was already gated.
 
 ## Follow-up (16 Oct 2026): platform-level role assignment without an anchor event
 `platform.*` permissions (Branding: `platform.branding.manage`, Content editor: `platform.content.manage`) are held through access roles that can only be assigned on an event or umbrella (`event_access_assignments`). Today the Branding and Content editor roles are assigned on World AI Show Malaysia 2026 purely as an anchor, so those people appear in that event's access list. Build platform-level assignment (a `platform_access_assignments` table read by `hasPlatformPermission`, plus a picker in Access Center) so neither needs an anchor event. Decided by Madhu: fine for now, build later.

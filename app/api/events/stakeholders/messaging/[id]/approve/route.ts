@@ -5,6 +5,7 @@ import { TRACKED_EVENT_FIELDS, logEventFieldChanges } from '@/app/lib/events/det
 import { recompileEventAndChildren } from '@/app/lib/content/compile-reference'
 import { ownerOfRow, ownerColumn } from '@/app/lib/content/owner'
 import { getSession } from '@/app/lib/access/session'
+import { requireDocWriteAccess } from '@/app/lib/content/content-access'
 
 /* POST /api/events/stakeholders/messaging/[id]/approve
    Body: { approved_by?: string }
@@ -48,6 +49,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (doc.status !== 'draft') return NextResponse.json({ error: 'Only a draft document can be approved.' }, { status: 400 })
 
   if (doc.org_scope && !getSession(req)?.adm) return NextResponse.json({ error: 'Only a platform admin can approve a Trescon-wide document.' }, { status: 403 })
+  if (!doc.org_scope) { const denied = await requireDocWriteAccess(req, id); if (denied) return denied }
   const { column: ownerCol, value: ownerId } = ownerColumn(ownerOfRow(doc))
 
   const { data: currentLive } = await supabaseAdmin
