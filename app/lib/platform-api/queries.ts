@@ -179,3 +179,21 @@ export async function searchIntel(q: string | null, eventName: string | null) {
     summary: i.gemini_summary, event_mentioned: i.event_mentioned, type: i.article_type,
   }))
 }
+
+
+/* Trescon Standards (Brand & Content, 2026-10-17): the approved About Trescon texts, the approved company figures and the live Trescon-wide
+   style guide. APPROVED VALUES ONLY: texts come from approved_text (never working_text), figures from approved_value (never value), and the
+   style guide only if it is the live version (never a draft). Company-wide, so it is not filtered by the token's event scope. */
+export async function getTresconStandards() {
+  const [texts, figures, guide] = await Promise.all([
+    supabaseAdmin.from('company_profile_texts').select('key, label, approved_text, approved_at, needs_review, sort_order').not('approved_text', 'is', null).order('sort_order'),
+    supabaseAdmin.from('company_figures').select('key, label, unit, description, approved_value, approved_at, sort_order').not('approved_value', 'is', null).order('sort_order'),
+    supabaseAdmin.from('event_messaging_docs').select('version, title, source_url, word_file_url, updated_at').eq('org_scope', 'trescon').eq('role', 'style_guide').eq('status', 'live').maybeSingle(),
+  ])
+  if (texts.error || figures.error) throw new Error('standards unavailable')
+  return {
+    about_trescon: Object.fromEntries((texts.data ?? []).map(t => [t.key, { label: t.label, text: t.approved_text, approved_at: t.approved_at, needs_review: !!t.needs_review }])),
+    figures: (figures.data ?? []).map(f => ({ key: f.key, label: f.label, value: f.approved_value, unit: f.unit, description: f.description, approved_at: f.approved_at })),
+    style_guide: guide.data ? { version: guide.data.version, title: guide.data.title, updated_at: guide.data.updated_at, pdf_url: guide.data.source_url, word_url: guide.data.word_file_url ?? null } : null,
+  }
+}

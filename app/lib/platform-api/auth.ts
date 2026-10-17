@@ -17,7 +17,7 @@ const TOKEN_PREFIX = 'ep_ai_'
 const RATE_LIMIT_PER_HOUR = 60
 const RATE_WINDOW_MS = 60 * 60 * 1000
 
-export const DOMAINS = ['event_overview', 'speakers_partners', 'agenda', 'documents_reports', 'news_and_intel'] as const
+export const DOMAINS = ['event_overview', 'speakers_partners', 'agenda', 'documents_reports', 'news_and_intel', 'standards'] as const
 export type Domain = typeof DOMAINS[number]
 
 export function hashPlatformApiToken(token: string): string {

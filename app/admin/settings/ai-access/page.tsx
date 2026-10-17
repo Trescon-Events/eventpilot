@@ -14,13 +14,14 @@ import { Button, Card, Input, Badge } from '@/app/components/ui'
    AI tool, so unlike most admin_only areas there's no delegated
    permission path. */
 
-type Domain = 'event_overview' | 'speakers_partners' | 'agenda' | 'documents_reports' | 'news_and_intel'
+type Domain = 'event_overview' | 'speakers_partners' | 'agenda' | 'documents_reports' | 'news_and_intel' | 'standards'
 
 const DOMAIN_INFO: { key: Domain; label: string; description: string }[] = [
   { key: 'event_overview', label: 'Event Overview', description: 'Name, dates, venue, description, status, type for each accessible event. No financial fields.' },
   { key: 'speakers_partners', label: 'Speakers & Partners', description: 'Public, approved speaker and partner profiles — name, role, company, bio, photo. No contact details.' },
   { key: 'agenda', label: 'Agenda', description: 'Public session schedule — day, time, title, description, track.' },
   { key: 'documents_reports', label: 'Documents & Reports', description: 'Post-event reports, BD proposals, and each event’s live style guide / messaging document / production pack (including inherited umbrella-level style guides). Never HR policy documents.' },
+  { key: 'standards', label: 'Trescon Standards', description: 'The approved About Trescon texts, the approved company figures and the live Trescon-wide content style guide (PDF and Word links). Approved values only, never working copies. Company-wide: not tied to any event.' },
   { key: 'news_and_intel', label: 'News & Press Coverage', description: 'Published external coverage of Trescon and its events, from the Knowledge Base Intel pipeline.' },
 ]
 
@@ -40,6 +41,7 @@ const DOMAIN_ENDPOINTS: Record<Domain, { method: string; path: string; note?: st
     { method: 'GET', path: '/events/{id}/documents', note: 'returns { files, reference_docs } — files are post-event reports & BD proposals, reference_docs is that event’s live style guide / messaging document / production pack' },
     { method: 'GET', path: '/documents?q=<keyword>', note: 'search post-event reports & BD proposals across every event in scope' },
   ],
+  standards: [{ method: 'GET', path: '/standards', note: 'approved About Trescon texts, approved company figures and the live style guide with PDF and Word links' }],
   news_and_intel: [{ method: 'GET', path: '/intel?q=<keyword>&event=<name>', note: 'published external coverage of Trescon and its events' }],
 }
 
