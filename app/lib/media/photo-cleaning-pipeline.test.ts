@@ -37,12 +37,43 @@ test('with padding bands the model only fills outside the photo: its re-drawn si
   // original: opaque red in the middle (x 16..48), transparent elsewhere. Photo "padding": left 16px and right 16px. AI output: all blue.
   const mid = await sharp({ create: { width: SIZE, height: SIZE, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
     .composite([{ input: await sharp({ create: { width: 32, height: SIZE, channels: 4, background: { r: 255, g: 0, b: 0, alpha: 1 } } }).png().toBuffer(), left: 16, top: 0 }]).png().toBuffer()
-  const out = await restoreOriginalOver(await solid(0, 0, 255), mid, { top: 0, bottom: 0, left: 16, right: 16 })
+  const out = await restoreOriginalOver(await solid(0, 0, 255), mid, { top: 0, bottom: 0, left: 16, right: 16 }, undefined, 4, 2)
   assert.deepEqual(await px(out, 30, 30), [255, 0, 0])    // original photo area: original
   assert.deepEqual(await px(out, 4, 30), [0, 0, 255])     // inside the left padding band: the model's fill
   assert.deepEqual(await px(out, 60, 30), [0, 0, 255])    // inside the right padding band: the model's fill
   // a transparent pixel INSIDE the photo extent (here none: the whole width is padding or original), so test the vertical case:
-  const top = await restoreOriginalOver(await solid(0, 0, 255), await sharp({ create: { width: SIZE, height: SIZE, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer(), { top: 10, bottom: 0, left: 0, right: 0 })
+  const top = await restoreOriginalOver(await solid(0, 0, 255), await sharp({ create: { width: SIZE, height: SIZE, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer(), { top: 10, bottom: 0, left: 0, right: 0 }, undefined, 4, 2)
   assert.deepEqual(await px(top, 30, 2), [0, 0, 255])     // in the top band: the model
   assert.deepEqual(await px(top, 30, 40), [0, 255, 0])    // inside the photo extent but transparent: chroma-key green, never the model
+})
+
+
+
+test('the model only ADDS pixels beside the body: original pixels are never carved away, even next to a band edge', async () => {
+  const S = 64
+  const ph = await sharp({ create: { width: S, height: S, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+    .composite([{ input: await sharp({ create: { width: 32, height: S, channels: 4, background: { r: 255, g: 0, b: 0, alpha: 1 } } }).png().toBuffer(), left: 32, top: 0 }]).png().toBuffer()
+  // the model draws nothing there (all its own green): a carving implementation would delete the original near the edge
+  const out = await restoreOriginalOver(await solid(0, 255, 0), ph, { top: 0, bottom: 0, left: 32, right: 0 }, undefined, 12, 2)
+  assert.deepEqual(await px(out, 34, 30), [255, 0, 0])
+  assert.deepEqual(await px(out, 50, 30), [255, 0, 0])
+})
+
+test('a thin spike of the original next to a band edge (a cut-out artifact) is removed so it cannot make a notch', async () => {
+  const S = 64
+  const body = await sharp({ create: { width: 40, height: 40, channels: 4, background: { r: 255, g: 0, b: 0, alpha: 1 } } }).png().toBuffer()
+  const spike = await sharp({ create: { width: 3, height: 20, channels: 4, background: { r: 255, g: 0, b: 0, alpha: 1 } } }).png().toBuffer()
+  const ph = await sharp({ create: { width: S, height: S, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+    .composite([{ input: body, left: 24, top: 24 }, { input: spike, left: 33, top: 4 }]).png().toBuffer()   // a 3px-wide, 20px-tall spike above the body
+  const out = await restoreOriginalOver(await solid(0, 255, 0), ph, { top: 0, bottom: 0, left: 24, right: 0 }, undefined, 20, 3)
+  assert.deepEqual(await px(out, 34, 10), [0, 255, 0])      // the spike is gone
+  assert.deepEqual(await px(out, 40, 40), [255, 0, 0])      // the body is kept
+})
+
+test('the background is one uniform chroma-key green, never the model\'s slightly different green', async () => {
+  const modelGreen = await solid(12, 234, 7)
+  const empty = await sharp({ create: { width: SIZE, height: SIZE, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer()
+  const out = await restoreOriginalOver(modelGreen, empty, { top: 0, bottom: 0, left: 8, right: 0 }, undefined, 4, 2)
+  assert.deepEqual(await px(out, 2, 30), [0, 255, 0])
+  assert.deepEqual(await px(out, 40, 30), [0, 255, 0])
 })

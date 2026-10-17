@@ -161,30 +161,97 @@ const PADDING_WARNING_THRESHOLD_PX = 3
 // FACE FIDELITY (2026-10-17, per Madhu: a speaker's face came out re-drawn). gpt-image-2 regenerates the whole picture whatever the mask says, so
 // every AI step now puts the ORIGINAL pixels back on top of its output. `original` is the deterministic crop (RGBA): wherever it is opaque,
 // its pixels win bit-for-bit; the AI result only ever shows through in the padding bands outside the photo (the gaps it was asked to fill). Pure and synchronous in effect, so it can be unit tested without calling any model.
-export async function restoreOriginalOver(aiOutput: Buffer, original: Buffer, bands?: CropPadding | null): Promise<Buffer> {
+// WHO DRAWS WHAT (2026-10-17, fourth iteration after real production runs). The model's continuation of an arm or shoulder never lines up
+// exactly with the original's edge, so any place where the model REPLACES original pixels shows as a step, notch or see-through wedge, and any
+// place where it re-draws the head shows as a ghost outline. So the model may only ADD pixels, never replace or carve the original:
+//   - it supplies the padding bands (outside the photo) only; beside the body its outline is clipped to the line the original's own shoulder
+//     edge would follow if extended (the model tends to draw taller, pointed shoulders), and it fades into the original over FEATHER_PX at the seam;
+//   - the protected head zone (a generous ellipse) is the original alone, so no ghost head or hair can ever appear next to the face;
+//   - the original's own cut edge is cleaned first: thin spikes within the strip (a cut-out artifact where the sleeve meets the photo's edge,
+//     the "tooth" that made the notch) are removed by a morphological opening, so the model's outline meets a smooth edge.
+// Everything else is the original, bit for bit.
+const STRIP_PX = 70
+const OPEN_PX = 10
+const FEATHER_PX = 12
+const FIT_FROM = 8, FIT_TO = 48
+const CHROMA_GREEN = { r: 0, g: 255, b: 0 }
+
+// erode then dilate with a square window: removes protrusions thinner than ~2r+1 px, leaves large shapes unchanged
+function openBinary(fg: Uint8Array, w: number, h: number, r: number): Uint8Array {
+  const pass = (src: Uint8Array, wantAll: boolean) => {
+    const tmp = new Uint8Array(w * h), out = new Uint8Array(w * h)
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { let v = wantAll ? 1 : 0; for (let d = -r; d <= r; d++) { const xx = x + d; const on = xx >= 0 && xx < w && src[y * w + xx] === 1; if (wantAll ? !on : on) { v = wantAll ? 0 : 1; break } } tmp[y * w + x] = v }
+    for (let x = 0; x < w; x++) for (let y = 0; y < h; y++) { let v = wantAll ? 1 : 0; for (let d = -r; d <= r; d++) { const yy = y + d; const on = yy >= 0 && yy < h && tmp[yy * w + x] === 1; if (wantAll ? !on : on) { v = wantAll ? 0 : 1; break } } out[y * w + x] = v }
+    return out
+  }
+  return pass(pass(fg, true), false)
+}
+
+// Least-squares line through the original's top outline over a short run of columns just inside a side-band edge. Returns the outline's y at the
+// edge and its slope (px of y per px of x), or null when the outline is not found.
+function fitTopOutline(opened: Uint8Array, w: number, h: number, edge: number, dir: 1 | -1): { y0: number; m: number } | null {
+  const pts: [number, number][] = []
+  for (let d = FIT_FROM; d <= FIT_TO; d++) { const x = edge + dir * d; if (x < 0 || x >= w) continue; for (let y = 0; y < h; y++) if (opened[y * w + x]) { pts.push([d * dir, y]); break } }
+  if (pts.length < 8) return null
+  const n = pts.length, sx = pts.reduce((a, p) => a + p[0], 0), sy = pts.reduce((a, p) => a + p[1], 0), sxx = pts.reduce((a, p) => a + p[0] * p[0], 0), sxy = pts.reduce((a, p) => a + p[0] * p[1], 0)
+  const den = n * sxx - sx * sx
+  if (Math.abs(den) < 1e-6) return null
+  const m = (n * sxy - sx * sy) / den
+  return { m, y0: (sy - m * sx) / n }
+}
+
+export async function restoreOriginalOver(aiOutput: Buffer, original: Buffer, bands?: CropPadding | null, protect?: HeadEllipse, stripPx: number = STRIP_PX, openPx: number = OPEN_PX): Promise<Buffer> {
   const meta = await sharp(original).metadata()
   const w = meta.width ?? CLEANING_CYCLE_CANVAS_SIZE, h = meta.height ?? CLEANING_CYCLE_CANVAS_SIZE
-  const ai = await sharp(aiOutput).resize(w, h, { fit: 'fill' }).removeAlpha().png().toBuffer()
-  let base = ai
-  if (bands) {
-    // The model may only supply what is OUTSIDE the photo (the padding bands the deterministic crop left empty). Inside the photo's own extent
-    // the original alone decides: where it is transparent (the removed background) the chroma-key green stays, so the model's own re-drawn
-    // silhouette (a ghost edge beside the head or shoulders, seen on the first real test) can never show through. The bands reach a few px
-    // inward so the model's continuation meets the original without a hairline gap.
-    const overlap = 6
-    const rects: string[] = []
-    if (bands.top > 0) rects.push(`<rect x="0" y="0" width="${w}" height="${Math.min(h, bands.top + overlap)}"/>`)
-    if (bands.bottom > 0) rects.push(`<rect x="0" y="${Math.max(0, h - bands.bottom - overlap)}" width="${w}" height="${h}"/>`)
-    if (bands.left > 0) rects.push(`<rect x="0" y="0" width="${Math.min(w, bands.left + overlap)}" height="${h}"/>`)
-    if (bands.right > 0) rects.push(`<rect x="${Math.max(0, w - bands.right - overlap)}" y="0" width="${w}" height="${h}"/>`)
-    const maskSvg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="${w}" height="${h}" fill="black"/><g fill="white">${rects.join('')}</g></svg>`)
-    const maskRaw = await sharp(maskSvg).greyscale().raw().toBuffer()
-    const rgba = await sharp(ai).ensureAlpha().raw().toBuffer()
-    for (let k = 0; k < w * h; k++) rgba[k * 4 + 3] = maskRaw[k]
-    const aiInBands = await sharp(rgba, { raw: { width: w, height: h, channels: 4 } }).png().toBuffer()
-    base = await sharp({ create: { width: w, height: h, channels: 3, background: { r: 0, g: 255, b: 0 } } }).composite([{ input: aiInBands, blend: 'over' }]).png().toBuffer()
+  const ai = await sharp(aiOutput).resize(w, h, { fit: 'fill' }).removeAlpha().raw().toBuffer()
+  const orig = await sharp(original).ensureAlpha().raw().toBuffer()
+  let cx = 0, cy = 0, rx = 1, ry = 1
+  if (protect) { cx = protect.centerXRatio * w; cy = protect.centerYRatio * h; ry = 0.95 * protect.heightRatio * h; rx = 0.8 * protect.heightRatio * h }
+  const inProtect = (x: number, y: number) => { if (!protect) return false; const dx = (x - cx) / rx, dy = (y - cy) / ry; return dx * dx + dy * dy <= 1 }
+  const fg = new Uint8Array(w * h); for (let k = 0; k < w * h; k++) fg[k] = orig[k * 4 + 3] > 128 ? 1 : 0
+  const opened = bands ? openBinary(fg, w, h, openPx) : null
+  const leftLine = bands && bands.left > 0 ? fitTopOutline(opened!, w, h, bands.left, 1) : null
+  const rightLine = bands && bands.right > 0 ? fitTopOutline(opened!, w, h, w - bands.right - 1, -1) : null
+  const out = Buffer.alloc(w * h * 3)
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const k = y * w + x
+    let oA = orig[k * 4 + 3] / 255
+    const inBand = !!bands && (x < bands.left || x >= w - bands.right || y < bands.top || y >= h - bands.bottom)
+    const inStrip = !!bands && ((bands.left > 0 && x < bands.left + stripPx) || (bands.right > 0 && x >= w - bands.right - stripPx) || (bands.top > 0 && y < bands.top + stripPx) || (bands.bottom > 0 && y >= h - bands.bottom - stripPx))
+    const protectedHead = inProtect(x, y) && !inBand
+    if (inStrip && !protectedHead && fg[k] && !opened![k]) oA = 0                  // a thin cut-out spike next to the edge: treat as empty
+    let modelMayDraw = !bands ? oA === 0 : inBand && !protectedHead && oA < 1
+    // clip the model's shoulder outline in the side bands to the original's own outline extended (no pointed "horns")
+    if (modelMayDraw && bands) {
+      if (leftLine && x < bands.left) { const yLine = leftLine.y0 + leftLine.m * (x - bands.left); if (y < yLine - 3) modelMayDraw = false }
+      if (rightLine && x >= w - bands.right) { const yLine = rightLine.y0 + rightLine.m * (x - (w - bands.right - 1)); if (y < yLine - 3) modelMayDraw = false }
+    }
+    // colour feather at the seam: the model fades into the original over FEATHER_PX just inside the photo, so there is no hard line across the cloth
+    let seamMix = 0
+    if (bands && !inBand && !protectedHead && oA > 0) {
+      const dists: number[] = []
+      if (bands.left > 0) dists.push(x - bands.left); if (bands.right > 0) dists.push(w - bands.right - 1 - x)
+      if (bands.top > 0) dists.push(y - bands.top); if (bands.bottom > 0) dists.push(h - bands.bottom - 1 - y)
+      const d = Math.min(...dists.filter(v => v >= 0), Infinity)
+      if (d < FEATHER_PX) seamMix = 1 - d / FEATHER_PX
+    }
+    let r = orig[k * 4], g = orig[k * 4 + 1], b = orig[k * 4 + 2], a = oA
+    if (modelMayDraw) {
+      const aR = ai[k * 3], aG = ai[k * 3 + 1], aB = ai[k * 3 + 2]
+      const aiFg = 1 - Math.max(0, Math.min(1, (aG - Math.max(aR, aB) - 40) / 120))   // soft "is this the model's person, not its green"
+      if (oA === 0) { r = aR; g = aG; b = aB; a = aiFg }
+      else { const t = aiFg * (1 - oA); r = r + (aR - r) * t; g = g + (aG - g) * t; b = b + (aB - b) * t; a = Math.max(oA, aiFg) }
+    }
+    if (seamMix > 0 && a > 0.95) {
+      const aR = ai[k * 3], aG = ai[k * 3 + 1], aB = ai[k * 3 + 2]
+      if (aG - Math.max(aR, aB) < 60) { const t = seamMix * 0.5; r = r + (aR - r) * t; g = g + (aG - g) * t; b = b + (aB - b) * t }   // only where the model also has body here
+    }
+    // composite onto ONE uniform chroma-key green (the model's own green differs slightly: two greens confused the despill step)
+    out[k * 3] = Math.round(r * a + CHROMA_GREEN.r * (1 - a))
+    out[k * 3 + 1] = Math.round(g * a + CHROMA_GREEN.g * (1 - a))
+    out[k * 3 + 2] = Math.round(b * a + CHROMA_GREEN.b * (1 - a))
   }
-  return sharp(base).composite([{ input: original, blend: 'over' }]).png().toBuffer()
+  return sharp(out, { raw: { width: w, height: h, channels: 3 } }).png().toBuffer()
 }
 
 // Same idea for the free-text Refine step, which has no mask: put the original back only inside the head (an ellipse around the face, hair and
@@ -326,7 +393,7 @@ ${bottomInstruction}
   const b64 = json?.data?.[0]?.b64_json
   if (!b64) throw new Error('GPT Image 2 returned no image')
   // The model re-draws the whole image whatever the mask says: put the original pixels back on top so only the gaps come from the model.
-  return restoreOriginalOver(Buffer.from(b64, 'base64'), placed, cropWarning)
+  return restoreOriginalOver(Buffer.from(b64, 'base64'), placed, cropWarning, { centerXRatio: target.target_head_center_x, centerYRatio: target.target_head_center_y, heightRatio: target.target_head_height })
 }
 
 // "Make it High-Res" was retired on 2026-10-17. It sent the whole photo through gpt-image-2, which re-draws it (faces came out altered) and
