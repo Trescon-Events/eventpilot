@@ -1,3 +1,4 @@
+import { actorOf, logDocAudit, logDocAuditById } from '@/app/lib/content/doc-audit'
 import { requireContentEditAccess } from '@/app/lib/content/content-access'
 import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
@@ -187,7 +188,7 @@ export async function POST(req: NextRequest) {
   const eventId    = form.get('event_id') as string | null
   const file        = form.get('file') as File | null
   const title        = (form.get('title') as string | null) ?? null
-  const uploadedBy = (form.get('uploaded_by') as string | null) ?? null
+  const uploadedBy = actorOf(req) // the signed-in user, never an id the page sends
   const roleRaw      = form.get('role') as string | null
   const role: DocRole = DOC_ROLES.includes(roleRaw as DocRole) ? (roleRaw as DocRole) : 'messaging'
   const authorityRankRaw = form.get('authority_rank') as string | null
@@ -314,6 +315,7 @@ export async function POST(req: NextRequest) {
   // on this request.
   runExtraction(data.id, buffer, file.name).catch(e => console.error(`[messaging-doc ${data.id}] uncaught extraction error:`, e))
 
+  await logDocAudit(req, { docId: data.id, action: 'upload', owner: data, detail: { role: data.role, version: data.version, title: data.title } })
   return NextResponse.json(data, { status: 201 })
 }
 

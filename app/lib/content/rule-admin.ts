@@ -37,7 +37,7 @@ export async function logRuleChange(entry: {
 }): Promise<void> {
   const { error } = await supabaseAdmin.from('validation_rule_changes').insert({
     rule_id: entry.rule_id, rule_key: entry.rule_key, owner: ownerLabel(entry.owner), action: entry.action,
-    before: entry.before ?? null, after: entry.after ?? null, changed_by: entry.changed_by,
+    before: entry.before ?? null, after: entry.after ?? null, changed_by: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entry.changed_by ?? '') ? entry.changed_by : null,
   })
   // A change that cannot be recorded must not go through unrecorded: callers await this and surface the failure.
   if (error) throw new Error(`Could not record the rule change: ${error.message}`)

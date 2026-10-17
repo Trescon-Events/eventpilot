@@ -1,3 +1,4 @@
+import { actorOf, logDocAudit, logDocAuditById } from '@/app/lib/content/doc-audit'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
@@ -32,5 +33,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   )
   const { error } = await supabaseAdmin.from('event_messaging_docs').update({ word_file_url: url, word_file_name: file.name }).eq('id', id)
   if (error) return NextResponse.json({ error: error.message.includes('word_file') ? 'Run supabase/company_profile_migration.sql first (adds the Word columns).' : error.message }, { status: 500 })
+  await logDocAudit(req, { docId: id, action: 'word_upload', owner: doc, detail: { file: file.name } })
   return NextResponse.json({ ok: true, word_file_url: url, word_file_name: file.name })
 }

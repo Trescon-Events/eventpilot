@@ -1,3 +1,4 @@
+import { actorOf, logDocAudit, logDocAuditById } from '@/app/lib/content/doc-audit'
 import { requireContentEditAccess, requireDocWriteAccess } from '@/app/lib/content/content-access'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -72,6 +73,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     await recompileEventAndChildren(ownerOfRow(data))
   }
 
+  await logDocAuditById(req, id, 'patch', { fields: Object.keys(update) })
   return NextResponse.json(data)
 }
 
@@ -107,5 +109,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (doc.status === 'live') {
     await recompileEventAndChildren(ownerOfRow(doc))
   }
+  await logDocAudit(req, { docId: id, action: 'delete', owner: doc, detail: { role: doc.role, version: doc.version, was_live: doc.status === 'live' } })
   return NextResponse.json({ ok: true, was_live: doc.status === 'live' })
 }

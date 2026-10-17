@@ -1,3 +1,4 @@
+import { actorOf, logDocAudit, logDocAuditById } from '@/app/lib/content/doc-audit'
 import { requireDocWriteAccess } from '@/app/lib/content/content-access'
 import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
@@ -243,6 +244,7 @@ Return JSON only, no markdown fences, in this exact shape:
         }
       })
 
+    await logDocAuditById(req, id, 'propose_edit', { message: (message ?? '').slice(0, 1000), section_id: sectionId ?? null, sync: syncMode, proposals: Array.isArray(proposals) ? proposals.length : 0 })
     return NextResponse.json({ reply: parsed.reply, proposals })
   } catch (e) {
     console.error('propose-edit failed:', e)

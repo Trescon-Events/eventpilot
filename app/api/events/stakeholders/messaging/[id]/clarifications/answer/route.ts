@@ -1,3 +1,4 @@
+import { actorOf, logDocAudit, logDocAuditById } from '@/app/lib/content/doc-audit'
 import { requireDocWriteAccess } from '@/app/lib/content/content-access'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   { const denied = await requireDocWriteAccess(req, id); if (denied) return denied }
   const body = await req.json().catch(() => null)
   const answers = body?.answers as Array<{ question_key: string; answer_value: string; answer_note?: string }> | undefined
-  const answeredBy = (body?.answered_by as string | null) ?? null
+  const answeredBy = actorOf(req) // the signed-in user, never an id the page sends
 
   if (!Array.isArray(answers) || answers.length === 0) {
     return NextResponse.json({ error: 'answers required' }, { status: 400 })
@@ -55,6 +56,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
   }
 
+  // The answers are stored by now, so record who gave them whether or not the follow-up processing succeeds.
+  await logDocAuditById(req, id, 'clarification_answer', { answers: answers.map(a => a.question_key) })
   try {
     const result = await processAnsweredRound(id)
     return NextResponse.json(result)

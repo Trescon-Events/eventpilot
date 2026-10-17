@@ -29,6 +29,17 @@ export default function DashboardPage() {
     .filter(e => !SKIP_KEYS.includes(e.key))
   const descriptionFor = (key: string) => registry.find(m => m.key === key)?.description ?? ''
 
+  // The full directory: the same entries the sidebar shows, grouped by its sections ("Brand & Content" split into Brand and Content).
+  const SECTIONS: { title: string; section: 'home' | 'toolkit' | 'pilots' | 'brand' | 'admin' }[] = [
+    { title: 'Brand & Content', section: 'brand' }, { title: 'Toolkit', section: 'toolkit' }, { title: 'Pilot Projects', section: 'pilots' },
+    { title: 'Everyday tools', section: 'home' }, { title: 'Admin', section: 'admin' },
+  ]
+  const groupOf = (key: string) => registry.find(m => m.key === key)?.sidebar?.group
+  const directory = SECTIONS.map(sec => {
+    const entries = resolveSectionEntries(registry, accessible, sec.section, ctx).filter(e => !SKIP_KEYS.includes(e.key))
+    return { title: sec.title, entries, groups: sec.section === 'brand' ? ['Brand', 'Content'].map(g => ({ name: g, entries: entries.filter(e => groupOf(e.key) === g) })) : [{ name: '', entries }] }
+  }).filter(d => d.entries.length > 0)
+
   const eventCount = eventsData?.events.length ?? 0
   const cards: Card[] = [
     {
@@ -70,6 +81,34 @@ export default function DashboardPage() {
               <div style={{ fontSize: '13px', fontWeight: 800, color: c.color }}>Open →</div>
             </Link>
           ))}
+        </div>
+      )}
+
+      {!loading && directory.length > 0 && (
+        <div style={{ marginTop: '40px' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 900, color: 'var(--ink)', margin: '0 0 4px' }}>Everything you can open</h2>
+          <div style={{ fontSize: '13px', color: 'var(--ink3)', marginBottom: '20px' }}>Every page your access reaches, grouped the way the sidebar groups them.</div>
+          <div style={{ display: 'grid', gap: '22px' }}>
+            {directory.map(d => (
+              <div key={d.title}>
+                <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.2px', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: '8px' }}>{d.title}</div>
+                {d.groups.map(g => (
+                  <div key={g.name} style={{ marginBottom: g.name ? '10px' : 0 }}>
+                    {g.name && <div style={{ fontSize: '12.5px', fontWeight: 800, color: 'var(--ink3)', margin: '0 0 6px' }}>{g.name}</div>}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: '8px' }}>
+                      {g.entries.map(e => (
+                        <Link key={e.key} href={e.href} title={descriptionFor(e.key)}
+                          style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', textDecoration: 'none', background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--ink)', fontSize: '13.5px', fontWeight: 700 }}>
+                          <span style={{ width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: e.color }}>{e.icon}</span>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.label}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

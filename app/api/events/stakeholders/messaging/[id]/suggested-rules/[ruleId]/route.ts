@@ -1,3 +1,4 @@
+import { actorOf, logDocAudit, logDocAuditById } from '@/app/lib/content/doc-audit'
 import { requireDocWriteAccess } from '@/app/lib/content/content-access'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -43,5 +44,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     await logRuleChange({ rule_id: ruleId, rule_key: rule.rule_key, owner: ownerOfRow(rule), action: body.action === 'accept' ? 'enable' : 'update', before: rule, after: data, changed_by: getSession(req)?.sid ?? null })
   } catch (e) { console.error('Suggested-rule audit failed:', e) }
+  await logDocAuditById(req, id, body.action === 'accept' ? 'suggested_rule_accept' : 'suggested_rule_dismiss', { rule_id: ruleId, rule_key: rule.rule_key })
   return NextResponse.json(data)
 }

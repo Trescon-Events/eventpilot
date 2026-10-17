@@ -1,3 +1,4 @@
+import { actorOf, logDocAudit, logDocAuditById } from '@/app/lib/content/doc-audit'
 import { requireDocWriteAccess } from '@/app/lib/content/content-access'
 import { cleanField } from '@/app/lib/text/clean-field'
 import { NextRequest, NextResponse } from 'next/server'
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const targetKey   = body?.target_key as string | undefined
   const newContent  = body?.new_content
   const instruction = body?.instruction as string | undefined
-  const appliedBy   = (body?.applied_by as string | null) ?? null
+  const appliedBy   = actorOf(req) // the signed-in user, never an id the page sends
 
   if (!targetType || !targetKey || newContent === undefined || !instruction?.trim()) {
     return NextResponse.json({ error: 'target_type, target_key, new_content and instruction required' }, { status: 400 })
@@ -145,5 +146,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await recompileEventAndChildren(ownerOfRow(doc))
   }
 
+  await logDocAudit(req, { docId: id, action: 'apply_edit', owner: doc, detail: { target_type: targetType, target_key: targetKey, instruction: String(instruction).slice(0, 500) } })
   return NextResponse.json(updatedDoc)
 }

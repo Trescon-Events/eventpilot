@@ -1,3 +1,4 @@
+import { actorOf, logDocAudit, logDocAuditById } from '@/app/lib/content/doc-audit'
 import { cleanField } from '@/app/lib/text/clean-field'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -38,7 +39,7 @@ import { requireDocWriteAccess } from '@/app/lib/content/content-access'
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json().catch(() => ({}))
-  const approvedBy = (body?.approved_by as string | null) ?? null
+  const approvedBy = actorOf(req) // the signed-in user, never an id the page sends
 
   const { data: doc, error: docErr } = await supabaseAdmin
     .from('event_messaging_docs')
@@ -95,5 +96,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // and every child event's too if this is an umbrella-level document.
   await recompileEventAndChildren(ownerOfRow(doc))
 
+  await logDocAudit(req, { docId: id, action: 'approve', owner: doc, detail: { role: doc.role, replaced: currentLive?.id ?? null } })
   return NextResponse.json(updatedDoc)
 }
