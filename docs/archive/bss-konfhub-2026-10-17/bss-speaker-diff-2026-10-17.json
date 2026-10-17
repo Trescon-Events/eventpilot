@@ -1,0 +1,67 @@
+[
+ {
+  "who": "Dr. Gururaj ‘Desh’ Deshpande",
+  "id": "29844",
+  "diffs": [
+   "image_url"
+  ],
+  "khName": "Dr. Gururaj 'Desh' Deshpande",
+  "epName": "Dr. Gururaj ‘Desh’ Deshpande",
+  "pushedAt1Oct": "Dr. Gururaj ‘Desh’ Deshpande",
+  "lastPushByEP": "2026-10-01T09:00:02.611+00:00",
+  "epUpdated": "2026-10-01T11:04:48.884+00:00",
+  "khDes": "Entrepreneur, Philanthropist, and Ecosystem Builder",
+  "epRole": "Entrepreneur, Philanthropist, and Ecosystem builder",
+  "khOrg": "Deshpande Foundation",
+  "epCompany": "Deshpande Foundation"
+ },
+ {
+  "who": "Dr. Chetna Nagpal",
+  "id": "29854",
+  "diffs": [
+   "location"
+  ],
+  "khName": "Dr. Chetna Nagpal",
+  "epName": "Dr. Chetna Nagpal",
+  "pushedAt1Oct": "Dr. Chetna Nagpal",
+  "lastPushByEP": "2026-10-01T09:00:08.614+00:00",
+  "epUpdated": "2026-09-28T14:43:51.646+00:00",
+  "khDes": "Apprenticeship Specialist - Engineering Programmes; NQC Qualification & Curriculum Developer",
+  "epRole": "Apprenticeship Specialist - Engineering Programmes; NQC Qualification & Curriculum Developer",
+  "khOrg": "Abu Dhabi Vocational Education & Training Institute - ADVETI",
+  "epCompany": "Abu Dhabi Vocational Education & Training Institute - ADVETI"
+ },
+ {
+  "who": "Dr. Nidhi Pundhir",
+  "id": "29860",
+  "diffs": [
+   "designation",
+   "organisation"
+  ],
+  "khName": "Dr. Nidhi Pundhir",
+  "epName": "Dr. Nidhi Pundhir",
+  "pushedAt1Oct": "Dr. Nidhi Pundhir",
+  "lastPushByEP": "2026-10-01T09:00:12.071+00:00",
+  "epUpdated": "2026-10-01T11:07:17.441+00:00",
+  "khDes": "SVP, Global CSR, HCLTech &",
+  "epRole": "VP, Global CSR, HCLTech & Director",
+  "khOrg": "Director, HCL Foundation",
+  "epCompany": "HCL Foundation"
+ },
+ {
+  "who": "Uma Mahadevan",
+  "id": "30006",
+  "diffs": [
+   "about"
+  ],
+  "khName": "Uma Mahadevan",
+  "epName": "Uma Mahadevan",
+  "pushedAt1Oct": null,
+  "lastPushByEP": "2026-10-06T05:57:05.012+00:00",
+  "epUpdated": "2026-09-30T06:04:00.959+00:00",
+  "khDes": "Additional Chief Secretary and Development Commissioner",
+  "epRole": "Additional Chief Secretary and Development Commissioner",
+  "khOrg": "Govt of Karnataka",
+  "epCompany": "Govt of Karnataka"
+ }
+]

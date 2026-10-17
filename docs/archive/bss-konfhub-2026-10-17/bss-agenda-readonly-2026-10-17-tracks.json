@@ -1,0 +1,617 @@
+[
+ {
+  "date": "2026-11-05",
+  "track_id": "5489",
+  "track_title": "bengaluru-skill-summit-2026",
+  "track_description": "",
+  "track_date": "2026-11-05",
+  "start_time": "02:30:00",
+  "end_time": "12:30:00",
+  "track_order": 1,
+  "track_sessions": [
+   {
+    "session_id": "15767",
+    "session_title": "Registration and Networking",
+    "session_description": "",
+    "session_type": 1,
+    "start_timestamp": "2026-11-05 03:30:00",
+    "end_timestamp": "2026-11-05 04:30:00",
+    "session_location": "",
+    "session_colour": "#FFECD3",
+    "session_order": 1,
+    "track_assigned": true,
+    "tags": [
+     {
+      "id": "28d11d02-c20e-44ec-b744-c6a49c1f8430",
+      "name": "Registration Zone"
+     },
+     {
+      "id": "675e9cfe-e7d1-4133-a07d-13b9b809443c",
+      "name": "Registration and Networking"
+     }
+    ],
+    "session_speakers": [],
+    "created_at": "2026-09-02 12:28:00.450213",
+    "updated_at": "2026-10-14 15:12:09",
+    "updated_by": "4e23073b-67f4-4e8e-9916-2c8219774a40"
+   },
+   {
+    "session_id": "15768",
+    "session_title": "Opening Remarks",
+    "session_description": "",
+    "session_type": 1,
+    "start_timestamp": "2026-11-05 04:30:00",
+    "end_timestamp": "2026-11-05 04:40:00",
+    "session_location": "",
+    "session_colour": "#FFECD3",
+    "session_order": 2,
+    "track_assigned": true,
+    "tags": [
+     {
+      "id": "44ee84e8-bcb2-44b9-b534-fcf42dc31c8a",
+      "name": "Plenary Stage"
+     },
+     {
+      "id": "6b359841-ed86-4d84-8740-1ba6d1c80984",
+      "name": "Opening Remarks"
+     }
+    ],
+    "session_speakers": [],
+    "created_at": "2026-09-02 12:29:29.748668",
+    "updated_at": "2026-10-14 15:12:09",
+    "updated_by": "4e23073b-67f4-4e8e-9916-2c8219774a40"
+   },
+   {
+    "session_id": "16493",
+    "session_title": "Keynote Address",
+    "session_description": "",
+    "session_type": 1,
+    "start_timestamp": "2026-11-05 04:40:00",
+    "end_timestamp": "2026-11-05 17:10:00",
+    "session_location": "India",
+    "session_colour": "#FFECD3",
+    "session_order": 3,
+    "track_assigned": true,
+    "tags": [
+     {
+      "id": "44ee84e8-bcb2-44b9-b534-fcf42dc31c8a",
+      "name": "Plenary Stage"
+     },
+     {
+      "id": "776eebf2-c1ab-475f-a265-fa8484cdd692",
+      "name": "Keynote"
+     }
+    ],
+    "session_speakers": [],
+    "created_at": "2026-09-18 11:47:18.509286",
+    "updated_at": "2026-10-14 15:12:09",
+    "updated_by": "4e23073b-67f4-4e8e-9916-2c8219774a40"
+   },
+   {
+    "session_id": "15769",
+    "session_title": "The Rise of Hands-On Careers: New Opportunities in Skilled Employment",
+    "session_description": "<p style=\"font-family: Hind, sans-serif;\">Hands-on careers are evolving, combining physical work with technical skills and increasingly sophisticated tools and technologies. This is creating new opportunities across industries such as aerospace, advanced manufacturing, infrastructure, energy and logistics. The discussion will explore how these roles are changing, what skills they require and how we can help young people see them as attractive careers for the future.</p>",
+    "session_type": 1,
+    "start_timestamp": "2026-11-05 05:10:00",
+    "end_timestamp": "2026-11-05 05:50:00",
+    "session_location": "India",
+    "session_colour": "#FFECD3",
+    "session_order": 4,
+    "track_assigned": true,
+    "tags": [
+     {
+      "id": "44ee84e8-bcb2-44b9-b534-fcf42dc31c8a",
+      "name": "Plenary Stage"
+     },
+     {
+      "id": "d5d48eb6-f49a-4b4f-a365-6387f77035a0",
+      "name": "Panel Discussion"
+     },
+     {
+      "id": "87813019-7f02-4d96-8c7d-dc90316f059d",
+      "name": "Emerging Skills"
+     }
+    ],
+    "session_speakers": [
+     {
+      "speaker_id": "29857",
+      "name": "Kaushik Mudda"
+     },
+     {
+      "speaker_id": "30078",
+      "name": "Rashmi Ranjan Mohapatra"
+     }
+    ],
+    "created_at": "2026-09-02 12:30:36.724859",
+    "updated_at": "2026-10-14 15:12:09",
+    "updated_by": "4e23073b-67f4-4e8e-9916-2c8219774a40"
+   },
+   {
+    "session_id": "17192",
+    "session_title": "Strengthening Bengaluru’s Blue-Collar Economy: Skills, Jobs and Pathways to Sustainable Livelihoods",
+    "session_description": "<p><span data-olk-copy-source=\"MessageBody\" style=\"font-family: verdana,sans-serif;\">Bengaluru’s and Karnataka's growth relies heavily on its diverse blue-collar workforce across manufacturing, construction, logistics, mobility, retail, hospitality and essential services. As technology and industry needs evolve, building a future-ready workforce is critical. This Roundtable will bring together employers, government stakeholders, CSR leaders, academicians and skilling experts to explore industry-led skilling, employability, certification, inclusion, career progression and worker mobility. The discussion aims to strengthen collaboration across the ecosystem and shift the focus from training for jobs to building sustainable careers and livelihoods with insights finalised into a actionable roadmap for all the stakeholders</span></p>",
+    "session_type": 1,
+    "start_timestamp": "2026-11-05 05:30:00",
+    "end_timestamp": "2026-11-05 07:30:00",
+    "session_location": "",
+    "session_colour": "#FFECD3",
+    "session_order": 5,
+    "track_assigned": true,
+    "tags": [
+     {
+      "id": "0744d2d0-4d9c-43cb-bd81-14321a2a7655",
+      "name": "Roundtables"
+     },
+     {
+      "id": "391d7e80-2c57-40f0-aade-6464536aa62b",
+      "name": "Room 2"
+     }
+    ],
+    "session_speakers": [],
+    "created_at": "2026-10-14 15:07:51.341995",
+    "updated_at": "2026-10-15 05:56:01",
+    "updated_by": "4e23073b-67f4-4e8e-9916-2c8219774a40"
+   },
+   {
+    "session_id": "15770",
+    "session_title": "The Care Economy: Preparing Talent for Global Opportunities",
+    "session_description": "<p style=\"font-family: Hind, sans-serif;\">The growing demand for healthcare, eldercare, childcare and other care services is creating a significant international demand for a trained workforce. What does it take to prepare talent for these jobs and make their skills portable across borders? This conversation will provide insights on occupational standards, international certifications, language proficiency, soft skills and mobility readiness, including the role of structured training and overseas placement pathways.</p>",
+    "session_type": 1,
+    "start_timestamp": "2026-11-05 05:50:00",
+    "end_timestamp": "2026-11-05 06:20:00",
+    "session_location": "India",
+    "session_colour": "#FFECD3",
+    "session_order": 6,
+    "track_assigned": true,
+    "tags": [
+     {
+      "id": "44ee84e8-bcb2-44b9-b534-fcf42dc31c8a",
+      "name": "Plenary Stage"
+     },
+     {
+      "id": "f5b43552-747c-4749-a9cc-2aa86f000fbf",
+      "name": "Fireside Chat"
+     },
+     {
+      "id": "901eeeca-c848-4845-8221-1487f34cfbfb",
+      "name": "Global Skills"
+     }
+    ],
+    "session_speakers": [
+     {
+      "speaker_id": "30108",
+      "name": "Ashish Labroo"
+     },
+     {
+      "speaker_id": "29847",
+      "name": "Meena Ganesh"
+     },
+     {
+      "speaker_id": "30210",
+      "name": "Gayatri Rao"
+     }
+    ],
+    "created_at": "2026-09-02 12:32:54.852148",
+    "updated_at": "2026-10-17 07:38:18",
+    "updated_by": "4e23073b-67f4-4e8e-9916-2c8219774a40"
+   },
+   {
+    "session_id": "16494",
+    "session_title": "Empowering the Future Workforce: Innovation, Skills and Industry Collaboration",
+    "session_description": "<p style=\"font-family: Hind, sans-serif;\"><span data-olk-copy-source=\"MessageBody\">This session brings together Japanese leaders in skills training and human resource development to share insights into Japan’s approaches to workforce transformation. Through innovation, industry collaboration, and skills development, the session will explore strategies to build a future-ready workforce and strengthen skills ecosystems to meet evolving industry needs.</span></p>",
+    "session_type": 1,
+    "start_timestamp": "2026-11-05 06:20:00",
+    "end_timestamp": "2026-11-05 06:50:00",
+    "session_location": "India",
+    "session_colour": "#FFECD3",
+    "session_order": 8,
+    "track_assigned": true,
+    "tags": [
+     {
+      "id": "44ee84e8-bcb2-44b9-b534-fcf42dc31c8a",
+      "name": "Plenary Stage"
+     },
+     {
+      "id": "1bd55870-9d0d-440e-b6d4-dff07f43aa2a",
+      "name": "Country Partner Session"
+     },
+     {
+      "id": "901eeeca-c848-4845-8221-1487f34cfbfb",
+      "name": "Global Skills"
+     }
+    ],
+    "session_speakers": [],
+    "created_at": "2026-09-18 11:49:05.042685",
+    "updated_at": "2026-10-14 15:12:09",
+    "updated_by": "4e23073b-67f4-4e8e-9916-2c8219774a40"
+   },
+   {
+    "session_id": "15771",
+    "session_title": "Learning from India's Leading Skills Ecosystems",
+    "session_description": "<p style=\"font-family: Hind, sans-serif;\">States across India are taking different approaches to building skills systems around their economic and workforce needs. This panel brings together Skill Development Secretaries from across the country to share what is working, the approaches that have made a difference, and the lessons emerging from implementation across states.</p>",
+    "session_type": 1,
+    "start_timestamp": "2026-11-05 06:50:00",
+    "end_timestamp": "2026-11-05 07:30:00",
+    "session_location": "India",
+    "session_colour": "#FFECD3",
+    "session_order": 9,
+    "track_assigned": true,
+    "tags": [
+     {
+      "id": "44ee84e8-bcb2-44b9-b534-fcf42dc31c8a",
+      "name": "Plenary Stage"
+     },
+     {
+      "id": "d5d48eb6-f49a-4b4f-a365-6387f77035a0",
+      "name": "Panel Discussion"
+     },
+     {
+      "id": "872d57fc-6028-4fa4-a14d-4a49d70f4c9c",
+      "name": "Cross Track"
+     }
+    ],
+    "session_speakers": [],
+    "created_at": "2026-09-02 12:33:59.507448",
+    "updated_at": "2026-10-14 15:12:09",
+    "updated_by": "4e23073b-67f4-4e8e-9916-2c8219774a40"
+   },
+   {
+    "session_id": "16495",
+    "session_title": "Networking Lunch",
+    "session_description": "",
+    "session_type": 1,
+    "start_timestamp": "2026-11-05 07:30:00",
+    "end_timestamp": "2026-11-05 08:30:00",
+    "session_location": "India",
+    "session_colour": "#FFECD3",
+    "session_order": 10,
+    "track_assigned": true,
+    "tags": [],
+    "session_speakers": [],
+    "created_at": "2026-09-18 11:49:57.371764",
+    "updated_at": "2026-10-14 15:12:09",
+    "updated_by": "4e23073b-67f4-4e8e-9916-2c8219774a40"
+   },
+   {
+    "session_id": "15772",
+    "session_title": "How will AI Augment Skillsets?",
+    "session_description": "<p style=\"font-family: Hind, sans-serif;\">How can AI strengthen human capability and change the way work gets done? The conversation will explore how AI is reshaping roles across industries and occupations, the skills that will become more valuable, and what the workforce can prepare for as these changes unfold.</p>",
+    "session_type": 1,
+    "start_timestamp": "2026-11-05 08:30:00",
+    "end_timestamp": "2026-11-05 09:00:00",
+    "session_location": "India",
+    "session_colour": "#FFECD3",
+    "session_order": 11,
+    "track_assigned": true,
+    "tags": [
+     {
+      "id": "44ee84e8-bcb2-44b9-b534-fcf42dc31c8a",
+      "name": "Plenary Stage"
+     },
+     {
+      "id": "f5b43552-747c-4749-a9cc-2aa86f000fbf",
+      "name": "Fireside Chat"
+     },
+     {
+      "id": "f286431c-e03c-4527-af18-4fc77f4902a2",
+      "name": "Innovation"
+     }
+    ],
+    "session_speakers": [
+     {
+      "speaker_id": "30029",
+      "name": "Dr. Vivek Raghavan"
+     },
+     {
+      "speaker_id": "30209",
+      "name": "Ankush Sabharwal"
+     },
+     {
+      "speaker_id": "30215",
+      "name": "Sanjeev Kumar Gupta"
+     }
+    ],
+    "created_at": "2026-09-02 12:35:13.752482",
+    "updated_at": "2026-10-14 15:12:09",
+    "updated_by": "4e23073b-67f4-4e8e-9916-2c8219774a40"
+   },
+   {
+    "session_id": "17194",
+    "session_title": "International Skilled Mobility – Preparing Indian Talent for the Global Labour  Market",
+    "session_description": "",
+    "session_type": 1,
+    "start_timestamp": "2026-11-05 08:30:00",
+    "end_timestamp": "2026-11-05 10:00:00",
+    "session_location": "",
+    "session_colour": "#FFECD3",
+    "session_order": 12,
+    "track_assigned": true,
+    "tags": [
+     {
+      "id": "0744d2d0-4d9c-43cb-bd81-14321a2a7655",
+      "name": "Roundtables"
+     },
+     {
+      "id": "5c61abf3-547f-4ab1-a606-99ae95fc1142",
+      "name": "Room 1"
+     }
+    ],
+    "session_speakers": [],
+    "created_at": "2026-10-14 15:10:41.169914",
+    "updated_at": "2026-10-14 15:12:09",
+    "updated_by": "4e23073b-67f4-4e8e-9916-2c8219774a40"
+   },
+   {
+    "session_id": "16496",
+    "session_title": "Reimagining Skilling for Workforce 2030: From Fragmented Efforts to an Integrated Skills Architecture",
+    "session_description": "<p style=\"font-family: Hind, sans-serif;\"><span data-olk-copy-source=\"MessageBody\">Drawing on NITI Aayog’s Reimagining Skilling for Viksit Bharat@2047 report, the keynote will explore how India, and Karnataka in particular, can move towards a more integrated, outcome-oriented skilling ecosystem. It will focus on the convergence of skilling initiatives, stronger linkages between education, industry and employment, and the role of apprenticeships, lifelong learning, and institutional collaboration in building a future-ready workforce.</span></p>",
+    "session_type": 1,
+    "start_timestamp": "2026-11-05 09:00:00",
+    "end_timestamp": "2026-11-05 09:30:00",
+    "session_location": "India",
+    "session_colour": "#FFECD3",
+    "session_order": 13,
+    "track_assigned": true,
+    "tags": [
+     {
+      "id": "44ee84e8-bcb2-44b9-b534-fcf42dc31c8a",
+      "name": "Plenary Stage"
+     },
+     {
+      "id": "776eebf2-c1ab-475f-a265-fa8484cdd692",
+      "name": "Keynote"
+     }
+    ],
+    "session_speakers": [
+     {
+      "speaker_id": "29845",
+      "name": "Dr. R. Balasubramaniam"
+     }
+    ],
+    "created_at": "2026-09-18 11:51:05.999370",
+    "updated_at": "2026-10-15 12:30:58",
+    "updated_by": "4e23073b-67f4-4e8e-9916-2c8219774a40"
+   },
+   {
+    "session_id": "17193",
+    "session_title": "Academia 2030 - The Leadership Boardroom",
+    "session_description": "<p>What must institutions change today to remain relevant, credible and future-ready in 2030?</p>\n<p>Curated by Ripples Learning &amp; Research and CHRMP, this exclusive Boardroom convenes 15 senior academic leaders to examine the fundamental choices shaping higher education.</p>\n<p>From curriculum agility and AI-enabled pedagogy to capability-based assessment, research relevance and faculty development, the dialogue explores what institutions must preserve, redesign or stop doing.</p>\n<p>Drawing on institutional practices and three connected survey rounds, leaders will identify actionable priorities and 90–180-day pilots.&nbsp;Insights will inform the Karnataka Future-Ready Institutions Report 2026, connecting academic perspectives, industry expectations and institutional transformation.</p>",
+    "session_type": 1,
+    "start_timestamp": "2026-11-05 09:00:00",
+    "end_timestamp": "2026-11-05 10:30:00",
+    "session_location": "",
+    "session_colour": "#FFECD3",
+    "session_order": 14,
+    "track_assigned": true,
+    "tags": [
+     {
+      "id": "0744d2d0-4d9c-43cb-bd81-14321a2a7655",
+      "name": "Roundtables"
+     },
+     {
+      "id": "391d7e80-2c57-40f0-aade-6464536aa62b",
+      "name": "Room 2"
+     }
+    ],
+    "session_speakers": [],
+    "created_at": "2026-10-14 15:09:15.131660",
+    "updated_at": "2026-10-15 13:15:04",
+    "updated_by": "4e23073b-67f4-4e8e-9916-2c8219774a40"
+   },
+   {
+    "session_id": "15773",
+    "session_title": "Turning Skills into Global Careers",
+    "session_description": "<p style=\"font-family: Hind, sans-serif;\">What turns a good skill into a career that can travel across borders? This session will explore recognised qualifications, international standards, language skills and workplace readiness, alongside the partnerships and mobility support needed to connect talent with overseas opportunities.</p>",
+    "session_type": 1,
+    "start_timestamp": "2026-11-05 09:30:00",
+    "end_timestamp": "2026-11-05 10:10:00",
+    "session_location": "India",
+    "session_colour": "#FFECD3",
+    "session_order": 15,
+    "track_assigned": true,
+    "tags": [
+     {
+      "id": "44ee84e8-bcb2-44b9-b534-fcf42dc31c8a",
+      "name": "Plenary Stage"
+     },
+     {
+      "id": "d5d48eb6-f49a-4b4f-a365-6387f77035a0",
+      "name": "Panel Discussion"
+     },
+     {
+      "id": "901eeeca-c848-4845-8221-1487f34cfbfb",
+      "name": "Global Skills"
+     }
+    ],
+    "session_speakers": [
+     {
+      "speaker_id": "29872",
+      "name": "Hiroshi Nawata"
+     }
+    ],
+    "created_at": "2026-09-02 12:36:50.346680",
+    "updated_at": "2026-10-14 15:12:09",
+    "updated_by": "4e23073b-67f4-4e8e-9916-2c8219774a40"
+   },
+   {
+    "session_id": "15774",
+    "session_title": "Traditional Skills in Karnataka: Can Heritage Become the Next Generation of Enterprise?",
+    "session_description": "<p style=\"font-family: Hind, sans-serif;\">Karnataka has a rich base of traditional skills, but how can these skills create viable opportunities for a new generation? This conversation will explore how training, entrepreneurship, better markets and changing consumer demand can help turn traditional knowledge into modern livelihoods and enterprises.&nbsp;</p>",
+    "session_type": 1,
+    "start_timestamp": "2026-11-05 10:10:00",
+    "end_timestamp": "2026-11-05 10:40:00",
+    "session_location": "India",
+    "session_colour": "#FFECD3",
+    "session_order": 16,
+    "track_assigned": true,
+    "tags": [
+     {
+      "id": "44ee84e8-bcb2-44b9-b534-fcf42dc31c8a",
+      "name": "Plenary Stage"
+     },
+     {
+      "id": "f5b43552-747c-4749-a9cc-2aa86f000fbf",
+      "name": "Fireside Chat"
+     },
+     {
+      "id": "8349985d-70ba-452e-a02d-00948d190a05",
+      "name": "Skills for All"
+     }
+    ],
+    "session_speakers": [
+     {
+      "speaker_id": "29850",
+      "name": "Arati Hiremath"
+     },
+     {
+      "speaker_id": "29851",
+      "name": "Dr. Arun Yogiraj"
+     },
+     {
+      "speaker_id": "30338",
+      "name": "Phani Sama"
+     }
+    ],
+    "created_at": "2026-09-02 12:38:21.211047",
+    "updated_at": "2026-10-16 09:59:34",
+    "updated_by": "4e23073b-67f4-4e8e-9916-2c8219774a40"
+   },
+   {
+    "session_id": "15775",
+    "session_title": "Special Address",
+    "session_description": "",
+    "session_type": 1,
+    "start_timestamp": "2026-11-05 10:40:00",
+    "end_timestamp": "2026-11-05 11:00:00",
+    "session_location": "India",
+    "session_colour": "#FFECD3",
+    "session_order": 17,
+    "track_assigned": true,
+    "tags": [
+     {
+      "id": "44ee84e8-bcb2-44b9-b534-fcf42dc31c8a",
+      "name": "Plenary Stage"
+     },
+     {
+      "id": "f9c91d43-20ea-4abb-b08b-9661d7223277",
+      "name": "Special Address"
+     }
+    ],
+    "session_speakers": [
+     {
+      "speaker_id": "30313",
+      "name": "Prasanth Balakrishnan Nair (Kirti Chakra)"
+     }
+    ],
+    "created_at": "2026-09-02 12:39:42.687231",
+    "updated_at": "2026-10-15 12:46:58",
+    "updated_by": "4e23073b-67f4-4e8e-9916-2c8219774a40"
+   },
+   {
+    "session_id": "16497",
+    "session_title": "Skill Champions Session",
+    "session_description": "",
+    "session_type": 1,
+    "start_timestamp": "2026-11-05 11:00:00",
+    "end_timestamp": "2026-11-05 11:30:00",
+    "session_location": "India",
+    "session_colour": "#FFECD3",
+    "session_order": 18,
+    "track_assigned": true,
+    "tags": [
+     {
+      "id": "d5d48eb6-f49a-4b4f-a365-6387f77035a0",
+      "name": "Panel Discussion"
+     },
+     {
+      "id": "44ee84e8-bcb2-44b9-b534-fcf42dc31c8a",
+      "name": "Plenary Stage"
+     },
+     {
+      "id": "872d57fc-6028-4fa4-a14d-4a49d70f4c9c",
+      "name": "Cross Track"
+     }
+    ],
+    "session_speakers": [
+     {
+      "speaker_id": "30272",
+      "name": "Ranjan Choudhury"
+     }
+    ],
+    "created_at": "2026-09-18 11:54:23.744561",
+    "updated_at": "2026-10-14 15:12:09",
+    "updated_by": "4e23073b-67f4-4e8e-9916-2c8219774a40"
+   },
+   {
+    "session_id": "16498",
+    "session_title": "Kaushalya Karnataka Awards",
+    "session_description": "",
+    "session_type": 1,
+    "start_timestamp": "2026-11-05 11:30:00",
+    "end_timestamp": "2026-11-05 12:10:00",
+    "session_location": "India",
+    "session_colour": "#FFECD3",
+    "session_order": 19,
+    "track_assigned": true,
+    "tags": [
+     {
+      "id": "44ee84e8-bcb2-44b9-b534-fcf42dc31c8a",
+      "name": "Plenary Stage"
+     }
+    ],
+    "session_speakers": [],
+    "created_at": "2026-09-18 11:55:13.038666",
+    "updated_at": "2026-10-14 15:12:09",
+    "updated_by": "4e23073b-67f4-4e8e-9916-2c8219774a40"
+   },
+   {
+    "session_id": "16499",
+    "session_title": "Cultural Performance",
+    "session_description": "",
+    "session_type": 1,
+    "start_timestamp": "2026-11-05 12:10:00",
+    "end_timestamp": "2026-11-05 12:40:00",
+    "session_location": "India",
+    "session_colour": "#FFECD3",
+    "session_order": 20,
+    "track_assigned": true,
+    "tags": [
+     {
+      "id": "44ee84e8-bcb2-44b9-b534-fcf42dc31c8a",
+      "name": "Plenary Stage"
+     }
+    ],
+    "session_speakers": [],
+    "created_at": "2026-09-18 11:55:58.585500",
+    "updated_at": "2026-10-14 15:12:09",
+    "updated_by": "4e23073b-67f4-4e8e-9916-2c8219774a40"
+   },
+   {
+    "session_id": "17195",
+    "session_title": "From Knowledge to Capability: Integrating Employability into Technical Education for Workforce 2030",
+    "session_description": "<p style=\"font-family: Hind, sans-serif;\">This roundtable will bring together industry leaders, senior representatives from universities, engineering and technology colleges, technical training institutions, and skills development organisations to explore how technical education can better respond to workforce needs. The discussion will focus on making application-based technical skills aspirational, strengthening industry collaboration, attracting and retaining learners in technical education, and supporting their transition from trainees to skilled professionals. It will also examine how institutions and employers can connect technical programs with practical training, apprenticeships, internships, entrepreneurship and continuous upskilling to improve employability and career progression.</p>",
+    "session_type": 1,
+    "start_timestamp": "2026-11-05 06:00:00",
+    "end_timestamp": "2026-11-05 07:30:00",
+    "session_location": "",
+    "session_colour": "#FFECD3",
+    "session_order": 7,
+    "track_assigned": true,
+    "tags": [
+     {
+      "id": "0744d2d0-4d9c-43cb-bd81-14321a2a7655",
+      "name": "Roundtables"
+     },
+     {
+      "id": "5c61abf3-547f-4ab1-a606-99ae95fc1142",
+      "name": "Room 1"
+     }
+    ],
+    "session_speakers": [],
+    "created_at": "2026-10-14 15:11:57.501278",
+    "updated_at": "2026-10-15 09:28:08",
+    "updated_by": "4e23073b-67f4-4e8e-9916-2c8219774a40"
+   }
+  ]
+ }
+]

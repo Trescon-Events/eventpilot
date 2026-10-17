@@ -1,0 +1,122 @@
+[
+ {
+  "id": "00e47c79-3214-4f04-9826-582a3ee10790",
+  "name": "Stage",
+  "tags": [
+   {
+    "id": "28d11d02-c20e-44ec-b744-c6a49c1f8430",
+    "name": "Registration Zone"
+   },
+   {
+    "id": "44ee84e8-bcb2-44b9-b534-fcf42dc31c8a",
+    "name": "Plenary Stage"
+   },
+   {
+    "id": "5c61abf3-547f-4ab1-a606-99ae95fc1142",
+    "name": "Room 1"
+   },
+   {
+    "id": "391d7e80-2c57-40f0-aade-6464536aa62b",
+    "name": "Room 2"
+   },
+   {
+    "id": "1d125865-5773-4525-8ba6-e6fa69f6c9d7",
+    "name": "Room 3"
+   },
+   {
+    "id": "e8692649-6ac3-4ed3-ac54-1c0b8b0d057c",
+    "name": "Room 4"
+   },
+   {
+    "id": "fc310c5b-431b-4eb1-a993-5e04fb94e9e3",
+    "name": "Poolside"
+   }
+  ]
+ },
+ {
+  "id": "23a5bb4f-8804-4a5b-9be8-5675dcc3363d",
+  "name": "Session Type",
+  "tags": [
+   {
+    "id": "675e9cfe-e7d1-4133-a07d-13b9b809443c",
+    "name": "Registration and Networking"
+   },
+   {
+    "id": "6b359841-ed86-4d84-8740-1ba6d1c80984",
+    "name": "Opening Remarks"
+   },
+   {
+    "id": "776eebf2-c1ab-475f-a265-fa8484cdd692",
+    "name": "Keynote"
+   },
+   {
+    "id": "d5d48eb6-f49a-4b4f-a365-6387f77035a0",
+    "name": "Panel Discussion"
+   },
+   {
+    "id": "f5b43552-747c-4749-a9cc-2aa86f000fbf",
+    "name": "Fireside Chat"
+   },
+   {
+    "id": "83eb78d7-885b-4c34-a74c-28301346e148",
+    "name": "Kaushalya Karnataka Awards"
+   },
+   {
+    "id": "2d2784fc-c3e5-4a98-9b4c-80c3434646e7",
+    "name": "Cultural Performance"
+   },
+   {
+    "id": "402b7b4e-88ef-4004-9dc8-aacbdf64b382",
+    "name": "Networking Lunch"
+   },
+   {
+    "id": "f9c91d43-20ea-4abb-b08b-9661d7223277",
+    "name": "Special Address"
+   },
+   {
+    "id": "0744d2d0-4d9c-43cb-bd81-14321a2a7655",
+    "name": "Roundtables"
+   },
+   {
+    "id": "1bd55870-9d0d-440e-b6d4-dff07f43aa2a",
+    "name": "Country Partner Session"
+   }
+  ]
+ },
+ {
+  "id": "a56cc5bb-4db1-4946-a83c-bcf763f34be5",
+  "name": "Speaker Type",
+  "tags": [
+   {
+    "id": "a176dd54-37cf-4436-af26-b9b5414ca010",
+    "name": "Moderator"
+   }
+  ]
+ },
+ {
+  "id": "c90e28c1-989d-4b2d-9bbf-31384fad238a",
+  "name": "Theme",
+  "tags": [
+   {
+    "id": "87813019-7f02-4d96-8c7d-dc90316f059d",
+    "name": "Emerging Skills"
+   },
+   {
+    "id": "8349985d-70ba-452e-a02d-00948d190a05",
+    "name": "Skills for All"
+   },
+   {
+    "id": "f286431c-e03c-4527-af18-4fc77f4902a2",
+    "name": "Innovation"
+   },
+   {
+    "id": "901eeeca-c848-4845-8221-1487f34cfbfb",
+    "name": "Global Skills"
+   },
+   {
+    "id": "872d57fc-6028-4fa4-a14d-4a49d70f4c9c",
+    "name": "Cross Track"
+   }
+  ]
+ }
+]
