@@ -80,7 +80,7 @@ export default function AppSidebar() {
           <AppSidebarSection title="Toolkit" entries={toolkit} collapsedRail={collapsedRail} />
           {brandAll.length > 0 && (
             <div style={{ marginBottom: '4px' }}>
-              {!collapsedRail && <div style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '1.2px', textTransform: 'uppercase', color: 'var(--ink4)', padding: '9px 12px 3px' }}>Brand &amp; Content</div>}
+              {!collapsedRail && <Link href="/brand-content" style={{ display: 'block', textDecoration: 'none', fontSize: '10.5px', fontWeight: 800, letterSpacing: '1.2px', textTransform: 'uppercase', color: 'var(--ink4)', padding: '9px 12px 3px' }}>Brand &amp; Content ›</Link>}
               {!collapsedRail && <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--ink3)', padding: '4px 12px 2px' }}>Brand</div>}
               <AppSidebarSection title="" entries={brand} collapsedRail={collapsedRail} hideTitle />
               {!collapsedRail && <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--ink3)', padding: '6px 12px 2px' }}>Content</div>}

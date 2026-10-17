@@ -910,7 +910,7 @@ function AdminPageInner() {
             toolkit: '/admin/toolkit',
             finance: '/finance',
             hr: '/hr',
-            branding: '/brand-content/brand/fonts',
+            branding: '/brand-content',
           }
           return (
             <div id="tour-tabs" style={{ display: 'flex', gap: '6px', marginBottom: '28px', flexWrap: 'wrap' }}>
@@ -921,7 +921,7 @@ function AdminPageInner() {
                 ['events',       'Events'],
                 ['finance',      'Finance'],
                 ['hr',           'HR Portal'],
-                ['branding',     'Branding'],
+                ['branding',     'Brand & Content'],
                 ...(isSuperAdmin ? [['review', 'Review Queue']] : []),
                 ...(isSuperAdmin ? [['security', 'Security']] : []),
               ] as [typeof tab, string][]).map(([t, label]) => {
