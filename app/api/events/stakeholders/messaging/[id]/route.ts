@@ -1,4 +1,4 @@
-import { requireContentEditAccess, requireContentEditIfOrgDoc } from '@/app/lib/content/content-access'
+import { requireContentEditAccess } from '@/app/lib/content/content-access'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { recompileEventAndChildren } from '@/app/lib/content/compile-reference'

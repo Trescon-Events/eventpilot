@@ -233,9 +233,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // Editing an already-approved speaker (any data change — fields, notes,
   // logo removal) must force a fresh review before it counts for
-  // announcements again, same pattern as cm_statistics'
-  // approved→draft-on-edit (see app/api/corporate-marketing/statistics/
-  // [id]/route.ts). Skipped when the caller explicitly sets
+  // announcements again (an approved record goes back to draft on edit). Skipped when the caller explicitly sets
   // announcement_status in this same request (e.g. the Approve button's own
   // pure {announcement_status:'ready'} PATCH).
   if (existing.announcement_status === 'ready' && body.announcement_status === undefined) {

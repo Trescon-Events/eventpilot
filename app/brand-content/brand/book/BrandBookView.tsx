@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax, @typescript-eslint/no-explicit-any, react/no-unescaped-entities, react-hooks/set-state-in-effect -- moved unchanged from app/admin/branding/corporate/page.tsx (Brand & Content, Part 2). These findings pre-date the move (raw colours on the dark header, apostrophes in copy, fetch-on-mount); cleaning them up is separate work, and a move must not change behaviour. */
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
@@ -14,8 +15,7 @@ import Link from 'next/link'
    logo FAMILY (main mark + Holdings/Events/Bespoke Events/Education &
    Training) and clearly-separable colors/fonts/patterns/voice — a flat
    asset table matches that much better than a rigid schema, and is the
-   same one-row-per-item pattern already used by the sibling Corporate
-   Marketing module's corporate_assets/corporate_testimonials tables. */
+   same one-row-per-item pattern the retired Corporate Marketing module used. */
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type AssetCategory = 'logo' | 'color' | 'font' | 'pattern' | 'voice' | 'collateral_reference' | 'template'

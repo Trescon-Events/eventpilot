@@ -2,7 +2,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { orgDocsReachEvent } from './trescon-layer'
 
 /* Trescon profile (2026-10-16, docs/build_suggestions/trescon-profile-boilerplate.md Part 4) — the one place tools read the approved
-   "About Trescon" text. Consumers read ONLY approved_text, never the working copy (value_text). Nothing approved → null, and the
+   "About Trescon" text. Consumers read ONLY approved_text, never the working copy (working_text). Nothing approved → null, and the
    caller decides what to tell the user; there is no silent fallback to model-written text here. The hook for the website builder,
    proposals and Pilot AI later; today only the press release generator uses it. */
 
@@ -10,24 +10,10 @@ import { orgDocsReachEvent } from './trescon-layer'
     the series the module names (World AI Show, World Cyber Security Show, World FinTech Show) are stored as type 'flagship'. */
 export const SIGNATURE_EVENT_TYPES = ['signature', 'flagship']
 
-/** Old Corporate Marketing keys, used ONLY while supabase/company_profile_migration.sql has not been run (the new table does not exist yet), so a
-    press release never loses its approved boilerplate across the switch. Removed with the Corporate Marketing code in Part 6. */
-const LEGACY_KEY: Record<string, string> = {
-  about_short: 'boilerplate_short', about_standard: 'boilerplate', about_long: 'boilerplate_long',
-  module_signature: 'boilerplate_signature_module', module_managed: 'boilerplate_managed_module',
-}
-
 /** The approved text for a company_profile_texts key, or null when it has never been approved. Reads approved_text only, never the working copy. */
 export async function getApprovedText(key: string): Promise<string | null> {
   const { data, error } = await supabaseAdmin.from('company_profile_texts').select('approved_text').eq('key', key).maybeSingle()
-  if (error) {
-    const legacy = LEGACY_KEY[key]
-    if (!legacy) { console.error(`[trescon-profile] could not read approved_text for ${key}:`, error.message); return null }
-    const old = await supabaseAdmin.from('corporate_company_content').select('approved_text').eq('key', legacy).maybeSingle()
-    if (old.error) { console.error(`[trescon-profile] could not read approved_text for ${key}:`, old.error.message); return null }
-    const o = old.data?.approved_text
-    return typeof o === 'string' && o.trim() ? o : null
-  }
+  if (error) { console.error(`[trescon-profile] could not read approved_text for ${key}:`, error.message); return null }
   const t = data?.approved_text
   return typeof t === 'string' && t.trim() ? t : null
 }

@@ -23,7 +23,6 @@ const TOOL_LABEL: Record<string, string> = {
   intelligence:        'Market Intelligence',
   smart_data:          'Smart Data',
   smart_excel:         'Smart Excel',
-  corporate_marketing: 'Corporate Marketing',
   admin:               'Admin Panel',
   finance:             'Finance Portal',
   hr:                  'HR Portal',

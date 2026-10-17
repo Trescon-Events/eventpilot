@@ -16,9 +16,6 @@
     "/admin/sites",
     "/admin/templates",
     "/admin/toolkit",
-    "/admin/toolkit/corporate-marketing",
-    "/admin/toolkit/corporate-marketing/deck",
-    "/admin/toolkit/corporate-marketing/statistics",
     "/dashboard/course/[id]"
   ],
   "gateMissing": []

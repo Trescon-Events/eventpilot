@@ -53,6 +53,8 @@ const nextConfig: NextConfig = {
       { source: '/admin/branding/cleaning-cycle-template', destination: '/brand-content/brand/creative-standards?tab=photo', permanent: false },
       { source: '/admin/branding/placeholder-defaults', destination: '/brand-content/brand/creative-standards?tab=placeholders', permanent: false },
       { source: '/admin/content/house-style', destination: '/brand-content/content/style-guide', permanent: false },
+      { source: '/admin/toolkit/corporate-marketing', destination: '/brand-content/content/company-profile', permanent: false },
+      { source: '/admin/toolkit/corporate-marketing/:path*', destination: '/brand-content/content/company-profile', permanent: false },
       { source: '/admin/branding', destination: '/brand-content/brand/book', permanent: false },
     ]
   },

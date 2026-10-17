@@ -1,4 +1,4 @@
-import { requireContentEditAccess, requireContentEditIfOrgDoc } from '@/app/lib/content/content-access'
+import { requireContentEditAccess } from '@/app/lib/content/content-access'
 import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'

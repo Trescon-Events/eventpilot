@@ -831,23 +831,6 @@ export function getModuleRegistry(): ModuleDef[] {
 
     /* ── Toolkit-only: Marketing / Data ── */
     {
-      key: 'corporate-marketing', label: 'Corporate Marketing',
-      description: 'Single workspace for all dynamic corporate content — deck, testimonials, approved assets, leadership bios. Canva stays the design master; EventPilot owns the content and every published version.',
-      icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,
-      color: '#E26262',
-      href: '/admin/toolkit/corporate-marketing/deck',
-      access: { kind: 'tool_grant', grantKey: 'corporate_marketing' },
-      toolkitHub: {
-        category: 'Marketing', badge: 'Marketing',
-        features: [
-          { icon: '◉', label: 'Corporate deck management', detail: 'Upload the master PDF + store the Canva link. AI flags the sections that change every month' },
-          { icon: '◈', label: 'Editable content workspace', detail: 'Company overview, vision, stats, testimonials, approved images — all in one place' },
-          { icon: '◷', label: 'Publish-based versioning', detail: 'Publish creates an immutable snapshot with change summary. Every past version stays downloadable' },
-          { icon: '⊞', label: 'Reuses existing EventPilot data', detail: 'Leadership pulls from staff_members, events pull from events table — no duplication' },
-        ],
-      },
-    },
-    {
       key: 'smart-excel', label: 'SmartExcel',
       description: 'Conversational, AI-assisted spreadsheet and document-to-spreadsheet jobs. Describe what you need in plain English — clarify, plan, sample, run, and refine, with a human approval step before anything runs at scale.',
       icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>,
