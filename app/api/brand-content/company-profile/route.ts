@@ -4,6 +4,11 @@
  * GET   → { texts, figures, can_edit, can_approve }    any signed-in staff. { missing: true } if the migration has not been run.
  * PATCH → { kind: 'text', key, working_text }          platform.content.manage or super admin. Never touches approved_text.
  *         { kind: 'figure', key, value?, unit?, description?, source?, notes? }   a value change puts the figure back to pending review.
+ *         { kind: 'text', key, working_text, publish: true }   (interim, 17 Oct 2026: until a real approval process exists, SAVING publishes.)
+ *             Runs the text through the Trescon-wide rules first (errors block with 422, warnings are returned), then sets working_text AND
+ *             approved_text, stamps who and when, and clears needs_review. Press releases and the Standards API read approved_text.
+ *         { kind: 'figures', items: [{ key, value }] }          saves several figures at once; each changed figure's value becomes its approved
+ *             value too (same interim rule). A change to an already-approved figure flags the texts that quote it (database trigger).
  * POST  → { action: 'approve_text', key }              super admin only. Runs the working copy through the Trescon-wide rules first:
  *                                                      errors block (422 + findings), warnings are returned.
  *         { action: 'approve_figure', key }            super admin only. approved_value = value; flips every approved text that quotes it
@@ -17,6 +22,7 @@ import { requireContentEditAccess, requireSuperAdmin } from '@/app/lib/content/c
 import { ORG_OWNER } from '@/app/lib/content/owner'
 import { resolveEffectiveRulesForOwner } from '@/app/lib/content/resolve-validation-rules'
 import { validateText } from '@/app/lib/content/validate'
+import { actorOf } from '@/app/lib/content/doc-audit'
 import { textState, type ProfileText, type Figure } from '@/app/lib/brand-content/company-profile'
 
 export async function GET(req: NextRequest) {
@@ -35,11 +41,44 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const denied = await requireContentEditAccess(req)
   if (denied) return denied
-  const sid = getSession(req)?.sid ?? null
+  const sid = actorOf(req)
   const body = await req.json().catch(() => ({}))
   const key = String(body?.key ?? '').trim()
-  if (!key) return NextResponse.json({ error: 'key required' }, { status: 400 })
+  if (!key && body?.kind !== 'figures') return NextResponse.json({ error: 'key required' }, { status: 400 })
   const now = new Date().toISOString()
+
+  if (body.kind === 'text' && body.publish === true) {
+    if (typeof body.working_text !== 'string' || !body.working_text.trim()) return NextResponse.json({ error: 'There is no text to save.' }, { status: 400 })
+    const text = body.working_text
+    const findings = validateText(text, await resolveEffectiveRulesForOwner(ORG_OWNER))
+    const errors = findings.filter(f => f.severity === 'error'), warnings = findings.filter(f => f.severity !== 'error')
+    if (errors.length > 0) return NextResponse.json({ error: `Not saved: ${errors.length} house-rule error${errors.length === 1 ? '' : 's'} in the text. Fix ${errors.length === 1 ? 'it' : 'them'} and try again.`, errors, warnings }, { status: 422 })
+    const { data, error } = await supabaseAdmin.from('company_profile_texts')
+      .update({ working_text: text, approved_text: text, approved_by: sid, approved_at: now, needs_review: false, updated_by: sid, updated_at: now }).eq('key', key).select('key').maybeSingle()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (!data) return NextResponse.json({ error: 'Unknown text.' }, { status: 404 })
+    return NextResponse.json({ ok: true, warnings })
+  }
+
+  if (body.kind === 'figures') {
+    const items = Array.isArray(body.items) ? body.items as { key?: unknown; value?: unknown }[] : []
+    if (items.length === 0) return NextResponse.json({ error: 'Nothing to save.' }, { status: 400 })
+    const clean = items.map(i => ({ key: String(i.key ?? '').trim(), value: String(i.value ?? '').trim() }))
+    if (clean.some(i => !i.key || !i.value)) return NextResponse.json({ error: 'Every figure needs a value.' }, { status: 400 })
+    const { data: cur } = await supabaseAdmin.from('company_figures').select('key, value, approved_value').in('key', clean.map(i => i.key))
+    const have = new Map((cur ?? []).map(c => [c.key, c]))
+    if (clean.some(i => !have.has(i.key))) return NextResponse.json({ error: 'Unknown figure.' }, { status: 404 })
+    let changed = 0
+    for (const i of clean) {
+      const c = have.get(i.key)!
+      if (c.value === i.value && c.approved_value === i.value) continue
+      const { error } = await supabaseAdmin.from('company_figures')
+        .update({ value: i.value, approved_value: i.value, status: 'approved', approved_by: sid, approved_at: now, updated_by: sid, updated_at: now }).eq('key', i.key)
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      changed++
+    }
+    return NextResponse.json({ ok: true, changed })
+  }
 
   if (body.kind === 'text') {
     if (typeof body.working_text !== 'string') return NextResponse.json({ error: 'working_text required' }, { status: 400 })
