@@ -24,8 +24,8 @@ const subStyle = (active: boolean): React.CSSProperties => ({
 
 export type UmbrellaNavChild = { id: string; name: string }
 
-export default function UmbrellaShell({ umbrellaId, name, isAdmin, canOps, children: pageChildren, events }: {
-  umbrellaId: string; name: string; isAdmin: boolean; canOps: boolean; children: React.ReactNode; events: UmbrellaNavChild[]
+export default function UmbrellaShell({ umbrellaId, name, isAdmin, canOps, canDocs, children: pageChildren, events }: {
+  umbrellaId: string; name: string; isAdmin: boolean; canOps: boolean; canDocs: boolean; children: React.ReactNode; events: UmbrellaNavChild[]
 }) {
   useBreadcrumbLabel(umbrellaId, name)
   const pathname = usePathname().replace(/\/+$/, '')
@@ -44,7 +44,7 @@ export default function UmbrellaShell({ umbrellaId, name, isAdmin, canOps, child
         <div style={{ display: 'grid', gap: '2px' }}>
           <Link href={base} style={linkStyle(pathname === base)}>Overview</Link>
           {isAdmin && <Link href={`${base}/details`} style={linkStyle(pathname === `${base}/details`)}>Event Details</Link>}
-          {isAdmin && <Link href={`${base}/reference-docs`} style={linkStyle(pathname === `${base}/reference-docs`)}>Reference Documents</Link>}
+          {(isAdmin || canDocs) && <Link href={`${base}/reference-docs`} style={linkStyle(pathname === `${base}/reference-docs`)}>Reference Documents</Link>}
           {isAdmin && events.length > 0 && (
             <div>
               <div style={{ ...linkStyle(false), cursor: 'default', borderLeft: '2.5px solid transparent' }}>Events</div>

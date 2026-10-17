@@ -39,12 +39,17 @@ export async function POST(req: NextRequest) {
   const { data: umbrella } = await supabaseAdmin.from('event_umbrellas').select('id').eq('id', body.umbrella_id).maybeSingle()
   if (!umbrella) return NextResponse.json({ error: 'Umbrella not found' }, { status: 404 })
 
+  // Document-only roles (just sae.messaging.umbrella_manage, e.g. "Umbrella document manager") carry no operational access, so the person
+  // does not need to be on an event's Staff roster first. Every other role keeps the roster rule below.
+  const { data: rolePerms } = await supabaseAdmin.from('access_role_permissions').select('permission_key').eq('role_id', body.role_id)
+  const documentOnly = (rolePerms ?? []).length > 0 && (rolePerms ?? []).every(p => p.permission_key === 'sae.messaging.umbrella_manage')
+
   const { data: kids } = await supabaseAdmin.from('events').select('id').eq('umbrella_id', body.umbrella_id)
   const kidIds = (kids ?? []).map(k => k.id)
   const { data: roster } = kidIds.length
     ? await supabaseAdmin.from('event_staff').select('id').eq('staff_id', body.staff_id).in('event_id', kidIds).limit(1)
     : { data: [] as { id: string }[] }
-  if (!roster?.length) {
+  if (!documentOnly && !roster?.length) {
     return NextResponse.json({ error: 'This staff member is not on the Staff roster of any event under this umbrella — add them to one of its events first.' }, { status: 422 })
   }
 

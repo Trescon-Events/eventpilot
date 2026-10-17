@@ -11,6 +11,7 @@ import { getServerSession } from '@/app/lib/registry/access'
 import { resolveScope, hasScopePermission } from '@/app/lib/ops/scope'
 import { hasAnySectionAssignmentForUmbrella } from '@/app/lib/ops/section-access'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { hasEventPermission } from '@/app/lib/access/event-access'
 import UmbrellaShell from './UmbrellaShell'
 
 export default async function UmbrellaWorkspaceLayout({ children, params }: { children: React.ReactNode; params: Promise<{ id: string }> }) {
@@ -23,9 +24,11 @@ export default async function UmbrellaWorkspaceLayout({ children, params }: { ch
   const isAdmin = !!session.adm
   // ops.view on any child, or being assigned to an Operations section (Ops > Access) — matches the Operations layout.
   const canOps = isAdmin || (await hasScopePermission({ sid: session.sid }, scope, 'ops.view')) || (await hasAnySectionAssignmentForUmbrella(session.sid, id, scope.eventIds))
-  if (!isAdmin && !canOps) redirect('/no-access?tool=operations')
+  // Reference Documents: a role granted on this umbrella's Access page that includes sae.messaging.umbrella_manage (2026-10-17).
+  const canDocs = isAdmin || (await hasEventPermission(session.sid, id, 'sae.messaging.umbrella_manage'))
+  if (!isAdmin && !canOps && !canDocs) redirect('/no-access?tool=operations')
 
   // Child events appear in the nav for admins only (each opens its own workspace, which applies its own gate).
   const events = isAdmin ? ((await supabaseAdmin.from('events').select('id, name').eq('umbrella_id', id).order('name')).data ?? []) : []
-  return <UmbrellaShell umbrellaId={id} name={scope.name} isAdmin={isAdmin} canOps={canOps} events={events}>{children}</UmbrellaShell>
+  return <UmbrellaShell umbrellaId={id} name={scope.name} isAdmin={isAdmin} canOps={canOps} canDocs={canDocs} events={events}>{children}</UmbrellaShell>
 }

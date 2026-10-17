@@ -22,7 +22,7 @@ function Tile({ href, icon, title, description, tint }: { href: string; icon: st
   )
 }
 
-export default async function UmbrellaOverview({ umbrellaId, isAdmin, canOps }: { umbrellaId: string; isAdmin: boolean; canOps: boolean }) {
+export default async function UmbrellaOverview({ umbrellaId, isAdmin, canOps, canDocs }: { umbrellaId: string; isAdmin: boolean; canOps: boolean; canDocs: boolean }) {
   const [{ data: u }, { data: kids }] = await Promise.all([
     supabaseAdmin.from('event_umbrellas').select('id, name, client_name, status, event_date, end_date, description').eq('id', umbrellaId).maybeSingle(),
     supabaseAdmin.from('events').select('id, name, status, event_date, end_date, city').eq('umbrella_id', umbrellaId).order('event_date', { ascending: true }),
@@ -49,7 +49,7 @@ export default async function UmbrellaOverview({ umbrellaId, isAdmin, canOps }: 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
         {canOps && <Tile href={`${base}/operations`} icon="⚙" tint="color-mix(in srgb, var(--amber) 16%, transparent)" title="Operations" description="Speaker licences, vendors and badge printing for every event in this umbrella, and who handles each section." />}
         {isAdmin && <Tile href={`${base}/details`} icon="◈" tint="color-mix(in srgb, var(--teal-mid) 16%, transparent)" title="Event Details" description="Name, client, status and dates; content approval; event days; the dates of each event under it." />}
-        {isAdmin && <Tile href={`${base}/reference-docs`} icon="❏" tint="color-mix(in srgb, var(--purple) 16%, transparent)" title="Reference Documents" description="Style guide, messaging document and production pack shared by every event, plus a copy checker." />}
+        {(isAdmin || canDocs) && <Tile href={`${base}/reference-docs`} icon="❏" tint="color-mix(in srgb, var(--purple) 16%, transparent)" title="Reference Documents" description="Style guide, messaging document and production pack shared by every event, plus a copy checker." />}
         {isAdmin && <Tile href={`${base}/access`} icon="⚿" tint="color-mix(in srgb, var(--red) 14%, transparent)" title="Access" description="Give someone a role across every event in this umbrella." />}
       </div>
 

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getServerSession } from '@/app/lib/registry/access'
 import { resolveScope, hasScopePermission } from '@/app/lib/ops/scope'
 import { hasAnySectionAssignmentForUmbrella } from '@/app/lib/ops/section-access'
+import { hasEventPermission } from '@/app/lib/access/event-access'
 import UmbrellaOverview from './UmbrellaOverview'
 
 /* The umbrella hub. Middleware lets any signed-in person reach this URL, and the layout has already refused anyone with no
@@ -14,5 +15,6 @@ export default async function UmbrellaPage({ params }: { params: Promise<{ id: s
   if (!scope) redirect('/no-access?tool=operations')
   const isAdmin = !!session.adm
   const canOps = isAdmin || (await hasScopePermission({ sid: session.sid }, scope, 'ops.view')) || (await hasAnySectionAssignmentForUmbrella(session.sid, id, scope.eventIds))
-  return <UmbrellaOverview umbrellaId={id} isAdmin={isAdmin} canOps={canOps} />
+  const canDocs = isAdmin || (await hasEventPermission(session.sid, id, 'sae.messaging.umbrella_manage'))
+  return <UmbrellaOverview umbrellaId={id} isAdmin={isAdmin} canOps={canOps} canDocs={canDocs} />
 }

@@ -11,6 +11,14 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 ---
 
+## Target access model (Madhu, 17 Oct 2026) — for future permission work
+Who should own what, so permissions are built toward this and not away from it:
+- **Marketing directors manage the standards.** Nicholas: messaging documents. Thulasi: corporate marketing. Both: Brand & Content (`platform.content.manage`, and `platform.branding.manage` where relevant).
+- **Marketing managers (later) own each event's messaging document, event details and reference documents.** Today that is `sae.forms.manage` on the event (and `sae.messaging.umbrella_manage` for an umbrella's documents).
+- **Producers use only the Stakeholder Hub** (speakers now, more later). They should not need document or rule rights.
+- **Production (later) owns the project brief.**
+Access decisions on 17 Oct: Shadi Dawi (Media Lead) unchanged, not using EventPilot yet. Durga Charan stays super admin. No grants on the Dubai Future Finance Week umbrella for now. To grant umbrella document rights later: the umbrella's own Access page, role "Umbrella document manager" (grantable without a Staff roster entry). Open items: platform-level role assignment without an anchor event (below).
+
 ## Done (17 Oct 2026): event-access checks on the messaging document routes
 `apply-edit`, `propose-edit`, `suggested-rules/[ruleId]` (accept), `clarifications/answer`, `approve` (event and umbrella documents) and the document `PATCH` now check access on the server through `requireDocWriteAccess` (app/lib/content/content-access.ts): super admin; Trescon-wide needs `platform.content.manage`; umbrella docs need `sae.messaging.umbrella_manage`; event docs need `sae.forms.manage`. Same keys the upload and delete routes and the page already use. The Word upload route is Trescon-wide only and was already gated.
 

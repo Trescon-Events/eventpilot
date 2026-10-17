@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { Button } from '@/app/components/ui'
+import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
 
 type StaffOption = { id: string; name: string; email: string }
-type RoleOption = { id: string; name: string }
+type RoleOption = { id: string; name: string; manages_docs: boolean; summary: string }
 type Assignment = {
   id: string; staff_id: string; role_id: string; granted_at: string; expires_at: string | null
   staff_members: { name: string; email: string } | null
@@ -38,7 +39,11 @@ export default function UmbrellaAccessTab({ umbrellaId, umbrellaName, eventCount
       if (cancelled) return
       const a = await aRes.json().catch(() => []); setAssignments(Array.isArray(a) ? a : [])
       const s = await sRes.json().catch(() => []); setStaffOptions(Array.isArray(s) ? s.map((x: StaffOption) => ({ id: x.id, name: x.name, email: x.email })) : [])
-      const r = await rRes.json().catch(() => []); setRoleOptions(Array.isArray(r) ? r.map((x: RoleOption) => ({ id: x.id, name: x.name })) : [])
+      const r = await rRes.json().catch(() => [])
+      setRoleOptions(Array.isArray(r) ? r.map((x: { id: string; name: string; permission_keys?: string[] }) => {
+        const keys = new Set(x.permission_keys ?? [])
+        return { id: x.id, name: x.name, manages_docs: permissionSetSatisfies(keys, 'sae.messaging.umbrella_manage'), summary: [...keys].slice(0, 6).join(', ') + (keys.size > 6 ? ', …' : '') }
+      }) : [])
       setLoading(false)
     })()
     return () => { cancelled = true }
@@ -74,7 +79,7 @@ export default function UmbrellaAccessTab({ umbrellaId, umbrellaName, eventCount
       <h1 style={{ fontSize: '22px', fontWeight: 900, color: 'var(--ink)', margin: '0 0 6px' }}>Access</h1>
       <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '22px' }}>
         A role assigned here applies to <strong>every event under {umbrellaName}</strong> ({eventCount} today) — and to any event added to it later.
-        Use it for people who work across the whole umbrella, such as Operations. To limit someone to a single event, assign the role on that event&apos;s own Access page instead.
+        Use it for people who work across the whole umbrella, such as Operations, or to let someone manage the umbrella&apos;s Reference Documents. To limit someone to a single event, assign the role on that event&apos;s own Access page instead.
       </div>
 
       <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '12px' }}>Assign a Role Across {umbrellaName}</div>
@@ -85,7 +90,7 @@ export default function UmbrellaAccessTab({ umbrellaId, umbrellaName, eventCount
         </select>
         <select value={roleId} onChange={e => setRoleId(e.target.value)} style={field}>
           <option value="">Select role…</option>
-          {roleOptions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          {roleOptions.map(r => <option key={r.id} value={r.id}>{r.name}{r.manages_docs ? ' (can manage this umbrella\'s documents)' : ''}</option>)}
         </select>
         <Button variant="teal" onClick={assign} disabled={assigning || !staffId || !roleId}>{assigning ? 'Assigning…' : 'Assign'}</Button>
       </div>
@@ -94,6 +99,14 @@ export default function UmbrellaAccessTab({ umbrellaId, umbrellaName, eventCount
         <input type="date" value={expiresAt} onChange={e => setExpiresAt(e.target.value)} style={{ ...field, padding: '6px 8px', fontSize: '12.5px' }} />
         {expiresAt && <button onClick={() => setExpiresAt('')} style={{ fontSize: '12px', color: 'var(--ink3)', background: 'none', border: 'none', cursor: 'pointer' }}>Clear</button>}
       </div>
+      {roleId && (() => { const r = roleOptions.find(x => x.id === roleId); return r ? (
+        <div style={{ fontSize: '12px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '10px' }}>
+          <strong>{r.name}</strong> includes: {r.summary || 'no permissions'}.{' '}
+          {r.manages_docs
+            ? <>It also lets the person open and edit <strong>{umbrellaName}</strong>&apos;s Reference Documents (style guide, messaging document, production pack).</>
+            : <>It does not give access to this umbrella&apos;s Reference Documents. Use the &quot;Umbrella document manager&quot; role for that.</>}
+        </div>
+      ) : null })()}
       {msg && <div style={{ fontSize: '12.5px', color: 'var(--red)', marginBottom: '10px' }}>{msg}</div>}
 
       <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', margin: '22px 0 10px' }}>Current umbrella-level assignments ({assignments.length})</div>

@@ -49,6 +49,15 @@ async function roleIdsFor(staffId: string, eventId: string): Promise<string[]> {
       .or(notExpiredFilter())
     for (const r of um ?? []) ids.push(r.role_id)
   }
+  // The id may itself be an UMBRELLA id (checks like sae.messaging.umbrella_manage run against the umbrella): a role granted at that umbrella
+  // on its own Access page counts there too. For a real event id this matches no rows, so nothing changes for events.
+  const { data: direct } = await supabaseAdmin
+    .from('umbrella_access_assignments')
+    .select('role_id')
+    .eq('staff_id', staffId)
+    .eq('umbrella_id', eventId)
+    .or(notExpiredFilter())
+  for (const r of direct ?? []) ids.push(r.role_id)
   return [...new Set(ids)]
 }
 
