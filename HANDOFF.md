@@ -14,8 +14,8 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 ## Follow-up: document history panel (Madhu, 17 Oct 2026)
 Show the audit trail on each messaging document: who, what, when. The data is already recorded since 17 Oct in `messaging_doc_audit` (upload, word_upload, patch, delete, propose_edit, apply_edit, approve, clarification_answer, suggested_rule_accept/dismiss, each with the signed-in staff id and a short detail), plus `event_messaging_doc_edits` for applied edits. Build a "History" panel on the document view (event, umbrella and Trescon-wide) that lists those rows newest first with the person's name. Not built yet: no screen shows the history today.
 
-## Interim rule to revisit: Company profile "Save publishes"
-Until a real approval process exists, saving a Company profile text or figure makes it live (it sets approved_text / approved_value after the Trescon-wide house rules pass). The Standards API and press releases read only approved values. When the approval process is built, restore a separate approve step (the approve endpoints are still in the code).
+## Company profile approval (17 Oct 2026)
+Save only updates the working copy (text working_text, figure value), for everyone. Only Approve (super admin) publishes: approve_text checks the Trescon-wide house rules and sets approved_text; approve_figures sets approved_value. The Standards API and press releases read approved values only. The chip "Edited since approval" shows when working and approved differ.
 
 ## Target access model (Madhu, 17 Oct 2026) — for future permission work
 Who should own what, so permissions are built toward this and not away from it:
