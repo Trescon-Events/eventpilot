@@ -8,8 +8,8 @@ import { Card, Button, Select } from '@/app/components/ui'
 type Filter = { id: string; name: string; tags: { id: string; name: string }[] }
 type Mapping = {
   stage_mode: 'track' | 'tag'; push_session_type: boolean
-  stage_filter_id: string | null; format_filter_id: string | null; theme_filter_id: string | null
-  mapped: { stage: number; format: number; theme: number }
+  stage_filter_id: string | null; format_filter_id: string | null; theme_filter_id: string | null; room_filter_id: string | null
+  mapped: { stage: number; format: number; theme: number; room: number }
   filters: Filter[]; filter_error: string | null; konfhub_configured: boolean
 }
 type Item = { konfhub_session_id: string; title: string; date: string; start: string; end: string; stage: string | null; format: string | null; theme: string | null; speakers: { name: string; matched: boolean }[]; action: 'create' | 'skip'; reason?: string; warnings: string[] }
@@ -48,7 +48,7 @@ export default function AgendaMappingCard({ eventId, canManage }: { eventId: str
 
   if (!m) return <Card padded><div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>{msg?.text ?? 'Loading agenda mapping…'}</div></Card>
   const tagMode = m.stage_mode === 'tag'
-  const filterSelect = (label: string, key: 'stage_filter_id' | 'format_filter_id' | 'theme_filter_id', mapped: number) => (
+  const filterSelect = (label: string, key: 'stage_filter_id' | 'format_filter_id' | 'theme_filter_id' | 'room_filter_id', mapped: number) => (
     <div>
       <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px' }}>{label}</div>
       <Select value={m[key] ?? ''} disabled={!canManage || busy} onChange={e => save({ [key]: e.target.value || null })}>
@@ -89,6 +89,7 @@ export default function AgendaMappingCard({ eventId, canManage }: { eventId: str
             {tagMode && filterSelect('Stage filter', 'stage_filter_id', m.mapped.stage)}
             {filterSelect('Session type filter', 'format_filter_id', m.mapped.format)}
             {filterSelect('Theme filter', 'theme_filter_id', m.mapped.theme)}
+            {filterSelect('Roundtable room filter (optional)', 'room_filter_id', m.mapped.room)}
           </div>
           {msg && <div style={{ fontSize: '12.5px', marginBottom: '10px', color: msg.ok ? 'var(--green, #15803d)' : 'var(--red, #b91c1c)' }}>{msg.text}</div>}
 

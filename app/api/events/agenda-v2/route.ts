@@ -4,6 +4,7 @@ import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { getEventRoles } from '@/app/lib/konfhub/roles'
 import { normalizeTimezone } from '@/app/lib/events/timezones'
+import { fetchKonfhubEventDays, getKonfhubToken } from '@/app/lib/konfhub-agenda'
 
 /* GET /api/events/agenda-v2?event_id=X
 
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
   }
 
   const [{ data: website }, { data: tracks }, { data: sessions }, { data: eventRow }, roles] = await Promise.all([
-    supabaseAdmin.from('event_websites').select('agenda_source').eq('event_id', eventId).maybeSingle(),
+    supabaseAdmin.from('event_websites').select('*').eq('event_id', eventId).maybeSingle(),
     supabaseAdmin.from('event_agenda_tracks').select('*').eq('event_id', eventId).order('order_index'),
     supabaseAdmin.from('event_agenda_sessions').select('*').eq('event_id', eventId).order('start_timestamp', { nullsFirst: false }).order('order_index'),
     supabaseAdmin.from('events').select('timezone').eq('id', eventId).maybeSingle(),
@@ -47,7 +48,17 @@ export async function GET(req: NextRequest) {
         .order('order_index')
     : { data: [] }
 
+  // Days come from KonfHub (its start..end dates) for KonfHub-linked events, so a day with no sessions yet still shows; best effort, never blocks the page.
+  let konfhubDays: string[] | null = null
+  if (website?.konfhub_event_id && website.konfhub_client_id && website.konfhub_client_secret) {
+    try { konfhubDays = (await fetchKonfhubEventDays(website.konfhub_event_id, await getKonfhubToken(website.konfhub_client_id, website.konfhub_client_secret))).days } catch { konfhubDays = null }
+  }
+  const labelsOf = (kind: string) => (tagMapRows ?? []).filter(r => r.kind === kind).map(r => r.label)
+
   return NextResponse.json({
+    konfhub_days: konfhubDays,
+    stage_mode: (website?.agenda_stage_mode as string | undefined) ?? 'track',
+    themes: labelsOf('theme'),
     agenda_source: website?.agenda_source ?? 'eventpilot_native',
     timezone: normalizeTimezone(eventRow?.timezone),
     roles,

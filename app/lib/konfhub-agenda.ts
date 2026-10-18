@@ -223,3 +223,15 @@ export async function fetchKonfhubSessionUpdatedAt(konfhubEventId: string, sessi
 }
 
 export { getKonfhubToken, KonfhubApiError }
+
+
+/** The event's own start/end dates (YYYY-MM-DD) and timezone on KonfHub: the days its agenda is organised by, whether or not they have sessions yet. */
+export async function fetchKonfhubEventDays(konfhubEventId: string, token: string): Promise<{ days: string[]; timezone: string | null }> {
+  const res = await fetch(`${API_BASE}/${konfhubEventId}`, { headers: { Authorization: `Bearer ${token}` } })
+  const j = await res.json().catch(() => null) as { start_date?: string; end_date?: string; time_zone?: string } | null
+  if (!res.ok || !j?.start_date) throw new KonfhubApiError('Could not read the event dates from KonfHub.', res.status)
+  const days: string[] = []
+  const end = new Date((j.end_date || j.start_date) + 'T00:00:00Z')
+  for (let d = new Date(j.start_date + 'T00:00:00Z'); d <= end && days.length < 31; d.setUTCDate(d.getUTCDate() + 1)) days.push(d.toISOString().slice(0, 10))
+  return { days, timezone: j.time_zone ?? null }
+}

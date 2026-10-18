@@ -7,7 +7,7 @@ import { getKonfhubToken, fetchKonfhubFilters } from '@/app/lib/konfhub-agenda'
 /* GET /api/events/konfhub/agenda-mapping?event_id=X
    PUT /api/events/konfhub/agenda-mapping?event_id=X
         Body: { stage_mode?: 'track' | 'tag', push_session_type?: boolean,
-                stage_filter_id?: string | null, format_filter_id?: string | null, theme_filter_id?: string | null }
+                stage_filter_id?: string | null, format_filter_id?: string | null, theme_filter_id?: string | null, room_filter_id?: string | null }
 
    Where each EventPilot agenda field lives in KonfHub for THIS event. DFFW teams made every stage a KonfHub track; BSS made one track and put the stage,
    the session type and the theme in tags of three KonfHub filters. EventPilot's fields stay fixed (stage, format, theme); this setting says which
@@ -33,8 +33,8 @@ async function load(eventId: string, withFilters: boolean) {
   const filterOf = (kind: string) => { const ids = new Set((rows ?? []).filter(r => r.kind === kind).map(r => r.tag_id)); return filters.find(f => f.tags.some(t => ids.has(t.id)))?.id ?? null }
   return {
     stage_mode: (site?.agenda_stage_mode as string | undefined) ?? 'track', push_session_type: site?.agenda_push_session_type ?? true,
-    stage_filter_id: filterOf('stage'), format_filter_id: filterOf('format'), theme_filter_id: filterOf('theme'),
-    mapped: { stage: (rows ?? []).filter(r => r.kind === 'stage').length, format: (rows ?? []).filter(r => r.kind === 'format').length, theme: (rows ?? []).filter(r => r.kind === 'theme').length },
+    stage_filter_id: filterOf('stage'), format_filter_id: filterOf('format'), theme_filter_id: filterOf('theme'), room_filter_id: filterOf('room'),
+    mapped: { stage: (rows ?? []).filter(r => r.kind === 'stage').length, format: (rows ?? []).filter(r => r.kind === 'format').length, theme: (rows ?? []).filter(r => r.kind === 'theme').length, room: (rows ?? []).filter(r => r.kind === 'room').length },
     filters, filter_error: filterError, konfhub_configured: !!site?.konfhub_event_id,
   }
 }
@@ -58,7 +58,7 @@ export async function PUT(req: NextRequest) {
   const eventId = req.nextUrl.searchParams.get('event_id')
   if (!eventId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
   if (!(await authorize(req, eventId))) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
-  const body = await req.json().catch(() => null) as { stage_mode?: string; push_session_type?: boolean; stage_filter_id?: string | null; format_filter_id?: string | null; theme_filter_id?: string | null } | null
+  const body = await req.json().catch(() => null) as { stage_mode?: string; push_session_type?: boolean; stage_filter_id?: string | null; format_filter_id?: string | null; theme_filter_id?: string | null; room_filter_id?: string | null } | null
   if (!body) return NextResponse.json({ error: 'body required' }, { status: 400 })
 
   const { data: site } = await supabaseAdmin.from('event_websites').select('konfhub_event_id, konfhub_client_id, konfhub_client_secret').eq('event_id', eventId).maybeSingle()
@@ -70,7 +70,7 @@ export async function PUT(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message.includes('agenda_stage_mode') || error.message.includes('agenda_push_session_type') ? 'Run supabase/agenda_konfhub_mapping_migration.sql first.' : error.message }, { status: 500 })
   }
 
-  const kinds: [string, string | null | undefined][] = [['stage', body.stage_filter_id], ['format', body.format_filter_id], ['theme', body.theme_filter_id]]
+  const kinds: [string, string | null | undefined][] = [['stage', body.stage_filter_id], ['format', body.format_filter_id], ['theme', body.theme_filter_id], ['room', body.room_filter_id]]
   if (kinds.some(([, v]) => v !== undefined)) {
     if (!site?.konfhub_event_id || !site.konfhub_client_id || !site.konfhub_client_secret) return NextResponse.json({ error: 'KonfHub isn’t configured for this event.' }, { status: 400 })
     const filters = await fetchKonfhubFilters(site.konfhub_event_id, await getKonfhubToken(site.konfhub_client_id, site.konfhub_client_secret))

@@ -2,7 +2,7 @@
 import { useMemo, useState } from 'react'
 import { Button, Input, Select, Textarea, Badge, SearchableSelect } from '@/app/components/ui'
 import { colourToCss } from '@/app/lib/agenda/colours'
-import { type Session, type Track, type Room, type Role, type Speaker, SESSION_TYPES, CONTENT_TYPES, SWATCHES, sessionColour, localParts, minutesToHHMM, hhmmToMinutes } from './agenda-utils'
+import { type Session, type Track, type Room, type Role, type Speaker, SESSION_TYPES, CONTENT_TYPES, SWATCHES, sessionColour, localParts, minutesToHHMM, hhmmToMinutes, fmtDay } from './agenda-utils'
 
 /* Right-hand editor for one session. Edits are held in a local draft and saved
    with one button (session fields, then the speaker list) — predictable, and a
@@ -18,12 +18,16 @@ export type PanelSave = {
 
 /** Where each field lives in KonfHub for this event (null = not known / not mapped). */
 export type KhLabels = { stage_mode: 'track' | 'tag'; stage: string | null; format: string | null; theme: string | null }
+const sub: React.CSSProperties = { fontSize: '10.5px', color: 'var(--ink4)', marginBottom: '3px' }
 const kh: React.CSSProperties = { fontWeight: 500, color: 'var(--ink4)', marginLeft: '6px' }
 
 const label: React.CSSProperties = { fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }
 
-export default function SessionPanel({ khLabels, session, tracks, rooms, roles, allSpeakers, initialSpeakers, tz, saving, clashNotes, onSave, onDelete, onClose }: {
+export default function SessionPanel({ khLabels, days, themes, formats, session, tracks, rooms, roles, allSpeakers, initialSpeakers, tz, saving, clashNotes, onSave, onDelete, onClose }: {
   khLabels?: KhLabels | null
+  days: string[]
+  themes: string[]
+  formats: string[]
   session: Session
   tracks: Track[]
   rooms: Room[]
@@ -80,75 +84,66 @@ export default function SessionPanel({ khLabels, session, tracks, rooms, roles, 
   }
 
   return (
-    <aside style={{ width: '380px', flexShrink: 0, border: '1px solid var(--border)', borderRadius: '12px', background: 'var(--card)', display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 150px)', position: 'sticky', top: '12px' }}>
-      <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+    <div onMouseDown={e => { if (e.target === e.currentTarget) onClose() }} style={{ position: 'fixed', inset: 0, background: 'var(--overlay-scrim)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+    <aside role="dialog" aria-modal="true" aria-label="Session details" style={{ width: 'min(860px, 100%)', border: '1px solid var(--border)', borderRadius: '16px', background: 'var(--card)', display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 48px)' }}>
+      <div style={{ padding: '16px 22px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ width: 10, height: 10, borderRadius: 3, background: sessionColour({ colour: colour || null, session_type: sessionType, content_type: contentType || null }) }} />
-          <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>Edit session</span>
-          {session.konfhub_session_id && <Badge color="grey">⇄ KonfHub</Badge>}
+          <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Session details</span>
+          {session.konfhub_session_id && <Badge color="grey">⇄ Linked to KonfHub</Badge>}
         </div>
-        <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', fontSize: '18px', color: 'var(--ink3)', cursor: 'pointer' }}>×</button>
+        <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', fontSize: '22px', color: 'var(--ink3)', cursor: 'pointer' }}>×</button>
       </div>
 
-      <div style={{ padding: '14px 16px', overflowY: 'auto', display: 'grid', gap: '14px' }}>
+      <div style={{ padding: '18px 22px', overflowY: 'auto', display: 'grid', gap: '16px' }}>
         {clashNotes.length > 0 && (
           <div style={{ padding: '8px 10px', borderRadius: '8px', background: 'var(--amber-light)', border: '1px solid var(--amber-border)', color: 'var(--amber)', fontSize: '12px', lineHeight: 1.5 }}>
             {clashNotes.map((n, i) => <div key={i}>⚠ {n}</div>)}
           </div>
         )}
-        <div><label style={label}>Title</label><Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Session title" /></div>
+        <div><label style={label}>Session title</label><Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Session title" /></div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-          <div><label style={label}>Type</label>
-            <Select value={sessionType} onChange={e => setSessionType(e.target.value)}>
-              {SESSION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </Select></div>
-          <div><label style={label}>Format{khLabels?.format && <span style={kh}>KonfHub: {khLabels.format} (tag)</span>}</label>
-            <Input list="agenda-content-types" value={contentType} onChange={e => setContentType(e.target.value)} placeholder="Keynote, Panel…" />
-            <datalist id="agenda-content-types">{CONTENT_TYPES.map(c => <option key={c} value={c} />)}</datalist></div>
-        </div>
-
-        <div><label style={label}>Theme{khLabels?.theme && <span style={kh}>KonfHub: {khLabels.theme} (tag)</span>}</label>
-          <Input value={theme} onChange={e => setTheme(e.target.value)} placeholder="Optional, e.g. Skilling for AI" /></div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: stageRooms.length ? '1fr 1fr' : '1fr', gap: '10px' }}>
-          <div><label style={label}>Stage{khLabels && <span style={kh}>KonfHub: {khLabels.stage_mode === 'tag' ? `${khLabels.stage ?? 'Stage'} (tag)` : 'Track'}</span>}</label>
-            <Select value={trackId} onChange={e => { setTrackId(e.target.value); setRoomId('') }}>
-              <option value="">— Unassigned —</option>
-              {tracks.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </Select></div>
-          {stageRooms.length > 0 && (
-            <div><label style={label}>Room</label>
-              <Select value={roomId} onChange={e => setRoomId(e.target.value)}>
-                <option value="">— No room —</option>
-                {stageRooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-              </Select></div>
-          )}
-        </div>
+        <div><label style={label}>Description</label><Textarea rows={5} value={description} onChange={e => setDescription(e.target.value)} placeholder="Shown on the public agenda" /></div>
 
         <div>
-          <label style={label}>When {tz ? <span style={{ fontWeight: 500, color: 'var(--ink4)' }}>({tz})</span> : null}</label>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: '8px' }}>
-            <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
-            <Input type="time" step={900} value={startT} onChange={e => setStartT(e.target.value)} />
-            <Input type="time" step={900} value={endT} onChange={e => setEndT(e.target.value)} />
+          <label style={label}>Date and time {tz ? <span style={{ fontWeight: 500, color: 'var(--ink4)' }}>({tz})</span> : null}</label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: '10px' }}>
+            {days.length > 0 ? (
+              <Select value={date} onChange={e => setDate(e.target.value)}>
+                <option value="">— Pick the day —</option>
+                {[...new Set([...days, ...(date ? [date] : [])])].sort().map(d => <option key={d} value={d}>{fmtDay(d)}</option>)}
+              </Select>
+            ) : <Input type="date" value={date} onChange={e => setDate(e.target.value)} />}
+            <div><div style={sub}>Starts</div><Input type="time" step={900} value={startT} onChange={e => setStartT(e.target.value)} /></div>
+            <div><div style={sub}>Ends</div><Input type="time" step={900} value={endT} onChange={e => setEndT(e.target.value)} /></div>
           </div>
           {timeError && <div style={{ fontSize: '11.5px', color: 'var(--red)', marginTop: '4px' }}>{timeError}</div>}
           {needsTz && <div style={{ fontSize: '11.5px', color: 'var(--amber)', marginTop: '4px' }}>Set the event timezone on Event Details first.</div>}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px', gap: '10px' }}>
-          <div><label style={label}>Location / room note</label><Input value={location} onChange={e => setLocation(e.target.value)} placeholder="Optional" /></div>
-          <div><label style={label}>Capacity</label><Input type="number" min={0} value={capacity} onChange={e => setCapacity(e.target.value)} placeholder="—" /></div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+          <div><label style={label}>Stage{khLabels && <span style={kh}>KonfHub: {khLabels.stage_mode === 'tag' ? `${khLabels.stage ?? 'Stage'} (tag)` : 'Track'}</span>}</label>
+            <Select value={trackId} onChange={e => { setTrackId(e.target.value); setRoomId('') }}>
+              <option value="">— Unassigned —</option>
+              {tracks.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </Select></div>
+          <div><label style={label}>Theme{khLabels?.theme && <span style={kh}>KonfHub: {khLabels.theme} (tag)</span>}</label>
+            {themes.length > 0 ? (
+              <Select value={theme} onChange={e => setTheme(e.target.value)}>
+                <option value="">— None —</option>
+                {[...new Set([...themes, ...(theme ? [theme] : [])])].map(t => <option key={t} value={t}>{t}</option>)}
+              </Select>
+            ) : <Input value={theme} onChange={e => setTheme(e.target.value)} placeholder="Optional" />}</div>
+          <div><label style={label}>Session type{khLabels?.format && <span style={kh}>KonfHub: {khLabels.format} (tag)</span>}</label>
+            {formats.length > 0 ? (
+              <Select value={contentType} onChange={e => setContentType(e.target.value)}>
+                <option value="">— None —</option>
+                {[...new Set([...formats, ...(contentType ? [contentType] : [])])].map(t => <option key={t} value={t}>{t}</option>)}
+              </Select>
+            ) : (<>
+              <Input list="agenda-content-types" value={contentType} onChange={e => setContentType(e.target.value)} placeholder="Keynote, Panel…" />
+              <datalist id="agenda-content-types">{CONTENT_TYPES.map(c => <option key={c} value={c} />)}</datalist></>)}</div>
         </div>
-
-        <div><label style={label}>Colour</label>
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <button onClick={() => setColour('')} title="Automatic" style={{ height: 22, padding: '0 8px', borderRadius: '999px', border: colour === '' ? '2px solid var(--ink)' : '1px solid var(--border)', background: 'var(--card)', fontSize: '11px', color: 'var(--ink3)', cursor: 'pointer' }}>Auto</button>
-            {SWATCHES.map(c => <button key={c} onClick={() => setColour(c)} aria-label={c} style={{ width: 22, height: 22, borderRadius: '50%', background: colourToCss(c), border: colour === c ? '2px solid var(--ink)' : '2px solid transparent', outline: '1px solid var(--border)', cursor: 'pointer' }} />)}
-          </div></div>
-
-        <div><label style={label}>Description</label><Textarea rows={4} value={description} onChange={e => setDescription(e.target.value)} placeholder="Shown on the public agenda" /></div>
 
         <div>
           <label style={label}>Speakers</label>
@@ -173,6 +168,31 @@ export default function SessionPanel({ khLabels, session, tracks, rooms, roles, 
           })()}
         </div>
 
+
+        <details style={{ border: '1px solid var(--border-light)', borderRadius: '10px', padding: '10px 14px' }}>
+          <summary style={{ cursor: 'pointer', fontSize: '12.5px', fontWeight: 800, color: 'var(--ink3)' }}>More: room, slot kind, location, capacity, colour, visibility</summary>
+          <div style={{ display: 'grid', gap: '14px', marginTop: '14px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+              {stageRooms.length > 0 && (
+                <div><label style={label}>Room</label>
+                  <Select value={roomId} onChange={e => setRoomId(e.target.value)}>
+                    <option value="">— No room —</option>
+                    {stageRooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  </Select></div>
+              )}
+              <div><label style={label}>Slot kind<span style={kh}>drives colour and the KonfHub type number</span></label>
+                <Select value={sessionType} onChange={e => setSessionType(e.target.value)}>
+                  {SESSION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </Select></div>
+              <div><label style={label}>Location / room note</label><Input value={location} onChange={e => setLocation(e.target.value)} placeholder="Optional" /></div>
+              <div><label style={label}>Capacity</label><Input type="number" min={0} value={capacity} onChange={e => setCapacity(e.target.value)} placeholder="—" /></div>
+            </div>
+        <div><label style={label}>Colour</label>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <button onClick={() => setColour('')} title="Automatic" style={{ height: 22, padding: '0 8px', borderRadius: '999px', border: colour === '' ? '2px solid var(--ink)' : '1px solid var(--border)', background: 'var(--card)', fontSize: '11px', color: 'var(--ink3)', cursor: 'pointer' }}>Auto</button>
+            {SWATCHES.map(c => <button key={c} onClick={() => setColour(c)} aria-label={c} style={{ width: 22, height: 22, borderRadius: '50%', background: colourToCss(c), border: colour === c ? '2px solid var(--ink)' : '2px solid transparent', outline: '1px solid var(--border)', cursor: 'pointer' }} />)}
+          </div></div>
+
         <div><label style={label}>Visibility</label>
           <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
             {(['draft', 'published'] as const).map(v => (
@@ -181,6 +201,8 @@ export default function SessionPanel({ khLabels, session, tracks, rooms, roles, 
           </div>
           <div style={{ fontSize: '11px', color: 'var(--ink4)', marginTop: '4px' }}>Only published sessions appear on the public agenda.</div>
         </div>
+          </div>
+        </details>
       </div>
 
       <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
@@ -196,5 +218,6 @@ export default function SessionPanel({ khLabels, session, tracks, rooms, roles, 
         <Button variant="teal" onClick={submit} disabled={saving || !title.trim() || !!timeError || needsTz}>{saving ? 'Saving…' : 'Save'}</Button>
       </div>
     </aside>
+    </div>
   )
 }

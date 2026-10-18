@@ -1,23 +1,23 @@
 'use client'
 import { useCallback, useEffect, useMemo, useState, use } from 'react'
 import Link from 'next/link'
-import { Card, Button, Input, Toast } from '@/app/components/ui'
+import { Card, Button, Input, Select, Toast, Badge } from '@/app/components/ui'
 import PageHeader from '@/app/components/PageHeader'
 import { timezoneOffsetLabel } from '@/app/lib/events/timezones'
-import TimelineGrid, { type Column, type Commit } from './TimelineGrid'
 import SessionPanel, { type PanelSave, type SpeakerRow, type KhLabels } from './SessionPanel'
 import StageManager from './StageManager'
 import PushDialog, { type PushReport } from './PushDialog'
-import { type Track, type Room, type Session, type SpeakerLink, type Speaker, type Role, placeSessions, stageClashes, speakerClashes, wallClock, wallClockToIso, fmtDay } from './agenda-utils'
+import { type Track, type Room, type Session, type SpeakerLink, type Speaker, type Role, placeSessions, stageClashes, speakerClashes, wallClock, fmtDay, fmtRange, sessionColour } from './agenda-utils'
 
-/* Agenda Builder — EventPilot owns the agenda (2026-10-05 redesign). A day
-   timeline: one column per stage, drag to move / resize, double-click an empty
-   slot to add, click a session to edit it in the side panel. Times are entered
+/* Agenda Builder — EventPilot owns the agenda. 2026-10-18 redesign: pick a Day and a Stage from the two dropdowns, sessions are listed as rows, and
+   clicking a row opens the full session details in a large popup. Days come from KonfHub's event dates when linked (so a day with no sessions yet
+   still shows). Times are entered
    and shown in the event's timezone (events.timezone) and stored in UTC.
    KonfHub is an optional adapter: sessions linked to a KonfHub session forward
    their edits live (see app/lib/agenda/access.ts), everything else is local. */
 
 const DEFAULT_LEN = 45
+const pickLabel: React.CSSProperties = { fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px' }
 
 export default function AgendaBuilderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = use(params)
@@ -27,6 +27,10 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
   const [roles, setRoles] = useState<Role[]>([])
   const [tracks, setTracks] = useState<Track[]>([])
   const [khLabels, setKhLabels] = useState<KhLabels | null>(null)
+  const [khDays, setKhDays] = useState<string[] | null>(null)
+  const [themes, setThemes] = useState<string[]>([])
+  const [formats, setFormats] = useState<string[]>([])
+  const [stageFilter, setStageFilter] = useState<string>('all')
   const [rooms, setRooms] = useState<Room[]>([])
   const [sessions, setSessions] = useState<Session[]>([])
   const [links, setLinks] = useState<SpeakerLink[]>([])
@@ -57,6 +61,9 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
     setTracks(a.tracks ?? [])
     setRooms(a.rooms ?? [])
     setSessions(a.sessions ?? [])
+    setKhDays(Array.isArray(a.konfhub_days) ? a.konfhub_days : null)
+    setThemes(a.themes ?? [])
+    setFormats(a.formats ?? [])
     setLinks(a.session_speakers ?? [])
     setAllSpeakers(Array.isArray(sp) ? sp : [])
     setLoading(false)
@@ -70,31 +77,17 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
   const placed = useMemo(() => placeSessions(sessions, zone), [sessions, zone])
   const stageClashIds = useMemo(() => stageClashes(placed), [placed])
   const spClash = useMemo(() => speakerClashes(placed, links), [placed, links])
-  const days = useMemo(() => [...new Set([...placed.map(p => p.date), ...extraDays])].sort(), [placed, extraDays])
-  const day = activeDay && days.includes(activeDay) ? activeDay : days[0] ?? null
+  // KonfHub-linked events: every day KonfHub lists (with or without sessions), plus any session day outside that range (flagged). Otherwise: session days + manually added days.
+  const sessionDays = useMemo(() => [...new Set(placed.map(p => p.date))], [placed])
+  const days = useMemo(() => [...new Set([...(khDays ?? []), ...sessionDays, ...(khDays ? [] : extraDays)])].sort(), [khDays, sessionDays, extraDays])
+  const day = activeDay && (days.includes(activeDay) || activeDay === 'unscheduled') ? activeDay : days[0] ?? null
   const sortedTracks = useMemo(() => [...tracks].sort((a, b) => a.order_index - b.order_index), [tracks])
-  const dayPlaced = useMemo(() => placed.filter(p => p.date === day), [placed, day])
+  const dayRows = useMemo(() => {
+    const list = day === 'unscheduled' ? sessions.filter(x => !x.start_timestamp || !x.end_timestamp).map(x => ({ s: x, start: 0, end: 0 })) : placed.filter(p => p.date === day).map(p => ({ s: p.s, start: p.start, end: p.end }))
+    return list.filter(r => stageFilter === 'all' ? true : stageFilter === 'none' ? !r.s.track_id : r.s.track_id === stageFilter).sort((x, y) => x.start - y.start || x.s.order_index - y.s.order_index)
+  }, [placed, sessions, day, stageFilter])
   const unscheduled = useMemo(() => sessions.filter(s => !s.start_timestamp || !s.end_timestamp), [sessions])
   const draftCount = sessions.filter(s => s.status === 'draft').length
-
-  // A stage with rooms becomes one column per room (+ a "No room" column only while some session of that stage has none).
-  const columns: Column[] = useMemo(() => {
-    const cols: Column[] = []
-    for (const t of sortedTracks) {
-      const rs = rooms.filter(r => r.track_id === t.id).sort((x, y) => x.order_index - y.order_index)
-      if (rs.length === 0) { cols.push({ key: t.id, id: t.id, name: t.name }); continue }
-      for (const r of rs) cols.push({ key: `${t.id}:${r.id}`, id: t.id, roomId: r.id, name: r.name, sub: t.name })
-      if (dayPlaced.some(p => p.s.track_id === t.id && !p.s.room_id)) cols.push({ key: `${t.id}:none`, id: t.id, roomId: null, name: 'No room', sub: t.name })
-    }
-    if (dayPlaced.some(p => !p.s.track_id) || cols.length === 0) cols.push({ key: 'none', id: null, name: 'Unassigned' })
-    return cols
-  }, [sortedTracks, rooms, dayPlaced])
-
-  const [rangeStart, rangeEnd] = useMemo(() => {
-    let lo = 8 * 60, hi = 19 * 60
-    for (const p of dayPlaced) { lo = Math.min(lo, Math.floor((p.start - 60) / 60) * 60); hi = Math.max(hi, Math.ceil((p.end + 60) / 60) * 60) }
-    return [Math.max(lo, 0), Math.min(hi, 24 * 60)]
-  }, [dayPlaced])
 
   const speakerNames = useMemo(() => {
     const m = new Map<string, string[]>()
@@ -168,25 +161,13 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
 
   async function createSession(trackId: string | null, roomId: string | null | undefined, startMin: number | null) {
     if (!tz && startMin !== null) { say('Set the event timezone on Event Details first.', 'error'); return }
-    const timed = startMin !== null && day
+    const timed = startMin !== null && day && day !== 'unscheduled'
     const { res, data } = await call('/api/events/agenda-v2/sessions', 'POST', {
       event_id: eventId, track_id: trackId, ...(roomId ? { room_id: roomId } : {}), title: 'New session', order_index: sessions.length,
       ...(timed ? { start_timestamp: wallClock(day!, startMin!), end_timestamp: wallClock(day!, Math.min(startMin! + DEFAULT_LEN, 24 * 60 - 1)) } : {}),
     })
     if (!res.ok) { say(data.error ?? 'Could not add the session.', 'error'); return }
     await load(); setSelectedId(data.id)
-  }
-
-  // Drag / resize finished: optimistic local update, then one request.
-  async function commit(c: Commit) {
-    if (!day) return
-    const startIso = wallClockToIso(day, c.start, zone), endIso = wallClockToIso(day, c.end, zone)
-    if (!startIso || !endIso) return
-    const before = sessions
-    setSessions(prev => prev.map(s => s.id === c.id ? { ...s, track_id: c.track_id, room_id: c.room_id !== undefined ? c.room_id : null, start_timestamp: startIso, end_timestamp: endIso } : s))
-    const { res, data } = await call('/api/events/agenda-v2/sessions/move', 'PATCH', { event_id: eventId, moves: [{ id: c.id, track_id: c.track_id, ...(c.room_id !== undefined ? { room_id: c.room_id } : {}), start_timestamp: wallClock(day, c.start), end_timestamp: wallClock(day, c.end) }] })
-    if (!res.ok) { setSessions(before); say(data.error ?? 'Could not move the session.', 'error'); return }
-    if (data.konfhub_push_errors?.length) say(`Moved — KonfHub update failed: ${data.konfhub_push_errors[0].error}`, 'error')
   }
 
   async function saveSession(v: PanelSave) {
@@ -249,12 +230,12 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
       <PageHeader
         eyebrow="Agenda Builder"
         title="Agenda"
-        description={tz ? <>Times shown in <strong>{tz}</strong> ({timezoneOffsetLabel(tz)}). Drag to move, drag an edge to resize, double-click an empty slot to add a session.</> : undefined}
+        description={tz ? <>Times shown in <strong>{tz}</strong> ({timezoneOffsetLabel(tz)}). Pick a day and a stage, then click a session to edit it.</> : undefined}
         actions={
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
             <Link href={`/admin/events/${eventId}/integrations#agenda-structure`}><Button variant="ghost">KonfHub setup</Button></Link>
             <Button variant="ghost" onClick={previewPush} disabled={pushing}>{pushing && !pushReport ? 'Checking…' : 'Push to KonfHub'}</Button>
-            <Button variant="ghost" onClick={() => createSession(null, undefined, null)}>＋ Session</Button>
+            <Button variant="ghost" onClick={() => createSession(stageFilter !== 'all' && stageFilter !== 'none' ? stageFilter : null, undefined, day && day !== 'unscheduled' ? Math.min(Math.max(9 * 60, ...dayRows.map(r => r.end)), 23 * 60) : null)}>＋ Session</Button>
             {draftCount > 0 && <Button variant="teal" onClick={publishDrafts}>Publish {draftCount} draft{draftCount === 1 ? '' : 's'}</Button>}
           </div>
         }
@@ -271,17 +252,30 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
           </Card>
         )}
 
-        {/* day tabs + add day */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          {days.map(d => (
-            <button key={d} onClick={() => setActiveDay(d)} style={{ padding: '7px 14px', borderRadius: '999px', fontSize: '13px', fontWeight: 800, cursor: 'pointer', border: d === day ? '1.5px solid var(--teal-mid)' : '1px solid var(--border)', background: d === day ? 'var(--teal-light)' : 'var(--card)', color: d === day ? 'var(--teal-mid)' : 'var(--ink3)' }}>
-              {fmtDay(d)} <span style={{ opacity: 0.6, fontWeight: 600 }}>· {placed.filter(p => p.date === d).length}</span>
-            </button>
-          ))}
-          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-            <Input type="date" value={newDay} onChange={e => setNewDay(e.target.value)} style={{ width: '150px' }} />
-            <Button variant="ghost" onClick={() => addDay(newDay)} disabled={!newDay}>＋ Add day</Button>
+        {/* Day and Stage pickers: always clear which day and stage the rows below belong to */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '14px', flexWrap: 'wrap' }}>
+          <div>
+            <div style={pickLabel}>Day{khDays && <span style={{ fontWeight: 500, marginLeft: '6px' }}>from KonfHub</span>}</div>
+            <Select value={day ?? ''} onChange={e => setActiveDay(e.target.value)} style={{ minWidth: '230px' }}>
+              {days.length === 0 && <option value="">No days yet</option>}
+              {days.map(d => <option key={d} value={d}>{fmtDay(d)} · {placed.filter(p => p.date === d).length} session{placed.filter(p => p.date === d).length === 1 ? '' : 's'}{khDays && !khDays.includes(d) ? ' (not a KonfHub day)' : ''}</option>)}
+              {unscheduled.length > 0 && <option value="unscheduled">No date yet · {unscheduled.length}</option>}
+            </Select>
           </div>
+          <div>
+            <div style={pickLabel}>Stage{khLabels && <span style={{ fontWeight: 500, marginLeft: '6px' }}>KonfHub: {khLabels.stage_mode === 'tag' ? `${khLabels.stage ?? 'Stage'} (tag)` : 'Track'}</span>}</div>
+            <Select value={stageFilter} onChange={e => setStageFilter(e.target.value)} style={{ minWidth: '230px' }}>
+              <option value="all">All stages</option>
+              {sortedTracks.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              {sessions.some(x => !x.track_id) && <option value="none">No stage</option>}
+            </Select>
+          </div>
+          {!khDays && (
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <Input type="date" value={newDay} onChange={e => setNewDay(e.target.value)} style={{ width: '150px' }} />
+              <Button variant="ghost" onClick={() => addDay(newDay)} disabled={!newDay}>＋ Add day</Button>
+            </div>
+          )}
           <div style={{ flex: 1 }} />
           {addingStage ? (
             <div style={{ display: 'flex', gap: '6px' }}>
@@ -292,49 +286,49 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
           ) : khLabels?.stage_mode === 'tag' ? null : <Button variant="ghost" onClick={() => setAddingStage(true)}>＋ Stage</Button>}
         </div>
 
-        {unscheduled.length > 0 && (
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', padding: '10px 12px', border: '1px dashed var(--border)', borderRadius: '10px' }}>
-            <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>Unscheduled</span>
-            {unscheduled.map(s => (
-              <button key={s.id} onClick={() => setSelectedId(s.id)} style={{ padding: '4px 10px', borderRadius: '999px', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', border: selectedId === s.id ? '1.5px solid var(--teal-mid)' : '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink2)' }}>{s.title}</button>
-            ))}
-            <span style={{ fontSize: '11.5px', color: 'var(--ink4)' }}>Pick one and give it a date and time.</span>
-          </div>
-        )}
-
         <StageManager tracks={sortedTracks} rooms={rooms} sessionCount={id => sessions.filter(s => s.track_id === id).length} actions={stageActions} tagLock={khLabels?.stage_mode === 'tag' ? `Stage names are tags of the “${khLabels.stage ?? 'Stage'}” filter in KonfHub, and the live website filters on them. Renaming or deleting a stage here would break that link, so it is locked. Change the tag in KonfHub, then re-run Agenda mapping.` : null} />
 
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            {!day ? (
-              <Card padded>
-                <div style={{ fontSize: '14px', color: 'var(--ink3)', lineHeight: 1.6 }}>
-                  No scheduled sessions yet. Add a day above (for example the first day of the event), then double-click a slot to create a session.
+        <Card padded={false}>
+          {!day ? (
+            <div style={{ padding: '20px', fontSize: '14px', color: 'var(--ink3)', lineHeight: 1.6 }}>No days yet. Set the dates on KonfHub, or add a day above.</div>
+          ) : dayRows.length === 0 ? (
+            <div style={{ padding: '20px', fontSize: '14px', color: 'var(--ink3)', lineHeight: 1.6 }}>No sessions on {day === 'unscheduled' ? 'this list' : fmtDay(day)}{stageFilter !== 'all' ? ' for this stage' : ''} yet. Use “＋ Session” to add one.</div>
+          ) : dayRows.map(({ s: x, start, end }) => {
+            const stage = tracks.find(t => t.id === x.track_id)?.name
+            const names = speakerNames.get(x.id) ?? []
+            const clash = stageClashIds.has(x.id) || (spClash.get(x.id)?.length ?? 0) > 0
+            return (
+              <button key={x.id} onClick={() => setSelectedId(x.id)} style={{ display: 'grid', gridTemplateColumns: '110px 1fr auto', gap: '14px', alignItems: 'center', width: '100%', textAlign: 'left', padding: '12px 18px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-light)', cursor: 'pointer', color: 'inherit' }}>
+                <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink2)' }}>{day === 'unscheduled' ? 'No time' : fmtRange(start, end)}</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ width: 9, height: 9, borderRadius: 3, flexShrink: 0, background: sessionColour(x) }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.title}</span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {[stage ?? 'No stage', x.content_type, x.theme].filter(Boolean).join(' · ')}{names.length ? ` · ${names.join(', ')}` : ' · no speakers'}
+                  </div>
                 </div>
-              </Card>
-            ) : (
-              <TimelineGrid
-                columns={columns} placed={dayPlaced} rangeStart={rangeStart} rangeEnd={rangeEnd}
-                selectedId={selectedId} stageClashIds={stageClashIds} speakerClash={spClash} speakerNames={speakerNames} canEdit
-                onSelect={setSelectedId} onCommit={commit} onCreate={createSession}
-              />
-            )}
-            {day && <div style={{ marginTop: '8px', fontSize: '11.5px', color: 'var(--ink4)', display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
-              <span>Dashed = draft</span><span style={{ color: 'var(--red)' }}>Red edge ⚠ = overlaps on the same stage</span><span style={{ color: 'var(--amber)' }}>⚠ = speaker double-booked</span><span>⇄ = linked to KonfHub</span>
-            </div>}
-          </div>
-
-          {selected && (
-            <SessionPanel
-              khLabels={khLabels}
-              key={`${selected.id}|${selected.updated_at}|${selected.start_timestamp}|${selected.end_timestamp}`}
-              session={selected} tracks={sortedTracks} rooms={rooms} roles={roles} allSpeakers={allSpeakers} initialSpeakers={selectedSpeakers}
-              tz={tz} saving={saving} clashNotes={clashNotes}
-              onSave={saveSession} onDelete={deleteSession} onClose={() => setSelectedId(null)}
-            />
-          )}
-        </div>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  {clash && <Badge color="amber">⚠ clash</Badge>}
+                  {x.status === 'draft' && <Badge color="grey">Draft</Badge>}
+                  {x.konfhub_session_id && <Badge color="grey">⇄ KonfHub</Badge>}
+                </div>
+              </button>
+            )
+          })}
+        </Card>
       </div>
+
+      {selected && (
+        <SessionPanel
+          khLabels={khLabels} days={days} themes={themes} formats={formats}
+          key={`${selected.id}|${selected.updated_at}|${selected.start_timestamp}|${selected.end_timestamp}`}
+          session={selected} tracks={sortedTracks} rooms={rooms} roles={roles} allSpeakers={allSpeakers} initialSpeakers={selectedSpeakers}
+          tz={tz} saving={saving} clashNotes={clashNotes}
+          onSave={saveSession} onDelete={deleteSession} onClose={() => setSelectedId(null)}
+        />
+      )}
     </div>
   )
 }
