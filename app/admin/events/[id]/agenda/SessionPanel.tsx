@@ -130,15 +130,15 @@ export default function SessionPanel({ khLabels, days, themes, formats, session,
           {needsTz && <div style={{ fontSize: '11.5px', color: 'var(--amber)', marginTop: '4px' }}>Set the event timezone on Event Details first.</div>}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
-          <div><label style={label}>Theme<span style={kh}>{khLabels?.theme ? `KonfHub: ${khLabels.theme} (tag)` : ' '}</span></label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ flex: '1.3 1 260px', minWidth: 0 }}><label style={label}>Theme<span style={kh}>{khLabels?.theme ? `KonfHub: ${khLabels.theme} (tag)` : ' '}</span></label>
             {themes.length > 0 ? (
               <Select value={theme} onChange={e => setTheme(e.target.value)}>
                 <option value="">— None —</option>
                 {[...new Set([...themes, ...(theme ? [theme] : [])])].map(t => <option key={t} value={t}>{t}</option>)}
               </Select>
             ) : <Input value={theme} onChange={e => setTheme(e.target.value)} placeholder="Optional" />}</div>
-          <div><label style={label}>Session type<span style={kh}>{khLabels?.format ? `KonfHub: ${khLabels.format} (tag)` : ' '}</span></label>
+          <div style={{ flex: '0.7 1 180px', minWidth: 0 }}><label style={label}>Session type<span style={kh}>{khLabels?.format ? `KonfHub: ${khLabels.format} (tag)` : ' '}</span></label>
             {formats.length > 0 ? (
               <Select value={contentType} onChange={e => setContentType(e.target.value)}>
                 <option value="">— None —</option>
