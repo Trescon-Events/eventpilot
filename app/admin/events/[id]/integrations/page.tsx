@@ -1311,6 +1311,11 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
             </div>
           )}
         </Card>
+        </section>
+        )}
+
+        {sectionEnabled['agenda-structure'] && (
+        <section id="agenda-mapping" style={{ scrollMarginTop: '20px', marginTop: '16px' }}>
         <div style={{ marginTop: '16px' }}><AgendaMappingCard eventId={eventId} canManage={canManage} /></div>
         </section>
         )}
