@@ -208,7 +208,7 @@ export default function SessionPanel({ khLabels, days, themes, formats, session,
           <button onClick={() => setConfirmDelete(true)} style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer' }}>Delete</button>
         ) : (
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-            <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>Delete?</span>
+            <span style={{ fontSize: '12px', color: session.konfhub_session_id ? 'var(--red)' : 'var(--ink3)', maxWidth: '340px', lineHeight: 1.4 }}>{session.konfhub_session_id ? 'This session is live on KonfHub. Deleting it removes it there too (public agenda) and cannot be undone. A backup is kept. Delete it?' : 'Delete?'}</span>
             <Button variant="red" onClick={onDelete} disabled={saving}>Yes</Button>
             <Button variant="ghost" onClick={() => setConfirmDelete(false)}>No</Button>
           </div>

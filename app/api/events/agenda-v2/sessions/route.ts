@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { colourToKonfhubHex } from '@/app/lib/agenda/colours'
 import { pushAgendaToKonfhub } from '@/app/lib/agenda/konfhub-push'
+import { getKonfhubToken, fetchKonfhubSessionsFull, deleteKonfhubSession, KonfhubApiError } from '@/app/lib/konfhub-agenda'
+import { actorOf } from '@/app/lib/content/doc-audit'
 import { requireAgendaAccess, getEventTimezone, resolveSessionTime, trackBelongsToEvent, roomStageInEvent, pushSessionToKonfhub } from '@/app/lib/agenda/access'
 
 type SessionFields = {
@@ -186,10 +188,28 @@ export async function DELETE(req: NextRequest) {
   const denied = await requireAgendaAccess(req, eventId)
   if (denied) return denied
 
-  // A session that is on KonfHub cannot be removed from here (EventPilot has no way to delete it on KonfHub), so deleting only the local row would leave an
-  // orphan on the live agenda and break the sync: refuse, and say what to do.
-  const { data: linked } = await supabaseAdmin.from('event_agenda_sessions').select('konfhub_session_id').eq('id', id).eq('event_id', eventId).maybeSingle()
-  if (linked?.konfhub_session_id) return NextResponse.json({ error: 'This session is on KonfHub, and EventPilot cannot delete it there. Remove it in KonfHub first (Agenda > Sessions), then ask for it to be unlinked here.' }, { status: 409 })
+  // A session that is on KonfHub is deleted there too (KonfHub's API supports it, 2026-10-18). A KonfHub delete cannot be undone, so: it needs an explicit
+  // confirm_konfhub=1, the full record (EventPilot row, speakers and KonfHub's own copy) is saved first, KonfHub is deleted first, and the local row is only
+  // removed once KonfHub has accepted. If anything fails nothing is deleted locally and the session stays linked.
+  const { data: linked } = await supabaseAdmin.from('event_agenda_sessions').select('*').eq('id', id).eq('event_id', eventId).maybeSingle()
+  if (linked?.konfhub_session_id) {
+    if (req.nextUrl.searchParams.get('confirm_konfhub') !== '1') return NextResponse.json({ error: 'This session is live on KonfHub. Deleting it removes it there too, and that cannot be undone. Confirm to continue.', needs_konfhub_confirm: true }, { status: 409 })
+    const { data: site } = await supabaseAdmin.from('event_websites').select('konfhub_event_id, konfhub_client_id, konfhub_client_secret').eq('event_id', eventId).maybeSingle()
+    if (!site?.konfhub_event_id || !site.konfhub_client_id || !site.konfhub_client_secret) return NextResponse.json({ error: 'KonfHub is not configured for this event, so the session cannot be deleted there.' }, { status: 400 })
+    try {
+      const token = await getKonfhubToken(site.konfhub_client_id, site.konfhub_client_secret)
+      const live = (await fetchKonfhubSessionsFull(site.konfhub_event_id, token)).find(x => String(x.session_id) === String(linked.konfhub_session_id)) ?? null
+      const { data: spk } = await supabaseAdmin.from('event_agenda_session_speakers').select('*').eq('session_id', id)
+      const { error: bErr } = await supabaseAdmin.from('event_agenda_deleted_sessions').insert({
+        event_id: eventId, session_id: id, konfhub_session_id: String(linked.konfhub_session_id), title: linked.title, deleted_by: actorOf(req),
+        deleted_on_konfhub: true, ep_session: linked, ep_speakers: spk ?? [], konfhub_session: live,
+      })
+      if (bErr) return NextResponse.json({ error: `Could not save the backup, so nothing was deleted: ${bErr.message}` }, { status: 500 })
+      await deleteKonfhubSession(site.konfhub_event_id, String(linked.konfhub_session_id), token)
+    } catch (e) {
+      return NextResponse.json({ error: `KonfHub did not delete the session, so it was kept here: ${e instanceof Error ? e.message : 'unknown error'}` }, { status: e instanceof KonfhubApiError ? 502 : 500 })
+    }
+  }
 
   // Scoped to the event; deliberately does NOT delete the session on KonfHub
   // (a bulk/delete push to KonfHub is a separate, explicit step).

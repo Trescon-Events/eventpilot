@@ -212,7 +212,7 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
   async function deleteSession() {
     if (!selected) return
     setSaving(true)
-    const { res, data } = await call(`/api/events/agenda-v2/sessions?id=${selected.id}&event_id=${eventId}`, 'DELETE')
+    const { res, data } = await call(`/api/events/agenda-v2/sessions?id=${selected.id}&event_id=${eventId}${selected.konfhub_session_id ? '&confirm_konfhub=1' : ''}`, 'DELETE')
     setSaving(false)
     if (!res.ok) { say(data.error ?? 'Could not delete.', 'error'); return }
     setSelectedId(null); say('Session deleted.'); await load()

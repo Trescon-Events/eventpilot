@@ -235,3 +235,11 @@ export async function fetchKonfhubEventDays(konfhubEventId: string, token: strin
   for (let d = new Date(j.start_date + 'T00:00:00Z'); d <= end && days.length < 31; d.setUTCDate(d.getUTCDate() + 1)) days.push(d.toISOString().slice(0, 10))
   return { days, timezone: j.time_zone ?? null }
 }
+
+/** DELETE .../sessions/:session-id (204 on success). Irreversible on KonfHub: callers back the session up first. A 404 means it is already gone and counts as deleted. */
+export async function deleteKonfhubSession(konfhubEventId: string, sessionId: string, token: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/${konfhubEventId}/sessions/${sessionId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+  if (res.ok || res.status === 404) return
+  const data = await res.json().catch(() => ({})) as { error?: string }
+  throw new KonfhubApiError(data.error || 'Failed to delete the KonfHub session', res.status)
+}
