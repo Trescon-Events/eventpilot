@@ -203,7 +203,12 @@ export async function pushAgendaToKonfhub(eventId: string, opts: { dryRun?: bool
           (live!.end_timestamp ?? '').slice(0, 19).replace('T', ' ') !== common.end_timestamp || !sameSet(liveSpeakers, speakerIds) ||
           !sameSet((live!.tags ?? []).map(t => t.id), nextTags.map(t => t.id)) || (!!hex && live!.session_colour !== hex)
         if (changed) {
-          if (!dryRun) await updateKonfhubSession(khEvent, khId, token, { ...common, ...(hex ? { session_colour: hex } : {}), tags: nextTags })
+          if (!dryRun) {
+            // Only send the description when its text really changed: otherwise KonfHub keeps its own HTML formatting (bold, lists, links) untouched.
+            const { session_description: _keep, ...rest } = common
+            void _keep
+            await updateKonfhubSession(khEvent, khId, token, { ...(normText(live!.session_description) !== normText(common.session_description) ? common : rest), ...(hex ? { session_colour: hex } : {}), tags: nextTags })
+          }
           add({ session_id: s.id, title: s.title, action: 'updated', warnings: warnings.length ? warnings : undefined })
           stampIds.add(khId)
         } else { add({ session_id: s.id, title: s.title, action: 'unchanged', warnings: warnings.length ? warnings : undefined }); stampIds.add(khId) }

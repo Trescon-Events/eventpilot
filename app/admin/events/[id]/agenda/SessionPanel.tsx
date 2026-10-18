@@ -68,7 +68,6 @@ export default function SessionPanel({ khLabels, days, themes, formats, session,
   }, [date, startT, endT])
   const needsTz = !tz && !!date
   const stageRooms = useMemo(() => rooms.filter(r => r.track_id === trackId).sort((a, b) => a.order_index - b.order_index), [rooms, trackId])
-  const leaderRole = roles.find(r => /roundtable\s*leader/i.test(r.label))
 
   const speakerOptions = allSpeakers.map(s => ({ id: s.id, label: s.public_name || s.name, sublabel: s.company ?? undefined }))
   // "No override" = the role on the speaker's own record (resolvePrimaryRole: their chosen role, else "Speaker", else the first role).
@@ -162,14 +161,9 @@ export default function SessionPanel({ khLabels, days, themes, formats, session,
                 <button onClick={() => { setSpeakers(prev => prev.filter((_, j) => j !== i)); setSpeakersTouched(true) }} aria-label="Remove speaker" style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: '16px', cursor: 'pointer' }}>×</button>
               </div>
             ))}
-            <SearchableSelect options={speakerOptions} value="" onChange={v => { if (v) { setSpeakers(prev => [...prev, { speaker_id: v, role_tag_id: sessionType === 'roundtable' && leaderRole ? leaderRole.tag_id : '' }]); setSpeakersTouched(true) } }} placeholder="＋ Add a speaker…" />
+            <SearchableSelect options={speakerOptions} value="" onChange={v => { if (v) { setSpeakers(prev => [...prev, { speaker_id: v, role_tag_id: '' }]); setSpeakersTouched(true) } }} placeholder="＋ Add a speaker…" />
           </div>
           {roles.length === 0 && <div style={{ fontSize: '11px', color: 'var(--ink4)', marginTop: '6px' }}>Roles (Moderator, Chair…) come from the Integrations page.</div>}
-          {sessionType === 'roundtable' && (() => {
-            const leaders = leaderRole ? speakers.filter(r => r.role_tag_id === leaderRole.tag_id).length : 0
-            const msg = !leaderRole ? 'Add a “Roundtable Leader” role on the Integrations page, then pick it here.' : leaders === 0 ? 'A roundtable needs one speaker with the Roundtable Leader role.' : leaders > 1 ? 'A roundtable shows one leader — more than one is assigned.' : null
-            return msg ? <div style={{ fontSize: '11.5px', color: 'var(--amber)', marginTop: '6px' }}>⚠ {msg}</div> : null
-          })()}
         </div>
 
 

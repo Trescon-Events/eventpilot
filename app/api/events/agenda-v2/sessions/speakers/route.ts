@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { requireAgendaAccess } from '@/app/lib/agenda/access'
 import { getEventRoles } from '@/app/lib/konfhub/roles'
 import { konfhubSpeakerIdsFor } from '@/app/lib/agenda/konfhub-speaker-ids'
+import { pushAgendaToKonfhub } from '@/app/lib/agenda/konfhub-push'
 import { pushSessionToKonfhub } from '@/app/lib/agenda/access'
 
 /* PATCH /api/events/agenda-v2/sessions/speakers
@@ -54,6 +55,18 @@ export async function PATCH(req: NextRequest) {
 
   const { data: agendaSession } = await supabaseAdmin.from('event_agenda_sessions').select('id, konfhub_session_id').eq('id', body.session_id).eq('event_id', body.event_id).single()
   if (agendaSession?.konfhub_session_id) {
+    // Tag-mode events go through the same single-session push as every other edit (full payload, drift guard, speakers resolved with their roles).
+    const { data: site } = await supabaseAdmin.from('event_websites').select('*').eq('event_id', body.event_id).maybeSingle()
+    if ((site as { agenda_stage_mode?: string } | null)?.agenda_stage_mode === 'tag') {
+      try {
+        const report = await pushAgendaToKonfhub(body.event_id, { onlySessionId: agendaSession.id })
+        const item = report.items.find(i => i.action === 'error')
+        if (item) return NextResponse.json({ ok: true, konfhub_push_error: item.reason, konfhub_push_status: 409 }, { status: 207 })
+        const warn = report.items.flatMap(i => i.warnings ?? []).find(w => /Not on KonfHub yet/.test(w))
+        if (warn) return NextResponse.json({ ok: true, konfhub_skipped: [{ name: warn.replace(/^Not on KonfHub yet \(push their listing first\): /, '') }] })
+      } catch (e) { return NextResponse.json({ ok: true, konfhub_push_error: e instanceof Error ? e.message : 'Saved locally, but the push to KonfHub failed', konfhub_push_status: 502 }, { status: 207 }) }
+      return NextResponse.json({ ok: true })
+    }
     const { ids: khIds, skipped } = await konfhubSpeakerIdsFor(body.event_id, list)
     const failed = await pushSessionToKonfhub(body.event_id, agendaSession.id, agendaSession.konfhub_session_id, { session_speakers: khIds })
     if (failed) return NextResponse.json({ ok: true, konfhub_push_error: failed.message, konfhub_push_status: failed.status, konfhub_skipped: skipped }, { status: 207 })

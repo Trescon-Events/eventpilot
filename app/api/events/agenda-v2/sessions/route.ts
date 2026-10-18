@@ -137,6 +137,19 @@ export async function PATCH(req: NextRequest) {
   const { data, error } = await supabaseAdmin.from('event_agenda_sessions').update(fields).eq('id', body.id).eq('event_id', body.event_id).select('*').single()
   if (error || !data) return NextResponse.json({ error: error?.message ?? 'Failed to update session' }, { status: error?.code === '23514' ? 400 : 500 })
 
+  // Tag-mode events: a session that is published but not on KonfHub yet is created there as soon as it is saved with a stage, day and time (same single-session push).
+  if (!existing.konfhub_session_id && data.status === 'published' && data.start_timestamp && data.end_timestamp) {
+    const { data: site0 } = await supabaseAdmin.from('event_websites').select('*').eq('event_id', body.event_id).maybeSingle()
+    if ((site0 as { agenda_stage_mode?: string } | null)?.agenda_stage_mode === 'tag') {
+      try {
+        const report = await pushAgendaToKonfhub(body.event_id, { onlySessionId: data.id })
+        const bad = report.items.find(i => i.action === 'error')
+        if (bad) return NextResponse.json({ ...data, konfhub_push_error: bad.reason, konfhub_push_status: 409 }, { status: 207 })
+      } catch (e) { return NextResponse.json({ ...data, konfhub_push_error: e instanceof Error ? e.message : 'Saved locally, but the push to KonfHub failed', konfhub_push_status: 502 }, { status: 207 }) }
+      return NextResponse.json(data)
+    }
+  }
+
   if (existing.konfhub_session_id) {
     // Tag-mode events (stage/format/theme are KonfHub tags): an edit goes through the same single-session push as the bulk push, so stage, theme and
     // format changes reach KonfHub too, the description is sent as HTML, and a session edited in KonfHub since the last sync is not overwritten.
@@ -172,6 +185,11 @@ export async function DELETE(req: NextRequest) {
 
   const denied = await requireAgendaAccess(req, eventId)
   if (denied) return denied
+
+  // A session that is on KonfHub cannot be removed from here (EventPilot has no way to delete it on KonfHub), so deleting only the local row would leave an
+  // orphan on the live agenda and break the sync: refuse, and say what to do.
+  const { data: linked } = await supabaseAdmin.from('event_agenda_sessions').select('konfhub_session_id').eq('id', id).eq('event_id', eventId).maybeSingle()
+  if (linked?.konfhub_session_id) return NextResponse.json({ error: 'This session is on KonfHub, and EventPilot cannot delete it there. Remove it in KonfHub first (Agenda > Sessions), then ask for it to be unlinked here.' }, { status: 409 })
 
   // Scoped to the event; deliberately does NOT delete the session on KonfHub
   // (a bulk/delete push to KonfHub is a separate, explicit step).

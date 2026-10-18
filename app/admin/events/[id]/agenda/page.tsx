@@ -31,6 +31,8 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
   const [themes, setThemes] = useState<string[]>([])
   const [formats, setFormats] = useState<string[]>([])
   const [stageFilter, setStageFilter] = useState<string>('all')
+  const [sync, setSync] = useState<Record<string, { state: 'ok' | 'pending' | 'konfhub_changed' | 'error' | 'new' | 'draft'; reason?: string }> | null>(null)
+  const [syncing, setSyncing] = useState(false)
   const [rooms, setRooms] = useState<Room[]>([])
   const [sessions, setSessions] = useState<Session[]>([])
   const [links, setLinks] = useState<SpeakerLink[]>([])
@@ -47,6 +49,22 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
   const [pushing, setPushing] = useState(false)
 
   const say = (text: string, type: 'success' | 'error' = 'success') => setToast({ text, type })
+
+  // Sync status per session = a dry-run push (read-only): in sync, waiting to be pushed, changed in KonfHub since the last sync, or failing.
+  const refreshSync = useCallback(async () => {
+    setSyncing(true)
+    try {
+      const res = await fetch('/api/events/agenda-v2/konfhub-push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, dry_run: true }) })
+      const j = await res.json().catch(() => null)
+      if (!res.ok || !Array.isArray(j?.items)) { setSync(null); return }
+      const m: Record<string, { state: 'ok' | 'pending' | 'konfhub_changed' | 'error' | 'new' | 'draft'; reason?: string }> = {}
+      for (const i of j.items as { session_id: string; action: string; reason?: string }[]) {
+        m[i.session_id] = i.action === 'unchanged' ? { state: 'ok' } : i.action === 'updated' ? { state: 'pending' } : i.action === 'created' ? { state: 'new' }
+          : i.action === 'skipped' ? { state: /Draft/.test(i.reason ?? '') ? 'draft' : 'error', reason: i.reason } : { state: /Changed in KonfHub/.test(i.reason ?? '') ? 'konfhub_changed' : 'error', reason: i.reason }
+      }
+      setSync(m)
+    } catch { setSync(null) } finally { setSyncing(false) }
+  }, [eventId])
 
   const load = useCallback(async () => {
     const [agendaRes, speakersRes] = await Promise.all([
@@ -67,7 +85,8 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
     setLinks(a.session_speakers ?? [])
     setAllSpeakers(Array.isArray(sp) ? sp : [])
     setLoading(false)
-  }, [eventId])
+    void refreshSync()
+  }, [eventId, refreshSync])
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load() }, [load])
@@ -312,7 +331,16 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                   {clash && <Badge color="amber">⚠ clash</Badge>}
                   {x.status === 'draft' && <Badge color="grey">Draft</Badge>}
-                  {x.konfhub_session_id && <Badge color="grey">⇄ KonfHub</Badge>}
+                  {x.status !== 'draft' && (() => {
+                    const st = sync?.[x.id]
+                    if (!x.konfhub_session_id && !st) return <Badge color="grey">Not on KonfHub</Badge>
+                    if (!st) return <Badge color="grey">{syncing ? 'Checking…' : '⇄ KonfHub'}</Badge>
+                    if (st.state === 'ok') return <Badge color="teal">✓ In sync</Badge>
+                    if (st.state === 'pending') return <span title="EventPilot has changes KonfHub does not have yet. Use Push to KonfHub."><Badge color="amber">● Not pushed yet</Badge></span>
+                    if (st.state === 'konfhub_changed') return <span title={st.reason}><Badge color="amber">⚠ Changed in KonfHub</Badge></span>
+                    if (st.state === 'new') return <Badge color="grey">Not on KonfHub</Badge>
+                    return <span title={st.reason}><Badge color="red">⚠ Not synced</Badge></span>
+                  })()}
                 </div>
               </button>
             )
