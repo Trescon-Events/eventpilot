@@ -18,8 +18,7 @@ export type PanelSave = {
 
 /** Where each field lives in KonfHub for this event (null = not known / not mapped). */
 export type KhLabels = { stage_mode: 'track' | 'tag'; stage: string | null; format: string | null; theme: string | null }
-const sub: React.CSSProperties = { fontSize: '10.5px', color: 'var(--ink4)', marginBottom: '3px' }
-const kh: React.CSSProperties = { fontWeight: 500, color: 'var(--ink4)', marginLeft: '6px' }
+const kh: React.CSSProperties = { display: 'block', fontWeight: 500, fontSize: '10.5px', color: 'var(--ink4)', minHeight: '14px', marginTop: '1px' }
 
 const label: React.CSSProperties = { fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }
 
@@ -111,35 +110,35 @@ export default function SessionPanel({ khLabels, days, themes, formats, session,
         <div><label style={label}>Description</label><Textarea rows={5} value={description} onChange={e => setDescription(e.target.value)} placeholder="Shown on the public agenda" /></div>
 
         <div>
-          <label style={label}>Date and time {tz ? <span style={{ fontWeight: 500, color: 'var(--ink4)' }}>({tz})</span> : null}</label>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: '10px' }}>
-            {days.length > 0 ? (
-              <Select value={date} onChange={e => setDate(e.target.value)}>
-                <option value="">— Pick the day —</option>
-                {[...new Set([...days, ...(date ? [date] : [])])].sort().map(d => <option key={d} value={d}>{fmtDay(d)}</option>)}
-              </Select>
-            ) : <Input type="date" value={date} onChange={e => setDate(e.target.value)} />}
-            <div><div style={sub}>Starts</div><Input type="time" step={900} value={startT} onChange={e => setStartT(e.target.value)} /></div>
-            <div><div style={sub}>Ends</div><Input type="time" step={900} value={endT} onChange={e => setEndT(e.target.value)} /></div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '12px', alignItems: 'start' }}>
+            <div><label style={label}>Date<span style={kh}>{tz ?? ' '}</span></label>
+              {days.length > 0 ? (
+                <Select value={date} onChange={e => setDate(e.target.value)}>
+                  <option value="">— Pick the day —</option>
+                  {[...new Set([...days, ...(date ? [date] : [])])].sort().map(d => <option key={d} value={d}>{fmtDay(d)}</option>)}
+                </Select>
+              ) : <Input type="date" value={date} onChange={e => setDate(e.target.value)} />}</div>
+            <div><label style={label}>Starts<span style={kh}>&nbsp;</span></label><Input type="time" step={900} value={startT} onChange={e => setStartT(e.target.value)} /></div>
+            <div><label style={label}>Ends<span style={kh}>&nbsp;</span></label><Input type="time" step={900} value={endT} onChange={e => setEndT(e.target.value)} /></div>
+          <div><label style={label}>Stage<span style={kh}>{khLabels ? `KonfHub: ${khLabels.stage_mode === 'tag' ? `${khLabels.stage ?? 'Stage'} (tag)` : 'Track'}` : ' '}</span></label>
+            <Select value={trackId} onChange={e => { setTrackId(e.target.value); setRoomId('') }}>
+              <option value="">— Unassigned —</option>
+              {tracks.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </Select></div>
           </div>
           {timeError && <div style={{ fontSize: '11.5px', color: 'var(--red)', marginTop: '4px' }}>{timeError}</div>}
           {needsTz && <div style={{ fontSize: '11.5px', color: 'var(--amber)', marginTop: '4px' }}>Set the event timezone on Event Details first.</div>}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
-          <div><label style={label}>Stage{khLabels && <span style={kh}>KonfHub: {khLabels.stage_mode === 'tag' ? `${khLabels.stage ?? 'Stage'} (tag)` : 'Track'}</span>}</label>
-            <Select value={trackId} onChange={e => { setTrackId(e.target.value); setRoomId('') }}>
-              <option value="">— Unassigned —</option>
-              {tracks.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </Select></div>
-          <div><label style={label}>Theme{khLabels?.theme && <span style={kh}>KonfHub: {khLabels.theme} (tag)</span>}</label>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
+          <div><label style={label}>Theme<span style={kh}>{khLabels?.theme ? `KonfHub: ${khLabels.theme} (tag)` : ' '}</span></label>
             {themes.length > 0 ? (
               <Select value={theme} onChange={e => setTheme(e.target.value)}>
                 <option value="">— None —</option>
                 {[...new Set([...themes, ...(theme ? [theme] : [])])].map(t => <option key={t} value={t}>{t}</option>)}
               </Select>
             ) : <Input value={theme} onChange={e => setTheme(e.target.value)} placeholder="Optional" />}</div>
-          <div><label style={label}>Session type{khLabels?.format && <span style={kh}>KonfHub: {khLabels.format} (tag)</span>}</label>
+          <div><label style={label}>Session type<span style={kh}>{khLabels?.format ? `KonfHub: ${khLabels.format} (tag)` : ' '}</span></label>
             {formats.length > 0 ? (
               <Select value={contentType} onChange={e => setContentType(e.target.value)}>
                 <option value="">— None —</option>
@@ -204,7 +203,7 @@ export default function SessionPanel({ khLabels, days, themes, formats, session,
               <button key={v} onClick={() => setStatus(v)} style={{ padding: '6px 14px', fontSize: '12.5px', fontWeight: 700, border: 'none', cursor: 'pointer', background: status === v ? (v === 'published' ? 'var(--teal)' : 'var(--ink3)') : 'var(--card)', color: status === v ? 'var(--surface)' : 'var(--ink3)' }}>{v === 'draft' ? 'Draft' : 'Published'}</button>
             ))}
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--ink4)', marginTop: '4px' }}>Only published sessions appear on the public agenda.</div>
+          <div style={{ fontSize: '11px', color: 'var(--ink4)', marginTop: '4px' }}>Draft stays in EventPilot only: it is never sent to KonfHub. Published sessions are sent when you push (KonfHub&apos;s own Hide/Show switch still controls whether the agenda is visible).</div>
         </div>
           </div>
         </details>
