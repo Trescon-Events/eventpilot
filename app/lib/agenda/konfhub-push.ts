@@ -18,8 +18,12 @@ import { konfhubSpeakerIdsFor, type RoleEntry } from '@/app/lib/agenda/konfhub-s
     (speaker, role) → the KonfHub speaker record carrying that role
     title / description / times (UTC strings) / colour (hex) / type (1–4)
 
+  Tag mode (event_websites.agenda_stage_mode = 'tag', BSS): the stage is NOT a KonfHub track. It is a tag of the mapped "stage" filter, sent with the
+  format and theme tags; no tracks are created, found or changed, and track membership is left exactly as it is. agenda_push_session_type = false stops
+  the numeric KonfHub session type from being sent (BSS uses 1 for everything).
+
   Rules that keep it safe: never deletes anything on KonfHub; drafts are skipped;
-  a session on a stage with no KonfHub track title is skipped (so a differently-
+  a session on a stage with no KonfHub track title is skipped (track mode) (so a differently-
   named track is never duplicated by mistake); only the tags this mapping manages
   are rewritten, other tags on a KonfHub session are kept; track membership is
   rebuilt as "what's there, minus EventPilot-managed sessions that moved away,
@@ -38,6 +42,7 @@ export type PushReport = {
 type SessionRow = {
   id: string; track_id: string | null; room_id: string | null; title: string; description: string | null; session_type: string; content_type: string | null
   start_timestamp: string | null; end_timestamp: string | null; colour: string | null; order_index: number; konfhub_session_id: string | null; status: string
+  theme?: string | null; konfhub_last_synced_updated_at?: string | null
 }
 
 const KONFHUB_TYPE: Record<string, number> = { lunch_break: 2, refreshment_break: 3, custom_session: 4 }
@@ -46,19 +51,22 @@ const escapeHtml = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;')
 /** Plain-text description → the simple HTML KonfHub's editor stores. */
 const textToHtml = (t: string | null) => (t ?? '').trim() ? t!.trim().split(/\n{2,}/).map(p => `<p>${escapeHtml(p).replace(/\n/g, '<br>')}</p>`).join('') : ''
 const stripTags = (h: string | null | undefined) => (h ?? '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;|&amp;|&lt;|&gt;/g, m => ({ '&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>' }[m] as string)).replace(/\s+/g, ' ').trim()
+const normText = (h: string | null | undefined) => stripTags(h).replace(/\s+/g, ' ').trim()
 const sameSet = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join('|') === [...b].sort().join('|')
 const utcString = (iso: string) => new Date(iso).toISOString().slice(0, 19).replace('T', ' ')
 
-export async function pushAgendaToKonfhub(eventId: string, opts: { dryRun?: boolean } = {}): Promise<PushReport> {
+export async function pushAgendaToKonfhub(eventId: string, opts: { dryRun?: boolean; force?: boolean; onlySessionId?: string } = {}): Promise<PushReport> {
   const dryRun = !!opts.dryRun
   const report: PushReport = { dryRun, tracksCreated: [], items: [], counts: { created: 0, updated: 0, unchanged: 0, skipped: 0, error: 0 } }
   const add = (i: PushItem) => { report.items.push(i); report.counts[i.action]++ }
 
   const [{ data: website }, { data: event }] = await Promise.all([
-    supabaseAdmin.from('event_websites').select('konfhub_event_id, konfhub_client_id, konfhub_client_secret').eq('event_id', eventId).maybeSingle(),
+    supabaseAdmin.from('event_websites').select('*').eq('event_id', eventId).maybeSingle(),
     supabaseAdmin.from('events').select('timezone, agenda_day_start, agenda_day_end').eq('id', eventId).maybeSingle(),
   ])
   if (!website?.konfhub_event_id || !website.konfhub_client_id || !website.konfhub_client_secret) throw new Error('KonfHub isn’t configured for this event — set it up on the Integrations page first.')
+  const tagMode = (website as { agenda_stage_mode?: string }).agenda_stage_mode === 'tag'
+  const pushType = (website as { agenda_push_session_type?: boolean }).agenda_push_session_type !== false
   const tz = normalizeTimezone(event?.timezone)
   if (!tz) throw new Error('Set the event timezone on Event Details first.')
   const dayStart = (event?.agenda_day_start as string | null)?.slice(0, 5) ?? '08:00'
@@ -66,10 +74,13 @@ export async function pushAgendaToKonfhub(eventId: string, opts: { dryRun?: bool
 
   const [{ data: tracks }, { data: sessionsRaw }, { data: tagRows }] = await Promise.all([
     supabaseAdmin.from('event_agenda_tracks').select('id, name, order_index, konfhub_track_title').eq('event_id', eventId),
-    supabaseAdmin.from('event_agenda_sessions').select('id, track_id, room_id, title, description, session_type, content_type, start_timestamp, end_timestamp, colour, order_index, konfhub_session_id, status').eq('event_id', eventId),
+    supabaseAdmin.from('event_agenda_sessions').select('id, track_id, room_id, title, description, session_type, content_type, start_timestamp, end_timestamp, colour, order_index, konfhub_session_id, status, konfhub_last_synced_updated_at').eq('event_id', eventId),
     supabaseAdmin.from('event_konfhub_tag_map').select('kind, label, tag_id').eq('event_id', eventId),
   ])
   const sessions = (sessionsRaw ?? []) as SessionRow[]
+  // theme exists only after supabase/agenda_konfhub_mapping_migration.sql: read it on its own so an event without it keeps working
+  const themeRes = await supabaseAdmin.from('event_agenda_sessions').select('id, theme').eq('event_id', eventId)
+  if (!themeRes.error) { const th = new Map((themeRes.data ?? []).map(r => [r.id as string, r.theme as string | null])); for (const s of sessions) s.theme = th.get(s.id) ?? null }
   const trackIds = (tracks ?? []).map(t => t.id)
   const { data: rooms } = trackIds.length ? await supabaseAdmin.from('event_agenda_rooms').select('id, name').in('track_id', trackIds) : { data: [] as { id: string; name: string }[] }
   const { data: linkRows } = trackIds.length ? await supabaseAdmin.from('event_agenda_track_konfhub_links').select('track_id, konfhub_track_id, track_date').in('track_id', trackIds) : { data: [] as { track_id: string; konfhub_track_id: string; track_date: string }[] }
@@ -85,6 +96,8 @@ export async function pushAgendaToKonfhub(eventId: string, opts: { dryRun?: bool
   const khTagName = new Map((await fetchKonfhubTags(khEvent, token)).map(t => [t.id, t.name]))
   const formatTag = new Map((tagRows ?? []).filter(r => r.kind === 'format').map(r => [r.label.toLowerCase(), { id: r.tag_id, name: khTagName.get(r.tag_id) ?? r.label }]))
   const roomTag = new Map((tagRows ?? []).filter(r => r.kind === 'room').map(r => [r.label.toLowerCase(), { id: r.tag_id, name: khTagName.get(r.tag_id) ?? r.label }]))
+  const stageTag = new Map((tagRows ?? []).filter(r => r.kind === 'stage').map(r => [r.label.toLowerCase(), { id: r.tag_id, name: khTagName.get(r.tag_id) ?? r.label }]))
+  const themeTag = new Map((tagRows ?? []).filter(r => r.kind === 'theme').map(r => [r.label.toLowerCase(), { id: r.tag_id, name: khTagName.get(r.tag_id) ?? r.label }]))
   const managedTagIds = new Set((tagRows ?? []).map(r => r.tag_id))
   const roomName = new Map((rooms ?? []).map(r => [r.id, r.name]))
   const trackById = new Map((tracks ?? []).map(t => [t.id, t]))
@@ -94,22 +107,23 @@ export async function pushAgendaToKonfhub(eventId: string, opts: { dryRun?: bool
   type Plan = { s: SessionRow; date: string; stageId: string }
   const plan: Plan[] = []
   for (const s of sessions) {
+    if (opts.onlySessionId && s.id !== opts.onlySessionId) continue
     if (s.status !== 'published') { add({ session_id: s.id, title: s.title, action: 'skipped', reason: 'Draft — publish it first.' }); continue }
     if (!s.start_timestamp || !s.end_timestamp) { add({ session_id: s.id, title: s.title, action: 'skipped', reason: 'No date/time yet.' }); continue }
-    if (!s.track_id) { add({ session_id: s.id, title: s.title, action: 'skipped', reason: 'No stage assigned.' }); continue }
-    plan.push({ s, date: utcToZonedLocal(s.start_timestamp, tz).slice(0, 10), stageId: s.track_id })
+    if (!s.track_id && !tagMode) { add({ session_id: s.id, title: s.title, action: 'skipped', reason: 'No stage assigned.' }); continue }
+    plan.push({ s, date: utcToZonedLocal(s.start_timestamp, tz).slice(0, 10), stageId: s.track_id ?? '' })
   }
 
   // ── 2. find / create the KonfHub track for each (stage, day) ────────────────
   const dates = [...new Set(plan.map(p => p.date))].sort()
   const khTracksByDate = new Map<string, KonfhubTrack[]>()
-  for (const d of dates) {
+  for (const d of tagMode ? [] : dates) {
     try { khTracksByDate.set(d, await fetchKonfhubTracksForDate(khEvent, token, d)) }
     catch (e) { if (e instanceof KonfhubApiError && e.status === 404) khTracksByDate.set(d, []); else throw e }
   }
   const khTrackFor = new Map<string, string>() // `${stage}|${date}` -> konfhub track id ('' = would be created in a dry run)
   const unplaceable = new Set<string>()
-  for (const key of new Set(plan.map(p => `${p.stageId}|${p.date}`))) {
+  for (const key of tagMode ? [] : new Set(plan.map(p => `${p.stageId}|${p.date}`))) {
     const [stageId, date] = key.split('|')
     const stage = trackById.get(stageId)!
     const dayTracks = khTracksByDate.get(date) ?? []
@@ -130,11 +144,13 @@ export async function pushAgendaToKonfhub(eventId: string, opts: { dryRun?: bool
   }
 
   // ── 3. create / update each session ─────────────────────────────────────────
+  const driftIds = new Set<string>()
+  const stampIds = new Set<string>()   // KonfHub sessions this run actually pushed or confirmed unchanged: only these are marked in sync
   const placedIn = new Map<string, Set<string>>() // konfhub track id -> desired EP-managed konfhub session ids
   for (const p of plan) {
     const { s } = p
     const key = `${p.stageId}|${p.date}`
-    if (unplaceable.has(key)) { add({ session_id: s.id, title: s.title, action: 'skipped', reason: `Stage “${trackById.get(p.stageId)?.name}” has no KonfHub track title (Stages & rooms) and no track found for ${p.date}.` }); continue }
+    if (!tagMode && unplaceable.has(key)) { add({ session_id: s.id, title: s.title, action: 'skipped', reason: `Stage “${trackById.get(p.stageId)?.name}” has no KonfHub track title (Stages & rooms) and no track found for ${p.date}.` }); continue }
     const warnings: string[] = []
     try {
       const entries: RoleEntry[] = (spLinks ?? []).filter(l => l.session_id === s.id).map(l => ({ speaker_id: l.speaker_id, role_tag_id: l.role_tag_id }))
@@ -143,12 +159,17 @@ export async function pushAgendaToKonfhub(eventId: string, opts: { dryRun?: bool
 
       const wanted: { id: string; name: string }[] = []
       if (s.content_type) { const t = formatTag.get(s.content_type.toLowerCase()); if (t) wanted.push(t); else warnings.push(`Format “${s.content_type}” isn’t mapped to a KonfHub tag (Integrations › Agenda Tags).`) }
+      if (tagMode) {
+        const sn = s.track_id ? trackById.get(s.track_id)?.name : null
+        if (sn) { const t = stageTag.get(sn.toLowerCase()); if (t) wanted.push(t); else warnings.push(`Stage “${sn}” isn’t mapped to a KonfHub tag (Integrations › Agenda mapping).`) }
+        if (s.theme) { const t = themeTag.get(s.theme.toLowerCase()); if (t) wanted.push(t); else warnings.push(`Theme “${s.theme}” isn’t mapped to a KonfHub tag (Integrations › Agenda mapping).`) }
+      }
       const rn = s.room_id ? roomName.get(s.room_id) : null
       if (rn) { const t = roomTag.get(rn.toLowerCase()); if (t) wanted.push(t); else warnings.push(`Room “${rn}” isn’t mapped to a KonfHub tag (Integrations › Agenda Tags).`) }
 
       const hex = colourToKonfhubHex(s.colour)
       const common = {
-        session_title: s.title, session_description: textToHtml(s.description), session_type: KONFHUB_TYPE[s.session_type] ?? 1,
+        session_title: s.title, session_description: textToHtml(s.description), ...(pushType ? { session_type: KONFHUB_TYPE[s.session_type] ?? 1 } : {}),
         start_timestamp: utcString(s.start_timestamp!), end_timestamp: utcString(s.end_timestamp!), session_speakers: speakerIds,
       }
       const live = s.konfhub_session_id ? liveSessions.get(s.konfhub_session_id) : undefined
@@ -157,23 +178,33 @@ export async function pushAgendaToKonfhub(eventId: string, opts: { dryRun?: bool
 
       if (!khId) {
         if (!dryRun) {
-          khId = await createKonfhubSession(khEvent, token, { ...common, session_order: s.order_index + 1, session_colour: hex ?? colourToKonfhubHex('teal')!, tags: wanted })
+          khId = await createKonfhubSession(khEvent, token, { ...common, session_type: KONFHUB_TYPE[s.session_type] ?? 1, session_order: s.order_index + 1, session_colour: hex ?? colourToKonfhubHex('teal')!, tags: wanted })
           await supabaseAdmin.from('event_agenda_sessions').update({ konfhub_session_id: khId }).eq('id', s.id)
         }
         add({ session_id: s.id, title: s.title, action: 'created', warnings: warnings.length ? warnings : undefined })
+        if (khId) stampIds.add(khId)
       } else {
+        // KonfHub-side edits since the last sync are never silently overwritten (2026-10-18).
+        const liveUpdated = live!.updated_at ? new Date(/[Zz+]/.test(live!.updated_at) ? live!.updated_at : live!.updated_at.replace(' ', 'T') + 'Z').getTime() : 0
+        const syncedAt = s.konfhub_last_synced_updated_at ? new Date(s.konfhub_last_synced_updated_at).getTime() : 0
+        if (!opts.force && syncedAt && liveUpdated > syncedAt + 1500) {
+          driftIds.add(khId)
+          add({ session_id: s.id, title: s.title, action: 'error', reason: 'Changed in KonfHub since the last sync. Review it in KonfHub, then push again with “overwrite KonfHub edits”.' })
+          continue
+        }
         const keptTags = (live!.tags ?? []).filter(t => !managedTagIds.has(t.id))
         const nextTags = [...keptTags, ...wanted]
         const liveSpeakers = (live!.session_speakers ?? []).map(x => String(x.speaker_id))
         const changed =
-          live!.session_title !== common.session_title || stripTags(live!.session_description) !== stripTags(common.session_description) ||
-          (live!.session_type ?? 1) !== common.session_type || (live!.start_timestamp ?? '').slice(0, 19).replace('T', ' ') !== common.start_timestamp ||
+          live!.session_title !== common.session_title || normText(live!.session_description) !== normText(common.session_description) ||
+          (pushType && (live!.session_type ?? 1) !== (common as { session_type?: number }).session_type) || (live!.start_timestamp ?? '').slice(0, 19).replace('T', ' ') !== common.start_timestamp ||
           (live!.end_timestamp ?? '').slice(0, 19).replace('T', ' ') !== common.end_timestamp || !sameSet(liveSpeakers, speakerIds) ||
           !sameSet((live!.tags ?? []).map(t => t.id), nextTags.map(t => t.id)) || (!!hex && live!.session_colour !== hex)
         if (changed) {
           if (!dryRun) await updateKonfhubSession(khEvent, khId, token, { ...common, ...(hex ? { session_colour: hex } : {}), tags: nextTags })
           add({ session_id: s.id, title: s.title, action: 'updated', warnings: warnings.length ? warnings : undefined })
-        } else add({ session_id: s.id, title: s.title, action: 'unchanged', warnings: warnings.length ? warnings : undefined })
+          stampIds.add(khId)
+        } else { add({ session_id: s.id, title: s.title, action: 'unchanged', warnings: warnings.length ? warnings : undefined }); stampIds.add(khId) }
       }
       if (khId) { if (trackId) (placedIn.get(trackId) ?? placedIn.set(trackId, new Set()).get(trackId)!).add(khId) }
       else if (trackId === '' || dryRun) { /* dry run: nothing to place */ }
@@ -182,9 +213,9 @@ export async function pushAgendaToKonfhub(eventId: string, opts: { dryRun?: bool
     }
   }
 
-  // ── 4. rebuild track membership (only tracks we touched) ────────────────────
+  // ── 4. rebuild track membership (only tracks we touched; none in tag mode) ──
   if (!dryRun) {
-    for (const [trackId, desired] of placedIn) {
+    for (const [trackId, desired] of tagMode ? [] : placedIn) {
       const date = [...khTrackFor.entries()].find(([, v]) => v === trackId)?.[0].split('|')[1]
       const current = (date ? khTracksByDate.get(date) ?? [] : []).find(t => t.track_id === trackId)?.track_sessions.map(x => x.session_id) ?? []
       const next = [...current.filter(id => !managedKhIds.has(id) || desired.has(id)), ...[...desired].filter(id => !current.includes(id))]
@@ -194,7 +225,7 @@ export async function pushAgendaToKonfhub(eventId: string, opts: { dryRun?: bool
       }
     }
     // a session that moved to another stage/day must leave the old KonfHub tracks
-    for (const [date, dayTracks] of khTracksByDate) {
+    for (const [date, dayTracks] of tagMode ? [] : khTracksByDate) {
       for (const t of dayTracks) {
         if (placedIn.has(t.track_id)) continue
         const stale = t.track_sessions.filter(x => managedKhIds.has(x.session_id) && [...placedIn.values()].some(set => set.has(x.session_id)))
@@ -209,7 +240,7 @@ export async function pushAgendaToKonfhub(eventId: string, opts: { dryRun?: bool
     const { data: linked } = await supabaseAdmin.from('event_agenda_sessions').select('id, konfhub_session_id').eq('event_id', eventId).not('konfhub_session_id', 'is', null)
     for (const l of linked ?? []) {
       const u = fresh.find(x => x.session_id === l.konfhub_session_id)?.updated_at
-      if (u) await supabaseAdmin.from('event_agenda_sessions').update({ konfhub_last_synced_updated_at: /[Zz+]/.test(u) ? u : u.replace(' ', 'T') + 'Z' }).eq('id', l.id)
+      if (u && stampIds.has(l.konfhub_session_id as string)) await supabaseAdmin.from('event_agenda_sessions').update({ konfhub_last_synced_updated_at: /[Zz+]/.test(u) ? u : u.replace(' ', 'T') + 'Z' }).eq('id', l.id)
     }
   }
   return report

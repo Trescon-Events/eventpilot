@@ -11,7 +11,7 @@ import { type Session, type Track, type Room, type Role, type Speaker, SESSION_T
 
 export type SpeakerRow = { speaker_id: string; role_tag_id: string }
 export type PanelSave = {
-  fields: { title: string; description: string | null; session_type: string; content_type: string | null; track_id: string | null; room_id: string | null; location: string | null; capacity: number | null; colour: string | null; status: 'draft' | 'published' }
+  fields: { title: string; description: string | null; session_type: string; content_type: string | null; theme: string | null; track_id: string | null; room_id: string | null; location: string | null; capacity: number | null; colour: string | null; status: 'draft' | 'published' }
   date: string | null; startMin: number | null; endMin: number | null
   speakers: SpeakerRow[] | null // null = unchanged
 }
@@ -37,6 +37,7 @@ export default function SessionPanel({ session, tracks, rooms, roles, allSpeaker
   const [description, setDescription] = useState(session.description ?? '')
   const [sessionType, setSessionType] = useState(session.session_type)
   const [contentType, setContentType] = useState(session.content_type ?? '')
+  const [theme, setTheme] = useState(session.theme ?? '')
   const [trackId, setTrackId] = useState(session.track_id ?? '')
   const [roomId, setRoomId] = useState(session.room_id ?? '')
   const [location, setLocation] = useState(session.location ?? '')
@@ -67,7 +68,7 @@ export default function SessionPanel({ session, tracks, rooms, roles, allSpeaker
   function submit() {
     if (!title.trim() || timeError) return
     onSave({
-      fields: { title: title.trim(), description: description.trim() || null, session_type: sessionType, content_type: contentType.trim() || null, track_id: trackId || null, room_id: roomId || null, location: location.trim() || null, capacity: capacity.trim() === '' ? null : Math.max(0, Number(capacity) || 0), colour: colour || null, status },
+      fields: { title: title.trim(), description: description.trim() || null, session_type: sessionType, content_type: contentType.trim() || null, theme: theme.trim() || null, track_id: trackId || null, room_id: roomId || null, location: location.trim() || null, capacity: capacity.trim() === '' ? null : Math.max(0, Number(capacity) || 0), colour: colour || null, status },
       date: date || null, startMin: date && startT ? hhmmToMinutes(startT) : null, endMin: date && endT ? hhmmToMinutes(endT) : null,
       speakers: speakersTouched ? speakers : null,
     })
@@ -101,6 +102,9 @@ export default function SessionPanel({ session, tracks, rooms, roles, allSpeaker
             <Input list="agenda-content-types" value={contentType} onChange={e => setContentType(e.target.value)} placeholder="Keynote, Panel…" />
             <datalist id="agenda-content-types">{CONTENT_TYPES.map(c => <option key={c} value={c} />)}</datalist></div>
         </div>
+
+        <div><label style={label}>Theme</label>
+          <Input value={theme} onChange={e => setTheme(e.target.value)} placeholder="Optional, e.g. Skilling for AI" /></div>
 
         <div style={{ display: 'grid', gridTemplateColumns: stageRooms.length ? '1fr 1fr' : '1fr', gap: '10px' }}>
           <div><label style={label}>Stage</label>

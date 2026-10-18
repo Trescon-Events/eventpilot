@@ -1,4 +1,5 @@
 'use client'
+import { useState } from 'react'
 import { Button, Badge } from '@/app/components/ui'
 
 /* Preview-then-push dialog for the KonfHub adapter. The page first runs the push
@@ -14,9 +15,11 @@ export type PushReport = {
   counts: { created: number; updated: number; unchanged: number; skipped: number; error: number }
 }
 
-export default function PushDialog({ report, busy, onConfirm, onClose }: { report: PushReport; busy: boolean; onConfirm: () => void; onClose: () => void }) {
+export default function PushDialog({ report, busy, onConfirm, onClose }: { report: PushReport; busy: boolean; onConfirm: (force: boolean) => void; onClose: () => void }) {
+  const [force, setForce] = useState(false)
+  const drift = report.items.filter(i => i.action === 'error' && /changed in konfhub/i.test(i.reason ?? ''))
   const c = report.counts
-  const changes = c.created + c.updated + report.tracksCreated.length
+  const changes = c.created + c.updated + report.tracksCreated.length + (force ? drift.length : 0)
   const withNotes = report.items.filter(i => i.action === 'skipped' || i.action === 'error' || (i.warnings && i.warnings.length))
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'var(--overlay-scrim)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={onClose}>
@@ -53,9 +56,15 @@ export default function PushDialog({ report, busy, onConfirm, onClose }: { repor
           </div>
         )}
 
+        {report.dryRun && drift.length > 0 && (
+          <label style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', fontSize: '12.5px', color: 'var(--amber)', lineHeight: 1.5, marginBottom: '12px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={force} onChange={e => setForce(e.target.checked)} style={{ marginTop: '3px' }} />
+            <span><strong>{drift.length} session{drift.length === 1 ? ' was' : 's were'} edited in KonfHub since the last sync</strong> and will be left alone. Tick this to overwrite those KonfHub edits with EventPilot&apos;s version.</span>
+          </label>
+        )}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
           <Button variant="ghost" onClick={onClose} disabled={busy}>{report.dryRun ? 'Cancel' : 'Close'}</Button>
-          {report.dryRun && <Button variant="teal" onClick={onConfirm} disabled={busy || changes === 0}>{busy ? 'Pushing…' : changes === 0 ? 'Nothing to push' : `Push now (${changes} change${changes === 1 ? '' : 's'})`}</Button>}
+          {report.dryRun && <Button variant="teal" onClick={() => onConfirm(force)} disabled={busy || changes === 0}>{busy ? 'Pushing…' : changes === 0 ? 'Nothing to push' : `Push now (${changes} change${changes === 1 ? '' : 's'})`}</Button>}
         </div>
       </div>
     </div>

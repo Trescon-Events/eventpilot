@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { colourToKonfhubHex } from '@/app/lib/agenda/colours'
+import { pushAgendaToKonfhub } from '@/app/lib/agenda/konfhub-push'
 import { requireAgendaAccess, getEventTimezone, resolveSessionTime, trackBelongsToEvent, roomStageInEvent, pushSessionToKonfhub } from '@/app/lib/agenda/access'
 
 type SessionFields = {
@@ -8,6 +9,7 @@ type SessionFields = {
   description?: string | null
   session_type?: string
   content_type?: string | null
+  theme?: string | null
   start_timestamp?: string | null
   end_timestamp?: string | null
   location?: string | null
@@ -67,6 +69,7 @@ export async function POST(req: NextRequest) {
       description: body.description ?? null,
       session_type: body.session_type ?? 'speaker_session',
       content_type: body.content_type ?? null,
+      ...(body.theme !== undefined ? { theme: body.theme } : {}),
       start_timestamp: start.iso,
       end_timestamp: end.iso,
       location: body.location ?? null,
@@ -110,7 +113,7 @@ export async function PATCH(req: NextRequest) {
     // moving to another stage drops a room that belongs to the old one
     fields.room_id = null
   }
-  for (const key of ['track_id', 'title', 'description', 'session_type', 'content_type', 'location', 'colour', 'order_index', 'capacity'] as const) {
+  for (const key of ['track_id', 'title', 'description', 'session_type', 'content_type', 'theme', 'location', 'colour', 'order_index', 'capacity'] as const) {
     if (body[key] !== undefined) fields[key] = body[key]
   }
   if (typeof fields.title === 'string') fields.title = fields.title.trim()
@@ -135,6 +138,17 @@ export async function PATCH(req: NextRequest) {
   if (error || !data) return NextResponse.json({ error: error?.message ?? 'Failed to update session' }, { status: error?.code === '23514' ? 400 : 500 })
 
   if (existing.konfhub_session_id) {
+    // Tag-mode events (stage/format/theme are KonfHub tags): an edit goes through the same single-session push as the bulk push, so stage, theme and
+    // format changes reach KonfHub too, the description is sent as HTML, and a session edited in KonfHub since the last sync is not overwritten.
+    const { data: site } = await supabaseAdmin.from('event_websites').select('*').eq('event_id', body.event_id).maybeSingle()
+    if ((site as { agenda_stage_mode?: string } | null)?.agenda_stage_mode === 'tag') {
+      try {
+        const report = await pushAgendaToKonfhub(body.event_id, { onlySessionId: data.id })
+        const bad = report.items.find(i => i.action === 'error')
+        if (bad) return NextResponse.json({ ...data, konfhub_push_error: bad.reason, konfhub_push_status: 409 }, { status: 207 })
+      } catch (e) { return NextResponse.json({ ...data, konfhub_push_error: e instanceof Error ? e.message : 'Saved locally, but the push to KonfHub failed', konfhub_push_status: 502 }, { status: 207 }) }
+      return NextResponse.json(data)
+    }
     const pushFields: Record<string, unknown> = {}
     if (body.title !== undefined) pushFields.session_title = data.title
     if (body.description !== undefined) pushFields.session_description = data.description ?? undefined

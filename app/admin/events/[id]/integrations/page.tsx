@@ -4,6 +4,7 @@ import { use, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 import { Card, Button, Input, Select, Badge } from '@/app/components/ui'
+import AgendaMappingCard from './AgendaMappingCard'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import { FORM_TYPES, FORM_TITLES, type FormType } from '@/app/lib/forms/types'
 import { FEATURE_REGISTRY, getFeatureDef, type FeatureKey } from '@/app/lib/registry/feature-flags'
@@ -1310,6 +1311,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
             </div>
           )}
         </Card>
+        <div style={{ marginTop: '16px' }}><AgendaMappingCard eventId={eventId} canManage={canManage} /></div>
         </section>
         )}
 

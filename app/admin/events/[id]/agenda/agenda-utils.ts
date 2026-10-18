@@ -11,6 +11,7 @@ export type Session = {
   description: string | null
   session_type: string
   content_type: string | null
+  theme?: string | null
   start_timestamp: string | null
   end_timestamp: string | null
   location: string | null

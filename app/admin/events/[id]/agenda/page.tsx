@@ -224,9 +224,9 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
     if (!res.ok) { say(data.error ?? 'Could not prepare the push.', 'error'); return }
     setPushReport(data)
   }
-  async function confirmPush() {
+  async function confirmPush(force = false) {
     setPushing(true)
-    const { res, data } = await call('/api/events/agenda-v2/konfhub-push', 'POST', { event_id: eventId })
+    const { res, data } = await call('/api/events/agenda-v2/konfhub-push', 'POST', { event_id: eventId, ...(force ? { force: true } : {}) })
     setPushing(false)
     if (!res.ok) { say(data.error ?? 'The push failed.', 'error'); return }
     setPushReport(data); await load()
