@@ -72,6 +72,11 @@ export default function SessionPanel({ khLabels, days, themes, formats, session,
   const leaderRole = roles.find(r => /roundtable\s*leader/i.test(r.label))
 
   const speakerOptions = allSpeakers.map(s => ({ id: s.id, label: s.public_name || s.name, sublabel: s.company ?? undefined }))
+  // "No override" = the role on the speaker's own record (resolvePrimaryRole: their chosen role, else "Speaker", else the first role).
+  const ownRole = (id: string) => {
+    const tag = allSpeakers.find(x => x.id === id)?.konfhub_primary_role_tag_id
+    return roles.find(r => r.tag_id === tag) ?? roles.find(r => r.label.trim().toLowerCase() === 'speaker') ?? roles[0] ?? null
+  }
   const nameOf = (id: string) => { const s = allSpeakers.find(x => x.id === id); return s ? (s.public_name || s.name) : 'Unknown speaker' }
 
   function submit() {
@@ -152,7 +157,7 @@ export default function SessionPanel({ khLabels, days, themes, formats, session,
               <div key={`${r.speaker_id}-${r.role_tag_id}-${i}`} style={{ display: 'grid', gridTemplateColumns: '1fr auto 24px', gap: '6px', alignItems: 'center' }}>
                 <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nameOf(r.speaker_id)}</span>
                 <Select value={r.role_tag_id} onChange={e => { setSpeakers(prev => prev.map((x, j) => j === i ? { ...x, role_tag_id: e.target.value } : x)); setSpeakersTouched(true) }}>
-                  <option value="">Main role</option>
+                  <option value="">{ownRole(r.speaker_id)?.label ?? 'Their own role'} (from their record)</option>
                   {roles.map(ro => <option key={ro.tag_id} value={ro.tag_id}>{ro.label}</option>)}
                 </Select>
                 <button onClick={() => { setSpeakers(prev => prev.filter((_, j) => j !== i)); setSpeakersTouched(true) }} aria-label="Remove speaker" style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: '16px', cursor: 'pointer' }}>×</button>

@@ -28,7 +28,7 @@ export type SpeakerLink = {
   role_tag_id: string
   event_speakers: { id: string; name: string; public_name: string | null; company: string | null } | null
 }
-export type Speaker = { id: string; name: string; public_name?: string | null; company: string | null }
+export type Speaker = { id: string; name: string; public_name?: string | null; company: string | null; konfhub_primary_role_tag_id?: string | null }
 export type Role = { tag_id: string; label: string }
 
 export const SNAP_MIN = 15
