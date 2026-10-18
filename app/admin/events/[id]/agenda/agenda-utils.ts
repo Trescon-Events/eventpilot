@@ -90,7 +90,7 @@ export function placeSessions(sessions: Session[], tz: string): Placed[] {
     const a = localParts(s.start_timestamp, tz); const b = localParts(s.end_timestamp, tz)
     if (!a || !b) continue
     const end = b.date === a.date ? b.minutes : 24 * 60
-    out.push({ s, date: a.date, start: a.minutes, end: Math.max(end, a.minutes + MIN_DURATION) })
+    out.push({ s, date: a.date, start: a.minutes, end: Math.max(end, a.minutes + 1) })   // real end time: no padding, so a 10-minute session is not shown (or clash-checked) as 15
   }
   return out
 }
