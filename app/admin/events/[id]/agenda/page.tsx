@@ -5,7 +5,7 @@ import { Card, Button, Input, Toast } from '@/app/components/ui'
 import PageHeader from '@/app/components/PageHeader'
 import { timezoneOffsetLabel } from '@/app/lib/events/timezones'
 import TimelineGrid, { type Column, type Commit } from './TimelineGrid'
-import SessionPanel, { type PanelSave, type SpeakerRow } from './SessionPanel'
+import SessionPanel, { type PanelSave, type SpeakerRow, type KhLabels } from './SessionPanel'
 import StageManager from './StageManager'
 import PushDialog, { type PushReport } from './PushDialog'
 import { type Track, type Room, type Session, type SpeakerLink, type Speaker, type Role, placeSessions, stageClashes, speakerClashes, wallClock, wallClockToIso, fmtDay } from './agenda-utils'
@@ -26,6 +26,7 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
   const [tz, setTz] = useState<string | null>(null)
   const [roles, setRoles] = useState<Role[]>([])
   const [tracks, setTracks] = useState<Track[]>([])
+  const [khLabels, setKhLabels] = useState<KhLabels | null>(null)
   const [rooms, setRooms] = useState<Room[]>([])
   const [sessions, setSessions] = useState<Session[]>([])
   const [links, setLinks] = useState<SpeakerLink[]>([])
@@ -63,6 +64,7 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load() }, [load])
+  useEffect(() => { fetch(`/api/events/konfhub/agenda-mapping?event_id=${eventId}&labels=1`).then(r => r.ok ? r.json() : null).then(j => setKhLabels(j)).catch(() => {}) }, [eventId])
 
   const zone = tz ?? 'UTC'
   const placed = useMemo(() => placeSessions(sessions, zone), [sessions, zone])
@@ -287,7 +289,7 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
               <Button variant="teal" onClick={createStage} disabled={!stageName.trim()}>Add</Button>
               <Button variant="ghost" onClick={() => setAddingStage(false)}>Cancel</Button>
             </div>
-          ) : <Button variant="ghost" onClick={() => setAddingStage(true)}>＋ Stage</Button>}
+          ) : khLabels?.stage_mode === 'tag' ? null : <Button variant="ghost" onClick={() => setAddingStage(true)}>＋ Stage</Button>}
         </div>
 
         {unscheduled.length > 0 && (
@@ -300,7 +302,7 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
           </div>
         )}
 
-        <StageManager tracks={sortedTracks} rooms={rooms} sessionCount={id => sessions.filter(s => s.track_id === id).length} actions={stageActions} />
+        <StageManager tracks={sortedTracks} rooms={rooms} sessionCount={id => sessions.filter(s => s.track_id === id).length} actions={stageActions} tagLock={khLabels?.stage_mode === 'tag' ? `Stage names are tags of the “${khLabels.stage ?? 'Stage'}” filter in KonfHub, and the live website filters on them. Renaming or deleting a stage here would break that link, so it is locked. Change the tag in KonfHub, then re-run Agenda mapping.` : null} />
 
         <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -324,6 +326,7 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
 
           {selected && (
             <SessionPanel
+              khLabels={khLabels}
               key={`${selected.id}|${selected.updated_at}|${selected.start_timestamp}|${selected.end_timestamp}`}
               session={selected} tracks={sortedTracks} rooms={rooms} roles={roles} allSpeakers={allSpeakers} initialSpeakers={selectedSpeakers}
               tz={tz} saving={saving} clashNotes={clashNotes}

@@ -164,6 +164,8 @@ export async function pushAgendaToKonfhub(eventId: string, opts: { dryRun?: bool
         if (sn) { const t = stageTag.get(sn.toLowerCase()); if (t) wanted.push(t); else warnings.push(`Stage “${sn}” isn’t mapped to a KonfHub tag (Integrations › Agenda mapping).`) }
         if (s.theme) { const t = themeTag.get(s.theme.toLowerCase()); if (t) wanted.push(t); else warnings.push(`Theme “${s.theme}” isn’t mapped to a KonfHub tag (Integrations › Agenda mapping).`) }
       }
+      // Tag mode: a stage/theme/format with no KonfHub tag would make the push STRIP the tag KonfHub has today, so the session is skipped instead.
+      if (tagMode && warnings.some(w => /isn’t mapped to a KonfHub tag/.test(w) && !/Room/.test(w))) { add({ session_id: s.id, title: s.title, action: 'skipped', reason: 'A stage, theme or format on this session has no matching KonfHub tag, so nothing was pushed for it.', warnings }); continue }
       const rn = s.room_id ? roomName.get(s.room_id) : null
       if (rn) { const t = roomTag.get(rn.toLowerCase()); if (t) wanted.push(t); else warnings.push(`Room “${rn}” isn’t mapped to a KonfHub tag (Integrations › Agenda Tags).`) }
 

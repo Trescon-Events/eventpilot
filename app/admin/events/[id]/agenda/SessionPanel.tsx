@@ -16,9 +16,14 @@ export type PanelSave = {
   speakers: SpeakerRow[] | null // null = unchanged
 }
 
+/** Where each field lives in KonfHub for this event (null = not known / not mapped). */
+export type KhLabels = { stage_mode: 'track' | 'tag'; stage: string | null; format: string | null; theme: string | null }
+const kh: React.CSSProperties = { fontWeight: 500, color: 'var(--ink4)', marginLeft: '6px' }
+
 const label: React.CSSProperties = { fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }
 
-export default function SessionPanel({ session, tracks, rooms, roles, allSpeakers, initialSpeakers, tz, saving, clashNotes, onSave, onDelete, onClose }: {
+export default function SessionPanel({ khLabels, session, tracks, rooms, roles, allSpeakers, initialSpeakers, tz, saving, clashNotes, onSave, onDelete, onClose }: {
+  khLabels?: KhLabels | null
   session: Session
   tracks: Track[]
   rooms: Room[]
@@ -98,16 +103,16 @@ export default function SessionPanel({ session, tracks, rooms, roles, allSpeaker
             <Select value={sessionType} onChange={e => setSessionType(e.target.value)}>
               {SESSION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </Select></div>
-          <div><label style={label}>Format</label>
+          <div><label style={label}>Format{khLabels?.format && <span style={kh}>KonfHub: {khLabels.format} (tag)</span>}</label>
             <Input list="agenda-content-types" value={contentType} onChange={e => setContentType(e.target.value)} placeholder="Keynote, Panel…" />
             <datalist id="agenda-content-types">{CONTENT_TYPES.map(c => <option key={c} value={c} />)}</datalist></div>
         </div>
 
-        <div><label style={label}>Theme</label>
+        <div><label style={label}>Theme{khLabels?.theme && <span style={kh}>KonfHub: {khLabels.theme} (tag)</span>}</label>
           <Input value={theme} onChange={e => setTheme(e.target.value)} placeholder="Optional, e.g. Skilling for AI" /></div>
 
         <div style={{ display: 'grid', gridTemplateColumns: stageRooms.length ? '1fr 1fr' : '1fr', gap: '10px' }}>
-          <div><label style={label}>Stage</label>
+          <div><label style={label}>Stage{khLabels && <span style={kh}>KonfHub: {khLabels.stage_mode === 'tag' ? `${khLabels.stage ?? 'Stage'} (tag)` : 'Track'}</span>}</label>
             <Select value={trackId} onChange={e => { setTrackId(e.target.value); setRoomId('') }}>
               <option value="">— Unassigned —</option>
               {tracks.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}

@@ -19,7 +19,7 @@ export type StageActions = {
 
 const small: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--ink3)', padding: '2px 5px' }
 
-export default function StageManager({ tracks, rooms, sessionCount, actions }: { tracks: Track[]; rooms: Room[]; sessionCount: (trackId: string) => number; actions: StageActions }) {
+export default function StageManager({ tracks, rooms, sessionCount, actions, tagLock }: { tracks: Track[]; rooms: Room[]; sessionCount: (trackId: string) => number; actions: StageActions; tagLock?: string | null }) {
   const [open, setOpen] = useState(false)
   const [newRoom, setNewRoom] = useState<Record<string, string>>({})
   const [edit, setEdit] = useState<{ kind: 'stage' | 'room'; id: string; value: string } | null>(null)
@@ -39,6 +39,7 @@ export default function StageManager({ tracks, rooms, sessionCount, actions }: {
       </button>
       {open && (
         <div style={{ padding: '4px 14px 14px', display: 'grid', gap: '12px' }}>
+          {tagLock && <div style={{ fontSize: '12px', color: 'var(--ink3)', background: 'var(--surface)', borderRadius: '8px', padding: '8px 10px' }}>{tagLock}</div>}
           {tracks.length === 0 && <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>No stages yet — use “＋ Stage” above.</div>}
           {tracks.map((t, i) => {
             const myRooms = rooms.filter(r => r.track_id === t.id).sort((a, b) => a.order_index - b.order_index)
@@ -53,8 +54,8 @@ export default function StageManager({ tracks, rooms, sessionCount, actions }: {
                   <span style={{ flex: 1 }} />
                   <button style={{ ...small, opacity: i === 0 ? 0.3 : 1 }} disabled={i === 0} onClick={() => actions.shiftStage(t.id, -1)} title="Move left">‹</button>
                   <button style={{ ...small, opacity: i === tracks.length - 1 ? 0.3 : 1 }} disabled={i === tracks.length - 1} onClick={() => actions.shiftStage(t.id, 1)} title="Move right">›</button>
-                  <button style={small} onClick={() => setEdit({ kind: 'stage', id: t.id, value: t.name })}>Rename</button>
-                  <button style={{ ...small, color: 'var(--red)' }} onClick={() => actions.deleteStage(t)}>Delete</button>
+                  {!tagLock && <button style={small} onClick={() => setEdit({ kind: 'stage', id: t.id, value: t.name })}>Rename</button>}
+                  {!tagLock && <button style={{ ...small, color: 'var(--red)' }} onClick={() => actions.deleteStage(t)}>Delete</button>}
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>

@@ -42,6 +42,14 @@ async function load(eventId: string, withFilters: boolean) {
 export async function GET(req: NextRequest) {
   const eventId = req.nextUrl.searchParams.get('event_id')
   if (!eventId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
+  // ?labels=1: the small read the Agenda Builder uses to tell an editor where each field lives in KonfHub (agenda editors may not hold integrations access).
+  if (req.nextUrl.searchParams.get('labels') === '1') {
+    const session = getSession(req)
+    if (!session?.adm && !(await hasEventPermission(session?.sid, eventId, 'sae.agenda.manage')) && !(await hasEventPermission(session?.sid, eventId, 'sae.integrations.manage'))) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
+    const m = await load(eventId, true)
+    const nameOf = (id: string | null) => m.filters.find(f => f.id === id)?.name ?? null
+    return NextResponse.json({ stage_mode: m.stage_mode, stage: nameOf(m.stage_filter_id), format: nameOf(m.format_filter_id), theme: nameOf(m.theme_filter_id) })
+  }
   if (!(await authorize(req, eventId))) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   return NextResponse.json(await load(eventId, true))
 }
