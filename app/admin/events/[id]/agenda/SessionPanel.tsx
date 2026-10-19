@@ -51,7 +51,6 @@ export default function SessionPanel({ khLabels, days, themes, formats, session,
   const [location, setLocation] = useState(session.location ?? '')
   const [capacity, setCapacity] = useState(session.capacity != null ? String(session.capacity) : '')
   const [colour, setColour] = useState(session.colour ?? '')
-  const [status, setStatus] = useState(session.status)
   const [date, setDate] = useState(start?.date ?? '')
   const [startT, setStartT] = useState(start ? minutesToHHMM(start.minutes) : '')
   const [endT, setEndT] = useState(end ? minutesToHHMM(end.minutes) : '')
@@ -77,10 +76,12 @@ export default function SessionPanel({ khLabels, days, themes, formats, session,
   }
   const nameOf = (id: string) => { const s = allSpeakers.find(x => x.id === id); return s ? (s.public_name || s.name) : 'Unknown speaker' }
 
-  function submit() {
+  const disabled = saving || !title.trim() || !!timeError || needsTz
+  const missingWhen = !date || !startT || !endT   // a session needs a day and times before it can be sent to KonfHub
+  function submit(mode: 'draft' | 'publish') {
     if (!title.trim() || timeError) return
     onSave({
-      fields: { title: title.trim(), description: description.trim() || null, session_type: sessionType, content_type: contentType.trim() || null, theme: theme.trim() || null, track_id: trackId || null, room_id: roomId || null, location: location.trim() || null, capacity: capacity.trim() === '' ? null : Math.max(0, Number(capacity) || 0), colour: colour || null, status },
+      fields: { title: title.trim(), description: description.trim() || null, session_type: sessionType, content_type: contentType.trim() || null, theme: theme.trim() || null, track_id: trackId || null, room_id: roomId || null, location: location.trim() || null, capacity: capacity.trim() === '' ? null : Math.max(0, Number(capacity) || 0), colour: colour || null, status: mode === 'draft' ? 'draft' : 'published' },
       date: date || null, startMin: date && startT ? hhmmToMinutes(startT) : null, endMin: date && endT ? hhmmToMinutes(endT) : null,
       speakers: speakersTouched ? speakers : null,
     })
@@ -191,14 +192,6 @@ export default function SessionPanel({ khLabels, days, themes, formats, session,
             {SWATCHES.map(c => <button key={c} onClick={() => setColour(c)} aria-label={c} style={{ width: 22, height: 22, borderRadius: '50%', background: colourToCss(c), border: colour === c ? '2px solid var(--ink)' : '2px solid transparent', outline: '1px solid var(--border)', cursor: 'pointer' }} />)}
           </div></div>
 
-        <div><label style={label}>Visibility</label>
-          <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
-            {(['draft', 'published'] as const).map(v => (
-              <button key={v} onClick={() => setStatus(v)} style={{ padding: '6px 14px', fontSize: '12.5px', fontWeight: 700, border: 'none', cursor: 'pointer', background: status === v ? (v === 'published' ? 'var(--teal)' : 'var(--ink3)') : 'var(--card)', color: status === v ? 'var(--surface)' : 'var(--ink3)' }}>{v === 'draft' ? 'Draft' : 'Published'}</button>
-            ))}
-          </div>
-          <div style={{ fontSize: '11px', color: 'var(--ink4)', marginTop: '4px' }}>Draft stays in EventPilot only: it is never sent to KonfHub. Published sessions are sent when you push (KonfHub&apos;s own Hide/Show switch still controls whether the agenda is visible).</div>
-        </div>
           </div>
         </details>
       </div>
@@ -213,7 +206,10 @@ export default function SessionPanel({ khLabels, days, themes, formats, session,
             <Button variant="ghost" onClick={() => setConfirmDelete(false)}>No</Button>
           </div>
         )}
-        <Button variant="teal" onClick={submit} disabled={saving || !title.trim() || !!timeError || needsTz}>{saving ? 'Saving…' : 'Save'}</Button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {!session.konfhub_session_id && <Button variant="ghost" onClick={() => submit('draft')} disabled={disabled}>{saving ? 'Saving…' : 'Save as draft'}</Button>}
+          <Button variant="teal" onClick={() => submit('publish')} disabled={disabled || missingWhen} title={missingWhen ? 'Set the day, start and end first' : undefined}>{saving ? 'Saving…' : session.konfhub_session_id ? 'Save and update KonfHub' : 'Save and publish'}</Button>
+        </div>
       </div>
     </aside>
     </div>
