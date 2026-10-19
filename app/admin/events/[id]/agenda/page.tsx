@@ -238,8 +238,10 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
     const ids = sessions.filter(s => s.status === 'draft').map(s => s.id); if (!ids.length) return
     if (!window.confirm(`Publish ${ids.length} draft session${ids.length === 1 ? '' : 's'}? They'll appear on the public agenda.`)) return
     const { res, data } = await call('/api/events/agenda-v2/sessions/publish', 'POST', { event_id: eventId, ids, published: true })
-    if (!res.ok) { say(data.error ?? 'Could not publish.', 'error'); return }
-    say(`Published ${ids.length}.`); await load()
+    if (!res.ok && res.status !== 207) { say(data.error ?? 'Could not publish.', 'error'); return }
+    if (data.konfhub_push_errors?.length) say(`Published here, but KonfHub did not take ${data.konfhub_push_errors.length} session${data.konfhub_push_errors.length === 1 ? '' : 's'}: ${data.konfhub_push_errors[0].error}`, 'error')
+    else say(`Published ${ids.length}${khLabels?.stage_mode === 'tag' ? ' and sent to KonfHub' : ''}.`)
+    await load()
   }
 
   if (loading) return <div style={{ padding: '40px', color: 'var(--ink3)' }}>Loading…</div>

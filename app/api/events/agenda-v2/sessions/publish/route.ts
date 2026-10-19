@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { requireAgendaAccess, loadEventSessions } from '@/app/lib/agenda/access'
+import { pushAgendaToKonfhub } from '@/app/lib/agenda/konfhub-push'
 
 /* POST /api/events/agenda-v2/sessions/publish
    Body: { event_id, ids: string[], published: boolean }
@@ -26,5 +27,21 @@ export async function POST(req: NextRequest) {
     .in('id', body.ids)
     .select('id, status, published_at')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Tag-mode events: publishing sends the sessions to KonfHub right away (created if new, updated if linked), same single-session push as saving a session.
+  if (body.published) {
+    const { data: site } = await supabaseAdmin.from('event_websites').select('*').eq('event_id', body.event_id).maybeSingle()
+    if ((site as { agenda_stage_mode?: string } | null)?.agenda_stage_mode === 'tag') {
+      const errors: { id: string; error: string }[] = []
+      for (const id of body.ids.slice(0, 15)) {
+        try {
+          const report = await pushAgendaToKonfhub(body.event_id, { onlySessionId: id })
+          const bad = report.items.find(i => i.action === 'error' || (i.action === 'skipped' && !/Draft/.test(i.reason ?? '')))
+          if (bad) errors.push({ id, error: bad.reason ?? 'Not sent to KonfHub.' })
+        } catch (e) { errors.push({ id, error: e instanceof Error ? e.message : 'The push to KonfHub failed.' }) }
+      }
+      if (errors.length) return NextResponse.json({ sessions: data, konfhub_push_errors: errors }, { status: 207 })
+    }
+  }
   return NextResponse.json({ sessions: data })
 }
