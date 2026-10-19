@@ -62,6 +62,8 @@ type Entry = { kind: 'existing'; url: string; headBox: HeadBox | null } | { kind
 type Props = {
   eventId: string
   speakerId: string
+  /** 'vip' (2026-10-19): the same wizard for a VIP's badge photo — id is the VIP's, routes get ?kind=vip, and the Website Photo steps are skipped. */
+  kind?: 'speaker' | 'vip'
   entry: Entry
   onSaved: () => void | Promise<void>
   onClose: () => void
@@ -139,7 +141,8 @@ const STEP_LABELS: { key: Phase; label: string }[] = [
   { key: 'review', label: 'Review' },
 ]
 
-export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved, onClose }: Props) {
+export default function PhotoCleaningWizard({ eventId, speakerId, kind = 'speaker', entry, onSaved, onClose }: Props) {
+  const q = kind === 'vip' ? '?kind=vip' : ''
   const [phase, setPhase] = useState<Phase>(entry.kind === 'upload' ? 'uploading' : 'compose')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -320,7 +323,7 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
     form.append('asset_type', 'photo')
 
     const xhr = new XMLHttpRequest()
-    xhr.open('POST', `/api/events/stakeholders/speakers/${speakerId}/upload-asset`)
+    xhr.open('POST', `/api/events/stakeholders/speakers/${speakerId}/upload-asset${q}`)
     xhr.upload.onprogress = e => { if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100)) }
     xhr.upload.onload = () => { setUploadStage('processing'); setElapsedSec(0) } // bytes fully sent — now waiting on PhotoRoom + Sharp server-side
     xhr.onload = async () => {
@@ -351,7 +354,7 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
     setBusy(true)
     setErrorMsg(null)
     try {
-      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/head-box`, {
+      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/head-box${q}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ head_box: composeBox }),
       })
@@ -379,7 +382,7 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
     setChatWorkingUrl(null)
     setChatLog([])
     try {
-      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/generate`, {
+      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/generate${q}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: 'ai_fill', quality: aiQuality }),
       })
@@ -468,7 +471,7 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
     setRegeneratingClean(true)
     setErrorMsg(null)
     try {
-      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/generate`, {
+      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/generate${q}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: 'ai_fill', quality: aiQuality, source_url: pendingClean.url, head_box: cleanBox }),
       })
@@ -553,7 +556,7 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
     setChatBusy(true)
     setErrorMsg(null)
     try {
-      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/generate`, {
+      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/generate${q}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: 'chat_refine', source_url: chatWorkingUrl, instruction, allow_face_changes: allowFaceChanges }),
       })
@@ -631,7 +634,7 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
   // server finds a real gap, nothing is saved — the response comes back
   // with `needs_confirmation_gap` instead, for the caller to act on.
   async function postFinalize(pendingUrl: string, headBox: HeadBox, force = false): Promise<{ photo_processed_url?: string; needs_confirmation_gap?: boolean } | null> {
-    const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/finalize`, {
+    const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/finalize${q}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pending_photo_url: pendingUrl, head_box: headBox, force }),
     })
@@ -694,7 +697,7 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
       // source_url to rawPhotoUrl keeps every finalize in this session
       // working from the exact same photo Compose's head-box math is
       // relative to, no matter what's already been written to the DB.
-      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/generate`, {
+      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/generate${q}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: chosenMode, source_url: rawPhotoUrl }),
       })
@@ -822,6 +825,8 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
     // Optional side-trip, not a numbered pipeline stage every run goes
     // through — only shows in the rail while actually on it.
     .filter(s => s.key !== 'chat-refine' || phase === 'chat-refine')
+    // A VIP's photo is for badges only: no Website Photo / Review steps.
+    .filter(s => kind !== 'vip' || (s.key !== 'website-photo' && s.key !== 'review'))
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'color-mix(in srgb, black 60%, transparent)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
@@ -918,7 +923,7 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
             )}
             {phase === 'cleaned-photo' && (
               <>
-                <Button variant="lime" onClick={() => setPhase('website-photo')}>Continue</Button>
+                <Button variant="lime" onClick={() => { if (kind === 'vip') { void (async () => { await onSaved(); onClose() })() } else setPhase('website-photo') }}>{kind === 'vip' ? 'Save Photo' : 'Continue'}</Button>
                 {/* 2026-09-23 fix — this phase is reached from "Use As-Is"
                     on the gap-warning popup, which force-skips the server's
                     content-gap check (see postFinalize's force flag), so

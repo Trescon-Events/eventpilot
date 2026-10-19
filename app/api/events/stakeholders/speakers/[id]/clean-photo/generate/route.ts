@@ -1,3 +1,4 @@
+import { photoSubject, loadPhotoSubject } from '@/app/lib/stakeholders/photo-subject'
 import { NextRequest, NextResponse } from 'next/server'
 import sharp from 'sharp'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -102,6 +103,7 @@ const MAX_INSTRUCTION_LENGTH = 500
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: speakerId } = await params
+  const subj = photoSubject(req)
   const body = await req.json().catch(() => null) as Body | null
   const mode = body?.mode
   if (mode !== 'ai_fill' && mode !== 'enhance' && mode !== 'good' && mode !== 'chat_refine') {
@@ -117,12 +119,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     console.log(`[clean-photo][regenerate] speaker ${speakerId} — regenerating ai_fill from pending result, quality=${quality}`)
   }
 
-  const { data: speaker } = await supabaseAdmin
-    .from('event_speakers')
-    .select('event_id, photo_processed_url, photo_url, photo_head_box')
-    .eq('id', speakerId)
-    .single()
-  if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
+  const speaker = await loadPhotoSubject(subj, speakerId, 'event_id, photo_processed_url, photo_url, photo_head_box')
+  if (!speaker) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // 'chat_refine' — own early branch, own contract (see this file's top
   // doc comment). Returns before any of the ai_fill/enhance/good logic
@@ -141,7 +139,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const { data: job, error: jobErr } = await supabaseAdmin
       .from('speaker_photo_clean_jobs')
-      .insert({ speaker_id: speakerId, mode: 'chat_refine', quality: 'medium', status: 'processing' })
+      .insert({ [subj.jobColumn]: speakerId, mode: 'chat_refine', quality: 'medium', status: 'processing' })
       .select('id')
       .single()
     if (jobErr || !job) return NextResponse.json({ error: 'Could not start the refine job' }, { status: 500 })
@@ -238,7 +236,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // background job instead of an inline await.
   const { data: job, error: jobErr } = await supabaseAdmin
     .from('speaker_photo_clean_jobs')
-    .insert({ speaker_id: speakerId, mode, quality, status: 'processing' })
+    .insert({ [subj.jobColumn]: speakerId, mode, quality, status: 'processing' })
     .select('id')
     .single()
   if (jobErr || !job) return NextResponse.json({ error: 'Could not start the AI Fill job' }, { status: 500 })

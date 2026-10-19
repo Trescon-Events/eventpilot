@@ -3,6 +3,7 @@ import sharp from 'sharp'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { processLogo } from '@/app/lib/media/logo-engine'
+import { photoSubject, loadPhotoSubject } from '@/app/lib/stakeholders/photo-subject'
 import { processSpeakerPhoto, MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine'
 import { detectHeadBox } from '@/app/lib/media/face-alignment'
 import { sniffFileType } from '@/app/lib/events/sniff-file-type'
@@ -59,6 +60,7 @@ const MAX_SIZE = 50 * 1024 * 1024
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: speakerId } = await params
+  const subj = photoSubject(req) // ?kind=vip serves a VIP's photo with the same pipeline
   const form      = await req.formData()
   const file      = form.get('file') as File | null
   const assetType = form.get('asset_type') as string | null
@@ -82,8 +84,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: `File too large (max ${MAX_SIZE / (1024 * 1024)} MB)` }, { status: 413 })
   }
 
-  const { data: speaker } = await supabaseAdmin.from('event_speakers').select('event_id, announcement_status').eq('id', speakerId).single()
-  if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
+  if (subj.kind === 'vip' && assetType !== 'photo') return NextResponse.json({ error: 'A VIP only has a photo.' }, { status: 400 })
+  const speaker = await loadPhotoSubject(subj, speakerId, 'event_id, announcement_status')
+  if (!speaker) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   // Uploading a new photo/logo on an already-approved speaker must force a
   // fresh review — same reset guard as the main PATCH route (see its
   // comment for the precedent).
@@ -170,13 +173,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const [photoUrl, photoProcessedUrl] = await Promise.all([
     uploadPublicAsset(
-      `events/${speaker.event_id}/speakers/${speakerId}/photo-${Date.now()}.jpg`,
+      `events/${speaker.event_id}/${subj.folder}/${speakerId}/photo-${Date.now()}.jpg`,
       resizedOriginal,
       'image/jpeg'
     ),
     processed
       ? uploadPublicAsset(
-          `events/${speaker.event_id}/speakers/${speakerId}/photo-processed-${Date.now()}.png`,
+          `events/${speaker.event_id}/${subj.folder}/${speakerId}/photo-processed-${Date.now()}.png`,
           processed,
           'image/png'
         )
@@ -190,7 +193,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (photoProcessedUrl) update.photo_processed_url = photoProcessedUrl
 
   const { data, error } = await supabaseAdmin
-    .from('event_speakers')
+    .from(subj.table)
     .update(update)
     .eq('id', speakerId)
     .select('photo_url, photo_processed_url, photo_head_box, photo_low_resolution')

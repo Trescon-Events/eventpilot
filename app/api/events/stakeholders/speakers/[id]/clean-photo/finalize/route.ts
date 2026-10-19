@@ -1,3 +1,4 @@
+import { photoSubject, loadPhotoSubject } from '@/app/lib/stakeholders/photo-subject'
 import { NextRequest, NextResponse } from 'next/server'
 import sharp from 'sharp'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -53,17 +54,14 @@ type Body = { pending_photo_url?: string; head_box?: HeadBox; force?: boolean }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: speakerId } = await params
+  const subj = photoSubject(req)
   const body = await req.json().catch(() => null) as Body | null
   if (!body?.pending_photo_url || !body.head_box) {
     return NextResponse.json({ error: 'pending_photo_url, head_box required' }, { status: 400 })
   }
 
-  const { data: speaker } = await supabaseAdmin
-    .from('event_speakers')
-    .select('event_id, announcement_status')
-    .eq('id', speakerId)
-    .single()
-  if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
+  const speaker = await loadPhotoSubject(subj, speakerId, 'event_id, announcement_status')
+  if (!speaker) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const { data: template } = await supabaseAdmin
     .from('cleaning_cycle_template_global')
@@ -88,7 +86,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const resized = await sharp(cropped).resize(MAX_STORED_PHOTO_DIMENSION, MAX_STORED_PHOTO_DIMENSION, { fit: 'inside', withoutEnlargement: true }).png().toBuffer()
     const photoProcessedUrl = await uploadPublicAsset(
-      `events/${speaker.event_id}/speakers/${speakerId}/photo-processed-${Date.now()}.png`,
+      `events/${speaker.event_id}/${subj.folder}/${speakerId}/photo-processed-${Date.now()}.png`,
       resized,
       'image/png'
     )
@@ -97,7 +95,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const newHeadBox: HeadBox = { centerXRatio: target.target_head_center_x, centerYRatio: target.target_head_center_y, heightRatio: target.target_head_height }
 
     const { data, error } = await supabaseAdmin
-      .from('event_speakers')
+      .from(subj.table)
       .update({ photo_processed_url: photoProcessedUrl, photo_head_box: newHeadBox, photo_cleaning_cycle_done: true, updated_at: new Date().toISOString(), ...reapprovalReset })
       .eq('id', speakerId)
       .select('photo_processed_url, photo_head_box, photo_cleaning_cycle_done')

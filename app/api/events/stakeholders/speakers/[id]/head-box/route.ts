@@ -1,3 +1,4 @@
+import { photoSubject, loadPhotoSubject } from '@/app/lib/stakeholders/photo-subject'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { detectHeadBox } from '@/app/lib/media/face-alignment'
@@ -28,6 +29,7 @@ function isValidHeadBox(v: unknown): v is HeadBox {
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: speakerId } = await params
+  const subj = photoSubject(req)
   const body = await req.json().catch(() => null) as { head_box?: unknown } | null
 
   if (!isValidHeadBox(body?.head_box)) {
@@ -36,13 +38,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // Manually repositioning the head marker on an already-approved speaker
   // must force a fresh review — same reset guard as the main PATCH route.
-  const { data: existing } = await supabaseAdmin.from('event_speakers').select('announcement_status').eq('id', speakerId).single()
+  const existing = subj.kind === 'speaker' ? (await supabaseAdmin.from('event_speakers').select('announcement_status').eq('id', speakerId).single()).data : null
   const reapprovalReset: Record<string, unknown> = existing?.announcement_status === 'ready' ? { announcement_status: 'pending_review' } : {}
 
   // A manual head-fix here invalidates any prior Cleaning Cycle result — its
   // standardized output was cropped against the OLD head position (2026-08-21).
   const { data, error } = await supabaseAdmin
-    .from('event_speakers')
+    .from(subj.table)
     .update({ photo_head_box: body!.head_box, photo_cleaning_cycle_done: false, updated_at: new Date().toISOString(), ...reapprovalReset })
     .eq('id', speakerId)
     .select('photo_head_box')
@@ -64,15 +66,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
    other changes needed. Detection is already known to be unreliable (see this file's PATCH
    doc comment) — this is a starting point for a human to correct, not a
    substitute for the drag-to-fix workflow. */
-export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: speakerId } = await params
+  const subj = photoSubject(req)
 
-  const { data: speaker } = await supabaseAdmin
-    .from('event_speakers')
-    .select('photo_url, photo_processed_url, announcement_status')
-    .eq('id', speakerId)
-    .single()
-  if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
+  const speaker = await loadPhotoSubject(subj, speakerId, 'photo_url, photo_processed_url, announcement_status')
+  if (!speaker) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   const reapprovalReset: Record<string, unknown> = speaker.announcement_status === 'ready' ? { announcement_status: 'pending_review' } : {}
 
   const photoUrl = speaker.photo_processed_url || speaker.photo_url
@@ -91,7 +90,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   if (!head_box) return NextResponse.json({ error: 'No face detected — draw the box manually instead' }, { status: 422 })
 
   const { data, error } = await supabaseAdmin
-    .from('event_speakers')
+    .from(subj.table)
     .update({ photo_head_box: head_box, photo_cleaning_cycle_done: false, updated_at: new Date().toISOString(), ...reapprovalReset })
     .eq('id', speakerId)
     .select('photo_head_box')
