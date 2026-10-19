@@ -27,7 +27,7 @@ export default function BadgesPage({ params }: { params: Promise<{ id: string }>
   const [permissions, setPermissions] = useState<Set<string>>(new Set())
   const [batches, setBatches] = useState<BatchRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [creating, setCreating] = useState(false)
+  const [creating, setCreating] = useState<null | 'speakers' | 'vips'>(null)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   useBreadcrumbLabel(eventId, eventName)
   const can = (key: string) => permissionSetSatisfies(permissions, key)
@@ -51,10 +51,15 @@ export default function BadgesPage({ params }: { params: Promise<{ id: string }>
   return (
     <div>
       <PageHeader
-        eyebrow="Stakeholder Hub" title="Speaker badges"
-        description="Create a batch from your confirmed speakers, review every badge, approve, then download one print file for the vendor."
+        eyebrow="Stakeholder Hub" title="Badges"
+        description="Create a batch from your speakers or VIPs, review every badge, approve, then download one print file for the vendor."
         backHref={`/admin/events/${eventId}/stakeholders`} backLabel="Stakeholders"
-        actions={can('sae.badges.manage') ? <Button variant="lime" onClick={() => setCreating(true)}>+ New batch</Button> : undefined}
+        actions={can('sae.badges.manage') ? (
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <Button variant="ghost" onClick={() => setCreating('vips')}>+ New VIP batch</Button>
+            <Button variant="lime" onClick={() => setCreating('speakers')}>+ New batch</Button>
+          </div>
+        ) : undefined}
       />
       <div style={{ padding: '24px 32px' }}>
         {error && <div style={{ color: 'var(--red)', fontSize: '14px', marginBottom: '12px' }}>{error}</div>}
@@ -62,7 +67,7 @@ export default function BadgesPage({ params }: { params: Promise<{ id: string }>
           <div style={{ color: 'var(--ink3)', fontSize: '14px' }}>Loading…</div>
         ) : batches.length === 0 && !error ? (
           <div style={{ color: 'var(--ink3)', fontSize: '14px', padding: '40px 0', textAlign: 'center' }}>
-            No badge batches yet.{can('sae.badges.manage') ? ' Click “New batch” to create one from your confirmed speakers.' : ''}
+            No badge batches yet.{can('sae.badges.manage') ? ' Click “New batch” to create one from your speakers, or “New VIP batch” for your VIP list.' : ''}
           </div>
         ) : (
           <div style={{ display: 'grid', gap: '10px' }}>
@@ -85,7 +90,7 @@ export default function BadgesPage({ params }: { params: Promise<{ id: string }>
         )}
       </div>
       {creating && (
-        <NewBatchModal eventId={eventId} onClose={() => setCreating(false)}
+        <NewBatchModal eventId={eventId} source={creating} onClose={() => setCreating(null)}
           onCreated={id => router.push(`/admin/events/${eventId}/stakeholders/badges/${id}?render=1`)}
           onError={message => setToast({ message, type: 'error' })} />
       )}
@@ -98,7 +103,7 @@ const BADGE_LABEL = { created: 'Created', sent: 'Sent to Printer', printed: 'Pri
 const BADGE_COLOR = { created: 'grey', sent: 'purple', printed: 'teal' } as const
 type Filter = 'all' | 'confirmed' | 'pending' | 'no_badge'
 
-function NewBatchModal({ eventId, onClose, onCreated, onError }: { eventId: string; onClose: () => void; onCreated: (id: string) => void; onError: (m: string) => void }) {
+function NewBatchModal({ eventId, source, onClose, onCreated, onError }: { eventId: string; source: 'speakers' | 'vips'; onClose: () => void; onCreated: (id: string) => void; onError: (m: string) => void }) {
   const [loading, setLoading] = useState(true)
   const [templates, setTemplates] = useState<TemplateOption[]>([])
   const [speakers, setSpeakers] = useState<Candidate[]>([])
@@ -113,10 +118,10 @@ function NewBatchModal({ eventId, onClose, onCreated, onError }: { eventId: stri
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      const res = await fetch(`/api/events/badges/batches?event_id=${eventId}&candidates=1`)
+      const res = await fetch(`/api/events/badges/batches?event_id=${eventId}&candidates=1${source === 'vips' ? '&source=vips' : ''}`)
       const data = await res.json().catch(() => ({}))
       if (cancelled) return
-      if (!res.ok) { onError(data.error ?? 'Could not load speakers.'); onClose(); return }
+      if (!res.ok) { onError(data.error ?? `Could not load ${source === 'vips' ? 'VIPs' : 'speakers'}.`); onClose(); return }
       setTemplates(data.variants ?? []); setSpeakers(data.speakers ?? []); setConfirmed(data.confirmed_statuses ?? [])
       setVariantId(data.variants?.[0]?.id ?? '')
       setLoading(false)
@@ -143,7 +148,7 @@ function NewBatchModal({ eventId, onClose, onCreated, onError }: { eventId: stri
     setSaving(true)
     const res = await fetch('/api/events/badges/batches', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event_id: eventId, variant_id: variantId, name, speaker_ids: speakers.filter(s => picked.has(s.id)).map(s => s.id) }),
+      body: JSON.stringify({ event_id: eventId, variant_id: variantId, name, [source === 'vips' ? 'vip_ids' : 'speaker_ids']: speakers.filter(s => picked.has(s.id)).map(s => s.id) }),
     })
     const data = await res.json().catch(() => ({}))
     setSaving(false)
@@ -162,16 +167,16 @@ function NewBatchModal({ eventId, onClose, onCreated, onError }: { eventId: stri
     <div style={{ position: 'fixed', inset: 0, background: 'var(--card)', zIndex: 60, display: 'flex', flexDirection: 'column' }}>
       {/* header */}
       <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-        <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ink)' }}>New badge batch</div>
+        <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ink)' }}>{source === 'vips' ? 'New VIP badge batch' : 'New badge batch'}</div>
         <div style={{ flex: 1 }} />
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
       </div>
-      {loading ? <div style={{ padding: '30px 24px', color: 'var(--ink3)' }}>Loading speakers…</div> : templates.length === 0 ? (
-        <div style={{ padding: '30px 24px', color: 'var(--ink2)', fontSize: '14px', lineHeight: 1.5 }}>This event has no Speaker Badge template yet. Create one in Creative Templates (New Variant, Speaker Badge) first.</div>
+      {loading ? <div style={{ padding: '30px 24px', color: 'var(--ink3)' }}>Loading {source === 'vips' ? 'VIPs' : 'speakers'}…</div> : templates.length === 0 ? (
+        <div style={{ padding: '30px 24px', color: 'var(--ink2)', fontSize: '14px', lineHeight: 1.5 }}>This event has no badge template yet. Create one in Creative Templates (New Variant, Speaker Badge) first.</div>
       ) : (<>
         <div style={{ padding: '14px 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px', borderBottom: '1px solid var(--border-light)' }}>
           <label style={{ fontSize: '13px', color: 'var(--ink3)' }}>Batch name
-            <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Speakers — first print run" style={{ marginTop: '4px' }} />
+            <Input value={name} onChange={e => setName(e.target.value)} placeholder={source === 'vips' ? 'e.g. VIPs — first print run' : 'e.g. Speakers — first print run'} style={{ marginTop: '4px' }} />
           </label>
           <label style={{ fontSize: '13px', color: 'var(--ink3)' }}>Template
             <Select value={variantId} onChange={e => setVariantId(e.target.value)} style={{ marginTop: '4px', width: '100%' }}>
@@ -180,10 +185,10 @@ function NewBatchModal({ eventId, onClose, onCreated, onError }: { eventId: stri
           </label>
         </div>
         <div style={{ padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', borderBottom: '1px solid var(--border-light)' }}>
-          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search speakers…" style={{ flex: '1 1 220px', maxWidth: '320px' }} />
-          {chip('all', 'All')}{chip('confirmed', 'Confirmed')}{chip('pending', 'Has pending items')}{chip('no_badge', 'No badge yet')}
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={source === 'vips' ? 'Search VIPs…' : 'Search speakers…'} style={{ flex: '1 1 220px', maxWidth: '320px' }} />
+          {chip('all', 'All')}{source === 'speakers' && chip('confirmed', 'Confirmed')}{chip('pending', 'Has pending items')}{chip('no_badge', 'No badge yet')}
           <div style={{ flex: 1 }} />
-          <Button variant="ghost" onClick={() => setPicked(new Set(selectable(speakers.filter(isConfirmed))))}>Select confirmed</Button>
+          {source === 'speakers' && <Button variant="ghost" onClick={() => setPicked(new Set(selectable(speakers.filter(isConfirmed))))}>Select confirmed</Button>}
           <Button variant="ghost" onClick={() => setPicked(prev => new Set([...prev, ...selectable(shown)]))}>Select shown</Button>
           <Button variant="ghost" onClick={() => setPicked(new Set())}>None</Button>
         </div>
@@ -193,8 +198,8 @@ function NewBatchModal({ eventId, onClose, onCreated, onError }: { eventId: stri
             <thead>
               <tr>
                 <th style={{ ...th, width: '44px' }} />
-                <th style={th}>Speaker</th>
-                <th style={th}>Status</th>
+                <th style={th}>{source === 'vips' ? 'VIP' : 'Speaker'}</th>
+                <th style={th}>{source === 'vips' ? '' : 'Status'}</th>
                 <th style={{ ...th, textAlign: 'center' }} colSpan={4}>Details on the badge</th>
                 <th style={th}>Badge</th>
               </tr>
@@ -209,22 +214,22 @@ function NewBatchModal({ eventId, onClose, onCreated, onError }: { eventId: stri
                 <tr key={s.id} style={{ background: picked.has(s.id) ? 'color-mix(in srgb, var(--teal) 8%, transparent)' : 'transparent', opacity: s.blocked ? 0.6 : 1 }}>
                   <td style={td}>
                     <input type="checkbox" checked={picked.has(s.id)} disabled={s.blocked} onChange={() => toggle(s.id)}
-                      title={s.blocked ? `Can't make a badge: ${[!s.has.name && 'no name', !s.has.photo && 'no cleaned photo'].filter(Boolean).join(' and ')}` : ''}
+                      title={s.blocked ? "Can't make a badge: no name" : ''}
                       style={{ width: '17px', height: '17px', cursor: s.blocked ? 'not-allowed' : 'pointer' }} />
                   </td>
                   <td style={td}>
                     <div style={{ fontWeight: 700 }}>{s.name || <span style={{ color: 'var(--red)' }}>(no name)</span>}</div>
                     <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>{[s.title, s.company].filter(Boolean).join(' · ') || '—'}</div>
                   </td>
-                  <td style={{ ...td, color: isConfirmed(s) ? 'var(--teal)' : 'var(--ink3)', whiteSpace: 'nowrap' }}>{s.confirmation_status ?? 'No status'}</td>
-                  <td style={{ ...td, textAlign: 'center' }}>{s.has.photo ? gap(true) : <span style={{ color: 'var(--red)', fontWeight: 800, fontSize: '12.5px' }}>No photo</span>}</td>
+                  <td style={{ ...td, color: isConfirmed(s) ? 'var(--teal)' : 'var(--ink3)', whiteSpace: 'nowrap' }}>{source === 'vips' ? '' : (s.confirmation_status ?? 'No status')}</td>
+                  <td style={{ ...td, textAlign: 'center' }}>{s.has.photo ? gap(true) : <span style={{ color: 'var(--ink4)', fontSize: '12.5px' }}>None</span>}</td>
                   <td style={{ ...td, textAlign: 'center' }}>{gap(s.has.title)}</td>
                   <td style={{ ...td, textAlign: 'center' }}>{gap(s.has.company)}</td>
                   <td style={{ ...td, textAlign: 'center' }}>{gap(s.has.country)}</td>
                   <td style={td}>{s.badge_status ? <Badge color={BADGE_COLOR[s.badge_status]}>{BADGE_LABEL[s.badge_status]}</Badge> : <span style={{ color: 'var(--ink4)' }}>—</span>}</td>
                 </tr>
               ))}
-              {shown.length === 0 && <tr><td colSpan={8} style={{ ...td, color: 'var(--ink3)', padding: '24px' }}>No speakers match.</td></tr>}
+              {shown.length === 0 && <tr><td colSpan={8} style={{ ...td, color: 'var(--ink3)', padding: '24px' }}>Nothing matches.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -234,7 +239,7 @@ function NewBatchModal({ eventId, onClose, onCreated, onError }: { eventId: stri
             <strong>{picked.size}</strong> selected
             {pickedWithGaps > 0 && <span style={{ color: 'var(--amber)' }}> · {pickedWithGaps} with missing details (flagged in review)</span>}
             {pickedAlready > 0 && <span style={{ color: 'var(--ink3)' }}> · {pickedAlready} already in a batch</span>}
-            <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '2px' }}>A name and a cleaned photo are required; speakers without them can&apos;t be selected.</div>
+            <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '2px' }}>Only a name is required. A photo is optional; a badge design with a photo slot will flag anyone without one in review.</div>
           </div>
           <div style={{ flex: 1 }} />
           <Button variant="ghost" onClick={onClose}>Cancel</Button>

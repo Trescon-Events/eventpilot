@@ -63,18 +63,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.action === 'refresh_speakers') {
     const items = await loadItems(id)
     const ids = items.map(i => i.speaker_id).filter((x): x is string => !!x)
-    const { data: speakers } = ids.length
-      ? await supabaseAdmin.from('event_speakers').select('id, public_name, name, role, company, country, photo_processed_url, photo_head_box').in('id', ids)
-      : { data: [] }
+    const vipIds = items.map(i => i.vip_id).filter((x): x is string => !!x)
+    const [{ data: speakers }, { data: vips }] = await Promise.all([
+      ids.length ? supabaseAdmin.from('event_speakers').select('id, public_name, name, role, company, country, photo_processed_url, photo_head_box').in('id', ids) : Promise.resolve({ data: [] }),
+      vipIds.length ? supabaseAdmin.from('event_vips').select('id, name, job_title, company, country, photo_processed_url, photo_head_box').in('id', vipIds) : Promise.resolve({ data: [] }),
+    ])
     let changed = 0
     for (const it of items) {
       const s = (speakers ?? []).find(x => x.id === it.speaker_id)
-      if (!s) continue
-      const next = {
-        name: ((s.public_name as string | null) || (s.name as string | null) || '').trim() || null,
-        title: s.role as string | null, company: s.company as string | null, country: s.country as string | null,
-        photo_url: s.photo_processed_url as string | null, photo_head_box: s.photo_head_box,
-      }
+      const v = (vips ?? []).find(x => x.id === it.vip_id)
+      let next: { name: string | null; title: string | null; company: string | null; country: string | null; photo_url: string | null; photo_head_box: unknown }
+      if (s) {
+        next = {
+          name: ((s.public_name as string | null) || (s.name as string | null) || '').trim() || null,
+          title: s.role as string | null, company: s.company as string | null, country: s.country as string | null,
+          photo_url: s.photo_processed_url as string | null, photo_head_box: s.photo_head_box,
+        }
+      } else if (v) {
+        next = { name: ((v.name as string | null) ?? '').trim() || null, title: v.job_title as string | null, company: v.company as string | null, country: v.country as string | null, photo_url: v.photo_processed_url as string | null, photo_head_box: v.photo_head_box }
+      } else continue
       if (JSON.stringify(next) === JSON.stringify({ name: it.name, title: it.title, company: it.company, country: it.country, photo_url: it.photo_url, photo_head_box: it.photo_head_box })) continue
       await supabaseAdmin.from('badge_batch_items').update({ ...next, preview_stale: true, approved: false }).eq('id', it.id)
       changed++

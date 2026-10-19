@@ -16,6 +16,7 @@ export type BadgeItemRow = {
   id: string
   batch_id: string
   speaker_id: string | null
+  vip_id?: string | null
   position: number
   name: string | null
   title: string | null

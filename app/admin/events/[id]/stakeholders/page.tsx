@@ -18,6 +18,7 @@ import KonfhubPushConfirmModal from './KonfhubPushConfirmModal'
 import KonfhubRegistrationPushConfirmModal from './KonfhubRegistrationPushConfirmModal'
 import BulkApproveConfirmModal from './BulkApproveConfirmModal'
 import InvitesTab from './InvitesTab'
+import VipsTab from './VipsTab'
 import { FieldSchema, SubmittedValue, asText } from '@/app/lib/forms/types'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import { pronounLabel } from '@/app/lib/events/pronoun-styles'
@@ -96,6 +97,7 @@ const CATEGORIES: Category[] = [
 
 const DELETED_KEY = 'deleted'
 const INVITES_KEY = 'invites'
+const VIPS_KEY = 'vips'
 const CANCELLED_KEY = 'cancelled'
 
 // "Add Speaker" quick-add panel (rebuilt 2026-09-19, per Madhu) —
@@ -754,6 +756,16 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
               </button>
             )
           })}
+          <button onClick={() => setActiveTab(VIPS_KEY)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '9px 12px', borderRadius: '8px', border: 'none', textAlign: 'left', cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: '15px', fontWeight: 700,
+              background: activeTab === VIPS_KEY ? 'var(--card)' : 'transparent',
+              color: activeTab === VIPS_KEY ? 'var(--ink)' : 'var(--ink3)',
+            }}>
+            <span>VIPs</span>
+          </button>
           <div style={{ height: '1px', background: 'var(--border-light)', margin: '6px 4px' }} />
           <button onClick={() => setActiveTab(INVITES_KEY)}
             style={{
@@ -800,6 +812,8 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
               <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--ink)', marginBottom: '16px' }}>Cancelled</div>
               <CancelledTab eventId={eventId} onChanged={fetchAll} />
             </>
+          ) : activeTab === VIPS_KEY ? (
+            <VipsTab eventId={eventId} can={can} />
           ) : activeTab === INVITES_KEY ? (
             <InvitesTab eventId={eventId} can={can} />
           ) : category && (
