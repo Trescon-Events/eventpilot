@@ -396,9 +396,9 @@ ${bottomInstruction}
   return restoreOriginalOver(Buffer.from(b64, 'base64'), placed, cropWarning, { centerXRatio: target.target_head_center_x, centerYRatio: target.target_head_center_y, heightRatio: target.target_head_height })
 }
 
-// "Make it High-Res" was retired on 2026-10-17. It sent the whole photo through gpt-image-2, which re-draws it (faces came out altered) and
-// caps the output at 1536px, so it was never a real upscale. There is no replacement upscaler: a low-resolution photo shows the amber
-// "Low Resolution" badge and the producer asks the speaker for a better original.
+// "Make it High-Res" was retired on 2026-10-17 (the gpt-image-2 version re-drew faces and capped at 1536px) and REBUILT on 2026-10-19 as a real
+// super-resolution step: see photo-upscale.ts (fal.ai Topaz High Fidelity V2, 2x) and clean-photo/upscale. It runs on the raw photo BEFORE
+// cleaning, because the steps below keep the original pixels bit for bit: a soft face would otherwise sit above a sharp AI-drawn body.
 
 // Chat-based refine (2026-09-08, per Madhu) — a producer-authored free-text
 // fix for whatever a prompt tweak can't anticipate (e.g. the ghutra/fake-

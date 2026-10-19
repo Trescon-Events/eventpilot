@@ -30,7 +30,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   const { data: speaker } = await supabaseAdmin
     .from('event_speakers')
-    .select('event_id, announcement_status, photo_url, photo_processed_url, bio_full_url')
+    .select('event_id, announcement_status, photo_url, photo_processed_url, photo_original_url, bio_full_url')
     .eq('id', speakerId)
     .single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
@@ -51,7 +51,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // Storage cleanup is best-effort; the record is already cleared.
-  if (type === 'photo') { await removeStored(speaker.photo_url); await removeStored(speaker.photo_processed_url) }
+  // The original submitted photo is deliberately kept (2026-10-19): photo_url may be that very file, so it is not deleted here.
+  if (type === 'photo') { if (speaker.photo_url !== speaker.photo_original_url) await removeStored(speaker.photo_url); await removeStored(speaker.photo_processed_url) }
   else await removeStored(speaker.bio_full_url)
 
   const key: MissingItemKey = type === 'photo' ? 'photo' : 'bio_full'

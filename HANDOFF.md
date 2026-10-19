@@ -11,6 +11,16 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 ---
 
+## Last Session (19 Oct 2026, evening) — Make it High-Res rebuilt (NOT pushed yet)
+Why: a DFWS demo showed a soft, low-res face with a sharp AI-drawn torso and a seam at the chest. Cause: the 17 Oct "keep the original pixels" change plus the retired high-res step, and a low-res check that only looked at the file's shorter side (and never ran for form submissions).
+- `app/lib/media/photo-resolution.ts` (+ `.test.ts`): low-res = shorter side < 500px OR the head must be enlarged > 1.3x to fill the Cleaning Cycle frame. `photo-resolution-server.ts` computes it from the stored photo + global template head target.
+- `upload-asset` and `from-submission` now set `photo_low_resolution` with that rule (submissions never set it before).
+- `app/lib/media/photo-upscale.ts`: fal.ai `fal-ai/topaz/upscale/image`, model 'High Fidelity V2', 2x (~$0.08/photo, ~16s). Clarity (first choice) and CodeFormer changed/smoothed facial features (Madhu: "changing the facial features"); ESRGAN/AuraSR gave artefacts; Topaz High Fidelity kept eyes, smile and beard (bake-off in .scratch/upscale). Needs `FAL_API_KEY` on Railway (present in .env.local; not verified on Railway).
+- `clean-photo/upscale/route.ts`: `{action:'start'}` background job (polled via the existing job route; mode 'upscale'), `{action:'apply', raw_url, processed_url}` swaps photo_url/photo_processed_url, recomputes low-res, clears photo_cleaning_cycle_done. Serves VIPs via ?kind=vip.
+- `PhotoCleaningWizard.tsx` Compose step: amber note + "Make it High-Res" button when low-res; before/after panel with "Use High-Res Version" / "Keep Original". Still low-res after one pass -> the button stays for another pass.
+- **Original Photo (as submitted)** — `supabase/photo_original_migration.sql` (MUST be run before this is pushed): `event_speakers.photo_original_url`, backfilled from `photo_url`. Written by `from-submission` (the rehosted raw file) and by `upload-asset` (the untouched bytes; speakers only, skipped when `?keep_original=1`). Cleaning, high-res and Delete Photo never touch it (`asset` DELETE no longer removes a `photo_url` that is the original). Details page: new first tile "Original Photo" + "↺ Start Over from Original"; the wizard has the same button (two-click confirm) in every step except while a job is running. Both re-run the upload step with the original as the file. VIPs not included.
+- Tested: Clarity pipeline on Jinesh Patel's (DFWS) real 167x150 raw photo through Clarity + PhotoRoom (scripts in .scratch/upscale); unit tests pass. NOT tested: the wizard UI click-through and the routes against the live DB.
+
 ## Last Session (19 Oct 2026, later) — Madhu + Claude Code (Sonnet 5.5). Theme: **VIP stakeholder type for badges, direct Website Photo upload, KonfHub company-clear fix**
 Handed off to: whoever picks up next. Three migrations were run by Madhu via psql (all additive, already applied in production): `supabase/event_vips_migration.sql`, `supabase/vip_photo_migration.sql`, `supabase/website_photo_manual_migration.sql`.
 

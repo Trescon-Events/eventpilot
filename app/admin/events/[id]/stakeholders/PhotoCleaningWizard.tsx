@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/app/components/ui'
 import type { HeadBox } from '@/app/lib/media/face-alignment'
 import PhotoFitEditor from './PhotoFitEditor'
+import { enlargementNeeded, isLowResolution } from '@/app/lib/media/photo-resolution'
+import { CLEANING_CYCLE_CANVAS_SIZE } from '@/app/lib/media/cleaning-cycle-constants'
 
 /* The guided Photo Cleaning flow (2026-08-21, replaces CleanPhotoWizard +
    HeadBoxEditorModal's standalone "Fix Head Position" use) — one modal that
@@ -57,13 +59,15 @@ import PhotoFitEditor from './PhotoFitEditor'
    just optionally performs the upload as its own first working step when
    entry.kind is 'upload'. */
 
-type Entry = { kind: 'existing'; url: string; headBox: HeadBox | null } | { kind: 'upload'; file: File }
+type Entry = { kind: 'existing'; url: string; headBox: HeadBox | null } | { kind: 'upload'; file: File; fromOriginal?: boolean }
 
 type Props = {
   eventId: string
   speakerId: string
   /** 'vip' (2026-10-19): the same wizard for a VIP's badge photo — id is the VIP's, routes get ?kind=vip, and the Website Photo steps are skipped. */
   kind?: 'speaker' | 'vip'
+  /** The photo exactly as the speaker submitted it (speakers only). Lets the producer start the whole cleaning over from it. */
+  originalUrl?: string | null
   entry: Entry
   onSaved: () => void | Promise<void>
   onClose: () => void
@@ -141,7 +145,7 @@ const STEP_LABELS: { key: Phase; label: string }[] = [
   { key: 'review', label: 'Review' },
 ]
 
-export default function PhotoCleaningWizard({ eventId, speakerId, kind = 'speaker', entry, onSaved, onClose }: Props) {
+export default function PhotoCleaningWizard({ eventId, speakerId, kind = 'speaker', originalUrl = null, entry, onSaved, onClose }: Props) {
   const q = kind === 'vip' ? '?kind=vip' : ''
   const [phase, setPhase] = useState<Phase>(entry.kind === 'upload' ? 'uploading' : 'compose')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -158,6 +162,13 @@ export default function PhotoCleaningWizard({ eventId, speakerId, kind = 'speake
 
   const [rawPhotoUrl, setRawPhotoUrl] = useState<string | null>(entry.kind === 'existing' ? entry.url : null)
   const [composeBox, setComposeBox] = useState<HeadBox>(entry.kind === 'existing' ? (entry.headBox ?? DEFAULT_BOX) : DEFAULT_BOX)
+  // "Make it High-Res" (rebuilt 2026-10-19). `lowRes` = the photo's face must be enlarged a lot to fill the frame (see photo-resolution.ts); it is
+  // judged once per photo from the head box the photo arrived with, not from the live drag, so the offer doesn't flicker while zooming.
+  const composeBoxRef = useRef(composeBox)
+  composeBoxRef.current = composeBox
+  const [lowRes, setLowRes] = useState<{ enlargement: number | null } | null>(null)
+  const [hr, setHr] = useState<{ status: 'idle' | 'working' | 'ready' | 'error'; before?: string; raw?: string; processed?: string; width?: number; height?: number; error?: string }>({ status: 'idle' })
+  const highResJobRef = useRef<string | null>(null)
   // The Cleaning Cycle template's own target ratios — fetched once on
   // mount so the Compose step's fixed ring can render before the producer
   // has made any choice at all (previously only ever learned indirectly,
@@ -263,6 +274,64 @@ export default function PhotoCleaningWizard({ eventId, speakerId, kind = 'speake
   const [websiteSkippedReason, setWebsiteSkippedReason] = useState<string | null>(null)
 
   const startedRef = useRef<Set<Phase>>(new Set())
+
+  useEffect(() => {
+    if (!rawPhotoUrl || !cleaningTarget) return
+    let cancelled = false
+    const img = new Image()
+    img.onload = () => {
+      if (cancelled) return
+      const box = composeBoxRef.current
+      const low = isLowResolution(img.naturalWidth, img.naturalHeight, box, cleaningTarget.heightRatio, CLEANING_CYCLE_CANVAS_SIZE)
+      setLowRes(low ? { enlargement: enlargementNeeded(img.naturalHeight, box, cleaningTarget.heightRatio, CLEANING_CYCLE_CANVAS_SIZE) } : null)
+    }
+    img.src = rawPhotoUrl
+    return () => { cancelled = true }
+  }, [rawPhotoUrl, cleaningTarget])
+
+  async function startHighRes() {
+    if (!rawPhotoUrl) return
+    setHr({ status: 'working', before: rawPhotoUrl })
+    try {
+      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/upscale${q}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'start' }) })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.job_id) { setHr({ status: 'error', error: data.error || 'Could not start the high-res job.' }); return }
+      highResJobRef.current = data.job_id
+      pollHighRes(data.job_id, 0, rawPhotoUrl)
+    } catch { setHr({ status: 'error', error: 'Could not reach the server — check your connection and try again.' }) }
+  }
+
+  async function pollHighRes(jobId: string, attempt: number, before: string) {
+    if (highResJobRef.current !== jobId) return
+    try {
+      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/job/${jobId}`)
+      const data = await res.json().catch(() => ({}))
+      if (highResJobRef.current !== jobId) return
+      if (!res.ok || data.status === 'error') { setHr({ status: 'error', error: data.error || 'The high-res step failed — please try again.' }); return }
+      if (data.status === 'processing') {
+        if (attempt >= 100) { setHr({ status: 'error', error: 'This is taking much longer than usual — please try again.' }); return }
+        setTimeout(() => pollHighRes(jobId, attempt + 1, before), 3000)
+        return
+      }
+      const r = data.result ?? {}
+      setHr({ status: 'ready', before, raw: r.raw_url, processed: r.processed_url, width: r.width, height: r.height })
+    } catch { if (highResJobRef.current === jobId) setTimeout(() => pollHighRes(jobId, attempt + 1, before), 3000) }
+  }
+
+  async function acceptHighRes() {
+    if (hr.status !== 'ready' || !hr.raw || !hr.processed) return
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/upscale${q}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'apply', raw_url: hr.raw, processed_url: hr.processed }) })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setErrorMsg(data.error || 'Could not save the high-res photo.'); return }
+      setRawPhotoUrl(data.photo_processed_url || hr.processed)
+      setHr({ status: 'idle' })
+      await onSaved()
+    } catch { setErrorMsg('Could not save the high-res photo — check your connection and try again.') } finally { setBusy(false) }
+  }
+
+  function discardHighRes() { highResJobRef.current = null; setHr({ status: 'idle' }) }
   // Guards a running poll against acting on stale state — set to the job id
   // currently in flight; a poll tick checks this is still itself before
   // touching any state, so a canceled/superseded run (Cancel back to
@@ -313,17 +382,43 @@ export default function PhotoCleaningWizard({ eventId, speakerId, kind = 'speake
     // eslint-disable-next-line react-hooks/exhaustive-deps -- each async step runs once per phase entry, guarded by startedRef; retry buttons re-invoke explicitly
   }, [phase])
 
-  function doUpload() {
-    if (entry.kind !== 'upload') return
+  // "Start over from the original" (2026-10-19): re-runs the upload step with the stored original as the file. keep_original tells the server not to
+  // replace the stored original with its own copy.
+  const restartFileRef = useRef<File | null>(null)
+  const [restartedFromOriginal, setRestartedFromOriginal] = useState(false)
+  const [restartArmed, setRestartArmed] = useState(false)
+  async function restartFromOriginal() {
+    if (!originalUrl) return
+    if (!restartArmed) { setRestartArmed(true); return }
+    setRestartArmed(false)
+    try {
+      const res = await fetch(originalUrl)
+      if (!res.ok) throw new Error('fetch')
+      const blob = await res.blob()
+      const ext = blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : 'jpg'
+      const file = new File([blob], `original.${ext}`, { type: blob.type })
+      restartFileRef.current = file
+      resetToCompose()
+      setRestartedFromOriginal(true)
+      startedRef.current.add('uploading')
+      setPhase('uploading')
+      doUpload(file)
+    } catch { setErrorMsg('Could not load the original photo — please try again.') }
+  }
+
+  function doUpload(fileOverride?: File) {
+    const file = fileOverride ?? restartFileRef.current ?? (entry.kind === 'upload' ? entry.file : null)
+    if (!file) return
+    const keepOriginal = !!fileOverride || !!restartFileRef.current || (entry.kind === 'upload' && !!entry.fromOriginal)
     setErrorMsg(null)
     setUploadStage('sending')
     setUploadProgress(0)
     const form = new FormData()
-    form.append('file', entry.file)
+    form.append('file', file)
     form.append('asset_type', 'photo')
 
     const xhr = new XMLHttpRequest()
-    xhr.open('POST', `/api/events/stakeholders/speakers/${speakerId}/upload-asset${q}`)
+    xhr.open('POST', `/api/events/stakeholders/speakers/${speakerId}/upload-asset${q}${keepOriginal ? `${q ? '&' : '?'}keep_original=1` : ''}`)
     xhr.upload.onprogress = e => { if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100)) }
     xhr.upload.onload = () => { setUploadStage('processing'); setElapsedSec(0) } // bytes fully sent — now waiting on PhotoRoom + Sharp server-side
     xhr.onload = async () => {
@@ -781,6 +876,8 @@ export default function PhotoCleaningWizard({ eventId, speakerId, kind = 'speake
   function resetToCompose() {
     startedRef.current.clear()
     cleaningJobIdRef.current = null
+    highResJobRef.current = null
+    setHr({ status: 'idle' })
     setChosenMode(null)
     setErrorMsg(null)
     setPendingClean(null)
@@ -814,7 +911,7 @@ export default function PhotoCleaningWizard({ eventId, speakerId, kind = 'speake
   // exclusive branches off Compose — only one set is ever relevant per
   // run, and neither is known until the producer actually picks a button.
   const visibleSteps = STEP_LABELS
-    .filter(s => entry.kind === 'upload' || s.key !== 'uploading')
+    .filter(s => entry.kind === 'upload' || restartedFromOriginal || s.key !== 'uploading')
     .filter(s => !(['cleaning', 'headfix-clean'] as Phase[]).includes(s.key) || chosenMode === 'ai_fill')
     // 'processing' is good/enhance's own synchronous crop step — ai_fill
     // never goes through it (headfix-clean/finalize does the equivalent
@@ -888,15 +985,25 @@ export default function PhotoCleaningWizard({ eventId, speakerId, kind = 'speake
           )}
 
           <div style={{ display: 'grid', gap: '7px' }}>
-            {phase === 'compose' && !templateError && cleaningTarget && (
+            {phase === 'compose' && !templateError && cleaningTarget && hr.status === 'ready' && (
               <>
+                <Button variant="lime" onClick={acceptHighRes} disabled={busy}>Use High-Res Version</Button>
+                <Button variant="ghost" onClick={discardHighRes} disabled={busy}>Keep Original</Button>
+              </>
+            )}
+            {phase === 'compose' && !templateError && cleaningTarget && hr.status === 'working' && (
+              <Button variant="ghost" onClick={discardHighRes}>Cancel High-Res</Button>
+            )}
+            {phase === 'compose' && !templateError && cleaningTarget && hr.status !== 'ready' && hr.status !== 'working' && (
+              <>
+                {lowRes && <Button variant="indigo" onClick={startHighRes} disabled={busy}>✨ Make it High-Res</Button>}
                 <Button variant="lime" onClick={() => chooseComposeAction('good')} disabled={busy || !composePhotoReachesBottom}>Looks Good, Continue</Button>
                 <Button variant="teal" onClick={() => chooseComposeAction('enhance')} disabled={busy || !composePhotoReachesBottom}>Enhance Only</Button>
                 <Button variant="indigo" onClick={() => chooseComposeAction('ai_fill')} disabled={busy}>AI Fill + Enhance</Button>
               </>
             )}
             {phase === 'uploading' && errorMsg && (
-              <Button variant="teal" onClick={doUpload}>Retry</Button>
+              <Button variant="teal" onClick={() => doUpload()}>Retry</Button>
             )}
             {phase === 'cleaning' && errorMsg && (
               <Button variant="teal" onClick={runClean}>Retry</Button>
@@ -962,6 +1069,12 @@ export default function PhotoCleaningWizard({ eventId, speakerId, kind = 'speake
             {phase !== 'review' && phase !== 'cleaned-photo' && (
               <Button variant="ghost" onClick={cancelCurrentStep}>Cancel</Button>
             )}
+            {originalUrl && kind === 'speaker' && !['uploading', 'cleaning', 'processing', 'website-photo'].includes(phase) && (
+              <Button variant="ghost" onClick={restartFromOriginal} disabled={busy}
+                title="Throws away the cleaning so far and starts again from the photo the speaker submitted">
+                {restartArmed ? 'Click again to confirm' : '↺ Start Over from Original'}
+              </Button>
+            )}
           </div>
         </div>
 
@@ -1014,7 +1127,34 @@ export default function PhotoCleaningWizard({ eventId, speakerId, kind = 'speake
                   <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
                     Drag the photo to position the head inside the ring, scroll or pinch to zoom — this shows exactly how the final photo will be framed. Then choose what this photo needs:
                   </div>
-                  <PhotoFitEditor photoUrl={rawPhotoUrl} target={cleaningTarget} initialHeadBox={composeBox} onChange={setComposeBox} onReachesBottomChange={setComposePhotoReachesBottom} onGapsChange={setComposeGaps} />
+                  {lowRes && hr.status !== 'ready' && (
+                    <div style={{ marginBottom: '12px', padding: '10px 12px', border: '1px solid var(--amber)', borderRadius: '8px', fontSize: '11.5px', color: 'var(--amber)' }}>
+                      This photo is small: the face would have to be enlarged about {lowRes.enlargement ? `${lowRes.enlargement.toFixed(1)}×` : 'a lot'} to fill the frame, so it will look soft{kind === 'speaker' ? ', and AI Fill will draw a sharper body below it' : ''}. Try <b>✨ Make it High-Res</b> first (about 30 seconds), or ask for a bigger original.
+                    </div>
+                  )}
+                  {hr.status === 'working' && (
+                    <div style={{ marginBottom: '12px', fontSize: '11.5px', color: 'var(--ink2)' }}>Making the photo high-res… this takes about 30 seconds. You can keep adjusting the framing below.</div>
+                  )}
+                  {hr.status === 'error' && (
+                    <div style={{ marginBottom: '12px', fontSize: '11.5px', color: 'var(--red)' }}>{hr.error}</div>
+                  )}
+                  {hr.status === 'ready' ? (
+                    <div>
+                      <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginBottom: '10px' }}>Compare the two. The high-res version adds detail without changing the person — if the face looks different to you, choose Keep Original. Nothing is saved until you accept.</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        {([['Original', hr.before], [`High-Res${hr.width && hr.height ? ` (${hr.width}×${hr.height})` : ''}`, hr.processed]] as const).map(([label, src]) => (
+                          <div key={label}>
+                            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink2)', marginBottom: '4px' }}>{label}</div>
+                            <div style={{ background: 'repeating-conic-gradient(#1c2a3a 0% 25%, #162231 0% 50%) 50% / 16px 16px', borderRadius: '8px', aspectRatio: '1 / 1', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                              {/* eslint-disable-next-line @next/next/no-img-element -- plain preview of a stored file */}
+                              <img src={src} alt={label} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (<>
+                  <PhotoFitEditor key={rawPhotoUrl} photoUrl={rawPhotoUrl} target={cleaningTarget} initialHeadBox={composeBox} onChange={setComposeBox} onReachesBottomChange={setComposePhotoReachesBottom} onGapsChange={setComposeGaps} />
                   {!composePhotoReachesBottom && (
                     <div style={{ marginTop: '10px', fontSize: '11.5px', color: 'var(--amber)' }}>
                       Body doesn&apos;t reach the bottom of the frame yet — drag/zoom until it does, or choose AI Fill + Enhance.
@@ -1030,6 +1170,7 @@ export default function PhotoCleaningWizard({ eventId, speakerId, kind = 'speake
                     <div><b style={{ color: 'var(--ink2)' }}>Enhance Only</b> — body already reaches the bottom, just needs sharpening/brightening.</div>
                     <div><b style={{ color: 'var(--ink2)' }}>AI Fill + Enhance</b> — body is cut off before the bottom, let AI fill in what&apos;s missing.</div>
                   </div>
+                  </>)}
                 </>
               )}
             </div>

@@ -7,6 +7,7 @@ import { computeRetention } from '@/app/lib/events/sensitive-retention'
 import { sensitiveDocumentFileName, publicNameForFile } from '@/app/lib/events/sensitive-doc-name'
 import { toStoredBioPdf } from '@/app/lib/events/full-bio-upload'
 import { detectHeadBox } from '@/app/lib/media/face-alignment'
+import { computeLowResolution } from '@/app/lib/media/photo-resolution-server'
 import { MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission, isEventFeatureEnabled } from '@/app/lib/access/event-access'
@@ -217,7 +218,8 @@ export async function POST(req: NextRequest) {
           rawBuffer,
           rawContentType
         )
-        await supabaseAdmin.from('event_speakers').update({ photo_url: rehostedUrl }).eq('id', speaker.id)
+        // photo_original_url: the submitted file as received, kept so the cleaning can always be restarted from it (2026-10-19)
+        await supabaseAdmin.from('event_speakers').update({ photo_url: rehostedUrl, photo_original_url: rehostedUrl }).eq('id', speaker.id)
         finalPhotoUrl = rehostedUrl
       } else {
         console.error('Could not fetch submitted photo to re-host for submission', submission.id, imgRes.status)
@@ -278,7 +280,9 @@ export async function POST(req: NextRequest) {
           console.error('Head detection failed for submission', submission.id, e)
         }
 
-        await supabaseAdmin.from('event_speakers').update({ photo_processed_url: processedUrl, photo_head_box: photoHeadBox }).eq('id', speaker.id)
+        // Same low-resolution verdict as the manual upload route (2026-10-19): this path never set it, so a tiny submitted photo showed no warning.
+        const photoLowResolution = await computeLowResolution(transparentPng, photoHeadBox).catch(() => false)
+        await supabaseAdmin.from('event_speakers').update({ photo_processed_url: processedUrl, photo_head_box: photoHeadBox, photo_low_resolution: photoLowResolution }).eq('id', speaker.id)
         finalPhotoUrl = processedUrl
       }
     } catch (e) {

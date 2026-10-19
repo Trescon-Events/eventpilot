@@ -73,6 +73,8 @@ type StakeholderRecord = {
   company_logo_url?: string | null; company_logo_raw_url?: string | null
   photo_head_box?: { centerXRatio: number; centerYRatio: number; heightRatio: number } | null
   photo_low_resolution?: boolean
+  /** The photo exactly as the speaker submitted it; never changed by cleaning. */
+  photo_original_url?: string | null
   photo_cleaning_cycle_done?: boolean
   website_photo_crop_warning?: { left: number; top: number; right: number; bottom: number } | null
   company_website?: string | null; company_description?: string | null
@@ -350,7 +352,8 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   // upload first) and refetch the record whenever the wizard reports a save.
   // See PhotoCleaningWizard's own top comment for why it's a full refetch
   // rather than a hand-maintained patch.
-  const [wizardEntry, setWizardEntry] = useState<{ kind: 'existing'; url: string; headBox: NonNullable<StakeholderRecord['photo_head_box']> | null } | { kind: 'upload'; file: File } | null>(null)
+  const [wizardEntry, setWizardEntry] = useState<{ kind: 'existing'; url: string; headBox: NonNullable<StakeholderRecord['photo_head_box']> | null } | { kind: 'upload'; file: File; fromOriginal?: boolean } | null>(null)
+  const [startingOver, setStartingOver] = useState(false)
   const rawPhotoInputRef = useRef<HTMLInputElement | null>(null)
   const websitePhotoInputRef = useRef<HTMLInputElement | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
@@ -843,6 +846,21 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   // separate upload popup first) — see PhotoCleaningWizard's top comment.
   function onRawPhotoPicked(file: File) {
     setWizardEntry({ kind: 'upload', file })
+  }
+
+  // "Start Over from Original" (2026-10-19): opens the wizard's upload step with the stored original as the file, so the whole cycle (cutout, head
+  // detection, cleaning) runs again from what the speaker submitted. fromOriginal keeps the stored original itself unchanged.
+  async function startOverFromOriginal() {
+    const url = record?.photo_original_url
+    if (!url) return
+    setStartingOver(true)
+    try {
+      const res = await fetch(url)
+      if (!res.ok) throw new Error('fetch failed')
+      const blob = await res.blob()
+      const ext = blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : 'jpg'
+      setWizardEntry({ kind: 'upload', file: new File([blob], `original.${ext}`, { type: blob.type }), fromOriginal: true })
+    } catch { setMsg('Could not load the original photo — please try again.') } finally { setStartingOver(false) }
   }
 
   async function uploadLogo(file: File) {
@@ -1614,6 +1632,21 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                 <div style={{ display: 'flex', gap: '40px', flexWrap: 'wrap' }}>
                   <div>
                     <AssetTile
+                      label="Original Photo" url={record.photo_original_url ?? null} filename={`${namePrefix}-photo-original.jpg`} size={176}
+                      onOpen={(url, label) => setLightbox({ url, label })}
+                    />
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
+                      <Button variant="ghost" onClick={startOverFromOriginal} disabled={!record.photo_original_url || startingOver}
+                        title="Run the whole photo cleaning again from the photo the speaker submitted">
+                        {startingOver ? 'Loading…' : '↺ Start Over from Original'}
+                      </Button>
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginTop: '10px', maxWidth: '200px' }}>
+                      {record.photo_original_url ? 'The photo as the speaker submitted it. Kept as is — cleaning never changes it.' : 'No original on file yet — it is saved the next time a photo is uploaded.'}
+                    </div>
+                  </div>
+                  <div>
+                    <AssetTile
                       label="Cleaned Photo" url={cleanPhoto} filename={`${namePrefix}-photo-clean.png`} size={176}
                       onOpen={(url, label) => setLightbox({ url, label })}
                       badges={[
@@ -2091,6 +2124,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
         <PhotoCleaningWizard
           eventId={eventId}
           speakerId={stakeholderId}
+          originalUrl={kind === 'speaker' ? record?.photo_original_url ?? null : null}
           entry={wizardEntry}
           onSaved={load}
           onClose={() => setWizardEntry(null)}

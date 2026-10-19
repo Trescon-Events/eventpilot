@@ -3,6 +3,7 @@ import sharp from 'sharp'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { processLogo } from '@/app/lib/media/logo-engine'
+import { computeLowResolution } from '@/app/lib/media/photo-resolution-server'
 import { photoSubject, loadPhotoSubject } from '@/app/lib/stakeholders/photo-subject'
 import { processSpeakerPhoto, MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine'
 import { detectHeadBox } from '@/app/lib/media/face-alignment'
@@ -143,9 +144,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // any resize/compression. Threshold is deliberately generous (our
   // largest canvas is ~1024px) — this flags only photos that would need
   // real upscaling, not just smaller-than-max ones.
-  const LOW_RES_THRESHOLD_PX = 500
-  const rawMetadata = await sharp(buffer).metadata()
-  const photoLowResolution = Math.min(rawMetadata.width ?? 0, rawMetadata.height ?? 0) < LOW_RES_THRESHOLD_PX
 
   const [resizedOriginal, processed, photoHeadBox] = await Promise.all([
     // .rotate() with no args = auto-orient from EXIF then strip the tag —
@@ -171,7 +169,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }),
   ])
 
-  const [photoUrl, photoProcessedUrl] = await Promise.all([
+  // The photo exactly as received, kept untouched so a producer can always start the cleaning over from it (2026-10-19). Speakers only. A
+  // "Start over from original" re-upload passes ?keep_original=1 so it does not replace the very file it came from.
+  const storeOriginal = subj.kind === 'speaker' && req.nextUrl.searchParams.get('keep_original') !== '1'
+  const originalExt = photoType === 'image/png' ? 'png' : photoType === 'image/webp' ? 'webp' : 'jpg'
+  const [photoUrl, photoProcessedUrl, photoOriginalUrl] = await Promise.all([
     uploadPublicAsset(
       `events/${speaker.event_id}/${subj.folder}/${speakerId}/photo-${Date.now()}.jpg`,
       resizedOriginal,
@@ -184,13 +186,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           'image/png'
         )
       : Promise.resolve(null),
+    storeOriginal
+      ? uploadPublicAsset(`events/${speaker.event_id}/speakers/${speakerId}/photo-original-${Date.now()}.${originalExt}`, buffer, photoType)
+      : Promise.resolve(null),
   ])
 
   // A new/replaced photo invalidates any prior Cleaning Cycle result, same
   // as a manual head-fix or re-crop (2026-08-21) — it was standardized
   // against a different image entirely.
+  // Low-resolution verdict (2026-10-19): the shorter side AND how much the face must be enlarged to fill the Cleaning Cycle frame — see
+  // photo-resolution.ts. Computed here, from the raw file's own pixels and the detected head box.
+  const photoLowResolution = await computeLowResolution(buffer, photoHeadBox).catch(() => false)
   const update: Record<string, unknown> = { photo_url: photoUrl, updated_at: new Date().toISOString(), photo_head_box: photoHeadBox, photo_low_resolution: photoLowResolution, photo_cleaning_cycle_done: false, ...reapprovalReset }
   if (photoProcessedUrl) update.photo_processed_url = photoProcessedUrl
+  if (photoOriginalUrl) update.photo_original_url = photoOriginalUrl
 
   const { data, error } = await supabaseAdmin
     .from(subj.table)
