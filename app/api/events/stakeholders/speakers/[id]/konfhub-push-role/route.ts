@@ -37,7 +37,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: speaker, error: speakerError } = await supabaseAdmin
     .from('event_speakers')
-    .select('event_id, public_name, pronoun_style, photo_cleaning_cycle_done, website_card_url, company_logo_url, bio, role, company, linkedin_url, konfhub_primary_role_tag_id')
+    .select('event_id, public_name, pronoun_style, photo_cleaning_cycle_done, website_photo_manual, website_card_url, company_logo_url, bio, role, company, linkedin_url, konfhub_primary_role_tag_id')
     .eq('id', speakerId)
     .single()
   if (speakerError) {
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!speaker.public_name?.trim() || !speaker.pronoun_style) {
     return NextResponse.json({ error: 'Set Public Name and Pronoun / Honorific Style first.' }, { status: 422 })
   }
-  if (!speaker.photo_cleaning_cycle_done) return NextResponse.json({ error: 'Clean the photo first.' }, { status: 422 })
+  if (!speaker.photo_cleaning_cycle_done && !speaker.website_photo_manual) return NextResponse.json({ error: 'Clean the photo first, or upload a Website Photo.' }, { status: 422 })
   if (!speaker.website_card_url) return NextResponse.json({ error: 'Generate the Website Photo first.' }, { status: 422 })
 
   const roles = await getEventRoles(speaker.event_id)

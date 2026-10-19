@@ -60,7 +60,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: speaker } = await supabaseAdmin
     .from('event_speakers')
-    .select('event_id, public_name, pronoun_style, photo_cleaning_cycle_done, website_card_url, company_logo_url, bio, role, company, country, linkedin_url, konfhub_speaker_id, konfhub_primary_role_tag_id')
+    .select('event_id, public_name, pronoun_style, photo_cleaning_cycle_done, website_photo_manual, website_card_url, company_logo_url, bio, role, company, country, linkedin_url, konfhub_speaker_id, konfhub_primary_role_tag_id')
     .eq('id', speakerId)
     .single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
@@ -76,8 +76,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!speaker.public_name?.trim() || !speaker.pronoun_style) {
     return NextResponse.json({ error: 'Set Public Name and Pronoun / Honorific Style first.' }, { status: 422 })
   }
-  if (!speaker.photo_cleaning_cycle_done) {
-    return NextResponse.json({ error: 'Clean the photo first.' }, { status: 422 })
+  // A website photo uploaded directly (website_photo_manual) stands in for the Clean Photo cycle.
+  if (!speaker.photo_cleaning_cycle_done && !speaker.website_photo_manual) {
+    return NextResponse.json({ error: 'Clean the photo first, or upload a Website Photo.' }, { status: 422 })
   }
   if (!speaker.website_card_url) {
     return NextResponse.json({ error: 'Generate the Website Photo first.' }, { status: 422 })

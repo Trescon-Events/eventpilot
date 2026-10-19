@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
     const finalBuffer = await sharp(composedBuffer).webp({ quality: 85 }).toBuffer()
 
     const websiteCardUrl = await uploadPublicAsset(`events/${body.event_id}/speakers/${body.speaker_id}/website-photo/${Date.now()}.webp`, finalBuffer, 'image/webp')
-    const { error: updateErr } = await supabaseAdmin.from('event_speakers').update({ website_card_url: websiteCardUrl, website_photo_crop_warning: cropWarning }).eq('id', body.speaker_id)
+    const { error: updateErr } = await supabaseAdmin.from('event_speakers').update({ website_card_url: websiteCardUrl, website_photo_manual: false, website_photo_crop_warning: cropWarning }).eq('id', body.speaker_id)
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
     return NextResponse.json({ website_card_url: websiteCardUrl, crop_warning: cropWarning })
   } catch (e) {

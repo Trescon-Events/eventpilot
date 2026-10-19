@@ -14,7 +14,7 @@ import { uploadPublicAsset } from '@/app/lib/events/storage'
    team hand-produces one instead. Unlike a raw speaker photo, this is
    already a finished, ready-to-publish creative, not an input for anything
    downstream — so no crop/compositing here, only a format normalization.
-   Sets website_card_url directly and clears website_photo_crop_warning,
+   Sets website_card_url directly, marks it website_photo_manual (2026-10-19: lets Push to KonfHub go ahead for a speaker whose photo is not being cleaned) and clears website_photo_crop_warning,
    which only ever meant something for a generated result.
 
    Re-encoded to WebP on the way in (2026-09-12, per Madhu) — website_card_url
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from('event_speakers')
-    .update({ website_card_url: websiteCardUrl, website_photo_crop_warning: null, updated_at: new Date().toISOString() })
+    .update({ website_card_url: websiteCardUrl, website_photo_crop_warning: null, website_photo_manual: true, updated_at: new Date().toISOString() })
     .eq('id', speakerId)
     .select('website_card_url')
     .single()

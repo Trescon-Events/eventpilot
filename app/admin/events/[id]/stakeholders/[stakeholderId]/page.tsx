@@ -69,6 +69,7 @@ type StakeholderRecord = {
   country?: string | null; bio?: string | null; linkedin_url?: string | null
   photo_url?: string | null; photo_processed_url?: string | null
   website_card_url?: string | null
+  website_photo_manual?: boolean
   company_logo_url?: string | null; company_logo_raw_url?: string | null
   photo_head_box?: { centerXRatio: number; centerYRatio: number; heightRatio: number } | null
   photo_low_resolution?: boolean
@@ -351,6 +352,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   // rather than a hand-maintained patch.
   const [wizardEntry, setWizardEntry] = useState<{ kind: 'existing'; url: string; headBox: NonNullable<StakeholderRecord['photo_head_box']> | null } | { kind: 'upload'; file: File } | null>(null)
   const rawPhotoInputRef = useRef<HTMLInputElement | null>(null)
+  const websitePhotoInputRef = useRef<HTMLInputElement | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
 
   const [logoApproval, setLogoApproval] = useState<{ url: string } | null>(null)
@@ -780,6 +782,25 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     }
   }
 
+  // Upload a finished Website Photo (made outside EventPilot, e.g. in Canva) for speakers who don't want their photo edited.
+  async function uploadWebsitePhoto(file: File) {
+    setProcessing({ label: 'Uploading website photo…', estimatedMs: 3000 })
+    setMsg(null)
+    const form = new FormData()
+    form.append('file', file); form.append('event_id', eventId); form.append('speaker_id', stakeholderId)
+    try {
+      const res = await fetch('/api/events/stakeholders/speakers/website-photo/upload', { method: 'POST', body: form })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setMsg(data.error || 'Could not upload this photo — please try again.'); return }
+      setRecord(prev => prev ? { ...prev, website_card_url: data.website_card_url, website_photo_crop_warning: null, website_photo_manual: true } : prev)
+      setMsg('Website Photo uploaded. It will be used as it is.')
+    } catch {
+      setMsg('Could not upload this photo — check your connection and try again.')
+    } finally {
+      setProcessing(null)
+    }
+  }
+
   async function generateWebsitePhoto() {
     setGeneratingWebsitePhoto(true)
     setProcessing({ label: 'Generating website photo…', estimatedMs: 3000 })
@@ -1098,14 +1119,17 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   // readyForApproval/missingRequiredSpeakerFields rather than a second,
   // independently-drifting copy) — speaker-only, since partners have no
   // KonfHub Speakers-API equivalent yet.
+  // A Website Photo uploaded directly (website_photo_manual) stands in for the Clean Photo cycle here (2026-10-19) — Approve for
+  // announcement still needs the cleaned photo, since announcement creatives are built from it.
+  const readyForKonfhub = record.website_photo_manual === true ? !!record.website_card_url : readyForApproval
   const pushToKonfhubBlockedReason = kind !== 'speaker'
     ? null
     : missingRequiredSpeakerFields
     ? 'Set Public Name and Pronoun / Honorific Style first.'
     : dirty
     ? 'Save your changes first.'
-    : !readyForApproval
-    ? (!record.photo_cleaning_cycle_done ? 'Clean the photo first.' : 'Generate the Website Photo first.')
+    : !readyForKonfhub
+    ? (!record.photo_cleaning_cycle_done ? 'Clean the photo first, or upload a Website Photo.' : 'Generate the Website Photo first.')
     : null
   const isKonfhubFirstPush = !record.konfhub_speaker_id
   // Same three gates again — an additional-role record is cosmetically
@@ -1635,7 +1659,16 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                         <Button variant="ghost" onClick={generateWebsitePhoto} disabled={!cleanPhoto || generatingWebsitePhoto}
                           title={!cleanPhoto ? 'Upload and clean a photo first' : undefined}>
                           {generatingWebsitePhoto ? 'Generating…' : record.website_card_url ? 'Regenerate Website Photo' : 'Generate Website Photo'}
+                        </Button>{' '}
+                        <Button variant="ghost" onClick={() => websitePhotoInputRef.current?.click()} disabled={generatingWebsitePhoto}
+                          title="For speakers who don't want their photo edited: upload a finished website photo (JPG, PNG or WebP)">
+                          Upload Website Photo
                         </Button>
+                        <input ref={websitePhotoInputRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
+                          onChange={e => { const f = e.target.files?.[0]; if (f) void uploadWebsitePhoto(f); e.target.value = '' }} />
+                        {record.website_photo_manual && record.website_card_url && (
+                          <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginTop: '8px', maxWidth: '260px' }}>Uploaded directly — used as it is, not generated from the cleaned photo.</div>
+                        )}
                       </div>
                     )}
                     {record.website_photo_crop_warning && (
