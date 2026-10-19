@@ -2,8 +2,9 @@ import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes 
 
 /* Thin passthrough wrappers applying .tfield (app/globals.css) onto the native form elements. */
 
-export function Input({ className = '', ...rest }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={`tfield ${className}`.trim()} {...rest} />
+// The app is dark-only: date/time/number inputs ask the browser for its dark controls so the built-in clock / calendar icons are visible (2026-10-19).
+export function Input({ className = '', style, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
+  return <input className={`tfield ${className}`.trim()} style={{ colorScheme: 'dark', ...style }} {...rest} />
 }
 
 // Native select with our own chevron drawn 16px in from the right edge, so the arrow never touches the border (2026-10-18).
