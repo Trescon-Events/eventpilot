@@ -23,7 +23,7 @@ import { FieldSchema, SubmittedValue, asText } from '@/app/lib/forms/types'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import { pronounLabel } from '@/app/lib/events/pronoun-styles'
 
-type TriState = 'pending' | 'created' | 'published' | 'awaiting_approval'
+type TriState = 'pending' | 'created' | 'awaiting_approval' | 'approved' | 'scheduled' | 'published'
 type SelfPromoState = 'pending' | 'created' | 'sent'
 
 type Speaker = {
@@ -156,6 +156,8 @@ const STATE_COPY: Record<string, { text: string; color: string }> = {
   pending:   { text: 'Pending',   color: 'var(--ink)' },
   created:   { text: 'Created',   color: 'var(--amber)' },
   awaiting_approval: { text: 'Pending approval', color: 'var(--amber)' },
+  approved:  { text: 'Approved',  color: 'var(--teal-mid)' },
+  scheduled: { text: 'Scheduled', color: 'var(--teal-mid)' },
   published: { text: 'Published', color: 'var(--success)' },
   sent:      { text: 'Sent',      color: 'var(--success)' },
 }

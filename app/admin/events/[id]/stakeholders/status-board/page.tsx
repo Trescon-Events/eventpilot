@@ -20,7 +20,7 @@ import { getFeatureDef } from '@/app/lib/registry/feature-flags'
    column server-side (see that route + app/lib/events/speaker-status.ts
    for exactly what each status means and where it's sourced from). */
 
-type TriState = 'pending' | 'created' | 'published' | 'awaiting_approval'
+type TriState = 'pending' | 'created' | 'awaiting_approval' | 'approved' | 'scheduled' | 'published'
 type SelfPromoState = 'pending' | 'created' | 'sent'
 type DocStatus = 'missing' | 'in_progress' | 'reviewed'
 type ShortBioStatus = 'missing' | 'in_progress' | 'approved'
@@ -126,12 +126,13 @@ const SPEAKER_COL_WIDTH = '260px'
 const STATUS_RED = 'var(--red)'
 const STATUS_AMBER = 'var(--amber)'
 const STATUS_GREEN = 'var(--success)'
+const STATUS_TEAL = 'var(--teal-mid)'
 
 const TRISTATE_COLOR: Record<string, string> = {
-  pending: STATUS_RED, created: STATUS_AMBER, awaiting_approval: STATUS_AMBER, published: STATUS_GREEN, sent: STATUS_GREEN, guest_missing: STATUS_RED, guest_ready: STATUS_AMBER,
+  pending: STATUS_RED, created: STATUS_AMBER, awaiting_approval: STATUS_AMBER, approved: STATUS_TEAL, scheduled: STATUS_TEAL, published: STATUS_GREEN, sent: STATUS_GREEN, guest_missing: STATUS_RED, guest_ready: STATUS_AMBER,
 }
 const TRISTATE_LABEL: Record<string, string> = {
-  pending: 'Pending', created: 'In Progress', awaiting_approval: 'Pending Approval', published: 'Published', sent: 'Sent', guest_missing: 'No Link', guest_ready: 'Link Ready',
+  pending: 'Pending', created: 'In Progress', awaiting_approval: 'Pending Approval', approved: 'Approved', scheduled: 'Scheduled', published: 'Published', sent: 'Sent', guest_missing: 'No Link', guest_ready: 'Link Ready',
 }
 
 // Word-wraps naturally inside a narrow column (e.g. "In Progress" breaks

@@ -17,8 +17,19 @@ import { fetchAwaitingApprovalIds } from '@/app/lib/events/approval-round'
    'pending'. Two batched queries for the whole roster rather than N+1 per
    speaker. */
 
-/* 'awaiting_approval' (Social Post only): an external/client approval round was sent and nobody has answered yet. */
-export type TriState = 'pending' | 'created' | 'published' | 'awaiting_approval'
+/* Social Post follows the post through its real stages (2026-10-19, per Madhu): created (a draft) -> awaiting_approval (an external/client round was sent
+   and nobody has answered yet, or the post is in internal review) -> approved -> scheduled -> published. With several posts the furthest stage wins. */
+export type TriState = 'pending' | 'created' | 'awaiting_approval' | 'approved' | 'scheduled' | 'published'
+
+/** The Social Post state from a stakeholder's org_promo announcements (shared by speakers and partners). */
+export function socialPostState(items: { id: string; status: string }[], awaiting: Set<string>): TriState {
+  if (items.length === 0) return 'pending'
+  if (items.some(i => i.status === 'published')) return 'published'
+  if (items.some(i => i.status === 'scheduled')) return 'scheduled'
+  if (items.some(i => i.status === 'approved')) return 'approved'
+  if (items.some(i => i.status === 'pending_review' || awaiting.has(i.id))) return 'awaiting_approval'
+  return 'created'
+}
 export type SelfPromoState = 'pending' | 'created' | 'sent'
 
 // Website column — 'published' once actually pushed to KonfHub (which also
@@ -41,12 +52,12 @@ export async function fetchAnnouncementStatus(speakerIds: string[]): Promise<Map
     .select('id, speaker_id, announcement_kind, status')
     .in('speaker_id', speakerIds)
 
-  const bySpeaker = new Map<string, { orgPromoStatuses: string[]; orgPromoIds: string[]; selfPromoIds: string[] }>()
+  const bySpeaker = new Map<string, { orgPromo: { id: string; status: string }[]; selfPromoIds: string[] }>()
   for (const a of announcements ?? []) {
     if (!a.speaker_id) continue
-    const entry = bySpeaker.get(a.speaker_id) ?? { orgPromoStatuses: [], orgPromoIds: [], selfPromoIds: [] }
+    const entry = bySpeaker.get(a.speaker_id) ?? { orgPromo: [], selfPromoIds: [] }
     if (a.announcement_kind === 'self_promo') entry.selfPromoIds.push(a.id)
-    else { entry.orgPromoStatuses.push(a.status); entry.orgPromoIds.push(a.id) }
+    else entry.orgPromo.push({ id: a.id, status: a.status })
     bySpeaker.set(a.speaker_id, entry)
   }
 
@@ -61,14 +72,10 @@ export async function fetchAnnouncementStatus(speakerIds: string[]): Promise<Map
     sentAnnouncementIds = new Set((sends ?? []).map(s => s.announcement_id))
   }
 
-  const awaiting = await fetchAwaitingApprovalIds([...bySpeaker.values()].flatMap(e => e.orgPromoIds))
+  const awaiting = await fetchAwaitingApprovalIds([...bySpeaker.values()].flatMap(e => e.orgPromo.map(o => o.id)))
 
   for (const [speakerId, entry] of bySpeaker) {
-    const socialPostStatus: TriState =
-      entry.orgPromoStatuses.length === 0 ? 'pending'
-      : entry.orgPromoStatuses.includes('published') ? 'published'
-      : entry.orgPromoIds.some(id => awaiting.has(id)) ? 'awaiting_approval'
-      : 'created'
+    const socialPostStatus = socialPostState(entry.orgPromo, awaiting)
     const selfPromoStatus: SelfPromoState =
       entry.selfPromoIds.length === 0 ? 'pending'
       : entry.selfPromoIds.some(id => sentAnnouncementIds.has(id)) ? 'sent'

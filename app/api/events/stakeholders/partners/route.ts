@@ -1,4 +1,5 @@
 import { fetchAwaitingApprovalIds } from '@/app/lib/events/approval-round'
+import { socialPostState } from '@/app/lib/events/speaker-status'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
@@ -76,7 +77,7 @@ export async function GET(req: NextRequest) {
   })))
 }
 
-type TriState = 'pending' | 'created' | 'published' | 'awaiting_approval'
+type TriState = import('@/app/lib/events/speaker-status').TriState
 
 // Same proxy/eligibility logic as the speakers route (KonfHub sync is
 // shared, event_sponsors has the same status/active/konfhub_booking_id
@@ -109,7 +110,7 @@ async function fetchPartnerSocialPostStatus(partnerIds: string[]): Promise<Map<s
     byPartner.set(a.partner_id, [...(byPartner.get(a.partner_id) ?? []), { status: a.status, id: a.id }])
   }
   for (const [partnerId, items] of byPartner) {
-    result.set(partnerId, items.some(i => i.status === 'published') ? 'published' : items.some(i => awaiting.has(i.id)) ? 'awaiting_approval' : 'created')
+    result.set(partnerId, socialPostState(items, awaiting))
   }
   return result
 }
