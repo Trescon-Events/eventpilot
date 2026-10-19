@@ -49,8 +49,14 @@ export async function GET(req: NextRequest) {
     : { data: [] }
 
   // Days come from KonfHub (its start..end dates) for KonfHub-linked events, so a day with no sessions yet still shows; best effort, never blocks the page.
+  // An event on a SHARED KonfHub event (e.g. FIFF on DFFW's) sets its own window in event_websites.konfhub_agenda_start_date/end_date, which wins.
   let konfhubDays: string[] | null = null
-  if (website?.konfhub_event_id && website.konfhub_client_id && website.konfhub_client_secret) {
+  const ownStart = (website as { konfhub_agenda_start_date?: string | null } | null)?.konfhub_agenda_start_date
+  const ownEnd = (website as { konfhub_agenda_end_date?: string | null } | null)?.konfhub_agenda_end_date
+  if (ownStart && ownEnd && ownEnd >= ownStart) {
+    konfhubDays = []
+    for (let d = new Date(ownStart + 'T00:00:00Z'); d <= new Date(ownEnd + 'T00:00:00Z') && konfhubDays.length < 31; d.setUTCDate(d.getUTCDate() + 1)) konfhubDays.push(d.toISOString().slice(0, 10))
+  } else if (website?.konfhub_event_id && website.konfhub_client_id && website.konfhub_client_secret) {
     try { konfhubDays = (await fetchKonfhubEventDays(website.konfhub_event_id, await getKonfhubToken(website.konfhub_client_id, website.konfhub_client_secret))).days } catch { konfhubDays = null }
   }
   const labelsOf = (kind: string) => (tagMapRows ?? []).filter(r => r.kind === kind).map(r => r.label)
