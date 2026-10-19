@@ -11,6 +11,38 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 ---
 
+## Last Session (17–19 Oct 2026) — Madhu + Claude Code (Sonnet 5.5). Theme: **BSS Agenda Manager ↔ KonfHub sync, event workspace cleanup, guest links**
+Handed off to: whoever picks up next (Madhu or Durga). All commits are on `origin/main` (last: `fe8bacc`, CI green). Local `.scratch/` is untracked on purpose.
+
+**Built (all pushed)**
+- **Agenda Manager rebuilt** (`app/admin/events/[id]/agenda/`): Day and Stage dropdowns, sessions as rows with a sync chip (✓ In sync / Not pushed yet / Changed in KonfHub / Not synced / Not on KonfHub), large session popup (title, description, date, start, end, stage, theme, session type, speakers; "More" holds room, slot kind, location, capacity, colour). Days come from KonfHub's event start..end dates (`fetchKonfhubEventDays`), so empty days show. Buttons: **Save as draft** (EventPilot only) / **Save and publish** (creates on KonfHub); a session already on KonfHub gets one **Save and update KonfHub**. Header "Publish N drafts" now also pushes (tag-mode events). The old drag-and-drop `TimelineGrid.tsx` is unused but kept.
+- **Per-event KonfHub mapping** (Integrations → Agenda mapping card, `AgendaMappingCard.tsx`, API `/api/events/konfhub/agenda-mapping`): `agenda_stage_mode` ('track' = DFFW style, 'tag' = BSS style), stage/session type/theme/room filters mapped into `event_konfhub_tag_map` (kinds stage|format|theme|room), `agenda_push_session_type` (BSS = false, never touch KonfHub's numeric type). Import of existing KonfHub sessions in place (`app/lib/agenda/konfhub-import.ts`, `/api/events/konfhub/import-agenda`, dry run first).
+- **Push safety** (`app/lib/agenda/konfhub-push.ts`): single-session push (`onlySessionId`) used by edits, speaker edits, publish; drift guard (a session edited in KonfHub since last sync is not overwritten, "overwrite" tickbox forces it); unmapped stage/theme/format SKIPS the session instead of stripping its tag; description only sent when its text changed (keeps KonfHub's HTML); `normText` compare.
+- **Delete** a KonfHub-linked session now deletes it on KonfHub too (`DELETE /api/events/agenda-v2/sessions?...&confirm_konfhub=1`): backup row first in `event_agenda_deleted_sessions` (EP row, speakers, KonfHub JSON), KonfHub first, local only after KonfHub accepts. Never deletes tracks (KonfHub deletes a track's sessions with it).
+- **Event workspace** (`app/admin/events/[id]/page.tsx`): only Event Details, Stakeholder Hub, Agenda Manager, Press Release Studio, Operations Hub + Settings pages as cards, filtered by `/api/events/access/my-events` toolKeys and feature flags. Everything older (Event Brief, Execution Flow, Planning Board, Commercial P&L, Brand Studio, Website Builder, Content Campaigns, checklist, report) is hidden, NOT deleted; routes still work. Some now-unused checklist/report state remains in that file.
+- UI: shared `Select` draws its own chevron (arrow no longer touches the border); `Input` uses dark browser controls (visible clock/calendar icons); false clash fixed (sessions are no longer padded to 15 minutes); speaker role dropdown shows the speaker's own role ("Speaker (from their record)") instead of "Main role"; Roundtable Leader field/warnings removed (no event uses it).
+- Earlier this stretch (also pushed): Brand & Content workspace, Standards API, Company profile (Save = working copy, Approve = super admin), photo pipeline face-fidelity fixes, audit tables.
+
+**DB changes (Madhu authorised running migrations himself; I ran them via psql): ** `supabase/agenda_konfhub_mapping_migration.sql` (adds `event_websites.agenda_stage_mode`, `agenda_push_session_type`, `event_agenda_sessions.theme`, widens tag-map kinds), `supabase/agenda_deleted_sessions_migration.sql`. Both additive and already applied in production.
+
+**BSS data done (2026-10-18/19)**: `agenda-builder` flag ON; mapping set (stage as tag, Session Type, Theme filters; type push off); 39 KonfHub sessions imported and linked (dry-run push = 39 unchanged); one real session (Cultural Performance, day 2) deleted + recreated + created on KonfHub as test; 41 guest-invite links from `~/Downloads/Confirmed Speakers (1).xlsx` ("Registration Links" sheet) saved to matching speakers and verified against KonfHub's code export (all "Speaker Guest Pass", limit 5). NOT saved on purpose: Prachi Windlass, Arunkumar Pillai, Partha Basu, Mohan Rao Goli (on hold); Akshay Ramesh and S. Vidyashankar (ignored); Phani Sama's link was saved by Madhu by hand.
+
+**Things learned (read before touching KonfHub)**
+- KonfHub API reference = Postman doc, readable as JSON (`documenter.gw.postman.com/api/collections/45357564/2sBY4HSiDn`). Sessions and tracks have full CRUD. **No endpoints for filters/filter tags** (tag add/rename/delete from EventPilot stays on hold; ask KonfHub). Memory: `reference_konfhub_api_postman_doc.md`.
+- Guest-pass coupons: `PUT /event/:id/coupons/:couponId {max_limit}` works (tested with throwaway coupons) but needs the coupon UUID, only stored for codes EventPilot created; hand-made codes have no retrievable id. Madhu decided top-ups for hand-made codes stay manual via the delegate team. Memory: `eventpilot_guest_pass_limit_override.md`.
+- BSS website (bengaluruskillsummit.com) reads KonfHub's flat sessions list and filters by tag names: tag names are a contract. A "deleted session still showing" alarm on 18 Oct was a false alarm (wrong day viewed).
+- Local dev server note: `app/globals.css` changes did not hot-reload; put styling in components (inline) when verifying locally. Local dev talks to the PRODUCTION Supabase, so do not create test sessions there casually.
+- Roundtable hosts are written into the session description (no KonfHub tag: hosts send no photo).
+
+**Not done / next**
+1. A controlled live test of the full write path on BSS (edit description, add a speaker, create via Save and publish, delete) was only partly done (create + delete worked; others verified by dry run).
+2. KonfHub → EventPilot is not automatic: a KonfHub-side edit shows "Changed in KonfHub" on page load; there is no one-click "pull KonfHub's version in" yet.
+3. Old "Agenda Tags" card on Integrations still exists beside the new mapping card (merging touches DFFW's mapping, left alone).
+4. Possible later: only show the draft/publish choice for unlinked sessions (already so); per-speaker guest-pass override for EventPilot-created codes.
+5. Held earlier: push Gururaj's photo and Dr. Nidhi Pundhir's designation to KonfHub; 195-speaker AI-photo list; delete the two BSS test speakers (decide).
+
+---
+
 ## Follow-up: document history panel (Madhu, 17 Oct 2026)
 Show the audit trail on each messaging document: who, what, when. The data is already recorded since 17 Oct in `messaging_doc_audit` (upload, word_upload, patch, delete, propose_edit, apply_edit, approve, clarification_answer, suggested_rule_accept/dismiss, each with the signed-in staff id and a short detail), plus `event_messaging_doc_edits` for applied edits. Build a "History" panel on the document view (event, umbrella and Trescon-wide) that lists those rows newest first with the person's name. Not built yet: no screen shows the history today.
 
