@@ -138,7 +138,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       konfhubSpeakerId = await createKonfhubSpeaker(website.konfhub_event_id, token, { ...fields, speaker_order: maxOrder + 1 })
     } else {
       konfhubSpeakerId = speaker.konfhub_speaker_id!
-      await updateKonfhubSpeaker(website.konfhub_event_id, konfhubSpeakerId, token, fields)
+      // A company cleared in EventPilot must clear it on KonfHub too (2026-10-19, FTF Jorge Carrasco): `fields.organisation` is
+      // undefined when blank (so first pushes and other keys never overwrite KonfHub), and an omitted key leaves the old value there.
+      await updateKonfhubSpeaker(website.konfhub_event_id, konfhubSpeakerId, token, speaker.company?.trim() ? fields : { ...fields, organisation: '' })
     }
 
     const syncedAt = new Date().toISOString()
