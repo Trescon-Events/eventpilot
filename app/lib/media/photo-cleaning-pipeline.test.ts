@@ -77,3 +77,48 @@ test('the background is one uniform chroma-key green, never the model\'s slightl
   assert.deepEqual(await px(out, 2, 30), [0, 255, 0])
   assert.deepEqual(await px(out, 40, 30), [0, 255, 0])
 })
+
+// Aligned body (2026-10-19): the model redraws the person bigger/shifted; registration must recover that, and the original head must survive.
+import { registerModelToPlaced, composeAlignedBody } from './photo-cleaning-pipeline'
+async function texture(w: number, h: number): Promise<Buffer> {
+  const px = Buffer.alloc(w * h * 4)
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * 4, v = 128 + 70 * Math.sin(x / 9) * Math.cos(y / 7) + 40 * Math.sin((x + y) / 23)
+    px[i] = v; px[i + 1] = v * 0.8; px[i + 2] = v * 0.6; px[i + 3] = 255
+  }
+  return sharp(px, { raw: { width: w, height: h, channels: 4 } }).png().toBuffer()
+}
+test('registerModelToPlaced recovers a scale and shift', async () => {
+  const placed = await texture(1024, 1024)
+  const head = { centerXRatio: 0.5, centerYRatio: 0.4, heightRatio: 0.35 }
+  // the "model" picture = placed scaled 1.1x and shifted (+40, +30) px
+  const big = await sharp(placed).resize(1126, 1126).png().toBuffer()
+  const bigCanvas = await sharp({ create: { width: 3200, height: 3200, channels: 3, background: { r: 0, g: 255, b: 0 } } }).composite([{ input: big, left: 1024 + 40, top: 1024 + 30 }]).png().toBuffer()
+  const model = await sharp(bigCanvas).extract({ left: 1024, top: 1024, width: 1024, height: 1024 }).png().toBuffer()
+  const reg = await registerModelToPlaced(model, placed, head)
+  assert.ok(reg.score > 0.95, `score ${reg.score}`)
+  // the registration maps the model ONTO the placement, so it is the inverse: scale 1/1.1, shift -40/1.1, -30/1.1
+  assert.ok(Math.abs(reg.s - 1 / 1.1) < 0.03, `scale ${reg.s}`)
+  assert.ok(Math.abs(reg.tx + 36.4) < 8 && Math.abs(reg.ty + 27.3) < 8, `shift ${reg.tx},${reg.ty}`)
+  const out = await composeAlignedBody(model, placed, head, reg)
+  const o = await sharp(out).raw().toBuffer(), p = await sharp(placed).removeAlpha().raw().toBuffer()
+  const c = (Math.round(0.4 * 1024) * 1024 + 512) * 3 // the head centre: original pixels, untouched
+  assert.deepEqual([o[c], o[c + 1], o[c + 2]], [p[c], p[c + 1], p[c + 2]])
+})
+
+// Edge decontamination (2026-10-19): semi-transparent edge pixels take the colour of the solid body next to them; alpha is untouched.
+import { decontaminateEdges } from './photo-cleaning-pipeline'
+test('decontaminateEdges removes a purple tint from edge pixels and keeps alpha', async () => {
+  const w = 40, h = 40, px = Buffer.alloc(w * h * 4)
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * 4
+    if (x < 20) { px[i] = 60; px[i + 1] = 70; px[i + 2] = 90; px[i + 3] = 255 }       // solid blue-grey body
+    else if (x === 20) { px[i] = 120; px[i + 1] = 30; px[i + 2] = 120; px[i + 3] = 128 } // purple half-transparent edge pixel
+    else { px[i] = 0; px[i + 1] = 0; px[i + 2] = 0; px[i + 3] = 0 }
+  }
+  const out = await sharp(await decontaminateEdges(await sharp(px, { raw: { width: w, height: h, channels: 4 } }).png().toBuffer())).ensureAlpha().raw().toBuffer()
+  const e = (20 * 1 + 20 * w) * 4 // row 20, column 20
+  assert.equal(out[e + 3], 128, 'alpha unchanged')
+  assert.ok(Math.abs(out[e] - 60) <= 2 && Math.abs(out[e + 1] - 70) <= 2 && Math.abs(out[e + 2] - 90) <= 2, `edge colour ${out[e]},${out[e + 1]},${out[e + 2]}`)
+  assert.deepEqual([out[0], out[1], out[2], out[3]], [60, 70, 90, 255], 'solid pixels untouched')
+})

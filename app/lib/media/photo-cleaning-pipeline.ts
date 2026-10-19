@@ -274,6 +274,85 @@ export async function restoreHeadOriginal(aiOutput: Buffer, original: Buffer, he
   return sharp(base).composite([{ input: headLayer, blend: 'over' }]).png().toBuffer()
 }
 
+// ALIGNED BODY (2026-10-19, second fix to the 17 Oct "keep the original pixels" change). gpt-image-2 does NOT keep the person where it was placed: it
+// redraws them a little bigger and shifted (Jinesh Patel: 1.12x, 60px right, 48px down). restoreOriginalOver pastes the original at its own position
+// on top of that misaligned body, which made a hard line across the chest and mismatched shoulders. So the model's picture is first REGISTERED to the
+// placement (brute-force search for the scale + shift that best correlates the two faces; a correct match scores > 0.95), after which its body lines up
+// with the original's. Then the model's body is used everywhere, and the original head (face, hair, ears, a little neck) is feathered in on top, so the
+// face stays the speaker's real face and the body has no seam. If the faces cannot be registered (score < MIN_ALIGN_SCORE) the caller falls back to
+// restoreOriginalOver.
+const ALIGN_N = 256
+const MIN_ALIGN_SCORE = 0.9
+type Gray = { g: Float32Array; a: Float32Array }
+async function grayAlpha(buf: Buffer): Promise<Gray> {
+  const { data } = await sharp(buf).ensureAlpha().resize(ALIGN_N, ALIGN_N, { fit: 'fill' }).raw().toBuffer({ resolveWithObject: true })
+  const g = new Float32Array(ALIGN_N * ALIGN_N), a = new Float32Array(ALIGN_N * ALIGN_N)
+  for (let i = 0; i < ALIGN_N * ALIGN_N; i++) { g[i] = 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2]; a[i] = data[i * 4 + 3] / 255 }
+  return { g, a }
+}
+function bilinear(g: Float32Array, x: number, y: number): number {
+  if (x < 0 || y < 0 || x >= ALIGN_N - 1 || y >= ALIGN_N - 1) return NaN
+  const x0 = x | 0, y0 = y | 0, fx = x - x0, fy = y - y0
+  return g[y0 * ALIGN_N + x0] * (1 - fx) * (1 - fy) + g[y0 * ALIGN_N + x0 + 1] * fx * (1 - fy) + g[(y0 + 1) * ALIGN_N + x0] * (1 - fx) * fy + g[(y0 + 1) * ALIGN_N + x0 + 1] * fx * fy
+}
+export async function registerModelToPlaced(modelOutput: Buffer, placed: Buffer, head: HeadEllipse): Promise<{ s: number; tx: number; ty: number; score: number }> {
+  const P = await grayAlpha(placed), M = await grayAlpha(modelOutput)
+  const N = ALIGN_N, cx = head.centerXRatio * N, cy = head.centerYRatio * N, H = head.heightRatio * N
+  const pts: number[] = []
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const dx = (x - cx) / (0.75 * H), dy = (y - cy) / (0.95 * H); if (dx * dx + dy * dy <= 1 && P.a[y * N + x] > 0.99 && (x + y) % 2 === 0) pts.push(x, y) }
+  if (pts.length < 400) return { s: 1, tx: 0, ty: 0, score: -1 }
+  const ncc = (s: number, tx: number, ty: number) => {
+    let n = 0, sa = 0, sb = 0, saa = 0, sbb = 0, sab = 0
+    for (let k = 0; k < pts.length; k += 2) {
+      const x = pts[k], y = pts[k + 1], m = bilinear(M.g, (x - tx) / s, (y - ty) / s)
+      if (m !== m) return -1
+      const p = P.g[y * N + x]; n++; sa += p; sb += m; saa += p * p; sbb += m * m; sab += p * m
+    }
+    const va = saa - sa * sa / n, vb = sbb - sb * sb / n
+    return va > 1 && vb > 1 ? (sab - sa * sb / n) / Math.sqrt(va * vb) : -1
+  }
+  let best = { s: 1, tx: 0, ty: 0, c: -2 }
+  for (let s = 0.7; s <= 1.5; s += 0.05) for (let tx = -120; tx <= 120; tx += 6) for (let ty = -120; ty <= 120; ty += 6) { const c = ncc(s, tx, ty); if (c > best.c) best = { s, tx, ty, c } }
+  for (let it = 0; it < 3; it++) {
+    const b0 = { ...best }, ds = 0.025 / (it + 1), dt = 3 / (it + 1)
+    for (let i = -4; i <= 4; i++) for (let j = -4; j <= 4; j++) for (let k = -4; k <= 4; k++) { const c = ncc(b0.s + i * ds, b0.tx + j * dt, b0.ty + k * dt); if (c > best.c) best = { s: b0.s + i * ds, tx: b0.tx + j * dt, ty: b0.ty + k * dt, c } }
+  }
+  const scale = CLEANING_CYCLE_CANVAS_SIZE / N
+  return { s: best.s, tx: best.tx * scale, ty: best.ty * scale, score: best.c }
+}
+
+// Model picture moved onto the placement's coordinates (green where the model's picture does not reach).
+async function alignModel(modelOutput: Buffer, reg: { s: number; tx: number; ty: number }): Promise<Buffer> {
+  const W = CLEANING_CYCLE_CANVAS_SIZE
+  const size = Math.round(W * reg.s)
+  const scaled = await sharp(modelOutput).resize(W, W, { fit: 'fill' }).resize(size, size, { kernel: 'lanczos3' }).removeAlpha().png().toBuffer()
+  const big = await sharp({ create: { width: W * 3, height: W * 3, channels: 3, background: { r: CHROMA_GREEN.r, g: CHROMA_GREEN.g, b: CHROMA_GREEN.b } } })
+    .composite([{ input: scaled, left: W + Math.round(reg.tx), top: W + Math.round(reg.ty) }]).png().toBuffer()
+  return sharp(big).extract({ left: W, top: W, width: W, height: W }).removeAlpha().raw().toBuffer()
+}
+
+/** The model's aligned body everywhere; the original head (hair, face, ears, a little neck) feathered in on top. Returns the same opaque, chroma-green image restoreOriginalOver does. */
+export async function composeAlignedBody(modelOutput: Buffer, placed: Buffer, head: HeadEllipse, reg: { s: number; tx: number; ty: number }): Promise<Buffer> {
+  const W = CLEANING_CYCLE_CANVAS_SIZE
+  const ai = await alignModel(modelOutput, reg)
+  const orig = await sharp(placed).ensureAlpha().raw().toBuffer()
+  const cx = head.centerXRatio * W, cy = head.centerYRatio * W, H = head.heightRatio * W
+  const rx = 0.62 * H, ry = 0.8 * H, feather = 0.16 // feather = fraction of the ellipse radius over which the original fades into the model
+  const out = Buffer.alloc(W * W * 3)
+  for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) {
+    const k = y * W + x
+    const aR = ai[k * 3], aG = ai[k * 3 + 1], aB = ai[k * 3 + 2]
+    const aiFg = 1 - Math.max(0, Math.min(1, (aG - Math.max(aR, aB) - 40) / 120)) // soft "is this the model's person, not its green"
+    const rho = Math.sqrt(((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2)
+    const oA = orig[k * 4 + 3] / 255
+    const w = Math.max(0, Math.min(1, (1 - rho) / feather)) * oA // 1 inside the head, fading to 0 at the ellipse edge
+    const r = aR + (orig[k * 4] - aR) * w, g = aG + (orig[k * 4 + 1] - aG) * w, b = aB + (orig[k * 4 + 2] - aB) * w
+    const a = aiFg + (oA - aiFg) * w
+    out[k * 3] = Math.round(r * a + CHROMA_GREEN.r * (1 - a)); out[k * 3 + 1] = Math.round(g * a + CHROMA_GREEN.g * (1 - a)); out[k * 3 + 2] = Math.round(b * a + CHROMA_GREEN.b * (1 - a))
+  }
+  return sharp(out, { raw: { width: W, height: W, channels: 3 } }).png().toBuffer()
+}
+
 export async function generateAIFilledPhoto(
   sourceBuffer: Buffer,
   headBox: HeadBox,
@@ -392,8 +471,14 @@ ${bottomInstruction}
   const json = await res.json()
   const b64 = json?.data?.[0]?.b64_json
   if (!b64) throw new Error('GPT Image 2 returned no image')
-  // The model re-draws the whole image whatever the mask says: put the original pixels back on top so only the gaps come from the model.
-  return restoreOriginalOver(Buffer.from(b64, 'base64'), placed, cropWarning, { centerXRatio: target.target_head_center_x, centerYRatio: target.target_head_center_y, heightRatio: target.target_head_height })
+  // The model re-draws the whole image whatever the mask says, and not where it was placed (see ALIGNED BODY above). Align its picture to the placement,
+  // use its body, and put the original head back on top. If the two faces cannot be matched, fall back to keeping the original pixels in place.
+  const modelOut = Buffer.from(b64, 'base64')
+  const head: HeadEllipse = { centerXRatio: target.target_head_center_x, centerYRatio: target.target_head_center_y, heightRatio: target.target_head_height }
+  const reg = await registerModelToPlaced(modelOut, placed, head)
+  console.log('[generateAIFilledPhoto] model alignment: scale', reg.s.toFixed(3), 'shift', Math.round(reg.tx), Math.round(reg.ty), 'score', reg.score.toFixed(3))
+  if (reg.score >= MIN_ALIGN_SCORE) return composeAlignedBody(modelOut, placed, head, reg)
+  return restoreOriginalOver(modelOut, placed, cropWarning, head)
 }
 
 // "Make it High-Res" was retired on 2026-10-17 (the gpt-image-2 version re-drew faces and capped at 1536px) and REBUILT on 2026-10-19 as a real
@@ -479,6 +564,35 @@ Where you make the requested change, blend it naturally with the surrounding ima
 // AI-generated images" finding (see git history) was only ever tested
 // against the OLD white backdrop, before DEFAULT_FILL_PROMPT switched to
 // green — never actually tested against green input until now.
+// EDGE DECONTAMINATION (2026-10-19). The green-screen removal leaves the semi-transparent edge pixels (hair outline, shoulders) with a purple/magenta
+// tint (green taken out of a green+person blend leaves red+blue): measured ~40 on a (R+B-2G)/2 scale against ~4 on a plain cut-out. A straight
+// (non-premultiplied) edge pixel should carry the PERSON's colour only, so each edge pixel's colour is replaced by the average colour of the solid
+// pixels around it (a normalised box blur over the opaque pixels); alpha is untouched, so the silhouette does not change.
+const DECONTAM_RADIUS = 6
+function boxBlur(src: Float32Array, w: number, h: number, r: number): Float32Array {
+  const tmp = new Float32Array(w * h), out = new Float32Array(w * h)
+  for (let y = 0; y < h; y++) { let acc = 0; const row = y * w
+    for (let x = -r; x <= r; x++) acc += src[row + Math.min(w - 1, Math.max(0, x))]
+    for (let x = 0; x < w; x++) { tmp[row + x] = acc; acc += src[row + Math.min(w - 1, x + r + 1)] - src[row + Math.max(0, x - r)] } }
+  for (let x = 0; x < w; x++) { let acc = 0
+    for (let y = -r; y <= r; y++) acc += tmp[Math.min(h - 1, Math.max(0, y)) * w + x]
+    for (let y = 0; y < h; y++) { out[y * w + x] = acc; acc += tmp[Math.min(h - 1, y + r + 1) * w + x] - tmp[Math.max(0, y - r) * w + x] } }
+  return out
+}
+export async function decontaminateEdges(png: Buffer): Promise<Buffer> {
+  const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+  const w = info.width, h = info.height, n = w * h
+  const mask = new Float32Array(n), cr = new Float32Array(n), cg = new Float32Array(n), cb = new Float32Array(n)
+  for (let i = 0; i < n; i++) if (data[i * 4 + 3] >= 250) { mask[i] = 1; cr[i] = data[i * 4]; cg[i] = data[i * 4 + 1]; cb[i] = data[i * 4 + 2] }
+  const m = boxBlur(mask, w, h, DECONTAM_RADIUS), r = boxBlur(cr, w, h, DECONTAM_RADIUS), g = boxBlur(cg, w, h, DECONTAM_RADIUS), b = boxBlur(cb, w, h, DECONTAM_RADIUS)
+  for (let i = 0; i < n; i++) {
+    const a = data[i * 4 + 3]
+    if (a >= 250 || m[i] < 1e-3) continue
+    data[i * 4] = Math.round(r[i] / m[i]); data[i * 4 + 1] = Math.round(g[i] / m[i]); data[i * 4 + 2] = Math.round(b[i] / m[i])
+  }
+  return sharp(data, { raw: { width: w, height: h, channels: 4 } }).png().toBuffer()
+}
+
 export async function removeGreenScreenBackground(buffer: Buffer): Promise<Buffer> {
   const photoRoomKey = process.env.PHOTOROOM_API_KEY
   if (!photoRoomKey) throw new Error('PHOTOROOM_API_KEY not configured')
@@ -497,7 +611,7 @@ export async function removeGreenScreenBackground(buffer: Buffer): Promise<Buffe
     const text = await res.text().catch(() => '')
     throw new Error(`PhotoRoom green-screen removal failed (${res.status}): ${text.slice(0, 300)}`)
   }
-  return Buffer.from(await res.arrayBuffer())
+  return decontaminateEdges(Buffer.from(await res.arrayBuffer()))
 }
 
 export type FinalizeResult = { buffer: Buffer; cropWarning: CropPadding | null }

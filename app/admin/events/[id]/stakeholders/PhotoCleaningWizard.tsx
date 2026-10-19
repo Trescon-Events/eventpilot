@@ -1147,7 +1147,7 @@ export default function PhotoCleaningWizard({ eventId, speakerId, kind = 'speake
                             <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink2)', marginBottom: '4px' }}>{label}</div>
                             <div style={{ background: 'repeating-conic-gradient(#1c2a3a 0% 25%, #162231 0% 50%) 50% / 16px 16px', borderRadius: '8px', aspectRatio: '1 / 1', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                               {/* eslint-disable-next-line @next/next/no-img-element -- plain preview of a stored file */}
-                              <img src={src} alt={label} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                              <img src={src} alt={label} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                             </div>
                           </div>
                         ))}
