@@ -11,6 +11,25 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 ---
 
+## Last Session (19 Oct 2026, later) — Madhu + Claude Code (Sonnet 5.5). Theme: **VIP stakeholder type for badges, direct Website Photo upload, KonfHub company-clear fix**
+Handed off to: whoever picks up next. Three migrations were run by Madhu via psql (all additive, already applied in production): `supabase/event_vips_migration.sql`, `supabase/vip_photo_migration.sql`, `supabase/website_photo_manual_migration.sql`.
+
+**VIPs (new stakeholder type, badges only)**
+- Tab **VIPs** in the Stakeholder Hub (`stakeholders/VipsTab.tsx`) laid out like the Speakers registry on purpose (row cards, select-all + bulk bar with Downloads/Actions, Add slide-over, type-DELETE confirm, row opens a details page). Madhu's rule: keep the VIP and Speaker modules structurally alike so people who know one know the other; add new VIP fields/features the way Speakers have them. Plus "Upload list" (CSV/XLSX, column mapping, re-upload matches on name+company and updates).
+- Details page `stakeholders/vips/[vipId]/page.tsx`: Raw + Cleaned photo tiles, Upload Raw Photo / Clean Photo / Delete Photo, auto-saving Details card (name, job title, company, country). `AssetTile.tsx` is a copy of the speaker page's tile (a page file can't export it).
+- Table `event_vips` (+ `badge_batch_items.vip_id`). API `app/api/events/stakeholders/vips/` (GET/POST/PATCH/DELETE, `/import`), permissions reuse `sae.badges.view|manage`.
+- **VIP photo cycle reuses the speaker photo routes** via `?kind=vip` (`app/lib/stakeholders/photo-subject.ts`: upload-asset, head-box, clean-photo/generate+finalize) and `PhotoCleaningWizard` gets `kind="vip"` (skips Website Photo/Review steps, ends with "Save Photo"). No `kind` = speaker, unchanged. `speaker_photo_clean_jobs` gained `vip_id` (speaker_id now nullable, one of the two required). Temporary clean-photo files for a VIP sit under `speakers/<vipId>/` (same as the generator's own paths) and are not removed when the VIP is deleted.
+- Badges: "New VIP batch" on the Badges page (same template/review/approve/PDF flow; VIP badge uses the cleaned photo, `photo_processed_url`). **A photo is no longer required for any badge** (speakers or VIPs): only a name; a missing photo is just the existing `no_photo` review flag when the template has a photo slot. `speakerBadgeStatus` moved to `app/lib/badges/status.ts`.
+- Tested live on FIFF (add/upload twice/dedupe, photo upload+clean+finalize, VIP badge render with photo, PDF, autosave) and cleaned up. NOT tested: clicking through the wizard screens for a VIP, bulk Excel/Delete, Add slide-over, AI Fill for a VIP, a speaker batch for a speaker with no photo (no such speaker on FIFF).
+
+**Direct Website Photo upload (speakers)**: "Upload Website Photo" on the speaker details page (uses the existing `website-photo/upload` route, now sets `event_speakers.website_photo_manual`; generating sets it back to false). Push to KonfHub (main + additional role, client and server) no longer needs Clean Photo when the website photo was uploaded directly. Approve for announcement still needs the cleaned photo. Added for speakers who don't want their photo edited (Canva-made photos).
+
+**KonfHub fix (pushed earlier as `5b2862c`)**: clearing a speaker's company now clears it on KonfHub on update (blank fields are otherwise omitted from the PUT, so KonfHub kept the old value). Same omission still applies to job title, bio, LinkedIn, country and logo: clearing those in EventPilot does not clear them on KonfHub (FTF Jorge Carrasco was the case; his KonfHub record was fixed by hand).
+
+**Open**: VIP "uploaded as-is" photo path (VIPs always go through the cleaning cycle); breadcrumb shows "Vips" from the URL; extend the clear-on-update fix to other KonfHub speaker fields if wanted.
+
+---
+
 ## Last Session (17–19 Oct 2026) — Madhu + Claude Code (Sonnet 5.5). Theme: **BSS Agenda Manager ↔ KonfHub sync, event workspace cleanup, guest links**
 Handed off to: whoever picks up next (Madhu or Durga). All commits are on `origin/main` (last: `fe8bacc`, CI green). Local `.scratch/` is untracked on purpose.
 
