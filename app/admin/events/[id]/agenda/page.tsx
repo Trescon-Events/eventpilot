@@ -205,7 +205,7 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
       if (sp.data.konfhub_skipped?.length) say(`Saved. Not sent to KonfHub yet (no listing pushed): ${sp.data.konfhub_skipped.map((x: { name: string }) => x.name).join(', ')}`, 'error')
     }
     setSaving(false)
-    if (pushError) say(`Saved here — KonfHub update failed: ${pushError}`, 'error'); else say('Saved.')
+    if (pushError) say(`Saved here — KonfHub update failed: ${pushError}`, 'error'); else { say('Saved.'); setSelectedId(null) }   // a clean save closes the popup; a KonfHub failure keeps it open so the message is seen
     await load()
   }
 
