@@ -179,6 +179,19 @@ export async function maxSpeakerOrderInCategory(konfhubEventId: string, token: s
   return bucket.reduce((max, s) => Math.max(max, s.speaker_order ?? 0), 0)
 }
 
+// Live order AND live category per speaker (2026-10-20) — for the Speaker Order page's "order by category" mode. Same endpoint and
+// shape as maxSpeakerOrderInCategory above; category is the KonfHub group the speaker is in right now (null = uncategorized).
+export async function listKonfhubSpeakerPlacements(konfhubEventId: string, token: string): Promise<Map<string, { order: number; categoryId: string | null }>> {
+  const res = await fetch(`${API_BASE}/${konfhubEventId}/speakers`, { headers: { Authorization: `Bearer ${token}` } })
+  const data = await res.json().catch(() => ({})) as
+    { categorized?: KonfhubSpeakerGroupOrSpeaker[]; uncategorized?: KonfhubSpeakerGroupOrSpeaker[]; error?: string }
+  if (!res.ok) throw new KonfhubApiError(data.error || 'Failed to fetch KonfHub speakers', res.status)
+  const out = new Map<string, { order: number; categoryId: string | null }>()
+  for (const g of data.categorized ?? []) for (const sp of g.speakers ?? []) out.set(String(sp.speaker_id), { order: sp.speaker_order ?? 0, categoryId: String(g.category_id) })
+  for (const sp of flattenKonfhubSpeakerGroups(data.uncategorized ?? [])) out.set(String(sp.speaker_id), { order: sp.speaker_order ?? 0, categoryId: null })
+  return out
+}
+
 // speaker_category_id is kept as `string | null` everywhere in this file's
 // own types (matches event_websites.konfhub_speaker_category_id, a plain
 // text column) — but KonfHub's own Speakers API schema requires it as a

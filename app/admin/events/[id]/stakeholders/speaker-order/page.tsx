@@ -37,7 +37,21 @@ import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
    already does — a move is just a drag with a typed destination instead
    of a pointer gesture. */
 
-type SpeakerRow = { id: string; name: string; company: string | null; konfhub_speaker_id: string; speaker_order: number }
+type SpeakerRow = { id: string; name: string; company: string | null; konfhub_speaker_id: string; speaker_order: number; category_id: string | null }
+type Category = { id: string; label: string }
+
+/* "Order by category" (2026-10-20) — only offered when the event lists per-speaker KonfHub categories (DFWS: Roundtable Speakers), and
+   only used when the producer switches it on here (off by default, remembered per event in this browser). KonfHub keeps order
+   separately inside each category, so in this mode each section is dragged and numbered 1..N on its own. Off = the single flat
+   list exactly as before. */
+
+// Applies a reorder to just the speakers of one section (key null = everyone), leaving every other speaker's slot where it was.
+function reorderSection(prev: SpeakerRow[], key: string | null, fn: (sub: SpeakerRow[]) => SpeakerRow[]): SpeakerRow[] {
+  const inSection = (s: SpeakerRow) => key === null || (s.category_id ?? '') === key
+  const next = fn(prev.filter(inSection))
+  let i = 0
+  return prev.map(s => (inSection(s) ? next[i++] : s))
+}
 
 export default function SpeakerOrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = use(params)
@@ -51,8 +65,19 @@ export default function SpeakerOrderPage({ params }: { params: Promise<{ id: str
   const [msgIsError, setMsgIsError] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [search, setSearch] = useState('')
+  const [categories, setCategories] = useState<Category[]>([])
+  const [byCategory, setByCategory] = useState(false)
 
   useBreadcrumbLabel(eventId, eventName)
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time read of this browser's remembered choice
+    try { setByCategory(localStorage.getItem(`speakerOrderByCategory:${eventId}`) === '1') } catch { /* storage unavailable — default off */ }
+  }, [eventId])
+  function toggleByCategory(on: boolean) {
+    setByCategory(on)
+    try { localStorage.setItem(`speakerOrderByCategory:${eventId}`, on ? '1' : '0') } catch { /* best-effort */ }
+  }
 
   async function load() {
     setLoading(true)
@@ -63,6 +88,7 @@ export default function SpeakerOrderPage({ params }: { params: Promise<{ id: str
     ])
     const speakersData = await speakersRes.json().catch(() => ({}))
     if (!speakersRes.ok) { setError(speakersData.error ?? 'Could not load speaker order.'); setLoading(false); return }
+    setCategories(speakersData.categories ?? [])
     setSpeakers(speakersData.speakers ?? [])
     setOriginalOrder(speakersData.speakers ?? [])
     setDirty(false)
@@ -78,14 +104,14 @@ export default function SpeakerOrderPage({ params }: { params: Promise<{ id: str
     setMsg(null)
   }
 
-  function moveSpeakerTo(speakerId: string, targetPosition: number) {
-    setSpeakers(prev => {
-      const oldIdx = prev.findIndex(s => s.id === speakerId)
-      if (oldIdx === -1) return prev
-      const newIdx = Math.min(Math.max(targetPosition - 1, 0), prev.length - 1)
-      if (newIdx === oldIdx) return prev
-      return arrayMove(prev, oldIdx, newIdx)
-    })
+  function moveSpeakerTo(speakerId: string, targetPosition: number, sectionKey: string | null = null) {
+    setSpeakers(prev => reorderSection(prev, sectionKey, sub => {
+      const oldIdx = sub.findIndex(s => s.id === speakerId)
+      if (oldIdx === -1) return sub
+      const newIdx = Math.min(Math.max(targetPosition - 1, 0), sub.length - 1)
+      if (newIdx === oldIdx) return sub
+      return arrayMove(sub, oldIdx, newIdx)
+    }))
     setDirty(true)
     setMsg(null)
   }
@@ -98,12 +124,13 @@ export default function SpeakerOrderPage({ params }: { params: Promise<{ id: str
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
-  function onDragEnd(e: DragEndEvent) {
+  function onDragEnd(e: DragEndEvent, sectionKey: string | null = null) {
     if (!e.over || e.active.id === e.over.id) return
-    const oldIdx = speakers.findIndex(s => s.id === e.active.id)
-    const newIdx = speakers.findIndex(s => s.id === e.over!.id)
-    if (oldIdx === -1 || newIdx === -1) return
-    setSpeakers(prev => arrayMove(prev, oldIdx, newIdx))
+    setSpeakers(prev => reorderSection(prev, sectionKey, sub => {
+      const oldIdx = sub.findIndex(s => s.id === e.active.id)
+      const newIdx = sub.findIndex(s => s.id === e.over!.id)
+      return oldIdx === -1 || newIdx === -1 ? sub : arrayMove(sub, oldIdx, newIdx)
+    }))
     setDirty(true)
     setMsg(null)
   }
@@ -114,7 +141,9 @@ export default function SpeakerOrderPage({ params }: { params: Promise<{ id: str
     try {
       const res = await fetch('/api/events/stakeholders/speaker-order', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event_id: eventId, order: speakers.map(s => s.id) }),
+        body: JSON.stringify(sectionsOn
+          ? { event_id: eventId, groups: sections.filter(sec => sec.items.length > 0).map(sec => ({ category_id: sec.key || null, order: sec.items.map(s => s.id) })) }
+          : { event_id: eventId, order: speakers.map(s => s.id) }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { setMsg(data.error ?? 'Could not update order on KonfHub.'); setMsgIsError(true); return }
@@ -129,6 +158,14 @@ export default function SpeakerOrderPage({ params }: { params: Promise<{ id: str
     }
   }
 
+  // Sections for "order by category": the regular Speakers group first, then each listed category, then any group KonfHub has that
+  // isn't listed (so nobody disappears from the page).
+  const sectionsOn = byCategory && categories.length > 0
+  const sections = (() => {
+    const known = [{ key: '', label: 'Speakers' }, ...categories.map(c => ({ key: c.id, label: c.label }))]
+    const extra = [...new Set(speakers.map(s => s.category_id ?? '').filter(k => !known.some(x => x.key === k)))].map(k => ({ key: k, label: `Category ${k}` }))
+    return [...known, ...extra].map(sec => ({ ...sec, items: speakers.filter(s => (s.category_id ?? '') === sec.key) }))
+  })()
   const searchLower = search.trim().toLowerCase()
   const matchedId = searchLower
     ? speakers.find(s => s.name.toLowerCase().includes(searchLower) || (s.company ?? '').toLowerCase().includes(searchLower))?.id
@@ -153,6 +190,16 @@ export default function SpeakerOrderPage({ params }: { params: Promise<{ id: str
         <div style={{ fontSize: '12.5px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '18px' }}>
           Drag speakers to set the order they appear in on KonfHub&apos;s own event page. This loads the order actually live on KonfHub right now — only speakers already pushed there show up below. Nothing changes on KonfHub until you click <strong>Update Order on KonfHub</strong>.
         </div>
+
+        {categories.length > 0 && (
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '13px', color: 'var(--ink2)', marginBottom: '14px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={byCategory} onChange={e => toggleByCategory(e.target.checked)} disabled={dirty} style={{ marginTop: '3px' }} />
+            <span>
+              <strong>Order by category</strong> — show {['Speakers', ...categories.map(c => c.label)].join(' and ')} as separate lists, each with its own order (1, 2, 3…), the way KonfHub keeps them.
+              <span style={{ display: 'block', fontSize: '12px', color: 'var(--ink4)' }}>Off: one list for everyone. {dirty ? 'Update or reset your changes before switching.' : ''}</span>
+            </span>
+          </label>
+        )}
 
         <div style={{ position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 5, padding: '4px 0 14px', display: 'flex', gap: '10px', alignItems: 'center' }}>
           <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Find a speaker…" style={{ flex: 1 }} />
@@ -183,7 +230,31 @@ export default function SpeakerOrderPage({ params }: { params: Promise<{ id: str
             No speakers are on KonfHub yet for this event — push at least one from a speaker&apos;s Details page first.
           </div>
         ) : (
-          <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+          sectionsOn ? (
+            <div style={{ display: 'grid', gap: '26px' }}>
+              {sections.filter(sec => sec.items.length > 0 || sec.key === '' || categories.some(c => c.id === sec.key)).map(sec => (
+                <div key={sec.key || 'default'}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    {sec.label} <span style={{ fontWeight: 400, color: 'var(--ink4)' }}>({sec.items.length})</span>
+                  </div>
+                  {sec.items.length === 0 ? (
+                    <div style={{ fontSize: '12.5px', color: 'var(--ink4)' }}>No speakers on KonfHub in this group yet.</div>
+                  ) : (
+                    <DndContext sensors={sensors} onDragEnd={e => onDragEnd(e, sec.key)}>
+                      <SortableContext items={sec.items.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                        <div style={{ display: 'grid', gap: '6px' }}>
+                          {sec.items.map((s, i) => (
+                            <SpeakerCard key={s.id} index={i + 1} total={sec.items.length} speaker={s} highlighted={s.id === matchedId} onMoveTo={pos => moveSpeakerTo(s.id, pos, sec.key)} />
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+          <DndContext sensors={sensors} onDragEnd={e => onDragEnd(e)}>
             <SortableContext items={speakers.map(s => s.id)} strategy={verticalListSortingStrategy}>
               <div style={{ display: 'grid', gap: '6px' }}>
                 {speakers.map((s, i) => (
@@ -192,6 +263,7 @@ export default function SpeakerOrderPage({ params }: { params: Promise<{ id: str
               </div>
             </SortableContext>
           </DndContext>
+          )
         )}
       </div>
     </div>

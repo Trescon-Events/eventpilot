@@ -11,6 +11,11 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 ---
 
+## DFWS Roundtable Speakers published + Speaker Order "order by category" (20 Oct 2026) — pushed
+- DFWS: the 7 speakers not yet on KonfHub (Jinesh Patel, Hermione Harrison, Peter Duke, Thomas Frey, Sunil Garg, Julie Rouas, Yann Mrazek) were set to category Roundtable Speaker (29732) and published via a script mirroring the Push button (live-verified: Roundtable group orders 1-7, regular group 1-6). Scripts in `.scratch/` (untracked).
+- Speaker Order page: optional "Order by category" toggle, shown only for events that list per-speaker categories; off by default (remembered per browser/event). On = one list per KonfHub group, each numbered 1..N and saved as `groups` to the PUT route; off = the old single list. `listKonfhubSpeakerPlacements` in `konfhub-speakers.ts`. Not yet exercised with a real reorder.
+- Open: does the DFWS website read speakers from KonfHub (follows groups) or EventPilot's own list (would need the same grouping)?
+
 ## Speaker submission: outbound failures retried, generic message (20 Oct 2026) — pushed
 - Scott Geary (DFS) got "fetch failed" on the submission page: a one-off outbound failure in the Full Bio step (CloudConvert or storage), returned raw. Added `app/lib/net/retry.ts` (3 tries; used by `cloudconvert-client.ts` and `uploadPublicAsset`), real errors now logged in the submit route, passport/National ID steps caught, new file stored before the old one is retired, and one failing item no longer discards the others. **Speakers/externals only ever see one generic sentence** (never which item/tool failed) — keep it that way; detail goes to the server log only.
 
