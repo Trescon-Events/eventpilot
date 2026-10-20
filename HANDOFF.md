@@ -11,6 +11,9 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 ---
 
+## Fix: KonfHub push rejected regular DFWS speakers (20 Oct 2026) — pushed
+- My per-speaker-category push sent an explicit `speaker_category_id: null` for regular speakers; KonfHub rejects it ("None is not of type 'integer'"). Now the key is omitted for them; a speaker still in a category with no pick gets a clear 422 (KonfHub can't move a speaker back out of a category via the API — do it on the KonfHub Speakers page). Verified same-value updates with and without the category against live DFWS. Memento photo hand-off for BSS is **on hold** (proposal discussed, nothing built).
+
 ## DFWS Roundtable Speakers published + Speaker Order "order by category" (20 Oct 2026) — pushed
 - DFWS: the 7 speakers not yet on KonfHub (Jinesh Patel, Hermione Harrison, Peter Duke, Thomas Frey, Sunil Garg, Julie Rouas, Yann Mrazek) were set to category Roundtable Speaker (29732) and published via a script mirroring the Push button (live-verified: Roundtable group orders 1-7, regular group 1-6). Scripts in `.scratch/` (untracked).
 - Speaker Order page: optional "Order by category" toggle, shown only for events that list per-speaker categories; off by default (remembered per browser/event). On = one list per KonfHub group, each numbered 1..N and saved as `groups` to the PUT route; off = the old single list. `listKonfhubSpeakerPlacements` in `konfhub-speakers.ts`. Not yet exercised with a real reorder.

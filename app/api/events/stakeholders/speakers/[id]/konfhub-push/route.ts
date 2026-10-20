@@ -4,7 +4,7 @@ import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { getEventRoles, resolvePrimaryRole } from '@/app/lib/konfhub/roles'
 import { getEventSpeakerCategories, resolveSpeakerCategory } from '@/app/lib/konfhub/categories'
-import { getKonfhubToken, createKonfhubSpeaker, updateKonfhubSpeaker, maxSpeakerOrderInCategory, fetchKonfhubTags, KonfhubApiError } from '@/app/lib/konfhub-speakers'
+import { getKonfhubToken, createKonfhubSpeaker, updateKonfhubSpeaker, maxSpeakerOrderInCategory, listKonfhubSpeakerPlacements, fetchKonfhubTags, KonfhubApiError } from '@/app/lib/konfhub-speakers'
 
 /* POST /api/events/stakeholders/speakers/[id]/konfhub-push
    Publishes (or updates) this speaker on KonfHub's Speakers-management API
@@ -145,8 +145,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // A company cleared in EventPilot must clear it on KonfHub too (2026-10-19, FTF Jorge Carrasco): `fields.organisation` is
       // undefined when blank (so first pushes and other keys never overwrite KonfHub), and an omitted key leaves the old value there.
       const updateFields = speaker.company?.trim() ? fields : { ...fields, organisation: '' }
-      // An omitted key leaves KonfHub's category alone, so moving a speaker back to the default group must say so explicitly.
-      await updateKonfhubSpeaker(website.konfhub_event_id, konfhubSpeakerId, token, category.clear ? { ...updateFields, speaker_category_id: null } : updateFields)
+      // No category applies (the event lists categories and this speaker has no pick). Leaving the key out keeps them where they are,
+      // which is right for a regular speaker. KonfHub rejects an explicit null ("None is not of type 'integer'", DFWS 2026-10-20), so a
+      // speaker still sitting in a category can't be moved back out through the API — say so instead of pretending it worked.
+      if (category.clear) {
+        const live = (await listKonfhubSpeakerPlacements(website.konfhub_event_id, token)).get(konfhubSpeakerId)
+        if (live?.categoryId) {
+          return NextResponse.json({ error: 'This speaker is in a KonfHub category and KonfHub can’t move them back to the default group from here. Pick their category in EventPilot to match, or move them on the KonfHub Speakers page.' }, { status: 422 })
+        }
+      }
+      await updateKonfhubSpeaker(website.konfhub_event_id, konfhubSpeakerId, token, updateFields)
     }
 
     const syncedAt = new Date().toISOString()
