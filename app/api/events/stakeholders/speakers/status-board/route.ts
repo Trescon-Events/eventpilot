@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission, isEventFeatureEnabled } from '@/app/lib/access/event-access'
 import { websiteStatus, fetchAnnouncementStatus } from '@/app/lib/events/speaker-status'
+import { getMementoStatuses } from '@/app/lib/mementos/status'
 
 /* GET /api/events/stakeholders/speakers/status-board?event_id=X
 
@@ -94,6 +95,8 @@ export async function GET(req: NextRequest) {
     return !!((typeof fromCustom === 'string' ? fromCustom : '').trim() || (legacyEmail ?? '').trim())
   }
 
+  const mementosOn = await isEventFeatureEnabled(eventId, 'speaker-mementos')
+  const mementoStatuses = mementosOn ? await getMementoStatuses(eventId) : null
   const rows = (speakers ?? []).map(s => ({
     id: s.id,
     name: s.public_name || s.name,
@@ -139,6 +142,8 @@ export async function GET(req: NextRequest) {
     self_promo_status: announcementStatus.get(s.id)?.selfPromoStatus ?? 'pending',
     // Guest invite (2026-10-06): no link yet / link ready to send / invite sent
     guest_invite_status: !s.guest_invite_url ? 'guest_missing' as const : s.guest_invite_sent_at ? 'sent' as const : 'guest_ready' as const,
+    // Speaker Mementos (step 1): null for an event that hasn't switched it on, which hides the column.
+    memento_status: mementoStatuses ? (mementoStatuses.get(s.id)?.state ?? 'not_shared') : null,
     confirmation_status: s.confirmation_status,
     reference: s.reference,
   }))

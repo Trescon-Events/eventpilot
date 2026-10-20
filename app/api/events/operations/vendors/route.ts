@@ -1,3 +1,4 @@
+import { purposeForCategory } from '@/app/lib/ops/vendor-purpose'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
@@ -82,7 +83,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (body.assign) {
-    await supabaseAdmin.from('ops_event_vendors').insert({ ...ownerFields(scope), vendor_id: vendor.id, purpose: body.category === 'print' ? 'badge_print' : 'speaker_license', created_by: session?.sid ?? null })
+    await supabaseAdmin.from('ops_event_vendors').insert({ ...ownerFields(scope), vendor_id: vendor.id, purpose: purposeForCategory(body.category), created_by: session?.sid ?? null })
   }
   return NextResponse.json({ id: vendor.id })
 }

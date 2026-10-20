@@ -1135,6 +1135,14 @@ export function getModuleRegistry(): ModuleDef[] {
       access: { kind: 'admin_only' },
     },
     {
+      key: 'admin-umbrella-operations-mementos', label: 'Mementos',
+      description: "Umbrella Operations — speaker photo batches pushed for the memento vendor, across the events of the umbrella.",
+      icon: I.dashboard, color: '#009C89',
+      href: ctx => `/admin/umbrellas/${ctx.umbrellaId}/operations/mementos`,
+      breadcrumbPattern: '/admin/umbrellas/:umbrellaId/operations/mementos', breadcrumbParent: 'admin-umbrella-operations',
+      access: { kind: 'admin_only' },
+    },
+    {
       key: 'admin-umbrella-operations-speakers', label: 'Speaker Doc Request',
       description: "Umbrella Operations — confirmed speakers and the status of their Passport / National ID, with producer reminders.",
       icon: I.dashboard, color: '#009C89',

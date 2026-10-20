@@ -198,6 +198,8 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState<string | null>(null)
   const [excelPickerOpen, setExcelPickerOpen] = useState(false)
+  // Speaker Mementos (step 1) — null/false for every event that hasn't switched it on, which hides every memento control.
+  const [mementosEnabled, setMementosEnabled] = useState(false)
   // Per-speaker KonfHub categories (DFWS Roundtable Speaker) — empty for every event that doesn't use them, which hides the bulk items.
   const [konfhubCategories, setKonfhubCategories] = useState<{ id: string; label: string }[]>([])
   const [search, setSearch] = useState('')
@@ -309,6 +311,11 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount; matches app/admin/events/[id]/page.tsx's fetchAll effect
   useEffect(() => { fetchAll() }, [eventId])
+  function loadMementos() {
+    fetch(`/api/events/mementos?event_id=${eventId}`).then(r => r.ok ? r.json() : null).then(d => setMementosEnabled(!!d?.enabled)).catch(() => {})
+  }
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount
+  useEffect(() => { loadMementos() }, [eventId])
   useEffect(() => {
     fetch(`/api/events/stakeholders/speakers/konfhub-category?event_id=${eventId}`).then(r => r.ok ? r.json() : null).then(d => setKonfhubCategories(d?.categories ?? [])).catch(() => {})
   }, [eventId])
@@ -452,7 +459,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
       })
     }).catch(() => {})
   }, [eventId])
-  const statusExportColumns = statusColumns(eventFlags)
+  const statusExportColumns = statusColumns({ ...eventFlags, mementos: mementosEnabled })
   const excelFieldOptions = [
     ...SPEAKER_EXPORT_FIELDS.filter(f => f.key !== 'konfhub_category' || konfhubCategories.length > 0).map(f => ({ key: f.key, label: f.label, group: f.group })),
     ...statusExportColumns.map(c => ({ key: c.key, label: c.header, group: `Onboarding — ${c.group === 'Onboarding Status' ? 'Producer' : c.group}` })),
@@ -904,6 +911,11 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                   <Link href={`/admin/events/${eventId}/stakeholders/speaker-order`}>
                     <Button variant="ghost">Speaker Order</Button>
                   </Link>
+                  {mementosEnabled && (
+                    <Link href={`/admin/events/${eventId}/stakeholders/mementos`}>
+                      <Button variant="ghost">Mementos</Button>
+                    </Link>
+                  )}
                   <Link href={`/admin/events/${eventId}/stakeholders/guest-invites`}>
                     <Button variant="ghost">Guest Invites</Button>
                   </Link>

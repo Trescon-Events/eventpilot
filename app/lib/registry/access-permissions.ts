@@ -152,6 +152,10 @@ export const ACCESS_REGISTRY: AccessModule[] = [
       // holding these keys — see app/lib/ops/section-access.ts.
       { key: 'ops.badges.view',     label: 'View the Badge Printing list and print batches',            enforced: true },
       { key: 'ops.badges.manage',   label: 'Review badge print files, send them to the print vendor, revoke or resend',                        enforced: true },
+      // Mementos (2026-10-20): the Ops section that receives a producer's batch of speakers' Cleaned Photos, sends it to the memento
+      // vendor and sees it confirmed. Assignment (Ops > Access) works without these keys, like Badge Printing.
+      { key: 'ops.mementos.view',   label: 'View the Mementos list and batches',                         enforced: true },
+      { key: 'ops.mementos.manage', label: 'Review memento batches, send them to the memento vendor, revoke or resend', enforced: true },
       // Speaker Doc Request (2026-10-12): Ops sees every confirmed speaker's Passport / National ID STATUS (never the files — that stays
       // sae.sensitive_documents.view) and reminds the producer from the assigned Ops person's own mailbox.
       { key: 'ops.speakers.view',   label: 'See confirmed speakers and their Passport / National ID status',  enforced: true },

@@ -85,6 +85,14 @@ export async function sendOpsNotice(a: { to: string[]; subject: string; heading:
     `${a.heading}: ${a.message}${a.link ? ` ${a.link.href}` : ''}`)
 }
 
+/** Memento vendor: a pack of speaker photos is ready. Notice only — no file, no link to the file (vendors always go through the portal). */
+export async function sendVendorMementoAvailable(a: { to: string; name: string; eventName: string; batchName: string; speakers: number; contacts: { name: string; email: string }[] }) {
+  const help = a.contacts.length ? p(`Questions? Contact: ${a.contacts.map(c => `${esc(c.name)} (${esc(c.email)})`).join(', ')}.`) : ''
+  await deliver(a.to, `Speaker photos ready — ${a.eventName}`,
+    wrap('Speaker photos ready', p(`Hi ${esc(a.name.split(' ')[0])}, the speaker photo pack "${esc(a.batchName)}" for <strong>${esc(a.eventName)}</strong> (${a.speakers} speaker${a.speakers === 1 ? '' : 's'}) is ready in the Vendor Portal. Please sign in, download it, and confirm in the portal that everything looks good — or tell us if something is wrong.`) + button(PORTAL_URL, 'Open the Vendor Portal') + help),
+    `The speaker photo pack "${a.batchName}" for ${a.eventName} (${a.speakers} speakers) is ready in the Vendor Portal: ${PORTAL_URL}`)
+}
+
 /** Print vendor: a badge print file is ready. Notice only — no file, no link to the file (vendors always go through the portal). */
 export async function sendVendorBadgeBatchAvailable(a: { to: string; name: string; eventName: string; batchName: string; badges: number; contacts: { name: string; email: string }[] }) {
   const help = a.contacts.length ? p(`Questions? Contact: ${a.contacts.map(c => `${esc(c.name)} (${esc(c.email)})`).join(', ')}.`) : ''

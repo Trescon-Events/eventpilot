@@ -61,6 +61,7 @@ export default function UmbrellaShell({ umbrellaId, name, isAdmin, canOps, canDo
                 <Link href={`${opsBase}/speakers`} style={subStyle(opsSub('speakers'))}>Speaker Doc Request</Link>
                 <Link href={`${opsBase}/vendors`} style={subStyle(opsSub('vendors'))}>Vendors</Link>
                 <Link href={`${opsBase}/badges`} style={subStyle(inOps && pathname.startsWith(`${opsBase}/badges`))}>Badge Printing</Link>
+                <Link href={`${opsBase}/mementos`} style={subStyle(inOps && pathname.startsWith(`${opsBase}/mementos`))}>Mementos</Link>
                 <Link href={`${opsBase}/access`} style={subStyle(opsSub('access'))}>Access</Link>
               </div>
             </div>

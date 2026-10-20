@@ -40,6 +40,7 @@ export type FeatureKey =
   | 'market-intel'
   | 'agenda-builder'
   | 'operations'
+  | 'speaker-mementos'
 
 export type FeatureGroup = 'compliance' | 'integrations' | 'modules'
 
@@ -146,6 +147,13 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
     description: 'Speaker licence batches and the shared vendor directory for this event.',
     group: 'modules',
     defaultForNewEvent: () => true,
+  },
+  {
+    key: 'speaker-mementos',
+    label: 'Speaker Mementos',
+    description: 'Share speakers’ cleaned photos with Operations in batches (for speaker mementos) and track who has been shared.',
+    group: 'modules',
+    defaultForNewEvent: () => false,
   },
 ]
 

@@ -26,10 +26,19 @@ const BADGE_STATUS: Record<string, { label: string; color: string; bg: string }>
   printed:    { label: 'Printed', color: 'var(--lime)', bg: 'var(--lime-light)' },
 }
 
+type MementoPack = { id: string; batch_name: string; event_name: string; status: string; speakers: number; sent_at: string | null }
+const MEMENTO_STATUS: Record<string, { label: string; color: string; bg: string }> = {
+  sent:       { label: 'Ready to download', color: 'var(--teal)',  bg: 'var(--teal-light)' },
+  downloaded: { label: 'Downloaded — please confirm', color: 'var(--amber)', bg: 'var(--amber-light)' },
+  confirmed:  { label: 'Confirmed', color: 'var(--lime)', bg: 'var(--lime-light)' },
+  issue:      { label: 'Problem reported', color: 'var(--amber)', bg: 'var(--amber-light)' },
+}
+
 export default function VendorHomePage() {
   const router = useRouter()
   const [batches, setBatches] = useState<Batch[] | null>(null)
   const [badgeFiles, setBadgeFiles] = useState<BadgeFile[]>([])
+  const [mementoPacks, setMementoPacks] = useState<MementoPack[]>([])
   const [who, setWho] = useState<{ vendor: string; user: string } | null>(null)
   const [error, setError] = useState<ApiError | null>(null)
 
@@ -49,6 +58,8 @@ export default function VendorHomePage() {
       setBatches(body.batches); setWho({ vendor: body.vendor, user: body.user })
       const bres = await fetch('/vendor-portal/api/badge-batches')
       if (!cancelled && bres.ok) setBadgeFiles((await bres.json()).batches ?? [])
+      const mres = await fetch('/vendor-portal/api/memento-batches')
+      if (!cancelled && mres.ok) setMementoPacks((await mres.json()).batches ?? [])
     })()
     return () => { cancelled = true }
   }, [router])
@@ -90,7 +101,28 @@ export default function VendorHomePage() {
           </div>
         </div>
       )}
-      {batches && batches.length === 0 && badgeFiles.length === 0 && (
+      {mementoPacks.length > 0 && (
+        <div style={{ marginBottom: '24px' }}>
+          <h2 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)', margin: '0 0 10px' }}>Speaker photo packs</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {mementoPacks.map(b => {
+              const st = MEMENTO_STATUS[b.status] ?? MEMENTO_STATUS.sent
+              return (
+                <Link key={b.id} href={`/vendor-portal/memento-batches/${b.id}`} style={{ textDecoration: 'none' }}>
+                  <div style={{ padding: '16px 18px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)', display: 'flex', justifyContent: 'space-between', gap: '14px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)' }}>{b.batch_name} · {b.event_name}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '4px' }}>{b.speakers} speaker photo{b.speakers === 1 ? '' : 's'}{b.sent_at ? ` · sent ${new Date(b.sent_at).toLocaleDateString()}` : ''}</div>
+                    </div>
+                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '999px', color: st.color, background: st.bg }}>{st.label}</span>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      )}
+      {batches && batches.length === 0 && badgeFiles.length === 0 && mementoPacks.length === 0 && (
         <p style={{ color: 'var(--ink3)', fontSize: '14px', padding: '32px 0' }}>Nothing has been sent to you yet. You&rsquo;ll receive an email when a batch is ready.</p>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

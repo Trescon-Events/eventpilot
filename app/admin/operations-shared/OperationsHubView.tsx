@@ -12,6 +12,7 @@ export default function OperationsHubView() {
   const [info, setInfo] = useState<{ kind: 'event' | 'umbrella'; id: string; name: string } | null>(null)
   // Badge Printing and Access appear only for people who can use them (the APIs decide).
   const [canBadges, setCanBadges] = useState(false)
+  const [canMementos, setCanMementos] = useState(false)
   const [canSpeakers, setCanSpeakers] = useState(false)
   const [canAccess, setCanAccess] = useState(false)
   useBreadcrumbLabel(scope.id, info && info.id === scope.id ? info.name : null)
@@ -20,6 +21,7 @@ export default function OperationsHubView() {
     let cancelled = false
     fetch(`/api/events/operations/vendors?${scope.query}`).then(r => r.ok ? r.json() : null).then(b => { if (!cancelled) setInfo(b?.scope ?? null) }).catch(() => {})
     fetch(`/api/events/operations/badges?${scope.query}`).then(r => { if (!cancelled) setCanBadges(r.ok) }).catch(() => {})
+    fetch(`/api/events/operations/mementos?${scope.query}`).then(r => { if (!cancelled) setCanMementos(r.ok) }).catch(() => {})
     fetch(`/api/events/operations/speakers?${scope.query}`).then(r => { if (!cancelled) setCanSpeakers(r.ok) }).catch(() => {})
     fetch(`/api/events/operations/section-assignments?${scope.query}`).then(r => r.ok ? r.json() : null).then(b => { if (!cancelled) setCanAccess(!!b?.can_manage) }).catch(() => {})
     return () => { cancelled = true }
@@ -69,6 +71,16 @@ export default function OperationsHubView() {
               </div>
             </Link>
           )}
+          {canMementos && (
+            <Link href={`${scope.basePath}/mementos`} style={{ textDecoration: 'none' }}>
+              <div style={{ padding: '18px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)' }}>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>Mementos</div>
+                <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '6px', lineHeight: 1.5 }}>
+                  Speaker photos pushed by producers for the memento vendor: review them, send to the vendor and follow them to confirmed.
+                </div>
+              </div>
+            </Link>
+          )}
           {canSpeakers && (
             <Link href={`${workBase}/speakers`} style={{ textDecoration: 'none' }}>
               <div style={{ padding: '18px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)' }}>
@@ -84,7 +96,7 @@ export default function OperationsHubView() {
               <div style={{ padding: '18px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)' }}>
                 <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>Access</div>
                 <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '6px', lineHeight: 1.5 }}>
-                  Choose who handles each section (Speaker Licences, Badge Printing). They get access and the notifications.
+                  Choose who handles each section (Speaker Licences, Badge Printing, Mementos). They get access and the notifications.
                 </div>
               </div>
             </Link>

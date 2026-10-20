@@ -3,6 +3,7 @@
 import { use, useEffect, useMemo, useRef, useState } from 'react'
 import { downloadFormattedXlsx, type XlsxColumn } from '@/app/lib/export/formatted-xlsx'
 import { statusColumns, statusTone } from '@/app/lib/export/status-board-columns'
+import { MEMENTO_STATE_SHORT, type MementoState } from '@/app/lib/mementos/state-labels'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Card, Input, Select } from '@/app/components/ui'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
@@ -65,6 +66,8 @@ type Row = {
   self_promo_status: SelfPromoState
   // Speaker guest invite (2026-10-06): no registration link yet / link ready / invite sent
   guest_invite_status: 'guest_missing' | 'guest_ready' | 'sent'
+  // Speaker Mementos (2026-10-20): null when the event hasn't switched the module on (column hidden).
+  memento_status: MementoState | null
   confirmation_status: string | null
   // Who originally sourced/introduced this speaker (2026-09-08) — plain
   // text, informational only, sourced from the producers' own Excel
@@ -155,6 +158,10 @@ function StatusText({ label, color }: { label: string; color: string }) {
 // below also use for their own fully-complete state.
 function BoolCell({ value }: { value: boolean }) {
   return <StatusText label={value ? '✓' : 'Pending'} color={value ? STATUS_GREEN : STATUS_RED} />
+}
+
+const MEMENTO_COLOR: Record<MementoState, string> = {
+  not_shared: STATUS_RED, in_batch: STATUS_AMBER, pushed: STATUS_TEAL, with_vendor: STATUS_TEAL, downloaded: STATUS_TEAL, confirmed: STATUS_GREEN, issue: STATUS_RED, photo_changed: STATUS_AMBER,
 }
 
 const DOC_STATUS_LABEL: Record<DocStatus, string> = { missing: 'Pending', in_progress: 'In Progress', reviewed: '✓' }
@@ -331,7 +338,9 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
   // the empty-state row's colSpan, since either can be hidden per this
   // event's feature toggles.
   const docColumnCount = (uaeFieldEnabled ? 1 : 0) + (sensitiveDocsEnabled ? 2 : 0)
-  const totalTableColumns = 4 + COLLECTION_BOOL_COLUMNS.length + docColumnCount + 2 + TRISTATE_COLUMNS.length
+  const mementosOn = rows.some(r => r.memento_status !== null)
+  const publishColumnCount = TRISTATE_COLUMNS.length + (mementosOn ? 1 : 0)
+  const totalTableColumns = 4 + COLLECTION_BOOL_COLUMNS.length + docColumnCount + 2 + publishColumnCount
 
   function toggleProducer(id: string) {
     setSelectedProducerIds(prev => {
@@ -355,7 +364,7 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
   async function downloadExcel() {
     setExporting(true)
     try {
-      const status = statusColumns({ uaeField: uaeFieldEnabled, sensitiveDocs: sensitiveDocsEnabled }).filter(c => c.key !== 'sb_producer')
+      const status = statusColumns({ uaeField: uaeFieldEnabled, sensitiveDocs: sensitiveDocsEnabled, mementos: mementosOn }).filter(c => c.key !== 'sb_producer')
       const cols: (XlsxColumn & { get: (r: Row) => string })[] = [
         { header: 'Speaker', width: 26, group: 'Speaker', get: r => r.name },
         { header: 'Job Title', width: 32, group: 'Speaker', get: r => r.job_title ?? '' },
@@ -582,7 +591,7 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
                       hideable per this event's feature toggles. */}
                   <Th colSpan={COLLECTION_BOOL_COLUMNS.length + docColumnCount} cellStyle={{ ...stickyStyle({ top: 0, z: 3 }), ...groupHeaderStyle('Collection'), ...groupStartStyle('Collection') }} contentStyle={thContentStyle('center')}>Collection</Th>
                   <Th colSpan={2} cellStyle={{ ...stickyStyle({ top: 0, z: 3 }), ...groupHeaderStyle('Production'), ...groupStartStyle('Production') }} contentStyle={thContentStyle('center')}>Production</Th>
-                  <Th colSpan={TRISTATE_COLUMNS.length} cellStyle={{ ...stickyStyle({ top: 0, z: 3 }), ...groupHeaderStyle('Publish'), ...groupStartStyle('Publish') }} contentStyle={thContentStyle('center')}>Publish</Th>
+                  <Th colSpan={publishColumnCount} cellStyle={{ ...stickyStyle({ top: 0, z: 3 }), ...groupHeaderStyle('Publish'), ...groupStartStyle('Publish') }} contentStyle={thContentStyle('center')}>Publish</Th>
                 </tr>
                 <tr style={{ background: 'var(--card-hi)' }}>
                   {/* Collection's own order (2026-09-09, per Madhu): Email,
@@ -606,6 +615,7 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
                   {TRISTATE_COLUMNS.map((c, i) => (
                     <Th key={c.key} cellStyle={{ ...(i === 0 ? groupStartStyle('Publish') : {}), ...stickyStyle({ top: headerRow1Height, z: 3 }) }} contentStyle={thContentStyle('center')}>{c.label}</Th>
                   ))}
+                  {mementosOn && <Th cellStyle={stickyStyle({ top: headerRow1Height, z: 3 })} contentStyle={thContentStyle('center')}>Memento Photo</Th>}
                 </tr>
               </thead>
               <tbody>
@@ -680,6 +690,11 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
                         </td>
                       )
                     })}
+                    {mementosOn && (
+                      <td style={tdStyle('center')}>
+                        <StatusText label={MEMENTO_STATE_SHORT[r.memento_status ?? 'not_shared']} color={MEMENTO_COLOR[r.memento_status ?? 'not_shared']} />
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

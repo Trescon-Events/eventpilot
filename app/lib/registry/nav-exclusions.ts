@@ -33,7 +33,7 @@ export type NavExclusionPrefix = { prefix: string; reason: string }
 export const REGISTRY_EXEMPT: NavExclusion[] = []
 export const REGISTRY_EXEMPT_PREFIXES: NavExclusionPrefix[] = []
 
-const VIEW_NAME = { '': 'OperationsHubView', '/licenses': 'LicensesView', '/vendors': 'VendorsView', '/badges': 'BadgePrintingView', '/speakers': 'SpeakerDocumentsView', '/access': 'OpsAccessView' } as const
+const VIEW_NAME = { '': 'OperationsHubView', '/licenses': 'LicensesView', '/vendors': 'VendorsView', '/badges': 'BadgePrintingView', '/mementos': 'MementosView', '/speakers': 'SpeakerDocumentsView', '/access': 'OpsAccessView' } as const
 
 export const PAGEHEADER_EXEMPT: NavExclusion[] = [
   {
@@ -52,7 +52,7 @@ export const PAGEHEADER_EXEMPT: NavExclusion[] = [
     path: '/admin/umbrellas/[id]',
     reason: 'Umbrella workspace hub (2026-10-02 redesign) — a module-tile landing page that mirrors the event workspace hub, which also has its own custom hero (title, status pill, meta line) instead of the standard PageHeader. Rendered by UmbrellaOverview.tsx via a thin server page.tsx.',
   },
-  ...(['', '/licenses', '/vendors', '/badges', '/speakers', '/access'] as const).flatMap(sub => ([
+  ...(['', '/licenses', '/vendors', '/badges', '/mementos', '/speakers', '/access'] as const).flatMap(sub => ([
     {
       path: `/admin/events/[id]/operations${sub}`,
       reason: `Thin wrapper (OpsScopeProvider kind="event") delegating to the shared ${VIEW_NAME[sub]} component, which already renders <PageHeader/> itself — same event/umbrella shared-view split as the sibling below. The check greps the page.tsx file only, it can't see through the import.`,
