@@ -2,6 +2,7 @@
 // announcements/generate and both regenerate-* routes, so the copy/creative
 // pipeline is defined once rather than duplicated across three route files.
 import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
+import { COPY_GENERATION_CONFIG, generateCopy } from '@/app/lib/ai/gemini-call'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import type { Variant, PhotoSlotLayer, CreativeTemplateConfig, ResolvedTexts } from '@/app/lib/announcements/composite'
 import type { HeadBox } from '@/app/lib/media/face-alignment'
@@ -384,17 +385,15 @@ earlier guidance literally.${retryAddendum}
 
 Return JSON only, no markdown fences: { "hook": "...", "announcement": "...", "credibility": "...", "cta": "...", "hashtags": ["#...", "..."], "x_body": "..." }`
 
-  const model = getGemini().getGenerativeModel({ model: GEMINI_FLASH_MODEL, generationConfig: { responseMimeType: 'application/json' } })
-  const result = await model.generateContent([{ text: prompt }], { timeout: 60_000 })
-  let draft = parseDraftResponse(result.response.text().trim())
+  const model = getGemini().getGenerativeModel({ model: GEMINI_FLASH_MODEL, generationConfig: COPY_GENERATION_CONFIG })
+  let draft = parseDraftResponse(await generateCopy(model, prompt, 'announcement copy'))
   if (!draft) throw new Error('Could not parse post copy response')
 
   if (draft.x_body.length > xBudget) {
     try {
       const reprompt = `Your X copy was ${draft.x_body.length} characters; rewrite ONLY it in under ${xBudget} characters, same voice and facts, still using the exact speaker/partner wording given, no hashtags inlined. Return JSON only: { "x_body": "..." }`
-      const retryModel = getGemini().getGenerativeModel({ model: GEMINI_FLASH_MODEL, generationConfig: { responseMimeType: 'application/json' } })
-      const retryResult = await retryModel.generateContent([{ text: `${prompt}\n\n${reprompt}` }], { timeout: 30_000 })
-      const match = retryResult.response.text().trim().match(/\{[\s\S]*\}/)
+      const retryModel = getGemini().getGenerativeModel({ model: GEMINI_FLASH_MODEL, generationConfig: COPY_GENERATION_CONFIG })
+      const match = (await generateCopy(retryModel, `${prompt}\n\n${reprompt}`, 'announcement x-copy trim')).match(/\{[\s\S]*\}/)
       const parsed = match ? JSON.parse(sanitizeJsonControlChars(match[0])) as { x_body?: string } : null
       if (parsed?.x_body?.trim()) draft = { ...draft, x_body: parsed.x_body.trim() }
     } catch (e) {
@@ -570,7 +569,7 @@ Return JSON only, no markdown fences: { "copy": "...", "hashtags": ["#...", "...
   // returning the whole raw, unparsed JSON blob (braces, field labels and
   // all) as if it were the post copy. Confirmed live: roughly 1 in 3
   // generations hit this before adding the mode.
-  const model  = getGemini().getGenerativeModel({ model: GEMINI_FLASH_MODEL, generationConfig: { responseMimeType: 'application/json' } })
+  const model  = getGemini().getGenerativeModel({ model: GEMINI_FLASH_MODEL, generationConfig: COPY_GENERATION_CONFIG })
   // Bounded (2026-08-24) — this and the asset fetch it runs alongside via
   // Promise.all in announcements/generate/route.ts are the only two things
   // standing between a normal ~few-second generate and the ~100s Cloudflare
@@ -578,8 +577,7 @@ Return JSON only, no markdown fences: { "copy": "...", "hashtags": ["#...", "...
   // (rare, but a real API-outage mode) could otherwise run past it same as
   // an unbounded fetch could. Matches the GEMINI_TIMEOUT_MS convention
   // already used in app/api/kb/intel/run/route.ts.
-  const result = await model.generateContent([{ text: prompt }], { timeout: 60_000 })
-  return parseGeminiCopyResponse(result.response.text().trim())
+  return parseGeminiCopyResponse(await generateCopy(model, prompt, 'post copy'))
 }
 
 // 2026-09-06: neither call site caught a thrown Gemini error (rate limit,
@@ -768,9 +766,8 @@ earlier guidance literally.${retryAddendum}
 
 Return JSON only, no markdown fences: { "copy": "...", "hashtags": ["#...", "..."], "x_copy": "..." }`
 
-  const model  = getGemini().getGenerativeModel({ model: GEMINI_FLASH_MODEL, generationConfig: { responseMimeType: 'application/json' } })
-  const result = await model.generateContent([{ text: prompt }], { timeout: 60_000 })
-  return parseGeminiCopyResponse(result.response.text().trim())
+  const model  = getGemini().getGenerativeModel({ model: GEMINI_FLASH_MODEL, generationConfig: COPY_GENERATION_CONFIG })
+  return parseGeminiCopyResponse(await generateCopy(model, prompt, 'self-promo copy'))
 }
 
 // Stage 5 for self-promo, 'assembled' mode only.
@@ -987,9 +984,8 @@ Return JSON only, no markdown fences:
 { "headlines": [ { "lead": "...", "emphasis": "...", "trail": "..." }, ... exactly 5 items ] }
 Use an empty string "" for lead/trail when a given option omits it.`
 
-  const model = getGemini().getGenerativeModel({ model: FLASH_MODEL, generationConfig: { responseMimeType: 'application/json' } })
-  const result = await model.generateContent([{ text: prompt }], { timeout: 60_000 })
-  return parseHeadlineResponse(result.response.text().trim())
+  const model = getGemini().getGenerativeModel({ model: FLASH_MODEL, generationConfig: COPY_GENERATION_CONFIG })
+  return parseHeadlineResponse(await generateCopy(model, prompt, 'headlines'))
 }
 
 export type { CreativeTemplateConfig }

@@ -11,6 +11,9 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 ---
 
+## Announcement generation: Gemini thinking low + retry + timing log (20 Oct 2026) — pushed
+- DFWS announcements failed (502 after ~60s, four tries). Cause: Gemini 3.x "thinks" by default; on DFWS's ~29k-token prompt that took 26-40s of a 60s limit, so a slow moment tipped it over. `app/lib/ai/gemini-call.ts`: `COPY_GENERATION_CONFIG` (thinkingLevel low: 31s -> 5s on the same prompt, same quality in side-by-side runs) + `generateCopy()` (one retry on timeout/drop, 45s+35s to stay under the ~100s proxy limit, logs `[gemini] <label> ok in Nms`). Used by the 5 copy/headline calls in `announcements.ts`. Other Gemini calls app-wide still use default thinking. DFWS agenda was also reset: KonfHub deleted + re-pushed from EventPilot (new session ids 17353-17363); producers should edit the agenda in EventPilot only.
+
 ## Fix: KonfHub push rejected regular DFWS speakers (20 Oct 2026) — pushed
 - My per-speaker-category push sent an explicit `speaker_category_id: null` for regular speakers; KonfHub rejects it ("None is not of type 'integer'"). Now the key is omitted for them; a speaker still in a category with no pick gets a clear 422 (KonfHub can't move a speaker back out of a category via the API — do it on the KonfHub Speakers page). Verified same-value updates with and without the category against live DFWS. Memento photo hand-off for BSS is **on hold** (proposal discussed, nothing built).
 
