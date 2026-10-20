@@ -119,6 +119,7 @@ type Settings = {
   konfhub_client_id: string | null
   konfhub_client_secret: string | null
   konfhub_speaker_category_id: string | null
+  konfhub_speaker_categories?: { id: string; label: string }[] | null
   konfhub_speaker_ticket: string | null
   konfhub_partner_ticket: string | null
   konfhub_api_key: string | null
@@ -238,6 +239,8 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
   const [fetchedSpeakerCategories, setFetchedSpeakerCategories] = useState<KonfhubSpeakerCategory[] | null>(null)
   const [fetchingSpeakerCategories, setFetchingSpeakerCategories] = useState(false)
   const [savingSpeakerCategory, setSavingSpeakerCategory] = useState(false)
+  const [pickCategories, setPickCategories] = useState<{ id: string; label: string }[]>([])
+  const [savingPickCategories, setSavingPickCategories] = useState(false)
 
   const [fetchedCategories, setFetchedCategories] = useState<KonfhubTicketCategory[] | null>(null)
   const [fetchingTickets, setFetchingTickets] = useState(false)
@@ -354,6 +357,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
     const settingsData = await settingsRes.json().catch(() => null)
     if (settingsRes.ok && settingsData) {
       setSettings(settingsData)
+      setPickCategories(settingsData.konfhub_speaker_categories ?? [])
       setManualFields({
         konfhub_event_id: settingsData.konfhub_event_id ?? '',
         konfhub_client_id: settingsData.konfhub_client_id ?? '',
@@ -556,6 +560,20 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
     if (!res.ok) { setMsg({ text: data.error ?? 'Could not save speaker category.', ok: false }); return }
     setSettings(prev => prev ? { ...prev, konfhub_speaker_category_id: data.konfhub_speaker_category_id } : prev)
     setMsg({ text: 'Speaker category saved.', ok: true })
+  }
+
+  async function savePickCategories() {
+    setSavingPickCategories(true)
+    setMsg(null)
+    const res = await fetch(`/api/events/konfhub/settings?event_id=${eventId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ konfhub_speaker_categories: pickCategories.filter(c => c.label.trim()) }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSavingPickCategories(false)
+    if (!res.ok) { setMsg({ text: data.error ?? 'Could not save the per-speaker categories.', ok: false }); return }
+    setSettings(prev => prev ? { ...prev, konfhub_speaker_categories: data.konfhub_speaker_categories } : prev)
+    setMsg({ text: 'Per-speaker categories saved.', ok: true })
   }
 
   async function fetchTickets() {
@@ -1110,6 +1128,33 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
               </div>
             </div>
           )}
+        </Card></div>
+
+        <div style={{ marginTop: '16px' }}><Card padded>
+          <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Per-Speaker Categories <span style={{ fontWeight: 400, color: 'var(--ink4)', fontSize: '12px' }}>(optional)</span></div>
+          <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '14px' }}>
+            For an event whose KonfHub Speakers page has several groups (e.g. DFWS&apos;s Roundtable Speakers). List the groups a producer can pick per speaker, on the speaker&apos;s Details page or as a bulk action in the roster. A speaker with no pick stays in the default group (a regular Speaker). Leave empty and nothing changes for this event. Use “Fetch Categories from KonfHub” above to see what exists; a group with no speakers yet may not show — then add its id by hand.
+          </div>
+          <div style={{ display: 'grid', gap: '8px', marginBottom: '12px' }}>
+            {pickCategories.map((c, i) => (
+              <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <Input value={c.label} disabled={!canManage} placeholder="Label shown to producers" onChange={e => setPickCategories(prev => prev.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} />
+                <code style={{ fontSize: '12px', color: 'var(--ink3)' }}>{c.id}</code>
+                {canManage && <Button variant="ghost" onClick={() => setPickCategories(prev => prev.filter((_, j) => j !== i))}>Remove</Button>}
+              </div>
+            ))}
+          </div>
+          {fetchedSpeakerCategories && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+              {fetchedSpeakerCategories.filter(c => !pickCategories.some(p => p.id === c.category_id)).map(c => (
+                <button key={c.category_id} disabled={!canManage} onClick={() => setPickCategories(prev => [...prev, { id: c.category_id, label: c.category_name }])}
+                  style={{ padding: '4px 10px', fontSize: '12.5px', border: '1px dashed var(--border)', borderRadius: '999px', background: 'none', color: 'var(--ink2)', cursor: canManage ? 'pointer' : 'default' }}>
+                  + {c.category_name}
+                </button>
+              ))}
+            </div>
+          )}
+          {canManage && <Button variant="teal" onClick={savePickCategories} disabled={savingPickCategories}>{savingPickCategories ? 'Saving…' : 'Save Per-Speaker Categories'}</Button>}
         </Card></div>
 
         <div style={{ marginTop: '16px' }}><Card padded>

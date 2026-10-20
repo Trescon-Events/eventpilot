@@ -103,6 +103,8 @@ type StakeholderRecord = {
   // konfhub-push-role/route.ts.
   konfhub_primary_role_tag_id?: string | null
   konfhub_roles?: { tag_id: string; label: string }[]
+  konfhub_categories?: { id: string; label: string }[]
+  konfhub_category_id?: string | null
   konfhub_extra_roles?: { tag_id: string; konfhub_speaker_id: string | null; synced_at: string | null }[]
   konfhub_registration_synced_at?: string | null
   // Producer / Reference / Confirmation Status (2026-09-03) — see
@@ -272,6 +274,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   // load() below for an existing one.
   // Role tag id the main KonfHub record carries ('' = none chosen yet → the push falls back to the Speaker role).
   const [konfhubPrimaryRole, setKonfhubPrimaryRole] = useState('')
+  const [konfhubCategory, setKonfhubCategory] = useState('')
   const [keyTalkingPoints, setKeyTalkingPoints] = useState('')
   // Producer / Reference / Confirmation Status (2026-09-03, built for DFS —
   // multiple producers each own a distinct subset of the roster, unlike
@@ -405,6 +408,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   const publicNameRef = useRef(publicName)
   const pronounStyleRef = useRef(pronounStyle)
   const konfhubPrimaryRoleRef = useRef(konfhubPrimaryRole)
+  const konfhubCategoryRef = useRef(konfhubCategory)
   const keyTalkingPointsRef = useRef(keyTalkingPoints)
   const producerStaffIdRef = useRef(producerStaffId)
   const referenceRef = useRef(reference)
@@ -414,6 +418,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   useEffect(() => { publicNameRef.current = publicName }, [publicName])
   useEffect(() => { pronounStyleRef.current = pronounStyle }, [pronounStyle])
   useEffect(() => { konfhubPrimaryRoleRef.current = konfhubPrimaryRole }, [konfhubPrimaryRole])
+  useEffect(() => { konfhubCategoryRef.current = konfhubCategory }, [konfhubCategory])
   useEffect(() => { keyTalkingPointsRef.current = keyTalkingPoints }, [keyTalkingPoints])
   useEffect(() => { producerStaffIdRef.current = producerStaffId }, [producerStaffId])
   useEffect(() => { referenceRef.current = reference }, [reference])
@@ -467,6 +472,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
         setPronounStyle(data.pronoun_style ?? '')
         setKeyTalkingPoints(data.key_talking_points ?? '')
         setKonfhubPrimaryRole(data.konfhub_primary_role_tag_id ?? '')
+        setKonfhubCategory(data.konfhub_category_id ?? '')
         setProducerStaffId(data.producer_staff_id ?? '')
         setReference(data.reference ?? '')
         setConfirmationStatus(data.confirmation_status ?? '')
@@ -549,6 +555,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       if (top.has('pronoun_style')) body.pronoun_style = pronounStyleRef.current || null
       if (top.has('key_talking_points')) body.key_talking_points = keyTalkingPointsRef.current.trim() || null
       if (top.has('konfhub_primary_role_tag_id')) body.konfhub_primary_role_tag_id = konfhubPrimaryRoleRef.current || null
+      if (top.has('konfhub_category_id')) body.konfhub_category_id = konfhubCategoryRef.current || null
       if (top.has('producer_staff_id')) body.producer_staff_id = producerStaffIdRef.current || null
       if (top.has('reference')) body.reference = referenceRef.current.trim() || null
       if (top.has('confirmation_status')) body.confirmation_status = confirmationStatusRef.current.trim() || null
@@ -615,6 +622,13 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     if (tagId === konfhubPrimaryRole) return
     setKonfhubPrimaryRole(tagId)
     scheduleSave('konfhub_primary_role_tag_id')
+  }
+
+  // Per-speaker KonfHub category (DFWS Roundtable Speaker). Empty = the event's default group (regular Speaker).
+  function chooseKonfhubCategory(id: string) {
+    if (id === konfhubCategory) return
+    setKonfhubCategory(id)
+    scheduleSave('konfhub_category_id')
   }
 
   // Deliberately separate from approve() above (2026-08-24, per Madhu) —
@@ -2029,6 +2043,16 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
               ) : (
                 <div style={{ marginTop: '12px', fontSize: '12.5px', color: 'var(--ink4)' }}>
                   No speaker roles are set for this event yet — fetch and add them on the Integrations page.
+                </div>
+              )}
+              {(record.konfhub_categories ?? []).length > 0 && (
+                <div style={{ marginTop: '12px', maxWidth: '320px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px' }}>KonfHub category</label>
+                  <Select value={konfhubCategory} disabled={!canEdit} onChange={e => chooseKonfhubCategory(e.target.value)}>
+                    <option value="">Speaker (default)</option>
+                    {(record.konfhub_categories ?? []).map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                  </Select>
+                  <div style={{ fontSize: '11.5px', color: 'var(--ink4)', marginTop: '4px' }}>Takes effect on KonfHub at the next push. A roundtable speaker who is also a regular speaker stays on Speaker.</div>
                 </div>
               )}
               <div style={{ marginTop: '14px' }}>

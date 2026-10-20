@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { getEventRoles, resolvePrimaryRole } from '@/app/lib/konfhub/roles'
+import { getEventSpeakerCategories, resolveSpeakerCategory } from '@/app/lib/konfhub/categories'
 import { getKonfhubToken, createKonfhubSpeaker, updateKonfhubSpeaker, maxSpeakerOrderInCategory, fetchKonfhubTags, KonfhubApiError } from '@/app/lib/konfhub-speakers'
 
 /* POST /api/events/stakeholders/speakers/[id]/konfhub-push
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: speaker } = await supabaseAdmin
     .from('event_speakers')
-    .select('event_id, public_name, pronoun_style, photo_cleaning_cycle_done, website_photo_manual, website_card_url, company_logo_url, bio, role, company, country, linkedin_url, konfhub_speaker_id, konfhub_primary_role_tag_id')
+    .select('event_id, public_name, pronoun_style, photo_cleaning_cycle_done, website_photo_manual, website_card_url, company_logo_url, bio, role, company, country, linkedin_url, konfhub_speaker_id, konfhub_primary_role_tag_id, konfhub_category_id')
     .eq('id', speakerId)
     .single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
@@ -99,6 +100,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // directly in KonfHub for an event this feature hasn't been set up for.
   const primaryRole = resolvePrimaryRole(speaker.konfhub_primary_role_tag_id, await getEventRoles(speaker.event_id))
   let tags: { id: string; name: string }[] = []
+  // Per-speaker category (DFWS Roundtable Speaker): only when the event lists categories; otherwise the event-level id as before.
+  const category = resolveSpeakerCategory(speaker.konfhub_category_id, await getEventSpeakerCategories(speaker.event_id), website.konfhub_speaker_category_id)
 
   try {
     const token = await getKonfhubToken(website.konfhub_client_id, website.konfhub_client_secret)
@@ -113,7 +116,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       organisation: speaker.company || undefined,
       linkedin_url: speaker.linkedin_url || undefined,
       location: speaker.country?.trim() || undefined,
-      speaker_category_id: website.konfhub_speaker_category_id || undefined,
+      speaker_category_id: category.categoryId || undefined,
       ...(tags.length > 0 ? { tags } : {}),
     }
 
@@ -135,13 +138,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // see its own doc comment for why: order is per-category, not
       // global), and adding 1 guarantees a genuine append to the bottom of
       // THIS event's own list specifically.
-      const maxOrder = await maxSpeakerOrderInCategory(website.konfhub_event_id, token, website.konfhub_speaker_category_id).catch(() => 0)
+      const maxOrder = await maxSpeakerOrderInCategory(website.konfhub_event_id, token, category.categoryId).catch(() => 0)
       konfhubSpeakerId = await createKonfhubSpeaker(website.konfhub_event_id, token, { ...fields, speaker_order: maxOrder + 1 })
     } else {
       konfhubSpeakerId = speaker.konfhub_speaker_id!
       // A company cleared in EventPilot must clear it on KonfHub too (2026-10-19, FTF Jorge Carrasco): `fields.organisation` is
       // undefined when blank (so first pushes and other keys never overwrite KonfHub), and an omitted key leaves the old value there.
-      await updateKonfhubSpeaker(website.konfhub_event_id, konfhubSpeakerId, token, speaker.company?.trim() ? fields : { ...fields, organisation: '' })
+      const updateFields = speaker.company?.trim() ? fields : { ...fields, organisation: '' }
+      // An omitted key leaves KonfHub's category alone, so moving a speaker back to the default group must say so explicitly.
+      await updateKonfhubSpeaker(website.konfhub_event_id, konfhubSpeakerId, token, category.clear ? { ...updateFields, speaker_category_id: null } : updateFields)
     }
 
     const syncedAt = new Date().toISOString()

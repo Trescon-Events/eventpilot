@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
+import { parseSpeakerCategories } from '@/app/lib/konfhub/categories'
 
 /* GET   /api/events/konfhub/settings?event_id=X
    PATCH /api/events/konfhub/settings?event_id=X
@@ -19,7 +20,7 @@ import { hasEventPermission } from '@/app/lib/access/event-access'
 
 const KONFHUB_FIELDS = [
   'konfhub_event_id', 'konfhub_client_id', 'konfhub_client_secret',
-  'konfhub_speaker_category_id', 'konfhub_speaker_tag_id', 'konfhub_moderator_tag_id',
+  'konfhub_speaker_category_id', 'konfhub_speaker_categories', 'konfhub_speaker_tag_id', 'konfhub_moderator_tag_id',
   'konfhub_speaker_ticket', 'konfhub_partner_ticket', 'konfhub_registration_field_map',
   'konfhub_api_key',
   // Agenda Structure (2026-09-15) — agenda_source gates whether the Agenda
@@ -64,6 +65,11 @@ export async function PATCH(req: NextRequest) {
   const patch: Record<string, unknown> = {}
   for (const key of KONFHUB_FIELDS) {
     if (key in body) patch[key] = body[key]
+  }
+  if ('konfhub_speaker_categories' in patch) {
+    const list = parseSpeakerCategories(patch.konfhub_speaker_categories)
+    if (new Set(list.map(c => c.id)).size !== list.length) return NextResponse.json({ error: 'The same KonfHub category is listed twice.' }, { status: 400 })
+    patch.konfhub_speaker_categories = list.length ? list : null
   }
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'No recognised KonfHub fields in body' }, { status: 400 })
 

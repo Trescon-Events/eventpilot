@@ -7,6 +7,7 @@ import { resolveFormSchema } from '@/app/lib/forms/resolve-schema'
 import { mapFieldsToRecord, recordToFields } from '@/app/lib/forms/map-to-stakeholder-record'
 import { FieldSchema, SubmittedValue } from '@/app/lib/forms/types'
 import { getEventRoles } from '@/app/lib/konfhub/roles'
+import { getEventSpeakerCategories } from '@/app/lib/konfhub/categories'
 import { getKonfhubToken, deleteKonfhubSpeaker, KonfhubApiError } from '@/app/lib/konfhub-speakers'
 import { syncSpeakerCrmContact } from '@/app/lib/crm/upsert'
 import { syncContactToHubSpot } from '@/app/lib/hubspot/crm-sync'
@@ -65,6 +66,8 @@ type SpeakerPatchBody = {
   // Role tag the main KonfHub record carries (event_konfhub_roles.tag_id) —
   // replaced the old Speaker/Moderator boolean pair 2026-10-04.
   konfhub_primary_role_tag_id?: string | null
+  // Per-speaker KonfHub category (DFWS Roundtable Speaker), one of the event's listed categories; null = the event default.
+  konfhub_category_id?: string | null
   // Producer / Reference / Confirmation Status (2026-09-03) — see
   // supabase/speaker_producer_reference_confirmation_migration.sql's own
   // doc comment for why each exists. Same producer-editable, not-part-of-
@@ -115,11 +118,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // Multi-role KonfHub listings (2026-10-04): the event's configured roles +
   // this speaker's additional-role records, for the Overview role picker and
   // the Additional Roles tab.
-  const [konfhubRoles, { data: konfhubExtraRoles }] = await Promise.all([
+  const [konfhubRoles, konfhubCategories, { data: konfhubExtraRoles }] = await Promise.all([
     getEventRoles(data.event_id),
+    getEventSpeakerCategories(data.event_id),
     supabaseAdmin.from('speaker_konfhub_roles').select('tag_id, konfhub_speaker_id, synced_at').eq('speaker_id', id),
   ])
-  return NextResponse.json({ ...fromRow(data), fields: recordToFields('speaker', schema, data), konfhub_roles: konfhubRoles, konfhub_extra_roles: konfhubExtraRoles ?? [] })
+  return NextResponse.json({ ...fromRow(data), fields: recordToFields('speaker', schema, data), konfhub_roles: konfhubRoles, konfhub_categories: konfhubCategories, konfhub_extra_roles: konfhubExtraRoles ?? [] })
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -215,6 +219,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'That role isn’t configured for this event.' }, { status: 422 })
     }
     row.konfhub_primary_role_tag_id = body.konfhub_primary_role_tag_id
+  }
+  if (body.konfhub_category_id !== undefined) {
+    if (body.konfhub_category_id !== null && !(await getEventSpeakerCategories(existing.event_id)).some(c => c.id === body.konfhub_category_id)) {
+      return NextResponse.json({ error: 'That category isn’t set up for this event.' }, { status: 422 })
+    }
+    row.konfhub_category_id = body.konfhub_category_id
   }
   if (body.producer_staff_id !== undefined) row.producer_staff_id = body.producer_staff_id || null
   if (body.reference !== undefined) row.reference = body.reference || null
