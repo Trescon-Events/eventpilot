@@ -7,6 +7,7 @@
 // indefinitely (Postiz media URLs, approval-email inline images, public
 // form display), not expire after a few minutes.
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { withRetry } from '@/app/lib/net/retry'
 
 const BUCKET = 'event-stakeholder-assets'
 let bucketReady = false
@@ -40,11 +41,18 @@ async function ensureBucket() {
 }
 
 export async function uploadPublicAsset(path: string, body: Buffer, contentType: string): Promise<string> {
-  await ensureBucket()
-  const { error } = await supabaseAdmin.storage
-    .from(BUCKET)
-    .upload(path, body, { contentType, upsert: true })
-  if (error) throw new Error(`Asset upload failed: ${error.message}`)
+  await withRetry(async () => {
+    await ensureBucket()
+    const { error } = await supabaseAdmin.storage
+      .from(BUCKET)
+      .upload(path, body, { contentType, upsert: true })
+    // Only a network-level failure is worth retrying; a real rejection (size, type, permissions) would fail the same way again.
+    if (error) {
+      const transient = /fetch failed|network|timed? ?out|ECONN|ENOTFOUND|EAI_AGAIN|socket/i.test(error.message)
+      if (!transient) throw Object.assign(new Error(`Asset upload failed: ${error.message}`), { permanent: true })
+      throw new Error(`Asset upload failed: ${error.message}`)
+    }
+  }, 'Storage upload')
 
   const { data } = supabaseAdmin.storage.from(BUCKET).getPublicUrl(path)
   return data.publicUrl

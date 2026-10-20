@@ -1,3 +1,4 @@
+import { fetchWithRetry } from '@/app/lib/net/retry'
 // CloudConvert client (Clean Logo Base generator, 2026-07-28) — the one
 // external-API dependency in the Logo Engine, isolated in its own module
 // (mirroring speaker-photo-engine.ts's PhotoRoom pattern: null-on-failure/
@@ -33,10 +34,10 @@ type CloudConvertTask = {
 type CloudConvertJob = { id: string; status: string; tasks: CloudConvertTask[] }
 
 async function cloudConvertRequest<T>(apiKey: string, path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${CLOUDCONVERT_API_BASE}${path}`, {
+  const res = await fetchWithRetry(`${CLOUDCONVERT_API_BASE}${path}`, {
     ...init,
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', ...init?.headers },
-  })
+  }, 'CloudConvert')
   if (!res.ok) throw new Error(`CloudConvert ${path} failed: ${res.status} ${await res.text().catch(() => '')}`)
   const body = await res.json()
   return (body.data ?? body) as T
@@ -139,7 +140,7 @@ export async function convertDocxToPdf(buffer: Buffer, inputFormat: OfficeInputF
   for (const [key, value] of Object.entries(uploadForm.parameters)) formData.append(key, value)
   const mimeType = OFFICE_MIME[inputFormat]
   formData.append('file', new Blob([new Uint8Array(buffer)], { type: mimeType }), `bio.${inputFormat}`)
-  const uploadRes = await fetch(uploadForm.url, { method: 'POST', body: formData })
+  const uploadRes = await fetchWithRetry(uploadForm.url, { method: 'POST', body: formData }, 'CloudConvert upload')
   if (!uploadRes.ok) throw new Error(`CloudConvert file upload failed: ${uploadRes.status}`)
 
   for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
@@ -153,7 +154,7 @@ export async function convertDocxToPdf(buffer: Buffer, inputFormat: OfficeInputF
       const exportTask = polled.tasks.find(t => t.name === 'export-pdf')
       const fileUrl = exportTask?.result?.files?.[0]?.url
       if (!fileUrl) throw new Error('CloudConvert job finished but no output file was returned')
-      const fileRes = await fetch(fileUrl)
+      const fileRes = await fetchWithRetry(fileUrl, undefined, 'CloudConvert download')
       if (!fileRes.ok) throw new Error(`Failed to download CloudConvert output: ${fileRes.status}`)
       return Buffer.from(await fileRes.arrayBuffer())
     }

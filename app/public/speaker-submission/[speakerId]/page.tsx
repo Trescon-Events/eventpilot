@@ -239,7 +239,7 @@ export default function SpeakerSubmissionPage({ params }: { params: Promise<{ sp
       // Partial: what they sent is saved; the same link stays open for the rest.
       try { localStorage.removeItem(draftKey) } catch { /* best-effort */ }
       setFiles({}); setConsent(false); setShortBio(''); setCountry(''); setAssistantAnswer(null); setRestored(false)
-      setNotice(`Thank you — we've saved what you sent. Still needed: ${(result.remaining as string[]).join(', ')}. You can come back to this same link any time to add the rest.`)
+      setNotice(`Thank you — we've saved what you sent. Still needed: ${(result.remaining as string[]).join(', ')}. ${result.retry_later ? 'Please come back to this same link in a few minutes to add the rest.' : 'You can come back to this same link any time to add the rest.'}`)
       setFormKey(k => k + 1)
       window.scrollTo({ top: 0 })
       await loadData().then(setData).catch(() => {})

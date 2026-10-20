@@ -17,6 +17,7 @@ import { renderEmailTemplate } from '@/app/lib/email/render-template'
 import { MissingItemKey, missingItemLabel } from '@/app/lib/stakeholders/missing-items'
 import { SENSITIVE_CONSENT_VERSION, SENSITIVE_CONSENT_REQUIRED_ERROR } from '@/app/lib/stakeholders/sensitive-consent'
 import { clientIp } from '@/app/lib/ops/audit'
+import { withRetry } from '@/app/lib/net/retry'
 
 /* POST /api/public/speaker-submission/[speakerId]/submit?token=X
    multipart/form-data — one file per requested item key (bio_full, photo,
@@ -156,6 +157,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
 
   // Full Bio — same PDF-or-Word-converted-to-PDF rule as every other Full
   // Bio entry point (app/lib/events/full-bio-upload.ts's own doc comment).
+  // Steps that failed on OUR side (conversion/storage hiccup). They never discard the other items in the same submission, and the
+  // speaker gets a plain sentence, not a raw network error.
+  // The speaker only ever sees GENERIC_RETRY — never which item, step or service failed; the detail goes to the server log.
+  const GENERIC_RETRY = 'Something went wrong on our side. Please try again in a few minutes — your link stays open.'
+  const failures: string[] = []
   const bioFile = requestedFields.has('bio_full') ? (form.get('bio_full') as File | null) : null
   if (bioFile && bioFile.size > 0) {
     if (bioFile.size > MAX_BIO_SIZE) return NextResponse.json({ error: `Full Bio file too large (max ${MAX_BIO_SIZE / (1024 * 1024)} MB)` }, { status: 413 })
@@ -168,7 +174,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
       speakerPatch.bio_full_text = bioText || null
       submitted.push('bio_full')
     } catch (e) {
-      return NextResponse.json({ error: e instanceof Error ? e.message : 'Full Bio upload failed' }, { status: 400 })
+      const message = e instanceof Error ? e.message : ''
+      // A message about the file itself (wrong type) is the speaker's to fix; anything else is our side.
+      if (/^Unsupported file type/.test(message)) return NextResponse.json({ error: message }, { status: 400 })
+      console.error(`[speaker-submission] Full Bio step failed for speaker ${speakerId}:`, e, (e as { cause?: unknown })?.cause)
+      failures.push(GENERIC_RETRY)
     }
   }
 
@@ -239,28 +249,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
 
     if (retentionExpiresAt === null) retentionExpiresAt = (await computeRetention(speaker.event_id)).expiresAt
 
-    const { data: prior } = await supabaseAdmin
-      .from('speaker_sensitive_documents')
-      .select('id, storage_path')
-      .eq('speaker_id', speakerId)
-      .eq('document_type', docType)
-      .is('deleted_at', null)
-      .maybeSingle()
-    if (prior) {
-      await supabaseAdmin.from('speaker_sensitive_documents').update({ storage_path: null, deleted_at: new Date().toISOString(), deleted_by: 'speaker_submission' }).eq('id', prior.id)
+    try {
+      // Store the new file first, then retire the previous one — a failed upload must not leave the speaker with no document.
+      const storagePath = `${speaker.event_id}/${speakerId}/${docType}-${Date.now()}.${ext}`
+      await withRetry(() => uploadSensitiveDocument(storagePath, docBuf, docMime), `${docType} upload`)
+      const { data: prior } = await supabaseAdmin
+        .from('speaker_sensitive_documents')
+        .select('id, storage_path')
+        .eq('speaker_id', speakerId)
+        .eq('document_type', docType)
+        .is('deleted_at', null)
+        .maybeSingle()
+      if (prior) {
+        await supabaseAdmin.from('speaker_sensitive_documents').update({ storage_path: null, deleted_at: new Date().toISOString(), deleted_by: 'speaker_submission' }).eq('id', prior.id)
+      }
+      const { error: insertErr } = await supabaseAdmin.from('speaker_sensitive_documents').insert({
+        speaker_id: speakerId, event_id: speaker.event_id, document_type: docType,
+        storage_path: storagePath, file_name: sensitiveDocumentFileName(publicNameForFile(speaker), docType, docMime), mime_type: docMime, file_size: file.size,
+        uploaded_by: null, retention_expires_at: retentionExpiresAt,
+      })
+      if (insertErr) throw new Error(insertErr.message)
+    } catch (e) {
+      console.error(`[speaker-submission] ${docType} step failed for speaker ${speakerId}:`, e, (e as { cause?: unknown })?.cause)
+      failures.push(GENERIC_RETRY)
+      continue
     }
-
-    const storagePath = `${speaker.event_id}/${speakerId}/${docType}-${Date.now()}.${ext}`
-    const buffer = docBuf
-    await uploadSensitiveDocument(storagePath, buffer, docMime)
-    await supabaseAdmin.from('speaker_sensitive_documents').insert({
-      speaker_id: speakerId, event_id: speaker.event_id, document_type: docType,
-      storage_path: storagePath, file_name: sensitiveDocumentFileName(publicNameForFile(speaker), docType, docMime), mime_type: docMime, file_size: file.size,
-      uploaded_by: null, retention_expires_at: retentionExpiresAt,
-    })
     submitted.push(docType)
   }
 
+  if (submitted.length === 0 && failures.length > 0) {
+    return NextResponse.json({ error: GENERIC_RETRY }, { status: 502 })
+  }
   if (submitted.length === 0) {
     return NextResponse.json({ error: 'Please provide at least one of the requested items before submitting.' }, { status: 400 })
   }
@@ -293,7 +312,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ spe
 
   await notifyProducer(speaker.event_id, speakerId, submitted, request.requested_by, remainingAfter).catch(e => console.error('[speaker-submission] producer notification failed (submission still recorded):', e))
 
-  return NextResponse.json({ ok: true, complete, remaining: remainingAfter.map(missingItemLabel) })
+  return NextResponse.json({ ok: true, complete, remaining: remainingAfter.map(missingItemLabel), ...(failures.length ? { retry_later: true } : {}) })
 }
 
 // Notifies whoever actually sent THIS request round (request.requested_by)
