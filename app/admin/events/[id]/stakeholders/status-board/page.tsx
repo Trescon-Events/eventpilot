@@ -1,7 +1,8 @@
 'use client'
 
 import { use, useEffect, useMemo, useRef, useState } from 'react'
-import * as XLSX from 'xlsx'
+import { downloadFormattedXlsx, type XlsxColumn } from '@/app/lib/export/formatted-xlsx'
+import { statusColumns, statusTone } from '@/app/lib/export/status-board-columns'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Card, Input, Select } from '@/app/components/ui'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
@@ -350,32 +351,34 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
   // Done/Pending/N/A/Unknown labels (BoolCell's own boolean→label mapping
   // and TRISTATE_LABEL are reused here, not re-derived), same left-to-
   // right order (Collection, then Production, then Publish).
-  function downloadExcel() {
-    const sheetRows = rows.map(r => ({
-      'Speaker': r.name,
-      'Company': r.company_name ?? '',
-      'Ref': r.reference ?? '',
-      'Producer': r.producer_name ?? '',
-      'Confirmation Status': r.confirmation_status ?? 'Not set',
-      'Email': r.email ? 'Done' : 'Pending',
-      'Assistant Email': r.assistant_email ? 'Done' : 'Pending',
-      'Full Bio': r.full_bio ? 'Done' : 'Pending',
-      'Photo': r.photo ? 'Done' : 'Pending',
-      ...(uaeFieldEnabled ? { 'UAE Resident': r.is_uae_resident === true ? 'YES' : r.is_uae_resident === false ? 'NO' : 'UNKNOWN' } : {}),
-      ...(sensitiveDocsEnabled ? {
-        'Passport': r.passport_status === 'reviewed' ? 'Reviewed' : r.passport_status === 'in_progress' ? 'In Progress' : 'Pending',
-        'National ID': !r.national_id_applicable ? 'Not Applicable' : r.national_id_status === 'reviewed' ? 'Reviewed' : r.national_id_status === 'in_progress' ? 'In Progress' : 'Pending',
-      } : {}),
-      'Short Bio': r.short_bio_status === 'approved' ? 'Approved' : r.short_bio_status === 'in_progress' ? 'In Progress' : 'Pending',
-      'Website Photo': websitePhotoState(r).label,
-      'Website': TRISTATE_LABEL[r.website_status],
-      'Social Post': TRISTATE_LABEL[r.social_post_status],
-      'Self Promo': TRISTATE_LABEL[r.self_promo_status],
-      'Guest Link': TRISTATE_LABEL[r.guest_invite_status],
-    }))
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetRows), 'Status Board')
-    XLSX.writeFile(wb, `speaker-status-board-${Date.now()}.xlsx`)
+  const [exporting, setExporting] = useState(false)
+  async function downloadExcel() {
+    setExporting(true)
+    try {
+      const status = statusColumns({ uaeField: uaeFieldEnabled, sensitiveDocs: sensitiveDocsEnabled }).filter(c => c.key !== 'sb_producer')
+      const cols: (XlsxColumn & { get: (r: Row) => string })[] = [
+        { header: 'Speaker', width: 26, group: 'Speaker', get: r => r.name },
+        { header: 'Job Title', width: 32, group: 'Speaker', get: r => r.job_title ?? '' },
+        { header: 'Company', width: 28, group: 'Speaker', get: r => r.company_name ?? '' },
+        { header: 'Producer', width: 20, group: 'Speaker', get: r => r.producer_name ?? '' },
+        { header: 'Ref', width: 18, group: 'Speaker', get: r => r.reference ?? '' },
+        { header: 'Confirmation Status', width: 20, group: 'Speaker', get: r => r.confirmation_status ?? 'Not set' },
+        ...status,
+      ]
+      const statusHeaders = new Set(status.map(c => c.header))
+      await downloadFormattedXlsx({
+        filename: `speaker-status-board-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        sheetName: 'Status Board',
+        title: `${eventName ? `${eventName} — ` : ''}Speaker Onboarding Status`,
+        subtitle: `${rows.length} speaker${rows.length === 1 ? '' : 's'} · exported ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`,
+        columns: cols.map(({ header, width, group }) => ({ header, width, group })),
+        rows: rows.map(r => cols.map(c => c.get(r))),
+        freezeColumns: 1,
+        tone: (header, value) => (statusHeaders.has(header) ? statusTone(value) : undefined),
+      })
+    } finally {
+      setExporting(false)
+    }
   }
 
   return (
@@ -511,7 +514,7 @@ export default function StatusBoardPage({ params }: { params: Promise<{ id: stri
               .map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </Select>
 
-          <Button variant="ghost" onClick={downloadExcel}>Download Excel</Button>
+          <Button variant="ghost" onClick={downloadExcel} disabled={exporting || rows.length === 0}>{exporting ? 'Preparing…' : 'Download Excel'}</Button>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginLeft: 'auto', fontSize: '11.5px', fontWeight: 700 }}>
             <span style={{ color: STATUS_GREEN }}>Done / Published</span>

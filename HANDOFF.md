@@ -11,6 +11,10 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 ---
 
+## Per-speaker KonfHub category + formatted Excel downloads (20 Oct 2026) — pushed
+- **KonfHub speaker category per speaker** (DFWS "Roundtable Speaker", KonfHub category 29732). Migration `supabase/konfhub_speaker_categories_migration.sql` (applied): `event_websites.konfhub_speaker_categories` (JSON [{id,label}], set on Integrations > Per-Speaker Categories) and `event_speakers.konfhub_category_id`. Only events that list categories get the Details dropdown and the roster Actions "Set category: ..." items; every other event pushes exactly as before. No pick = event default (DFWS: uncategorized = regular Speaker). The push sends the speaker's category; with the list on and no pick it sends an explicit null on update to move them back. **Not yet verified against KonfHub: that null is accepted** — test on one speaker first. Helper `app/lib/konfhub/categories.ts` (+ test).
+- **Excel downloads** now use exceljs (`app/lib/export/formatted-xlsx.ts`, styled; SheetJS can't style). Roster "Speaker Details (Excel)" opens a field picker (all ticked) including the Status Board columns; the Status Board download is the full report plus job title. Shared columns in `app/lib/export/status-board-columns.ts`, fields in `speaker-export-fields.ts`.
+
 ## FIFF agenda set up, steps 1-2 (19 Oct 2026, night; code NOT pushed; sessions NOT imported yet)
 FIFF (one day, Wed 4 Nov 2026) shares ONE KonfHub event with DFS, FSF and FTF (115 sessions); its 12 sessions sit in the KonfHub track "Future Islamic Finance Forum" (4 Nov) and carry the shared "Event Name" tag. Track mode (DFFW style) + session-type push OFF, per Madhu.
 - Config set (live): `agenda_stage_mode='track'`, `agenda_push_session_type=false`, `konfhub_agenda_start_date/end_date = 2026-11-04` (the Agenda Manager now shows only these days: `agenda-v2/route.ts` prefers this window over KonfHub's 2-6 Nov range), stage "Main Stage" got `konfhub_track_title='Future Islamic Finance Forum'`, `event_konfhub_tag_map` format = Keynote / Fireside Chat / Panel Discussion mapped to the tag ids the sessions ACTUALLY carry.

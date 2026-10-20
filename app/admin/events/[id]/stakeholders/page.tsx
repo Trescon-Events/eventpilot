@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import * as XLSX from 'xlsx'
 import PageHeader from '@/app/components/PageHeader'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
 import { Button, Card, Badge, Input, Select, ProcessingOverlay } from '@/app/components/ui'
@@ -17,6 +16,11 @@ import CancelSpeakerModal from './CancelSpeakerModal'
 import KonfhubPushConfirmModal from './KonfhubPushConfirmModal'
 import KonfhubRegistrationPushConfirmModal from './KonfhubRegistrationPushConfirmModal'
 import BulkApproveConfirmModal from './BulkApproveConfirmModal'
+import SpeakerExcelFieldsModal from './SpeakerExcelFieldsModal'
+import { downloadFormattedXlsx } from '@/app/lib/export/formatted-xlsx'
+import { statusColumns, statusTone, type StatusBoardExportRow } from '@/app/lib/export/status-board-columns'
+import { getFeatureDef } from '@/app/lib/registry/feature-flags'
+import { SPEAKER_EXPORT_FIELDS, speakerStatusTone, type SpeakerExportRecord } from '@/app/lib/export/speaker-export-fields'
 import InvitesTab from './InvitesTab'
 import VipsTab from './VipsTab'
 import { FieldSchema, SubmittedValue, asText } from '@/app/lib/forms/types'
@@ -193,6 +197,9 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState<string | null>(null)
+  const [excelPickerOpen, setExcelPickerOpen] = useState(false)
+  // Per-speaker KonfHub categories (DFWS Roundtable Speaker) — empty for every event that doesn't use them, which hides the bulk items.
+  const [konfhubCategories, setKonfhubCategories] = useState<{ id: string; label: string }[]>([])
   const [search, setSearch] = useState('')
 
   // The Add/Edit slide-over is now create-only — reviewing/editing an
@@ -302,6 +309,9 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount; matches app/admin/events/[id]/page.tsx's fetchAll effect
   useEffect(() => { fetchAll() }, [eventId])
+  useEffect(() => {
+    fetch(`/api/events/stakeholders/speakers/konfhub-category?event_id=${eventId}`).then(r => r.ok ? r.json() : null).then(d => setKonfhubCategories(d?.categories ?? [])).catch(() => {})
+  }, [eventId])
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- same fetch-on-dependency-change pattern as the effect above
     if (category?.formType) fetchSubmissions(category.formType)
@@ -426,32 +436,70 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   // doesn't fetch anything extra (e.g. email/phone, not in this page's own
   // Speaker type) to keep this a pure client-side export, same as the
   // existing xlsx usage in market-intel/page.tsx.
-  async function bulkDownloadSpeakerDetailsExcel() {
+  // Which Excel fields this event offers: the speaker record fields plus the Status Board's onboarding columns (UAE / Passport /
+  // National ID only where the event uses them). Loaded when the picker opens.
+  const [eventFlags, setEventFlags] = useState({ uaeField: true, sensitiveDocs: true })
+  const [eventTitle, setEventTitle] = useState('')
+  useEffect(() => {
+    fetch(`/api/events?id=${eventId}`).then(r => r.json()).then(d => {
+      const ev = Array.isArray(d) ? d[0] : d
+      const stored = (ev?.enabled_features ?? {}) as Record<string, boolean>
+      const country = ev?.country ?? null
+      setEventTitle(ev?.public_name || ev?.name || '')
+      setEventFlags({
+        sensitiveDocs: stored['sensitive-documents'] ?? getFeatureDef('sensitive-documents')?.defaultForNewEvent({ country }) ?? true,
+        uaeField: stored['uae-resident-field'] ?? getFeatureDef('uae-resident-field')?.defaultForNewEvent({ country }) ?? true,
+      })
+    }).catch(() => {})
+  }, [eventId])
+  const statusExportColumns = statusColumns(eventFlags)
+  const excelFieldOptions = [
+    ...SPEAKER_EXPORT_FIELDS.filter(f => f.key !== 'konfhub_category' || konfhubCategories.length > 0).map(f => ({ key: f.key, label: f.label, group: f.group })),
+    ...statusExportColumns.map(c => ({ key: c.key, label: c.header, group: `Onboarding — ${c.group === 'Onboarding Status' ? 'Producer' : c.group}` })),
+  ]
+
+  async function bulkDownloadSpeakerDetailsExcel(keys: string[]) {
     const selected = visibleItems.filter(i => selectedIds.has(i.id)) as Speaker[]
-    if (selected.length === 0) return
+    if (selected.length === 0 || keys.length === 0) return
     setBulkDownloading('excel')
     setMsg(null)
     try {
-      const rows = selected.map(s => ({
-        'Full Name': s.full_name,
-        'Public Name': s.public_name ?? '',
-        'Pronoun': pronounLabel(s.pronoun_style) ?? '',
-        'Job Title': s.job_title,
-        'Company': s.company_name,
-        'Country': s.country ?? '',
-        'Bio': s.bio ?? '',
-        'LinkedIn': s.linkedin_url ?? '',
-        'Announcement Status': s.announcement_status,
-        'Website Status': s.website_status,
-        'Social Post Status': s.social_post_status,
-        'Self Promo Status': s.self_promo_status,
-        'Published to KonfHub': s.konfhub_speaker_id ? 'Yes' : 'No',
-        'Source': s.source,
-        'Created At': s.created_at,
-      }))
-      const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Speakers')
-      XLSX.writeFile(wb, `speaker-details-${Date.now()}.xlsx`)
+      const fields = SPEAKER_EXPORT_FIELDS.filter(f => keys.includes(f.key))
+      const statusCols = statusExportColumns.filter(c => keys.includes(c.key))
+      // Onboarding columns come from the same computation as the Status Board, so the two never disagree.
+      let board = new Map<string, StatusBoardExportRow>()
+      if (statusCols.length > 0) {
+        const res = await fetch(`/api/events/stakeholders/speakers/status-board?event_id=${eventId}`)
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data.error ?? 'could not load the onboarding status')
+        board = new Map(((data.rows ?? []) as StatusBoardExportRow[]).map(r => [r.id, r]))
+      }
+      const ctx = { categoryLabel: (id: string | null | undefined) => konfhubCategories.find(c => c.id === id)?.label ?? '' }
+      const stored = selected as unknown as SpeakerExportRecord[]
+      const columns = [
+        ...fields.map(f => ({ header: f.label, width: f.width, group: f.group })),
+        ...statusCols.map(c => ({ header: c.header, width: c.width, group: `Onboarding — ${c.group === 'Onboarding Status' ? 'Producer' : c.group}` })),
+      ]
+      const toneGroups = new Set(['Status'])
+      await downloadFormattedXlsx({
+        filename: `speaker-details-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        sheetName: 'Speakers',
+        title: `${eventTitle ? `${eventTitle} — ` : ''}Speaker Details`,
+        subtitle: `${selected.length} speaker${selected.length === 1 ? '' : 's'} · exported ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`,
+        columns,
+        rows: stored.map(s => [
+          ...fields.map(f => f.get(s, ctx)),
+          ...statusCols.map(c => { const r = board.get((s as unknown as { id: string }).id); return r ? c.get(r) : '' }),
+        ]),
+        freezeColumns: fields[0]?.key === 'full_name' ? 1 : 0,
+        tone: (header, value) => {
+          const col = columns.find(c => c.header === header)
+          if (!col) return undefined
+          if (col.group.startsWith('Onboarding — ') && col.group !== 'Onboarding — Producer') return statusTone(value)
+          return toneGroups.has(col.group) ? speakerStatusTone(header, value) : undefined
+        },
+      })
+      setExcelPickerOpen(false)
     } catch (e) {
       setMsg(`Could not prepare Excel export: ${(e as Error).message}`)
     }
@@ -697,9 +745,22 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   // buttons' own conditional rendering.
   const bulkDownloadItems = category?.kind === 'speaker' ? [
     ...SPEAKER_DOWNLOAD_KINDS.map(k => ({ label: k.menuLabel, onClick: () => bulkDownloadAssets(k.key) })),
-    { label: 'Speaker Details (Excel)', onClick: bulkDownloadSpeakerDetailsExcel },
+    { label: 'Speaker Details (Excel)', onClick: () => setExcelPickerOpen(true) },
   ] : []
+  // Saves the category on the selected speakers; each moves on KonfHub at their next push (bulk "Push to KonfHub").
+  async function bulkSetKonfhubCategory(categoryId: string | null, label: string) {
+    const ids = visibleItems.filter(i => selectedIds.has(i.id)).map(i => i.id)
+    if (ids.length === 0) return
+    const res = await fetch('/api/events/stakeholders/speakers/konfhub-category', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, ids, category_id: categoryId }) })
+    const data = await res.json().catch(() => ({}))
+    setMsg(res.ok ? `${data.updated ?? ids.length} speaker${ids.length === 1 ? '' : 's'} set to ${label}. Use Push to KonfHub to move them on KonfHub.` : data.error ?? 'Could not set the category.')
+    if (res.ok) setSelectedIds(new Set())
+  }
   const bulkActionItems = [
+    ...(category?.kind === 'speaker' && konfhubCategories.length > 0 && can('sae.stakeholders.edit') ? [
+      ...konfhubCategories.map(c => ({ label: `Set category: ${c.label}`, onClick: () => bulkSetKonfhubCategory(c.id, c.label) })),
+      { label: 'Set category: Speaker (default)', onClick: () => bulkSetKonfhubCategory(null, 'Speaker') },
+    ] : []),
     ...(category?.kind === 'speaker' && can('sae.approvals.approve') ? [{ label: 'Push to KonfHub', onClick: openBulkKonfhubConfirm }] : []),
     ...(category?.kind === 'speaker' && can('sae.approvals.approve') ? [{ label: 'Register on KonfHub', onClick: openBulkRegistrationConfirm }] : []),
     ...(can('sae.approvals.approve') ? [{ label: 'Approve for Announcements', onClick: openBulkApproveConfirm }] : []),
@@ -1073,6 +1134,16 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
           pushing={bulkRegistering}
           onConfirm={performBulkRegistration}
           onClose={() => setBulkRegistrationConfirm(null)}
+        />
+      )}
+
+      {excelPickerOpen && (
+        <SpeakerExcelFieldsModal
+          count={selectedIds.size}
+          preparing={bulkDownloading === 'excel'}
+          fields={excelFieldOptions}
+          onDownload={bulkDownloadSpeakerDetailsExcel}
+          onClose={() => setExcelPickerOpen(false)}
         />
       )}
 
