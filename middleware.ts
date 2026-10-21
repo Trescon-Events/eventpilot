@@ -263,7 +263,9 @@ export async function middleware(req: NextRequest) {
     // forbidden) lives in app/lib/github/dev-approvals-access.ts and is
     // enforced by the API routes, not this middleware.
     pathname.startsWith('/admin/dev-approvals') ||
-    /^\/admin\/events\/[^/]+\/(website|brand|market-intel|creative-templates|stakeholders|plan|execution|brief|details|announcements|messaging|operations)/.test(pathname) ||
+    // 2026-10-21: agenda and press-releases added — both have their own server-side layout gate (permission, then the per-event feature toggle), but this list
+    // never included them, so every non-admin (e.g. a Producer holding sae.agenda.manage) was bounced to /no-access?tool=admin before the layout ever ran.
+    /^\/admin\/events\/[^/]+\/(website|brand|market-intel|creative-templates|stakeholders|plan|execution|brief|details|announcements|messaging|operations|agenda|press-releases)/.test(pathname) ||
     // 2026-09-25: umbrella-level Operations (licence processing for a whole umbrella, e.g. DFFW). Auth-only here; app/admin/umbrellas/[id]/operations/layout.tsx does the real check.
     /^\/admin\/umbrellas\/[^/]+\/operations(\/|$)/.test(pathname) ||
     // The umbrella's own URL is reachable by any signed-in person too, so an Operations user can enter its workspace: app/admin/umbrellas/[id]/page.tsx sends non-admins on to /operations, and the layout refuses anyone with neither admin nor ops.view.
