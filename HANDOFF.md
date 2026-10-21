@@ -11,6 +11,9 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 ---
 
+## Agenda Manager: add a stage from a KonfHub tag (21 Oct 2026) — pushed
+- In stage-as-tag mode (BSS) the Agenda Manager had no way to add a stage that has no KonfHub session yet (＋ Stage was hidden). Now ＋ Stage becomes "＋ Stage from KonfHub tag": a dropdown of the mapped Stage tags without a stage (`stage_tags` from `GET /api/events/konfhub/agenda-mapping?labels=1`). `POST /api/events/agenda-v2/tracks` enforces it server-side in tag mode (name must be a mapped tag, canonical spelling; duplicates refused). Track-mode events unchanged. BSS stage tag map re-synced (8 tags incl. Innovation Stage); BSS now has Innovation Stage as a stage (added from the UI).
+
 ## Fix: producers could not open Agenda Manager (21 Oct 2026) — pushed
 - `middleware.ts` keeps a short allowlist of `/admin/events/<id>/<page>` routes a NON-admin may reach (the rest is admin-only). `agenda` and `press-releases` were never on it, so a Producer holding `sae.agenda.manage` was bounced to `/no-access?tool=admin` before the Agenda layout's own gate (permission, then the `agenda-builder` toggle) ever ran. Both added; their layouts still enforce permission + toggle. The Producer role itself was already correct (all 14 producer assignments pass `sae.agenda.manage`). Still admin-only by design: integrations, access. Not checked: content-check, settings.
 

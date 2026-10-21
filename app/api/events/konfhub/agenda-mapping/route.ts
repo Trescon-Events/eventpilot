@@ -48,7 +48,11 @@ export async function GET(req: NextRequest) {
     if (!session?.adm && !(await hasEventPermission(session?.sid, eventId, 'sae.agenda.manage')) && !(await hasEventPermission(session?.sid, eventId, 'sae.integrations.manage'))) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
     const m = await load(eventId, true)
     const nameOf = (id: string | null) => m.filters.find(f => f.id === id)?.name ?? null
-    return NextResponse.json({ stage_mode: m.stage_mode, stage: nameOf(m.stage_filter_id), format: nameOf(m.format_filter_id), theme: nameOf(m.theme_filter_id) })
+    // The stage tags mapped for this event, in KonfHub's own order — what a producer may add as a stage when stages live in a KonfHub tag.
+    const { data: stageRows } = await supabaseAdmin.from('event_konfhub_tag_map').select('label, tag_id').eq('event_id', eventId).eq('kind', 'stage')
+    const order = m.filters.find(f => f.id === m.stage_filter_id)?.tags.map(t => t.id) ?? []
+    const stageTags = [...(stageRows ?? [])].sort((a, b) => (order.indexOf(a.tag_id) === -1 ? 999 : order.indexOf(a.tag_id)) - (order.indexOf(b.tag_id) === -1 ? 999 : order.indexOf(b.tag_id))).map(r => r.label as string)
+    return NextResponse.json({ stage_mode: m.stage_mode, stage: nameOf(m.stage_filter_id), format: nameOf(m.format_filter_id), theme: nameOf(m.theme_filter_id), stage_tags: stageTags })
   }
   if (!(await authorize(req, eventId))) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   return NextResponse.json(await load(eventId, true))

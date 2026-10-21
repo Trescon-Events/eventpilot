@@ -18,9 +18,22 @@ export async function POST(req: NextRequest) {
   const denied = await requireAgendaAccess(req, body.event_id)
   if (denied) return denied
 
+  let name = body.name.trim()
+  // Tag mode (a stage is a tag of a KonfHub filter): only a tag KonfHub already has may become a stage, spelled exactly as KonfHub spells it,
+  // so the website filter and the push keep matching. Works the same for every event that isn't in tag mode: any name goes.
+  const { data: site } = await supabaseAdmin.from('event_websites').select('agenda_stage_mode').eq('event_id', body.event_id).maybeSingle()
+  if (site?.agenda_stage_mode === 'tag') {
+    const { data: tags } = await supabaseAdmin.from('event_konfhub_tag_map').select('label').eq('event_id', body.event_id).eq('kind', 'stage')
+    const hit = (tags ?? []).find(t => (t.label as string).trim().toLowerCase() === name.toLowerCase())
+    if (!hit) return NextResponse.json({ error: `In this event a stage must be one of KonfHub’s Stage tags (${(tags ?? []).map(t => t.label).join(', ') || 'none mapped yet — map them on the Integrations page'}).` }, { status: 400 })
+    name = hit.label as string
+  }
+  const { data: dup } = await supabaseAdmin.from('event_agenda_tracks').select('id').eq('event_id', body.event_id).ilike('name', name.replace(/[%_]/g, m => `\\${m}`)).maybeSingle()
+  if (dup) return NextResponse.json({ error: `A stage called “${name}” already exists.` }, { status: 409 })
+
   const { data, error } = await supabaseAdmin
     .from('event_agenda_tracks')
-    .insert({ event_id: body.event_id, name: body.name.trim(), order_index: body.order_index ?? 0 })
+    .insert({ event_id: body.event_id, name, order_index: body.order_index ?? 0 })
     .select('*')
     .single()
   if (error || !data) return NextResponse.json({ error: error?.message ?? 'Failed to create track' }, { status: 500 })

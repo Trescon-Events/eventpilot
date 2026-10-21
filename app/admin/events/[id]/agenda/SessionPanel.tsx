@@ -17,7 +17,7 @@ export type PanelSave = {
 }
 
 /** Where each field lives in KonfHub for this event (null = not known / not mapped). */
-export type KhLabels = { stage_mode: 'track' | 'tag'; stage: string | null; format: string | null; theme: string | null }
+export type KhLabels = { stage_mode: 'track' | 'tag'; stage: string | null; format: string | null; theme: string | null; stage_tags?: string[] }
 const kh: React.CSSProperties = { display: 'block', fontWeight: 500, fontSize: '10.5px', color: 'var(--ink4)', minHeight: '14px', marginTop: '1px' }
 
 const label: React.CSSProperties = { fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }

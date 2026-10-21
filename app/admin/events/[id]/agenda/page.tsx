@@ -101,6 +101,7 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
   const days = useMemo(() => [...new Set([...(khDays ?? []), ...sessionDays, ...(khDays ? [] : extraDays)])].sort(), [khDays, sessionDays, extraDays])
   const day = activeDay && (days.includes(activeDay) || activeDay === 'unscheduled') ? activeDay : days[0] ?? null
   const sortedTracks = useMemo(() => [...tracks].sort((a, b) => a.order_index - b.order_index), [tracks])
+  const addableStageTags = (khLabels?.stage_tags ?? []).filter(t => !sortedTracks.some(x => x.name.trim().toLowerCase() === t.trim().toLowerCase()))
   const dayRows = useMemo(() => {
     const list = day === 'unscheduled' ? sessions.filter(x => !x.start_timestamp || !x.end_timestamp).map(x => ({ s: x, start: 0, end: 0 })) : placed.filter(p => p.date === day).map(p => ({ s: p.s, start: p.start, end: p.end }))
     return list.filter(r => stageFilter === 'all' ? true : stageFilter === 'none' ? !r.s.track_id : r.s.track_id === stageFilter).sort((x, y) => x.start - y.start || x.s.order_index - y.s.order_index)
@@ -300,11 +301,16 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
           <div style={{ flex: 1 }} />
           {addingStage ? (
             <div style={{ display: 'flex', gap: '6px' }}>
-              <Input autoFocus value={stageName} onChange={e => setStageName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') createStage(); if (e.key === 'Escape') setAddingStage(false) }} placeholder="Stage name" style={{ width: '170px' }} />
+              {khLabels?.stage_mode === 'tag'
+                ? <Select value={stageName} onChange={e => setStageName(e.target.value)} style={{ minWidth: '200px' }}>{addableStageTags.map(t => <option key={t} value={t}>{t}</option>)}</Select>
+                : <Input autoFocus value={stageName} onChange={e => setStageName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') createStage(); if (e.key === 'Escape') setAddingStage(false) }} placeholder="Stage name" style={{ width: '170px' }} />}
               <Button variant="teal" onClick={createStage} disabled={!stageName.trim()}>Add</Button>
               <Button variant="ghost" onClick={() => setAddingStage(false)}>Cancel</Button>
             </div>
-          ) : khLabels?.stage_mode === 'tag' ? null : <Button variant="ghost" onClick={() => setAddingStage(true)}>＋ Stage</Button>}
+          ) : khLabels?.stage_mode === 'tag' ? (
+            // Stages are KonfHub tags here: offer only the mapped Stage tags that don't have a stage yet, so the name always matches KonfHub.
+            addableStageTags.length > 0 ? <Button variant="ghost" onClick={() => { setStageName(addableStageTags[0]); setAddingStage(true) }}>＋ Stage from KonfHub tag</Button> : null
+          ) : <Button variant="ghost" onClick={() => setAddingStage(true)}>＋ Stage</Button>}
         </div>
 
         <StageManager tracks={sortedTracks} rooms={rooms} sessionCount={id => sessions.filter(s => s.track_id === id).length} actions={stageActions} tagLock={khLabels?.stage_mode === 'tag' ? `Stage names are tags of the “${khLabels.stage ?? 'Stage'}” filter in KonfHub, and the live website filters on them. Renaming or deleting a stage here would break that link, so it is locked. Change the tag in KonfHub, then re-run Agenda mapping.` : null} />
