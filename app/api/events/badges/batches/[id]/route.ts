@@ -4,6 +4,7 @@ import type { CreativeTemplateConfig } from '@/app/lib/announcements/composite'
 import { deleteObject } from '@/app/lib/kb/storage'
 import { deletePublicAssetByUrl } from '@/app/lib/events/storage'
 import { knownStaffId, loadBatch, loadItems, requireBadgePermission, sweepDeadJobs } from '@/app/lib/badges/service'
+import { loadApprovalConfig, latestRound, pendingRound } from '@/app/lib/badges/client-approval'
 
 /* GET    .../batches/[id]  -> batch + items + latest jobs (the review page's one data call)
    PATCH  .../batches/[id]  { name? } | { action: 'approve' | 'reopen' | 'refresh_speakers' | 'update_template' }
@@ -21,8 +22,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     supabaseAdmin.from('badge_jobs').select('*').eq('batch_id', id).order('created_at', { ascending: false }).limit(6),
     supabaseAdmin.from('badge_print_dispatches').select('id, status, pdf_version, badges, requested_at, sent_at, printed_confirmed_at').eq('batch_id', id).order('requested_at', { ascending: false }).limit(5),
   ])
+  const cfg = await loadApprovalConfig(batch.event_id)
+  const round = await latestRound(id)
   const { template_snapshot, ...rest } = batch
   return NextResponse.json({
+    client_approval: { required: cfg.required, contacts: cfg.contacts.length, round: round ? { id: round.id, status: round.status, sent_at: round.sent_at, resolved_at: round.resolved_at, resolved_by_name: round.resolved_by_name, rejected_count: round.rejected_count, comment_count: round.comment_count, badges: round.badges } : null },
     batch: { ...rest, print: template_snapshot.print, template_name: template_snapshot.name, canvas_width: template_snapshot.canvas_width, canvas_height: template_snapshot.canvas_height },
     items, jobs: jobs ?? [], dispatches: dispatches ?? [],
   })
@@ -43,6 +47,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const { data: live } = await supabaseAdmin.from('badge_print_dispatches').select('id').eq('batch_id', id).in('status', ['requested', 'sent', 'downloaded']).limit(1)
       if (live?.length) return NextResponse.json({ error: 'This batch has been handed to Operations or the printer. Ask Ops to revoke the hand-off before reopening it.' }, { status: 409 })
       if (batch.status !== 'approved') return NextResponse.json({ error: 'The batch is not approved.' }, { status: 409 })
+      if (await pendingRound(id)) return NextResponse.json({ error: 'The batch is with the client for approval. Withdraw it before reopening.' }, { status: 409 })
       await supabaseAdmin.from('badge_batches').update({ status: 'review', approved_by: null, approved_at: null, updated_at: now }).eq('id', id)
       return NextResponse.json({ ok: true })
     }
@@ -114,6 +119,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if ('error' in auth) return auth.error
   const { data: live } = await supabaseAdmin.from('badge_print_dispatches').select('id').eq('batch_id', id).in('status', ['requested', 'sent', 'downloaded']).limit(1)
   if (live?.length) return NextResponse.json({ error: 'This batch is with Operations or the printer. Ask Ops to revoke the hand-off first.' }, { status: 409 })
+  if (await pendingRound(id)) return NextResponse.json({ error: 'This batch is with the client for approval. Withdraw it first.' }, { status: 409 })
   const body = await req.json().catch(() => null) as { confirm?: string } | null
   if (body?.confirm !== 'DELETE') return NextResponse.json({ error: 'Type DELETE to confirm.' }, { status: 400 })
   const previews = (await loadItems(id)).map(i => i.preview_url).filter((u): u is string => !!u)

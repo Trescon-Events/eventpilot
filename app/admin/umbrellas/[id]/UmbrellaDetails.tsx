@@ -4,6 +4,7 @@ import { useState, useEffect, use } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import Link from 'next/link'
 import EventDaysCard from '@/app/admin/operations-shared/EventDaysCard'
+import BadgeApprovalCard from '@/app/admin/events/[id]/integrations/BadgeApprovalCard'
 import { Button, Card } from '@/app/components/ui'
 
 /* Umbrella Event Details (2026-10-02, split out of the old single Overview page): Common Details (now with status and
@@ -138,6 +139,8 @@ export default function UmbrellaDetails({ params }: { params: Promise<{ id: stri
           })}
         </div>
       </Card>
+
+      <BadgeApprovalCard scope="umbrella" id={umbrella.id} />
 
       <EventDaysCard kind="umbrella" id={umbrella.id} canEdit />
 

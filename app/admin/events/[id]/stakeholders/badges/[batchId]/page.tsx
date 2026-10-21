@@ -21,6 +21,9 @@ type Dispatch = { id: string; status: 'requested' | 'sent' | 'downloaded' | 'pri
 const DISPATCH_LABEL: Record<Dispatch['status'], string> = { requested: 'Sent to Ops — waiting for review', sent: 'Sent to the printer', downloaded: 'Downloaded by the printer', printed: 'Printed', revoked: 'Revoked by Ops' }
 type Job = { id: string; kind: 'render' | 'pdf'; status: 'processing' | 'done' | 'error'; progress_done: number; progress_total: number; error_message: string | null }
 type Filter = 'all' | 'flagged' | 'unapproved' | 'removed'
+type CaRound = { id: string; status: 'pending' | 'approved' | 'approved_with_comments' | 'withdrawn'; sent_at: string; resolved_at: string | null; resolved_by_name: string | null; rejected_count: number; comment_count: number; badges: number }
+type CaSummary = { required: boolean; contacts: number; round: CaRound | null }
+type CaRecipient = { id: string; name: string; email: string; notified_at: string | null; reminder_count: number; last_reminder_at: string | null; last_opened_at: string | null }
 
 const FLAG_COLOR: Record<BadgeFlag['code'], string> = {
   missing_field: 'var(--red)', no_photo: 'var(--red)', low_resolution: 'var(--amber)', text_overflow: 'var(--red)', text_shrunk: 'var(--amber)', photo_overlaps_logo: 'var(--amber)',
@@ -37,6 +40,10 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
   const [jobs, setJobs] = useState<Job[]>([])
   const [dispatches, setDispatches] = useState<Dispatch[]>([])
   const [notifyOpen, setNotifyOpen] = useState(false)
+  const [ca, setCa] = useState<CaSummary | null>(null)
+  const [caRecipients, setCaRecipients] = useState<CaRecipient[]>([])
+  const [caContacts, setCaContacts] = useState<{ name: string; email: string }[]>([])
+  const [sendClientOpen, setSendClientOpen] = useState(false)
   const [filter, setFilter] = useState<Filter>('all')
   const [adjusting, setAdjusting] = useState<BadgeItemRow | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -55,6 +62,12 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
     const data = await res.json().catch(() => ({}))
     if (!res.ok) { setLoadError(data.error ?? 'Could not load this batch.'); return }
     setBatch(data.batch); setItems(data.items); setJobs(data.jobs); setDispatches(data.dispatches ?? [])
+    setCa(data.client_approval ?? null)
+    if (data.client_approval?.required) {
+      const caRes = await fetch(`/api/events/badges/batches/${batchId}/client-approval`)
+      const caData = await caRes.json().catch(() => null)
+      if (caRes.ok && caData) { setCaRecipients(caData.recipients ?? []); setCaContacts(caData.contacts ?? []) }
+    } else { setCaRecipients([]); setCaContacts([]) }
     const perm = await permRes.json().catch(() => ({ permissions: [] }))
     setPermissions(new Set(perm.permissions ?? []))
     setEventName((await eventRes.json().catch(() => null))?.name ?? null)
@@ -145,6 +158,28 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
   ), [items, filter])
   const locked = batch?.status === 'approved'
   const canManage = can('sae.badges.manage'), canApprove = can('sae.badges.approve')
+  // Client approval (events that need it): the batch goes to the client after the producer's own approval; the print file waits for their answer.
+  const caRequired = !!ca?.required
+  const round = ca?.round ?? null
+  const roundPending = round?.status === 'pending'
+  const roundSeenFinal = !!round && !!batch?.approved_at && new Date(batch.approved_at) <= new Date(round.sent_at)
+  const roundApproved = !!round && (round.status === 'approved' || round.status === 'approved_with_comments') && roundSeenFinal
+  const printUnlocked = locked && (!caRequired || roundApproved)
+  const clientRejected = items.filter(i => i.client_rejected)
+  const clientComments = items.filter(i => (i.client_comment ?? '').trim())
+  async function caAction(action: string, extra?: Record<string, unknown>, label?: string) {
+    setBusy(`ca-${action}`)
+    const r = await api(`/api/events/badges/batches/${batchId}/client-approval`, 'POST', { action, ...extra })
+    setBusy(null)
+    if (!r.ok) { say(String(r.data.error ?? 'That did not work.'), 'error'); return false }
+    if (Array.isArray(r.data.results)) {
+      const res = r.data.results as { email: string; sent: boolean }[]
+      const failed = res.filter(x => !x.sent).map(x => x.email)
+      say(failed.length ? `${res.length - failed.length} of ${res.length} emails sent. Not delivered: ${failed.join(', ')}.` : `${label ?? 'Sent'} to ${res.length} approver${res.length === 1 ? '' : 's'}.`, failed.length ? 'error' : 'success')
+    } else say(label ?? 'Done.')
+    await load()
+    return true
+  }
 
   if (loadError) return <div style={{ padding: '32px', color: 'var(--red)' }}>{loadError}</div>
   if (!batch) return <div style={{ padding: '32px', color: 'var(--ink3)' }}>Loading…</div>
@@ -168,7 +203,7 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
             <Button variant="ghost" disabled={!!activeJob || !!busy || stats.stale > 0} onClick={() => void approveAllUnflagged()}>Approve all unflagged</Button>
           </>)}
           {canApprove && !locked && <Button variant="lime" disabled={!!activeJob || !!busy || stats.approved < stats.total || stats.total === 0} title={stats.approved < stats.total ? 'Approve every badge first' : ''} onClick={() => void batchAction('approve', 'approved for print')}>Approve for print</Button>}
-          {canApprove && locked && <Button variant="ghost" disabled={!!busy} onClick={() => void batchAction('reopen', 'reopened')}>Reopen</Button>}
+          {canApprove && locked && <Button variant="ghost" disabled={!!busy || roundPending} title={roundPending ? 'Withdraw the client approval first' : ''} onClick={() => void batchAction('reopen', 'reopened')}>Reopen</Button>}
         </div>
 
         {activeJob && (
@@ -180,8 +215,57 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
           </div>
         )}
 
+        {/* client approval */}
+        {locked && caRequired && canApprove && (
+          <div style={{ marginBottom: '16px', padding: '14px 16px', border: `1px solid ${roundPending ? 'var(--amber)' : 'var(--border-light)'}`, borderRadius: '10px', background: 'var(--card)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Client approval</div>
+              {roundPending && <Badge color="amber">With the client</Badge>}
+              {roundApproved && <Badge color="teal">{round!.status === 'approved_with_comments' ? 'Approved with comments' : 'Approved'}</Badge>}
+              {!round && <Badge color="grey">Not sent yet</Badge>}
+              {round && !roundPending && !roundApproved && <Badge color="grey">Changed since the client saw it</Badge>}
+              <span style={{ fontSize: '13.5px', color: 'var(--ink3)', flex: 1 }}>
+                {!round || (!roundPending && !roundApproved) ? 'Send the approved artwork to the client. Any one of their approvers can approve, comment or reject a speaker; the print file is built afterwards.' : ''}
+                {roundPending && `Sent ${new Date(round!.sent_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} to ${caRecipients.length} approver${caRecipients.length === 1 ? '' : 's'}. This batch is locked until they respond or you withdraw it.`}
+                {roundApproved && `${round!.resolved_by_name ?? 'The client'} responded ${round!.resolved_at ? new Date(round!.resolved_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}.`}
+              </span>
+              {!roundPending && <Button variant={roundApproved ? 'ghost' : 'lime'} disabled={!!busy || !!activeJob} onClick={() => setSendClientOpen(true)}>{round ? 'Send to the client again' : 'Send to client for approval'}</Button>}
+            </div>
+            {roundPending && (
+              <div style={{ marginTop: '12px', display: 'grid', gap: '6px' }}>
+                {caRecipients.map(r => (
+                  <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', fontSize: '13.5px', color: 'var(--ink2)' }}>
+                    <span style={{ fontWeight: 700 }}>{r.name}</span><span style={{ color: 'var(--ink3)' }}>{r.email}</span>
+                    <span style={{ color: r.last_opened_at ? 'var(--teal)' : 'var(--ink4)', fontSize: '12.5px' }}>{r.last_opened_at ? `Opened ${new Date(r.last_opened_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : 'Not opened yet'}{r.notified_at ? '' : ' · email not delivered'}{r.reminder_count ? ` · ${r.reminder_count} reminder${r.reminder_count === 1 ? '' : 's'}` : ''}</span>
+                    <span style={{ flex: 1 }} />
+                    <Button variant="ghost" disabled={!!busy} onClick={() => void caAction('remind', { recipient_id: r.id }, 'Reminder sent')}>Remind</Button>
+                  </div>
+                ))}
+                <div style={{ marginTop: '6px' }}><Button variant="red" disabled={!!busy} onClick={() => { if (window.confirm('Withdraw this from the client? Their links stop working, and you can edit the batch again.')) void caAction('withdraw', undefined, 'Withdrawn') }}>Withdraw</Button></div>
+              </div>
+            )}
+            {roundApproved && (clientRejected.length > 0 || clientComments.length > 0) && (
+              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-light)', display: 'grid', gap: '10px' }}>
+                {clientRejected.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--red)', marginBottom: '4px' }}>Rejected by the client — left out of the print file ({clientRejected.length})</div>
+                    {clientRejected.map(i => <div key={i.id} style={{ fontSize: '13.5px', color: 'var(--ink2)' }}><strong>{i.name}</strong>{(i.client_comment ?? '').trim() ? ` — “${i.client_comment}”` : ''}</div>)}
+                  </div>
+                )}
+                {clientComments.filter(i => !i.client_rejected).length > 0 && (
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Client comments ({clientComments.filter(i => !i.client_rejected).length})</div>
+                    {clientComments.filter(i => !i.client_rejected).map(i => <div key={i.id} style={{ fontSize: '13.5px', color: 'var(--ink2)' }}><strong>{i.name}</strong> — “{i.client_comment}”</div>)}
+                    <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '6px' }}>To act on a comment, Reopen the batch, change the badge and approve again — then send it to the client once more.</div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* print file */}
-        {locked && canApprove && (
+        {printUnlocked && canApprove && (
           <div style={{ marginBottom: '16px', padding: '14px 16px', border: '1px solid var(--border-light)', borderRadius: '10px', background: 'var(--card)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
               <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Print file</div>
@@ -237,6 +321,8 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
                   {item.flags.map(f => <span key={f.code} title={f.message} style={{ fontSize: '12px', fontWeight: 700, color: FLAG_COLOR[f.code], border: `1px solid ${FLAG_COLOR[f.code]}`, borderRadius: '10px', padding: '1px 8px' }}>{f.message}</span>)}
                   {Object.keys(item.overrides).length > 0 && <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', border: '1px solid var(--border)', borderRadius: '10px', padding: '1px 8px' }}>Adjusted</span>}
                 </div>
+                {item.client_rejected && <div style={{ fontSize: '12.5px', fontWeight: 800, color: 'var(--red)', marginBottom: '6px' }}>Rejected by the client</div>}
+                {(item.client_comment ?? '').trim() && !item.client_rejected && <div style={{ fontSize: '12.5px', color: 'var(--ink2)', background: 'var(--surface)', borderRadius: '8px', padding: '6px 8px', marginBottom: '8px', lineHeight: 1.4 }}>Client: “{item.client_comment}”</div>}
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   {item.removed ? (
                     canManage && !locked && <Button variant="ghost" onClick={() => void patchItem(item, { removed: false })}>Restore</Button>
@@ -268,6 +354,10 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
         if (!r.ok) { say(String(r.data.error ?? 'Could not delete.'), 'error'); return }
         router.push(`/admin/events/${eventId}/stakeholders/badges`)
       }} />}
+      {sendClientOpen && (
+        <SendToClientModal contacts={caContacts} badges={stats.total} busy={busy === 'ca-send'} onClose={() => setSendClientOpen(false)}
+          onSend={async message => { if (await caAction('send', { message }, 'Sent')) setSendClientOpen(false) }} />
+      )}
       {notifyOpen && (
         <NotifyOpsModal versions={batch.pdf_versions} onClose={() => setNotifyOpen(false)} onSend={async (version, note) => {
           const r = await api(`/api/events/badges/batches/${batchId}/dispatch`, 'POST', { version, note })
@@ -278,6 +368,28 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   )
+}
+
+function SendToClientModal({ contacts, badges, busy, onClose, onSend }: { contacts: { name: string; email: string }[]; badges: number; busy: boolean; onClose: () => void; onSend: (message: string) => Promise<void> }) {
+  const [message, setMessage] = useState('')
+  return modalShell(
+    <>
+      <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)', marginBottom: '8px' }}>Send to the client for approval</div>
+      <div style={{ fontSize: '14px', color: 'var(--ink2)', lineHeight: 1.5, marginBottom: '12px' }}>
+        Each person below gets an email with their own private link to a gallery of the <strong>{badges}</strong> badge{badges === 1 ? '' : 's'}. <strong>Any one of them</strong> can approve; whoever does first settles it, and the others then see who acted. The batch is locked while it is with the client.
+      </div>
+      <div style={{ margin: '0 0 12px', display: 'grid', gap: '4px' }}>
+        {contacts.map(c => <div key={c.email} style={{ fontSize: '13.5px', color: 'var(--ink2)' }}><strong>{c.name}</strong> <span style={{ color: 'var(--ink3)' }}>{c.email}</span></div>)}
+        {contacts.length === 0 && <div style={{ fontSize: '13.5px', color: 'var(--amber)' }}>No client approvers are set up for this event yet (Integrations › Client Approval — Badges).</div>}
+      </div>
+      <label style={{ fontSize: '13px', color: 'var(--ink3)' }}>Note for the client (optional)
+        <Input value={message} onChange={e => setMessage(e.target.value)} placeholder="e.g. Please let us know by Thursday" style={{ marginTop: '4px' }} />
+      </label>
+      <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '16px' }}>
+        <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
+        <Button variant="lime" disabled={busy || contacts.length === 0} onClick={() => void onSend(message)}>{busy ? 'Sending…' : 'Send'}</Button>
+      </div>
+    </>, onClose, 520)
 }
 
 function NotifyOpsModal({ versions, onClose, onSend }: { versions: Array<{ generated_at: string; badges: number }>; onClose: () => void; onSend: (version: number, note: string) => Promise<void> }) {

@@ -30,6 +30,9 @@ export type BadgeItemRow = {
   removed: boolean
   preview_url: string | null
   preview_stale: boolean
+  // Set when the client's approval settled: a rejected badge is also removed = true, so it stays out of the print file.
+  client_rejected?: boolean
+  client_comment?: string | null
 }
 
 export const CONFIRMED_STATUSES = ['New Confirmed', 'Reconfirmed', 'Confirmed'] as const

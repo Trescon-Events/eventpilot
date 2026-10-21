@@ -202,8 +202,25 @@ export async function listKonfhubSpeakerPlacements(konfhubEventId: string, token
 // EventPilot's own string representation (matching the DB column) is
 // untouched everywhere else.
 function toKonfhubPayload<T extends { speaker_category_id?: string | null }>(fields: T): T {
-  if (fields.speaker_category_id === undefined || fields.speaker_category_id === null) return fields
-  return { ...fields, speaker_category_id: Number(fields.speaker_category_id) as unknown as T['speaker_category_id'] }
+  const clean = { ...fields } as Record<string, unknown>
+  // KonfHub rejects typographic look-alikes ("Designation contains invalid characters", DFWS 2026-10-21: an en dash). Sent
+  // as plain ASCII equivalents; EventPilot's own record keeps what was typed.
+  for (const k of ['name', 'designation', 'organisation', 'location']) if (typeof clean[k] === 'string') clean[k] = toKonfhubText(clean[k] as string)
+  if (clean.speaker_category_id === undefined || clean.speaker_category_id === null) return clean as T
+  return { ...clean, speaker_category_id: Number(clean.speaker_category_id) } as unknown as T
+}
+
+/** En/em dashes → "-", curly quotes → straight, non-breaking/odd spaces → " ", ellipsis → "...". */
+export function toKonfhubText(s: string): string {
+  return s
+    .replace(/[‐-―−]/g, '-')
+    .replace(/[‘’‚′]/g, "'")
+    .replace(/[“”„″]/g, '"')
+    .replace(/…/g, '...')
+    .replace(/[  -   　]/g, ' ')
+    .replace(/[​-‍﻿]/g, '')
+    .replace(/ {2,}/g, ' ')
+    .trim()
 }
 
 export async function updateKonfhubSpeaker(

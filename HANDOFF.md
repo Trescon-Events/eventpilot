@@ -11,6 +11,11 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 ---
 
+## Badge client approval + KonfHub text clean-up + push result at the button (21 Oct 2026) — pushed
+- **Client approval for speaker badges** (per umbrella, event can override; any ONE approver settles it, first responder wins). Migration `supabase/badge_client_approval_migration.sql` (run). Producer sends a batch from its page (locked while with client, Withdraw/Remind); client opens a private link (`/public/badge-approval/[token]`), comments/rejects per badge, Approved / Approved with comments; rejected speakers leave the print file; print file + Ops dispatch gated until the client approved what was frozen. Code: `app/lib/badges/client-approval.ts`, `app/api/events/badges/batches/[id]/client-approval`, `.../client-approval-settings`, `app/api/public/badge-approval`, `BadgeApprovalCard.tsx`. Public API tested against the DB; email/bell and browser not yet exercised.
+- **KonfHub rejects typographic characters** (en dash in a DFWS job title): `toKonfhubText` in `app/lib/konfhub-speakers.ts` converts dashes/quotes/odd spaces on every outgoing speaker payload. 4 speakers already on KonfHub re-pushed.
+- Speaker Details: push result now shows under the Push button; page-top error banner scrolls into view.
+
 ## Agenda Manager: add a stage from a KonfHub tag (21 Oct 2026) — pushed
 - In stage-as-tag mode (BSS) the Agenda Manager had no way to add a stage that has no KonfHub session yet (＋ Stage was hidden). Now ＋ Stage becomes "＋ Stage from KonfHub tag": a dropdown of the mapped Stage tags without a stage (`stage_tags` from `GET /api/events/konfhub/agenda-mapping?labels=1`). `POST /api/events/agenda-v2/tracks` enforces it server-side in tag mode (name must be a mapped tag, canonical spelling; duplicates refused). Track-mode events unchanged. BSS stage tag map re-synced (8 tags incl. Innovation Stage); BSS now has Innovation Stage as a stage (added from the UI).
 

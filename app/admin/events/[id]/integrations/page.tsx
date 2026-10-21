@@ -1,5 +1,6 @@
 'use client'
 
+import BadgeApprovalCard from './BadgeApprovalCard'
 import { use, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
@@ -27,6 +28,7 @@ const NAV_SECTIONS = [
   { id: 'hubspot', label: 'HubSpot Forms' },
   { id: 'postiz', label: 'Postiz' },
   { id: 'client-approval', label: 'Client Approval Contacts' },
+  { id: 'badge-approval', label: 'Client Approval — Badges' },
   { id: 'content-guidelines', label: 'Content Guidelines API' },
   { id: 'site-registry', label: 'Site Registry' },
   { id: 'health-checks', label: 'Health Checks' },
@@ -959,6 +961,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
     hubspot: enabledFeatures.has('integration-hubspot-forms'),
     postiz: enabledFeatures.has('integration-postiz'),
     'client-approval': clientApprovalOn,
+    'badge-approval': true,
     'content-guidelines': enabledFeatures.has('integration-content-guidelines-api'),
     'site-registry': enabledFeatures.has('site-ops'),
     'health-checks': enabledFeatures.has('site-ops'),
@@ -1564,6 +1567,12 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
             </div>
           )}
         </Card></div>
+        </section>
+        )}
+
+        {sectionEnabled['badge-approval'] && (
+        <section id="badge-approval" ref={el => { sectionRefs.current['badge-approval'] = el }} style={{ scrollMarginTop: '20px' }}>
+          <div style={{ marginTop: '16px' }}><BadgeApprovalCard scope="event" id={eventId} canManage={canManage} /></div>
         </section>
         )}
 

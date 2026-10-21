@@ -40,7 +40,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const patch: Record<string, unknown> = {}
   if (body.overrides !== undefined) { patch.overrides = cleanOverrides(body.overrides); patch.preview_stale = true; patch.approved = false }
-  if (typeof body.removed === 'boolean') { patch.removed = body.removed; if (body.removed) patch.approved = false }
+  if (typeof body.removed === 'boolean') { patch.removed = body.removed; if (body.removed) patch.approved = false; else { patch.client_rejected = false } }
   if (typeof body.approved === 'boolean' && patch.approved === undefined) {
     if (body.approved && ((current as BadgeItemRow).preview_stale || !(current as BadgeItemRow).preview_url) && !body.render) {
       return NextResponse.json({ error: 'Render this badge before approving it.' }, { status: 409 })

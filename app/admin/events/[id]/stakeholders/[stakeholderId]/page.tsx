@@ -322,6 +322,8 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   // wording, so no extra "was this the first push" state is needed here.
   const [konfhubConfirm, setKonfhubConfirm] = useState(false)
   const [pushingKonfhub, setPushingKonfhub] = useState(false)
+  // Result of the last push, shown right under the button (the page-top banner is off-screen when the button is clicked).
+  const [pushNote, setPushNote] = useState<{ ok: boolean; text: string } | null>(null)
   // "Remove from KonfHub Listing" (2026-09-21) — for a producer who pushed
   // too early and wants the public listing back down without touching
   // this record's own EventPilot state at all (see konfhub-remove-listing/
@@ -360,6 +362,8 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   const rawPhotoInputRef = useRef<HTMLInputElement | null>(null)
   const websitePhotoInputRef = useRef<HTMLInputElement | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
+  // Any error banner lives at the top of the page — bring it into view so a failed action further down is never silent.
+  useEffect(() => { if (msg) window.scrollTo({ top: 0, behavior: 'smooth' }) }, [msg])
 
   const [logoApproval, setLogoApproval] = useState<{ url: string } | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -641,15 +645,17 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   // client-side-only here, unlike Approve's own PATCH).
   async function pushToKonfhub() {
     setPushingKonfhub(true)
+    setPushNote(null)
     setProcessing({ label: 'Pushing to KonfHub…', estimatedMs: 2500 })
     try {
       const res = await fetch(`/api/events/stakeholders/speakers/${stakeholderId}/konfhub-push`, { method: 'POST' })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) { setMsg(data.error || `Could not push to KonfHub (error ${res.status}) — please try again.`); setKonfhubConfirm(false); return }
+      if (!res.ok) { setPushNote({ ok: false, text: `Not pushed. ${data.error || `KonfHub didn’t accept this update (error ${res.status}) — please try again.`}` }); setKonfhubConfirm(false); return }
       setRecord(prev => prev ? { ...prev, konfhub_speaker_id: data.konfhub_speaker_id, konfhub_synced_at: data.konfhub_synced_at } : prev)
+      setPushNote({ ok: true, text: data.was_first_push ? 'Published to KonfHub.' : 'KonfHub listing updated.' })
       setKonfhubConfirm(false)
     } catch {
-      setMsg('Could not push to KonfHub — check your connection and try again.')
+      setPushNote({ ok: false, text: 'Not pushed. Could not reach the server — check your connection and try again.' })
       setKonfhubConfirm(false)
     } finally {
       setPushingKonfhub(false)
@@ -2059,6 +2065,11 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                 <Button variant="teal" onClick={() => setKonfhubConfirm(true)} disabled={pushingKonfhub || !!pushToKonfhubBlockedReason} className="tbtn-full">
                   {pushingKonfhub ? 'Pushing…' : record.konfhub_speaker_id ? 'Push Update to KonfHub' : 'Push to KonfHub'}
                 </Button>
+                {pushNote && !pushingKonfhub && (
+                  <div role="alert" style={{ marginTop: '10px', padding: '10px 12px', borderRadius: '8px', fontSize: '13px', lineHeight: 1.45, fontWeight: 600, background: pushNote.ok ? 'var(--teal-bg, transparent)' : 'var(--red-bg, transparent)', border: `1px solid ${pushNote.ok ? 'var(--teal)' : 'var(--red)'}`, color: pushNote.ok ? 'var(--teal)' : 'var(--red)' }}>
+                    {pushNote.text} <button onClick={() => setPushNote(null)} aria-label="Dismiss" style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '6px' }}>×</button>
+                  </div>
+                )}
                 {pushToKonfhubBlockedReason && !pushingKonfhub && (
                   <div style={{ fontSize: '11.5px', color: 'var(--amber)', marginTop: '8px' }}>{pushToKonfhubBlockedReason}</div>
                 )}

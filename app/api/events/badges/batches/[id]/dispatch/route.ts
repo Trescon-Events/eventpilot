@@ -4,6 +4,7 @@ import { logOpsAccess, clientIp } from '@/app/lib/ops/audit'
 import { staffForSection } from '@/app/lib/ops/section-access'
 import { ACTIVE_DISPATCH, batchContext, notifyBadgeOps } from '@/app/lib/badges/dispatch'
 import { knownStaffId, loadBatch, requireBadgePermission } from '@/app/lib/badges/service'
+import { clientApprovalGate } from '@/app/lib/badges/client-approval'
 
 /* POST .../batches/[id]/dispatch { version, note? }  — the producer's "Notify Ops".
    Needs sae.badges.approve (the release permission). Freezes the chosen print file on a new dispatch row and tells
@@ -17,6 +18,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if ('error' in auth) return auth.error
   if (batch.status !== 'approved') return NextResponse.json({ error: 'Approve the batch for print first.' }, { status: 409 })
 
+  const gate = await clientApprovalGate(batch.event_id, batch)
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: 409 })
   const body = await req.json().catch(() => null) as { version?: number; note?: string } | null
   const versions = batch.pdf_versions ?? []
   const version = body?.version ?? versions.length
