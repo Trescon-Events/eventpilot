@@ -49,7 +49,6 @@ export const TOOL_GRANT_OPTIONS = [
   { key: 'brand_studio',    label: 'Brand Studio' },
   { key: 'content',         label: 'Content' },
   { key: 'intelligence',    label: 'Intelligence' },
-  { key: 'smart_data',      label: 'Smart Data' },
   { key: 'hr_portal',       label: 'HR Portal' },
   { key: 'finance',         label: 'Finance' },
   { key: 'events',          label: 'Events' },

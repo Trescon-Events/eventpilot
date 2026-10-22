@@ -1,6 +1,5 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
-import bcrypt from 'bcryptjs'
 
 /*
   POST /api/import/commit
@@ -42,12 +41,6 @@ const VALID_JOB_LEVELS  = ['staff', 'team_lead', 'dept_head', 'office_head', 'su
 const MANAGER_LEVELS    = ['team_lead', 'dept_head', 'office_head', 'super_admin']
 
 /* Generate a readable temp password: FirstName + random 4-digit pin + ! */
-function makeTempPassword(name: string): string {
-  const first = name.trim().split(' ')[0].replace(/[^a-zA-Z]/g, '')
-  const pin   = String(Math.floor(1000 + Math.random() * 9000))
-  return `${first.charAt(0).toUpperCase()}${first.slice(1).toLowerCase()}@${pin}`
-}
-
 /* Normalise a name for fuzzy matching */
 function normName(n: string) { return n.toLowerCase().replace(/\s+/g, ' ').trim() }
 
@@ -90,7 +83,6 @@ export async function POST(req: NextRequest) {
     manager_links_set:   0,
     manager_unresolved:  [] as { name: string; manager_name: string }[],
     errors:              [] as string[],
-    credentials:         [] as { name: string; email: string; temp_password: string; access_enabled: boolean; job_level: string }[],
   }
 
   /* ── Step 1: Add approved new columns ── */
@@ -137,8 +129,6 @@ export async function POST(req: NextRequest) {
     const officeId       = VALID_OFFICES.includes(row.office_id) ? row.office_id : null
     const jobLevel       = VALID_JOB_LEVELS.includes(row.job_level) ? row.job_level : 'staff'
     const isManager      = MANAGER_LEVELS.includes(jobLevel)
-    const tempPassword   = makeTempPassword(row.name)
-    const passwordHash   = await bcrypt.hash(tempPassword, 10)
 
     const payload: Record<string, unknown> = {
       name:             row.name.trim(),
@@ -149,7 +139,6 @@ export async function POST(req: NextRequest) {
       job_level:        jobLevel,
       team:             row.team?.trim() || null,
       profile_complete: false,
-      password_hash:    passwordHash,
       access_enabled:   isManager,   /* Phase 1: only managers get access */
       /* manager_id intentionally omitted — set in pass 2 */
     }
@@ -174,7 +163,6 @@ export async function POST(req: NextRequest) {
         batchEmailToId.set(email, existingId)
         batchNameToId.set(normName(row.name), existingId)
         nameToId.set(normName(row.name), existingId)
-        results.credentials.push({ name: row.name.trim(), email, temp_password: tempPassword, access_enabled: isManager, job_level: jobLevel })
       }
     } else {
       const { data: inserted, error } = await supabaseAdmin
@@ -193,7 +181,6 @@ export async function POST(req: NextRequest) {
           nameToId.set(normName(row.name), inserted.id)
           emailToId.set(email, inserted.id)
         }
-        results.credentials.push({ name: row.name.trim(), email, temp_password: tempPassword, access_enabled: isManager, job_level: jobLevel })
       }
     }
   }

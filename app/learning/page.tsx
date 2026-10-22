@@ -506,7 +506,7 @@ function DashboardContent() {
         {/* ── My Workspace (role-personalised) ── */}
         {(() => {
           const grants        = staff.tool_grants ?? {}
-          const hasTool       = (k: string) => isAdmin || grants[k] === true || (k === 'smart_data' && staff.toolkit_access)
+          const hasTool       = (k: string) => isAdmin || grants[k] === true
           const dept          = staff.department ?? ''
           const level         = staff.job_level
           const isMgmt        = ['super_admin', 'office_head'].includes(level)
@@ -563,7 +563,6 @@ function DashboardContent() {
             wsSub    = 'Lead intelligence & event sponsorship'
             wsColor  = '#5AA9F2' // matches var(--info)
             wsTiles  = [
-              ...(hasTool('smart_data') ? [{ label: 'Smart Data', href: '/data/extract/file', color: '#12C9BD' }] : []),
               { label: 'My Events',  href: '/my-events', color: '#F5B94D' },
               { label: 'My HR',      href: '/my-hr',                          color: '#F472B6' },
             ]
@@ -623,7 +622,6 @@ function DashboardContent() {
             wsTiles  = [
               { label: 'My Events',  href: '/my-events', color: '#F5B94D' },
               { label: 'My HR',      href: '/my-hr',                          color: '#F472B6' },
-              ...(hasTool('smart_data') ? [{ label: 'Smart Data', href: '/data/extract/file', color: '#12C9BD' }] : []),
             ]
             wsStats = [
               { value: upcomingEvts,  label: 'events assigned',    color: '#F5B94D' },
@@ -686,7 +684,7 @@ function DashboardContent() {
         {/* ── Your Platform Access ── */}
         {(() => {
           const grants  = staff.tool_grants ?? {}
-          const hasTool = (k: string) => isAdmin || grants[k] === true || (k === 'smart_data' && staff.toolkit_access)
+          const hasTool = (k: string) => isAdmin || grants[k] === true
           // Same literal-hex constraint as the workspace tiles above — each
           // t.color here is reused as `${t.color}NN` template alpha suffixes.
           const tiles = [
@@ -696,7 +694,6 @@ function DashboardContent() {
             { label: 'AI Community',          sub: 'Share & discover prompts',        color: '#FB923C', href: `/community?id=${staffId}`,                                icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>, show: true },
             { label: 'My Events',             sub: 'Event roles & tasks',             color: '#F5B94D', href: '/my-events',                        icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>, show: true },
             { label: 'My HR',                 sub: 'Leave, pay & attendance',         color: '#F472B6', href: '/my-hr',                                                 icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, show: true },
-            { label: 'Smart Data',            sub: 'Lead extraction & CRM',           color: '#12C9BD', href: '/data/extract/file',                                     icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>, show: hasTool('smart_data') },
             { label: 'HR Portal',             sub: 'Leave approvals & org ops',       color: '#F472B6', href: '/hr',                                                    icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>, show: hasTool('hr_portal') || staff.department === 'HR & Recruitment' || staff.department === 'HR' },
             { label: 'Team Dashboard',        sub: 'Team AIRS & progress',           color: '#818CF8', href: `/team?manager_id=${staffId}&staff_id=${staffId}`,        icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, show: !!(staff.has_reports || isAdmin) },
             { label: 'Commercial P&L',        sub: 'Revenue, costs & profitability',  color: '#0EA79D', href: '/admin/commercial',                                     icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>, show: !!isAdmin || hasTool('finance') || staff.department === 'Finance' },

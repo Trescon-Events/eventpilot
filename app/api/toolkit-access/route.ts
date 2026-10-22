@@ -21,8 +21,6 @@ export async function GET(req: NextRequest) {
 
   const grants: Record<string, boolean> = {
     ...(data?.tool_grants ?? {}),
-    // toolkit_access legacy flag maps to smart_data
-    ...(data?.toolkit_access ? { smart_data: true } : {}),
   }
   const hasAny = Object.values(grants).some(Boolean)
   return NextResponse.json({ access: hasAny, grants })

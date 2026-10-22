@@ -19,6 +19,6 @@ export async function hasToolGrant(staffId: string | null | undefined, grantKey:
   if (!staff) return false
   if (staff.job_level === 'super_admin') return true
 
-  const grants = { ...(staff.tool_grants ?? {}), ...(staff.toolkit_access ? { smart_data: true } : {}) }
+  const grants = { ...(staff.tool_grants ?? {}) }
   return grants[grantKey] === true
 }

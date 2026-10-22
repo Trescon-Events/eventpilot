@@ -340,42 +340,6 @@ export function getModuleRegistry(): ModuleDef[] {
       platformMenu: { section: 'Content & Marketing' },
     },
 
-    /* ── Data Intelligence ── */
-    {
-      key: 'data-extract', label: 'Lead Extraction',
-      description: 'Extract companies from files, URLs, or websites',
-      icon: I.boat, color: '#00A5A3',
-      href: '/data/extract/file',
-      access: { kind: 'always' },
-      platformMenu: { section: 'Data Intelligence' },
-      toolkitHub: {
-        category: 'Data', badge: 'Data Intelligence', label: 'Smart Data', legacyId: 'smart-data', access: { kind: 'tool_grant', grantKey: 'smart_data', moduleAccessKey: 'data-extract' },
-        description: 'Your full B2B intelligence pipeline. Extract leads from any source, enrich them with LinkedIn and Apollo data, verify every email, and manage your contact database — all from one place.',
-        features: [
-          { icon: '↓', label: 'File & URL extraction', detail: 'Upload CSVs, PDFs or paste a URL — contacts pulled instantly' },
-          { icon: '◈', label: 'LinkedIn & Apollo enrichment', detail: 'Job titles, companies, LinkedIn profiles and contact details' },
-          { icon: '◉', label: 'Email verification', detail: 'Bulk verify deliverability before any outreach campaign' },
-          { icon: '⊞', label: 'Contact database', detail: 'Unified B2B database with tagging, filtering and CSV export' },
-        ],
-      },
-    },
-    {
-      key: 'data-contacts', label: 'Contacts & Companies',
-      description: 'Search, enrich, and manage your full B2B database',
-      icon: I.people, color: '#7A7DF3',
-      href: '/data/contacts',
-      access: { kind: 'always' },
-      platformMenu: { section: 'Data Intelligence' },
-    },
-    {
-      key: 'lead-finder', label: 'Lead Finder AI',
-      description: 'Describe your ICP and let AI find and score matching leads',
-      icon: I.target, color: '#F59E0B',
-      href: '/data/lead-finder',
-      access: { kind: 'always' },
-      platformMenu: { section: 'Data Intelligence' },
-    },
-
     /* ── Pilot Projects ──
        NOTE: PlatformMenu's original comment claimed this is "shown when user
        is in any pilot project" but the code never actually checked
@@ -499,6 +463,15 @@ export function getModuleRegistry(): ModuleDef[] {
       access: { kind: 'admin_only' },
       breadcrumbParent: 'admin',
       sidebar: { section: 'admin', parent: 'admin', order: 8 },
+    },
+    {
+      key: 'admin-keys', label: 'Keys & Credentials',
+      description: 'Every platform and key the app depends on — which login owns it, the direct console link, how to rotate it, and when it was last rotated. Names and links only, no secret values. Super-admin only.',
+      icon: I.gear, color: '#E55F5F',
+      href: '/admin/settings/keys',
+      access: { kind: 'admin_only' },
+      breadcrumbParent: 'admin',
+      sidebar: { section: 'admin', parent: 'admin', order: 9 },
     },
     {
       key: 'dev-approvals', label: 'PR Approvals',
@@ -808,6 +781,23 @@ export function getModuleRegistry(): ModuleDef[] {
         access: { kind: 'event_permission', permissionKey: 'ops.view' },
         features: [
           { icon: '◈', label: 'Vendor directory', detail: 'Shared list of outside vendors and their contacts, assigned per event' },
+        ],
+      },
+    },
+    {
+      key: 'pr-media', label: 'PR & Media',
+      description: 'Media interview requests to speakers and their availability, for the event’s PR team.',
+      icon: I.docLines, color: '#D9822B',
+      href: ctx => `/admin/events/${ctx.eventId}/pr-media`,
+      needsEvent: true,
+      breadcrumbPattern: '/admin/events/:eventId/pr-media', breadcrumbParent: 'admin-event-workspace',
+      access: { kind: 'event_permission', permissionKey: 'pr.view' },
+      sidebar: { section: 'events', parent: 'events' },
+      toolkitHub: {
+        category: 'Events', badge: 'Event Tool',
+        access: { kind: 'event_permission', permissionKey: 'pr.view' },
+        features: [
+          { icon: '◈', label: 'Media interview availability', detail: 'Which speakers are open to media bites, and when' },
         ],
       },
     },

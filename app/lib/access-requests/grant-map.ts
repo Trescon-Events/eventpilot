@@ -27,7 +27,6 @@ export const GRANT_STRATEGY: Record<string, GrantStrategy> = {
   website_builder:     { label: 'Website Builder',     grantKey: 'website_builder' },
   brand_studio:        { label: 'Brand Studio',        grantKey: 'brand_studio' },
   intelligence:        { label: 'Market Intelligence', grantKey: 'intelligence' },
-  smart_data:          { label: 'Smart Data',          grantKey: 'smart_data' },
   smart_excel:         { label: 'Smart Excel',         grantKey: 'smart_excel' },
   finance:             { label: 'Finance Portal',      grantKey: 'finance',   role: 'finance' },
   hr:                  { label: 'HR Portal',           grantKey: 'hr_portal', role: 'hr' },

@@ -40,6 +40,7 @@ export type FeatureKey =
   | 'market-intel'
   | 'agenda-builder'
   | 'operations'
+  | 'pr-media'
   | 'speaker-mementos'
 
 export type FeatureGroup = 'compliance' | 'integrations' | 'modules'
@@ -147,6 +148,13 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
     description: 'Speaker licence batches and the shared vendor directory for this event.',
     group: 'modules',
     defaultForNewEvent: () => true,
+  },
+  {
+    key: 'pr-media',
+    label: 'PR & Media',
+    description: 'Ask speakers whether they will give media bites or interviews and when they are free; the event’s PR person sees the answers.',
+    group: 'modules',
+    defaultForNewEvent: () => false,
   },
   {
     key: 'speaker-mementos',

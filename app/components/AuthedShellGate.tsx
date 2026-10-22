@@ -19,14 +19,14 @@ import { BreadcrumbLabelsProvider } from '@/app/lib/nav/breadcrumb-labels'
 
   This list is deliberately broader than middleware.ts's PUBLIC_PREFIXES
   (which governs actual auth enforcement, untouched by this file) — e.g.
-  /set-password, /reset-password, /no-access, and /profile all technically
+  /no-access and /profile all technically
   sit behind different auth rules in middleware, but all render their own
   full-screen centered card and would look wrong with a persistent app bar
   on top, so they're excluded here regardless.
 */
 
 const EXACT_NO_SHELL = new Set([
-  '/', '/login', '/join', '/welcome', '/set-password', '/reset-password',
+  '/', '/login', '/join', '/welcome',
   '/access-pending', '/no-access', '/profile', '/vendor-portal',
 ])
 // /vendor-portal/ (2026-09-25): external licence vendors must never see the

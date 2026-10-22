@@ -29,7 +29,6 @@ const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
 // original hue, since these are per-module brand identity colors and should
 // stay visually distinct from one another (not collapsed onto shared tokens).
 const PLATFORM_TOOLS = [
-  { key: 'smart_data',      label: 'Smart Data',      color: '#1296BA' },
   { key: 'hr_portal',       label: 'HR Portal',       color: '#A172F2' },
   { key: 'events',          label: 'Events',          color: '#E55F5F' },
   { key: 'intelligence',    label: 'Intelligence',    color: '#DE7A06' },
@@ -253,7 +252,7 @@ export default function NewStaffPage() {
   const [step,      setStep]      = useState(1)
   const [allStaff,  setAllStaff]  = useState<StaffMember[]>([])
   const [saving,    setSaving]    = useState(false)
-  const [result,    setResult]    = useState<{ staff_id: string; name: string; email: string; temp_password: string } | null>(null)
+  const [result,    setResult]    = useState<{ staff_id: string; name: string; email: string} | null>(null)
   const [errors,    setErrors]    = useState<Record<string, string>>({})
 
   // Where "Add Staff" was launched from — Staff list, HR hub, or Onboarding tracker
@@ -390,20 +389,8 @@ export default function NewStaffPage() {
             Staff profile created successfully.
           </div>
 
-          {/* Credentials box */}
-          <div style={{ background: 'var(--surface)', borderRadius: '12px', padding: '20px', textAlign: 'left', marginBottom: '24px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>Login Credentials</div>
-            <div style={{ marginBottom: '10px' }}>
-              <div style={{ fontSize: '11px', color: C.muted, marginBottom: '2px' }}>Email</div>
-              <div style={{ fontSize: '13px', fontWeight: 700, color: C.text, fontFamily: 'monospace' }}>{result.email}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: '11px', color: C.muted, marginBottom: '2px' }}>Temporary Password</div>
-              <div style={{ fontSize: '15px', fontWeight: 800, color: C.teal, fontFamily: 'monospace', letterSpacing: '1px' }}>{result.temp_password}</div>
-            </div>
-            <div style={{ marginTop: '12px', fontSize: '11px', color: C.amber }}>
-              Share these credentials with the staff member. They will be asked to change their password on first login.
-            </div>
+          <div style={{ fontSize: '13px', color: C.muted, marginBottom: '24px' }}>
+            {result.email} signs in with Microsoft 365 — no password to share.
           </div>
 
           <div style={{ display: 'flex', gap: '10px' }}>
@@ -669,7 +656,7 @@ export default function NewStaffPage() {
                   <div>
                     <div style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>Enable login immediately</div>
                     <div style={{ fontSize: '11px', color: C.muted }}>
-                      {accessEnabled ? 'Staff can log in using the credentials shown at the end.' : 'Login will be disabled. You can enable it later from Admin → People.'}
+                      {accessEnabled ? 'Staff can sign in with their Microsoft 365 account.' : 'Login will be disabled. You can enable it later from Admin → People.'}
                     </div>
                   </div>
                 </div>

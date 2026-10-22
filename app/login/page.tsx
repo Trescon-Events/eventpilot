@@ -1,56 +1,18 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 
 export default function LoginPage() {
-  const router = useRouter()
   const [ssoError, setSsoError] = useState('')
   const [nextParam, setNextParam] = useState('')
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [rememberMe, setRememberMe] = useState(false)
-  const [loginError, setLoginError] = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
-  // Password sign-in is a local-dev-only escape hatch for exception accounts —
-  // production is Microsoft SSO for everyone, so this never shows on the live site.
-  const [showPasswordForm, setShowPasswordForm] = useState(false)
-
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const err = params.get('error')
     if (err) setSsoError(err)
     const next = params.get('next')
     if (next) setNextParam(next)
-    if (process.env.NODE_ENV !== 'production' && params.get('staff') === '1') {
-      setShowPasswordForm(true)
-    }
   }, [])
-
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault()
-    setLoginError('')
-    setLoading(true)
-    try {
-      const res = await fetch('/api/login', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email: email.trim(), password, rememberMe }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setLoginError(data.error ?? 'Login failed. Please try again.')
-        return
-      }
-      router.push(data.is_vendor ? '/admin/task-manager' : '/dashboard')
-    } catch {
-      setLoginError('Network error. Please try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const C = {
     teal:    'var(--teal-mid)',
@@ -60,19 +22,6 @@ export default function LoginPage() {
     border:  'var(--border)',
     text:    'var(--ink)',
     muted:   'var(--ink3)',
-  }
-
-  const inputStyle: React.CSSProperties = {
-    width:        '100%',
-    padding:      '13px 16px',
-    borderRadius: '10px',
-    border:       `1.5px solid ${C.border}`,
-    fontSize:     '15px',
-    color:        C.text,
-    background:   'var(--card)',
-    outline:      'none',
-    fontFamily:   'inherit',
-    boxSizing:    'border-box',
   }
 
   return (
@@ -178,87 +127,6 @@ export default function LoginPage() {
             </svg>
             Sign in with Microsoft 365
           </a>
-
-          {showPasswordForm && <>
-          {/* Divider */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-            <div style={{ flex: 1, height: '1px', background: C.border }} />
-            <span style={{ fontSize: '12px', fontWeight: 700, color: C.muted, letterSpacing: '1px', textTransform: 'uppercase' }}>or</span>
-            <div style={{ flex: 1, height: '1px', background: C.border }} />
-          </div>
-
-          {/* Email / Password form */}
-          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: C.muted, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>Work Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="you@tresconglobal.com"
-                required
-                style={inputStyle}
-                onFocus={e => (e.currentTarget.style.borderColor = C.teal)}
-                onBlur={e => (e.currentTarget.style.borderColor = C.border)}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: C.muted, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>Password</label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  required
-                  style={{ ...inputStyle, paddingRight: '44px' }}
-                  onFocus={e => (e.currentTarget.style.borderColor = C.teal)}
-                  onBlur={e => (e.currentTarget.style.borderColor = C.border)}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(v => !v)}
-                  style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: C.muted }}
-                >
-                  {showPassword
-                    ? <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                    : <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                  }
-                </button>
-              </div>
-            </div>
-
-            <label style={{ display: 'flex', alignItems: 'center', gap: '9px', cursor: 'pointer', userSelect: 'none' }}>
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={e => setRememberMe(e.target.checked)}
-                style={{ width: '16px', height: '16px', accentColor: C.teal, cursor: 'pointer' }}
-              />
-              <span style={{ fontSize: '13px', color: C.muted, fontWeight: 600 }}>Remember me on this device</span>
-            </label>
-
-            {loginError && (
-              <div style={{ padding: '10px 14px', background: 'var(--red-light)', border: '1px solid var(--red-border)', borderLeft: '4px solid var(--red)', borderRadius: '8px', fontSize: '13px', color: 'var(--red)', fontWeight: 700, lineHeight: 1.5 }}>
-                {loginError}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              style={{ padding: '14px', borderRadius: '12px', border: 'none', background: loading ? '#2A5F58' : `linear-gradient(135deg, ${C.teal} 0%, ${C.tealDk} 100%)`, color: 'var(--teal-light)', fontSize: '15px', fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', letterSpacing: '0.3px' }}
-            >
-              {loading ? 'Signing in...' : 'Sign In'}
-            </button>
-          </form>
-
-          {/* Help note */}
-          <div style={{ marginTop: '24px', padding: '14px 16px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: '12px', fontSize: '13px', color: 'var(--ink2)', lineHeight: 1.65, textAlign: 'center' }}>
-            Local dev sign-in. Contact your admin if you need help.
-          </div>
-          </>}
 
           {/* Bottom wordmark */}
           <div style={{ marginTop: '28px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>

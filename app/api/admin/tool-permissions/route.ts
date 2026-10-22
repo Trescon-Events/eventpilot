@@ -9,7 +9,7 @@ import { requireAdmin } from '@/app/lib/access/require-admin'
 
   PATCH /api/admin/tool-permissions
   Body: { id, tool_key, value }
-  Toggles a single tool grant. If tool_key === 'smart_data' also syncs toolkit_access.
+  Toggles a single tool grant.
 */
 
 export async function GET(req: NextRequest) {
@@ -53,8 +53,6 @@ export async function PATCH(req: NextRequest) {
   const grants: Record<string, boolean> = { ...(current?.tool_grants ?? {}), [tool_key]: value }
 
   const updates: Record<string, unknown> = { tool_grants: grants }
-  // Smart Data syncs to toolkit_access for backward compat
-  if (tool_key === 'smart_data') updates.toolkit_access = value
 
   const { error: updateErr } = await supabaseAdmin
     .from('staff_members')

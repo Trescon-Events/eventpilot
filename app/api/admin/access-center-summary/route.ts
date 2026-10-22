@@ -44,7 +44,6 @@ const TOOLS: { registryKey: string; accessKey: string; settingsUrl: string; lega
   { registryKey: 'content',              accessKey: 'content',              settingsUrl: '/content/settings' },
   { registryKey: 'hr',                   accessKey: 'hr',                   settingsUrl: '/hr/settings' },
   { registryKey: 'finance',              accessKey: 'finance',              settingsUrl: '/finance/settings' },
-  { registryKey: 'data-extract',         accessKey: 'data-extract',         settingsUrl: '/data/settings' },
 ]
 
 export async function GET(req: NextRequest) {

@@ -22,6 +22,7 @@ import { statusColumns, statusTone, type StatusBoardExportRow } from '@/app/lib/
 import { getFeatureDef } from '@/app/lib/registry/feature-flags'
 import { SPEAKER_EXPORT_FIELDS, speakerStatusTone, type SpeakerExportRecord } from '@/app/lib/export/speaker-export-fields'
 import InvitesTab from './InvitesTab'
+import MediaRequestDialog from './MediaRequestDialog'
 import VipsTab from './VipsTab'
 import { FieldSchema, SubmittedValue, asText } from '@/app/lib/forms/types'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
@@ -200,6 +201,8 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   const [excelPickerOpen, setExcelPickerOpen] = useState(false)
   // Speaker Mementos (step 1) — null/false for every event that hasn't switched it on, which hides every memento control.
   const [mementosEnabled, setMementosEnabled] = useState(false)
+  const [prMediaEnabled, setPrMediaEnabled] = useState(false)
+  const [mediaRequestOpen, setMediaRequestOpen] = useState(false)
   // Per-speaker KonfHub categories (DFWS Roundtable Speaker) — empty for every event that doesn't use them, which hides the bulk items.
   const [konfhubCategories, setKonfhubCategories] = useState<{ id: string; label: string }[]>([])
   const [search, setSearch] = useState('')
@@ -451,6 +454,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     fetch(`/api/events?id=${eventId}`).then(r => r.json()).then(d => {
       const ev = Array.isArray(d) ? d[0] : d
       const stored = (ev?.enabled_features ?? {}) as Record<string, boolean>
+      setPrMediaEnabled(stored['pr-media'] === true)
       const country = ev?.country ?? null
       setEventTitle(ev?.public_name || ev?.name || '')
       setEventFlags({
@@ -770,6 +774,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     ] : []),
     ...(category?.kind === 'speaker' && can('sae.approvals.approve') ? [{ label: 'Push to KonfHub', onClick: openBulkKonfhubConfirm }] : []),
     ...(category?.kind === 'speaker' && can('sae.approvals.approve') ? [{ label: 'Register on KonfHub', onClick: openBulkRegistrationConfirm }] : []),
+    ...(category?.kind === 'speaker' && prMediaEnabled && can('sae.stakeholders.edit') ? [{ label: 'Request media interest', onClick: () => setMediaRequestOpen(true) }] : []),
     ...(can('sae.approvals.approve') ? [{ label: 'Approve for Announcements', onClick: openBulkApproveConfirm }] : []),
     // Cancel (2026-09-23) — speaker-only (confirmation_status doesn't exist
     // on partners), gated on the same edit permission the confirmation_
@@ -1157,6 +1162,11 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
           onDownload={bulkDownloadSpeakerDetailsExcel}
           onClose={() => setExcelPickerOpen(false)}
         />
+      )}
+
+      {mediaRequestOpen && (
+          <MediaRequestDialog eventId={eventId} speakers={visibleItems.filter(i => selectedIds.has(i.id)).map(i => ({ id: i.id, name: (i as Speaker).public_name || (i as Speaker).full_name }))}
+            onClose={() => setMediaRequestOpen(false)} onFinished={() => setSelectedIds(new Set())} />
       )}
 
       {bulkApproveConfirm && category && (

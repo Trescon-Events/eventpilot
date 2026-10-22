@@ -144,6 +144,15 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
     if (!res.ok) { say(data.error ?? 'Could not add the stage.', 'error'); return }
     setStageName(''); setAddingStage(false); await load()
   }
+  async function addAllStageTags() {
+    let n = 0
+    for (const name of addableStageTags) {
+      const { res, data } = await call('/api/events/agenda-v2/tracks', 'POST', { event_id: eventId, name, order_index: tracks.length + n })
+      if (!res.ok) { say(data.error ?? `Could not add “${name}”.`, 'error'); break }
+      n++
+    }
+    await load(); if (n) say(`Added ${n} stage${n === 1 ? '' : 's'} from KonfHub.`)
+  }
   const stageActions = {
     renameStage: async (id: string, name: string) => { const { res, data } = await call('/api/events/agenda-v2/tracks', 'PATCH', { id, event_id: eventId, name }); if (!res.ok) say(data.error ?? 'Could not rename.', 'error'); await load() },
     shiftStage: async (id: string, dir: -1 | 1) => {
@@ -313,6 +322,13 @@ export default function AgendaBuilderPage({ params }: { params: Promise<{ id: st
           ) : <Button variant="ghost" onClick={() => setAddingStage(true)}>＋ Stage</Button>}
         </div>
 
+        {khLabels?.stage_mode === 'tag' && addableStageTags.length > 0 && (
+          // The mapping lists these Stage tags but nothing here uses them yet, so their sessions couldn't be placed (BSS Rooms 3/4, 2026-10-21).
+          <div role="status" style={{ margin: '12px 0', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--amber)', background: 'var(--amber-light)', color: 'var(--ink)', fontSize: '13.5px', lineHeight: 1.5, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
+            <span style={{ flex: 1, minWidth: '240px' }}>KonfHub has stages that aren’t in EventPilot yet: <strong>{addableStageTags.join(', ')}</strong>. Sessions can’t be placed on them until they’re added. If a stage is missing from this list, fetch the tags again under Integrations › Agenda mapping.</span>
+            <Button variant="teal" onClick={addAllStageTags}>Add {addableStageTags.length === 1 ? 'this stage' : `all ${addableStageTags.length}`}</Button>
+          </div>
+        )}
         <StageManager tracks={sortedTracks} rooms={rooms} sessionCount={id => sessions.filter(s => s.track_id === id).length} actions={stageActions} tagLock={khLabels?.stage_mode === 'tag' ? `Stage names are tags of the “${khLabels.stage ?? 'Stage'}” filter in KonfHub, and the live website filters on them. Renaming or deleting a stage here would break that link, so it is locked. Change the tag in KonfHub, then re-run Agenda mapping.` : null} />
 
         <Card padded={false}>

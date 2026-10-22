@@ -15,7 +15,6 @@ const C = {
 const TOOLS: Record<string, string> = {
   events:          'Events Hub',
   hr_portal:       'HR Portal',
-  smart_data:      'Smart Data',
   brand_studio:    'Brand Studio',
   website_builder: 'Website Builder',
   content:         'Content Engine',

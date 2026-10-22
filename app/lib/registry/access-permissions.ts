@@ -51,6 +51,10 @@ export const ACCESS_REGISTRY: AccessModule[] = [
       { key: 'sae.badges.view',            label: 'View speaker badge batches',                      enforced: true },
       { key: 'sae.badges.manage',          label: 'Create and edit speaker badge batches',           enforced: true },
       { key: 'sae.badges.approve',         label: 'Approve badges for print and download the print file', enforced: true },
+      // Speaker Mementos (2026-10-21) — the photo hand-off to the memento vendor. view = see the Mementos list, batches and
+      // each speaker's status; manage = name a batch, pick speakers, create / edit / push it to Ops, record "shared before".
+      { key: 'sae.mementos.view',          label: 'View speaker memento batches and status',         enforced: true },
+      { key: 'sae.mementos.manage',        label: 'Create memento batches and push them to Ops',     enforced: true },
       { key: 'sae.invites.send',           label: 'Send speaker/stakeholder invite emails',          enforced: true },
       { key: 'sae.forms.manage',           label: 'Customize onboarding form fields',                enforced: true },
       // Sensitive Documents (2026-09-04) — Passport/National ID, stored
@@ -168,6 +172,16 @@ export const ACCESS_REGISTRY: AccessModule[] = [
       // Real event days (2026-09-25) — drive when Passport/National ID documents are auto-deleted.
       { key: 'ops.event_days.manage', label: 'Set the real event days (drives when Passport / National ID documents are deleted)', enforced: true },
       { key: 'ops.vendor_accounts.manage', label: 'Create and manage Vendor Portal logins (invite, reset link, disable)', enforced: true },
+    ],
+  },
+  {
+    // PR & Media (2026-10-21): the event's PR person sees which speakers are open to media interviews and when, assigns PR contacts and sets the
+    // event days/hours the speaker form offers. Asking speakers is done from the Stakeholder Hub (sae.stakeholders.edit). A person ASSIGNED as the
+    // event's PR contact gets in without these keys.
+    key: 'pr', label: 'PR & Media',
+    items: [
+      { key: 'pr.view',   label: 'See media interview requests and answers', enforced: true },
+      { key: 'pr.manage', label: 'Assign PR contacts, set media days and hours, send reminders, keep PR notes', enforced: true },
     ],
   },
   {

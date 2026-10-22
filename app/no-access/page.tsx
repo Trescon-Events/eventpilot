@@ -21,7 +21,6 @@ const TOOL_LABEL: Record<string, string> = {
   website_builder:     'Website Builder',
   brand_studio:        'Brand Studio',
   intelligence:        'Market Intelligence',
-  smart_data:          'Smart Data',
   smart_excel:         'Smart Excel',
   admin:               'Admin Panel',
   finance:             'Finance Portal',

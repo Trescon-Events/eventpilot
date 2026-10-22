@@ -166,65 +166,6 @@ export async function sendWelcome({
   })
 }
 
-// ── Email: Staff credentials (on HR bulk import) ──────────────────────────────
-
-export async function sendCredentials({
-  to,
-  name,
-  tempPassword,
-  loginUrl,
-}: {
-  to:           string
-  name:         string
-  tempPassword: string
-  loginUrl:     string
-}) {
-  const firstName = name.split(' ')[0]
-
-  const html = emailWrap(`
-    ${emailHeader('Your Access')}
-    <div style="padding:32px 40px;">
-      <h2 style="font-size:22px;font-weight:800;color:${DARK};margin:0 0 10px;">Your Event Pilot account is ready</h2>
-      <p style="color:${MUTED};font-size:15px;line-height:1.7;margin:0 0 24px;">
-        Hi ${firstName}, your account has been created by your team administrator.
-        Use the credentials below to log in.
-      </p>
-
-      <div style="background:#F8FFFE;border:1px solid #C6ECE8;border-radius:12px;padding:18px 20px;margin-bottom:24px;">
-        <div style="font-size:10px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;color:${BRAND};margin-bottom:12px;">Your credentials</div>
-        <div style="font-size:13px;margin-bottom:8px;">
-          <span style="color:#888;display:inline-block;min-width:90px;">Email</span>
-          <span style="color:${DARK};font-weight:700;">${to}</span>
-        </div>
-        <div style="font-size:13px;">
-          <span style="color:#888;display:inline-block;min-width:90px;">Password</span>
-          <span style="color:${DARK};font-weight:700;font-family:monospace;background:#F0F4F8;padding:2px 8px;border-radius:6px;">${tempPassword}</span>
-        </div>
-      </div>
-
-      <p style="color:${MUTED};font-size:13px;margin:0 0 20px;line-height:1.6;">
-        You'll be prompted to change your password after your first login.
-      </p>
-
-      <div style="text-align:center;margin:28px 0;">
-        <a href="${loginUrl}"
-          style="display:inline-block;background:${BRAND};color:#ffffff;font-size:14px;font-weight:800;padding:14px 32px;border-radius:10px;text-decoration:none;">
-          Sign In to Trescon Platform
-        </a>
-      </div>
-
-      ${emailFooter()}
-    </div>
-  `)
-
-  return getResend().emails.send({
-    from:    FROM,
-    to,
-    subject: `${firstName}, your Trescon account is ready`,
-    html,
-  })
-}
-
 // ── Email: Access Request (sent to admins when someone requests access) ──────
 
 export async function sendAccessRequest({

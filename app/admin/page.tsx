@@ -203,9 +203,6 @@ function AdminPageInner() {
   const [authed, setAuthed]   = useState(() => typeof window !== 'undefined' && sessionStorage.getItem('tai_admin_authed') === '1')
   const [adminStaffId, setAdminStaffId] = useState(() => typeof window !== 'undefined' ? sessionStorage.getItem('tai_admin_staff_id') ?? '' : '')
   const [isSuperAdmin, setIsSuperAdmin] = useState(() => typeof window !== 'undefined' && (sessionStorage.getItem('tai_admin_staff_id') === 'super-admin' || sessionStorage.getItem('tai_is_super_admin') === '1'))
-  const [code, setCode]       = useState('')
-  const [adminEmail, setAdminEmail] = useState('')
-  const [codeError, setCodeError] = useState('')
   const [members, setMembers] = useState<Member[]>([])
   const [tasks, setTasks]     = useState<TaskProfile[]>([])
   type AdminTab = 'overview' | 'people' | 'ai-learning' | 'events' | 'commercial' | 'review' | 'toolkit' | 'security' | 'finance' | 'hr' | 'branding'
@@ -305,7 +302,7 @@ function AdminPageInner() {
   const [permGrants,  setPermGrants]  = useState<Record<string,boolean>>({})
   const [permSaving,  setPermSaving]  = useState<string|null>(null)
   const [permTab,     setPermTab]     = useState<'person'|'bulk'>('person')
-  const [bulkTool,    setBulkTool]    = useState('smart_data')
+  const [bulkTool,    setBulkTool]    = useState('website_builder')
   const [bulkSel,     setBulkSel]     = useState<Set<string>>(new Set())
   const [bulkSearch,  setBulkSearch]  = useState('')
   const [bulkSaving,  setBulkSaving]  = useState(false)
@@ -722,33 +719,6 @@ function AdminPageInner() {
     return () => { supabase.removeChannel(ch); clearInterval(heartbeatInterval) }
   }, [authed, fetchData])  // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleAuth(e: React.FormEvent) {
-    e.preventDefault()
-    if (!adminEmail.trim() || !code.trim()) {
-      setCodeError('Enter your email and password.')
-      return
-    }
-    try {
-      const res = await fetch('/api/admin-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: adminEmail.trim(), password: code.trim() }),
-      })
-      const data = await res.json()
-      if (res.ok && data.id) {
-        sessionStorage.setItem('tai_admin_authed', '1')
-        sessionStorage.setItem('tai_admin_staff_id', data.id)
-        localStorage.setItem('tai_staff_id', data.id)
-        setAdminStaffId(data.id)
-        setAuthed(true)
-      } else {
-        setCodeError(data.error ?? 'Incorrect email or password.')
-      }
-    } catch {
-      setCodeError('Something went wrong. Try again.')
-    }
-  }
-
   /* ── Derived ── */
   const totalJoined      = members.length
   const profilesComplete = members.filter(m => m.profile_complete).length
@@ -795,18 +765,8 @@ function AdminPageInner() {
           </div>
           <h1 style={{ fontSize: '36px', fontWeight: 800, color: 'var(--ink)', marginBottom: '8px' }}>Admin Access</h1>
           <p style={{ fontSize: '13px', color: 'var(--ink3)', marginBottom: '32px' }}>Event Pilot — Leadership Dashboard</p>
-          <form onSubmit={handleAuth}>
-            <input type="email" value={adminEmail} onChange={e => { setAdminEmail(e.target.value); setCodeError('') }}
-              placeholder="Your work email" autoFocus
-              style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${codeError ? 'var(--red)' : 'var(--border)'}`, background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', outline: 'none', fontFamily: 'inherit', marginBottom: '10px', boxSizing: 'border-box' }} />
-            <input type="password" value={code} onChange={e => { setCode(e.target.value); setCodeError('') }}
-              placeholder="Password"
-              style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${codeError ? 'var(--red)' : 'var(--border)'}`, background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', outline: 'none', fontFamily: 'inherit', marginBottom: '12px', boxSizing: 'border-box' }} />
-            {codeError && <p style={{ fontSize: '13px', color: 'var(--red)', marginBottom: '12px' }}>{codeError}</p>}
-            <button type="submit" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: 'none', background: 'var(--teal-mid)', color: 'var(--teal-light)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
-              Enter Dashboard
-            </button>
-          </form>
+          <p style={{ fontSize: '14px', color: 'var(--ink2)', marginBottom: '20px', lineHeight: 1.6 }}>Sign in with your Microsoft 365 account to continue.</p>
+          <Link href="/login" style={{ display: 'block', padding: '14px', borderRadius: '12px', background: 'var(--teal-mid)', color: 'var(--teal-light)', fontWeight: 800, fontSize: '15px', textDecoration: 'none' }}>Sign in with Microsoft</Link>
           <Link href="/dashboard" style={{ display: 'block', marginTop: '20px', fontSize: '13px', color: 'var(--ink3)', textDecoration: 'none' }}>Back to dashboard</Link>
         </div>
       </div>
@@ -1453,7 +1413,7 @@ function AdminPageInner() {
                             Roles
                           </button>
                           <button onClick={() => {
-                            const grants: Record<string,boolean> = { ...(p.tool_grants ?? {}), smart_data: p.toolkit_access ?? false }
+                            const grants: Record<string,boolean> = { ...(p.tool_grants ?? {}) }
                             setPermStaff(p)
                             setPermGrants(grants)
                             setPermTab('person')
@@ -1462,7 +1422,7 @@ function AdminPageInner() {
                             setPermOpen(true)
                           }} title="Manage tool permissions" style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--card)', cursor: 'pointer' }}>
                             {PLATFORM_TOOLS.map(tool => {
-                              const g: Record<string,boolean> = { ...(p.tool_grants ?? {}), smart_data: p.toolkit_access ?? false }
+                              const g: Record<string,boolean> = { ...(p.tool_grants ?? {}) }
                               const granted = p.job_level === 'super_admin' || (g[tool.key] ?? false)
                               return <div key={tool.key} style={{ width: '7px', height: '7px', borderRadius: '50%', background: granted ? tool.color : 'var(--border-light)', flexShrink: 0 }} />
                             })}
@@ -2790,7 +2750,7 @@ function AdminPageInner() {
               if (res.ok) {
                 granted++
                 setStaffList(prev => prev.map(s => s.id === id
-                  ? { ...s, tool_grants: { ...(s.tool_grants ?? {}), [bulkTool]: true }, ...(bulkTool === 'smart_data' ? { toolkit_access: true } : {}) }
+                  ? { ...s, tool_grants: { ...(s.tool_grants ?? {}), [bulkTool]: true } }
                   : s
                 ))
               } else { errors++ }
@@ -2874,7 +2834,7 @@ function AdminPageInner() {
                               }).then(res => {
                                 if (res.ok) {
                                   setStaffList(prev => prev.map(s => s.id === permStaff.id
-                                    ? { ...s, tool_grants: { ...(s.tool_grants ?? {}), [tool.key]: newVal }, ...(tool.key === 'smart_data' ? { toolkit_access: newVal } : {}) }
+                                    ? { ...s, tool_grants: { ...(s.tool_grants ?? {}), [tool.key]: newVal } }
                                     : s
                                   ))
                                 } else {
@@ -2938,7 +2898,7 @@ function AdminPageInner() {
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                       <button onClick={() => {
-                        const noAccess = bulkFiltered.filter(s => !(s.tool_grants?.[bulkTool] ?? (bulkTool === 'smart_data' && (s.toolkit_access ?? false))))
+                        const noAccess = bulkFiltered.filter(s => !(s.tool_grants?.[bulkTool]))
                         setBulkSel(new Set(noAccess.map(s => s.id)))
                       }} style={{ background: 'none', border: 'none', color: 'var(--teal-mid)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
                         Select without access
@@ -2955,7 +2915,7 @@ function AdminPageInner() {
                       {bulkFiltered.length === 0 ? (
                         <div style={{ padding: '24px', textAlign: 'center', color: 'var(--ink3)', fontSize: '13px' }}>No staff match your search.</div>
                       ) : bulkFiltered.map((s, idx) => {
-                        const hasAccess = s.tool_grants?.[bulkTool] ?? (bulkTool === 'smart_data' && (s.toolkit_access ?? false))
+                        const hasAccess = s.tool_grants?.[bulkTool]
                         const isSel     = bulkSel.has(s.id)
                         const offS      = OFFICES.find(o => o.id === s.office_id)
                         return (

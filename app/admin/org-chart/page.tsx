@@ -45,7 +45,6 @@ const LEVEL_RANK: Record<string, number> = {
 }
 
 const PLATFORM_TOOLS = [
-  { key: 'smart_data',      label: 'Smart Data',      color: '#0E7490' },
   { key: 'hr_portal',       label: 'HR Portal',       color: '#7C3AED' },
   { key: 'events',          label: 'Events',          color: '#DC2626' },
   { key: 'intelligence',    label: 'Intelligence',    color: '#D97706' },
@@ -120,7 +119,6 @@ function ToolDots({ s }: { s: StaffRow }) {
   const isAdmin = s.job_level === 'super_admin'
   const grants: Record<string, boolean> = {
     ...(s.tool_grants ?? {}),
-    smart_data: s.toolkit_access ?? false,
   }
   return (
     <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
@@ -174,7 +172,6 @@ function DetailPanel({
   const isAdmin = person.job_level === 'super_admin'
   const grants: Record<string, boolean> = {
     ...(person.tool_grants ?? {}),
-    smart_data: person.toolkit_access ?? false,
   }
 
   async function toggle(key: string, current: boolean) {
@@ -721,12 +718,12 @@ export default function OrgChartPage() {
     setStaff(prev => prev.map(s => {
       if (s.id !== id) return s
       const newGrants = { ...(s.tool_grants ?? {}), [key]: value }
-      return { ...s, tool_grants: newGrants, toolkit_access: key === 'smart_data' ? value : s.toolkit_access }
+      return { ...s, tool_grants: newGrants }
     }))
     setSelected(prev => {
       if (!prev || prev.id !== id) return prev
       const newGrants = { ...(prev.tool_grants ?? {}), [key]: value }
-      return { ...prev, tool_grants: newGrants, toolkit_access: key === 'smart_data' ? value : prev.toolkit_access }
+      return { ...prev, tool_grants: newGrants }
     })
   }, [])
 

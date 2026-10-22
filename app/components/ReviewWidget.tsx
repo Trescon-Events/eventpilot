@@ -5,7 +5,6 @@ import { useState, useEffect, useRef } from 'react'
 const TOOLS = [
   { key: 'events',          label: 'Events Hub'           },
   { key: 'hr_portal',       label: 'HR Portal'            },
-  { key: 'smart_data',      label: 'Smart Data'           },
   { key: 'brand_studio',    label: 'Brand Studio'         },
   { key: 'website_builder', label: 'Website Builder'      },
   { key: 'content',         label: 'Content Engine'       },
@@ -81,8 +80,6 @@ export default function ReviewWidget() {
   const isPublicPage = typeof window !== 'undefined' && (
     window.location.pathname === '/login' ||
     window.location.pathname === '/join' ||
-    window.location.pathname === '/set-password' ||
-    window.location.pathname === '/reset-password' ||
     window.location.pathname === '/welcome' ||
     window.location.pathname === '/access-pending'
   )

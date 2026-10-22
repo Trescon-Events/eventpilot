@@ -57,7 +57,7 @@ export default function MementoBatchPage({ params }: { params: Promise<{ id: str
     return { ok: res.ok, data }
   }
 
-  const canEdit = can('sae.stakeholders.edit')
+  const canEdit = can('sae.mementos.manage')
   const draft = batch?.status === 'draft'
 
   async function rename() {

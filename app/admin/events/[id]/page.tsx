@@ -17,6 +17,7 @@ const MODULE_CARDS = (eventId: string): WorkspaceCard[] => [
   { toolKey: 'agenda-builder', featureKey: 'agenda-builder', label: 'Agenda Manager', description: 'Day timeline of stages and sessions, speakers with roles, publish and push to KonfHub.', href: `/admin/events/${eventId}/agenda` },
   { toolKey: 'press-releases', featureKey: 'press-releases', label: 'Press Release Studio', description: 'Research, generate and refine press releases that follow the content rules.', href: `/admin/events/${eventId}/press-releases` },
   { toolKey: 'operations', featureKey: 'operations', label: 'Operations Hub', description: 'Vendors, licences, badges and speaker document requests for this event.', href: `/admin/events/${eventId}/operations` },
+  { toolKey: 'pr-media', featureKey: 'pr-media', label: 'PR & Media', description: 'Which speakers are open to media interviews, and when. Set up PR contacts and media days.', href: `/admin/events/${eventId}/pr-media` },
 ]
 
 const SETTINGS_CARDS = (eventId: string): WorkspaceCard[] => [

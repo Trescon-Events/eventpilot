@@ -1,15 +1,6 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
-import bcrypt from 'bcryptjs'
-import { sendCredentials } from '@/app/lib/email'
 import { requireAdminOrHr } from '@/app/lib/access/require-admin'
-
-/* ── Temp password: FirstName@XXXX ────────────────────────────────────────── */
-function makeTempPassword(name: string): string {
-  const first = name.trim().split(' ')[0].replace(/[^a-zA-Z]/g, '')
-  const pin   = String(Math.floor(1000 + Math.random() * 9000))
-  return `${first.charAt(0).toUpperCase()}${first.slice(1).toLowerCase()}@${pin}`
-}
 
 const DEFAULT_ONBOARDING_TASKS = [
   { title: 'Welcome call with manager',                  owner: 'manager' },
@@ -56,7 +47,7 @@ export async function GET(req: NextRequest) {
     2. Set tool_grants
     3. Reassign any existing reports to this person
     4. Optionally start an onboarding checklist
-    5. Return credentials
+    5. Return the new staff record (sign-in is Microsoft SSO only)
 
   Auth: verified session — admin or HR department
 */
@@ -94,16 +85,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'A staff member with this email already exists.' }, { status: 409 })
   }
 
-  /* ── Generate temp password ── */
-  const tempPassword = makeTempPassword(name)
-  const passwordHash = await bcrypt.hash(tempPassword, 10)
-
   /* ── Insert staff record ── */
   const insertPayload: Record<string, unknown> = {
     name:                   name.trim(),
     email:                  email.trim().toLowerCase(),
-    password_hash:          passwordHash,
-    must_change_password:   true,
     access_enabled:         access_enabled ?? false,
     profile_complete:       false,
     is_active:              true,
@@ -131,7 +116,6 @@ export async function POST(req: NextRequest) {
 
   if (tool_grants && typeof tool_grants === 'object') {
     insertPayload.tool_grants    = tool_grants
-    insertPayload.toolkit_access = (tool_grants as Record<string, boolean>).smart_data === true
   }
 
   const { data: newStaff, error: insertErr } = await supabaseAdmin
@@ -200,24 +184,13 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  /* ── Send credentials email ── */
-  if (access_enabled) {
-    const loginUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://eventpilot.tresconglobal.com'}/login`
-    try {
-      await sendCredentials({ to: newStaff.email, name: newStaff.name, tempPassword, loginUrl })
-    } catch (e) {
-      console.error('sendCredentials error:', e)
-      // Non-fatal — credentials shown on screen regardless
-    }
-  }
-
   /* ── Send welcome notification (in-app) ── */
   if (access_enabled) {
     await supabaseAdmin.from('notifications').insert({
       staff_id: newStaff.id,
       type:     'welcome',
       title:    `Welcome to Trescon, ${newStaff.name.split(' ')[0]}!`,
-      body:     'Your profile has been created. Please log in and complete your profile setup.',
+      body:     'Your profile has been created. Sign in with Microsoft and complete your profile setup.',
       read:     false,
     })
   }
@@ -227,7 +200,6 @@ export async function POST(req: NextRequest) {
     staff_id:      newStaff.id,
     name:          newStaff.name,
     email:         newStaff.email,
-    temp_password: tempPassword,
     onboarding_id,
   })
 }

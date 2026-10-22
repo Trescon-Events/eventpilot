@@ -50,7 +50,7 @@ export default function MementosPage({ params }: { params: Promise<{ id: string 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data load
   useEffect(() => { void load() }, [load])
 
-  const canEdit = can('sae.stakeholders.edit')
+  const canEdit = can('sae.mementos.manage')
 
   return (
     <div>
