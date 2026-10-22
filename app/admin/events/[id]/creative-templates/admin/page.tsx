@@ -88,7 +88,7 @@ function newLayer(type: Layer['type'], activeType: StakeholderKind, canvasWidth:
     // the frame with it, unlike a Promo variant's photo slot, which is
     // typically a smaller inset within a larger poster (400x400 stays the
     // sensible default there).
-    const full = category === 'website_photo' || category === 'badge'
+    const full = category === 'website_photo' || category === 'badge' || category === 'memento'
     return { id, type: 'photo_slot', source: activeType === 'speaker' ? 'speaker_photo' : 'partner_logo', x: 0, y: 0, width: full ? canvasWidth : 400, height: full ? canvasHeight : 400 }
   }
   const field: TextLayer['field'] = activeType === 'speaker' ? 'name' : 'custom'
@@ -274,7 +274,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     setPreviewStale(false)
     setTextDiagnostics(res.ok ? (data.text_diagnostics ?? {}) : {})
     // A failed render used to leave a silent blank preview; surface the server's reason instead.
-    setWebsitePhotoError(!res.ok ? (data.error ?? `Preview failed (${res.status})`) : activeVariant.category === 'website_photo' ? (data.website_photo_error ?? null) : null)
+    setWebsitePhotoError(!res.ok ? (data.error ?? `Preview failed (${res.status})`) : (activeVariant.category === 'website_photo' || activeVariant.category === 'memento') ? (data.website_photo_error ?? null) : null)
     setPreviewLoading(false)
   }
 
@@ -395,15 +395,15 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   // wrong canvas size (1080x1350) by mistake, only caught once a layer
   // inside it was already wrong too. Gating on the choice up front means
   // canvas dimensions are correct from the variant's very first layer.
-  function addVariant(category: 'promo' | 'self_promo' | 'website_photo' | 'badge', badgeSpec?: { width_mm: number; height_mm: number; bleed_mm: number }) {
+  function addVariant(category: 'promo' | 'self_promo' | 'website_photo' | 'badge' | 'memento', badgeSpec?: { width_mm: number; height_mm: number; bleed_mm: number }) {
     pushUndo()
     const size = category === 'website_photo' ? CLEANING_CYCLE_CANVAS_SIZE : null
     // Badge (2026-10-02): page = trim + bleed, entered in the setup step; canvas = that page at ~300 ppi.
     const badge = category === 'badge' && !!badgeSpec
     const grid = badge ? badgeGrid(badgeSpec!) : null
     const variant: Variant = {
-      id: crypto.randomUUID(), name: badge ? 'Speaker badge' : 'Untitled Variant', category,
-      canvas_width: grid ? grid.w : size ?? 1080, canvas_height: grid ? grid.h : size ?? 1350, layers: [],
+      id: crypto.randomUUID(), name: badge ? 'Speaker badge' : category === 'memento' ? 'Speaker memento' : 'Untitled Variant', category,
+      canvas_width: grid ? grid.w : category === 'memento' ? 1024 : size ?? 1080, canvas_height: grid ? grid.h : category === 'memento' ? 1024 : size ?? 1350, layers: category === 'memento' ? [newLayer('photo_slot', activeType, 1024, 1024, null, 'memento')] : [],
       ...(badge ? { print: { ...badgeSpec! } } : {}),
     }
     mutate(vs => [...vs, variant])
@@ -791,7 +791,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       {/* Wraps instead of a fixed 4-column grid so the name box is never squeezed off-screen on narrow windows. */}
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', marginBottom: '14px' }}>
                         <Input value={activeVariant.name} onChange={e => updateActiveVariant({ name: e.target.value })} placeholder="Variant name" style={{ flex: '1 1 260px', minWidth: 0 }} />
-                        {activeVariant.category !== 'badge' && (
+                        {activeVariant.category !== 'badge' && activeVariant.category !== 'memento' && (
                         <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                           Use
                           <Select
@@ -829,6 +829,12 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       </div>
                       {activeVariant.category === 'badge' && activeVariant.print && (
                         <BadgeSettings variant={activeVariant} eventId={eventId} activeType={activeType} onChange={print => updateActiveVariant({ print })} onResize={resizeBadge} />
+                      )}
+                      {activeVariant.category === 'memento' && (
+                        <div style={{ marginBottom: '14px', fontSize: '11px', color: 'var(--ink3)', lineHeight: 1.5 }}>
+                          <strong>Memento</strong> — one <strong>Photo/Logo Slot</strong> layer (source: speaker photo), nothing else. Set W/H to this event&apos;s memento artwork size, size the slot, then click
+                          <em> Upload Reference Layer (auto-position)</em> with the memento design (or any image) — the head size and position are traced from it. The output is a transparent PNG of exactly W×H with the speaker&apos;s head fixed to that marker; no background, no text, no enlargement of the source photo.
+                        </div>
                       )}
                       {activeVariant.category === 'website_photo' && (
                         <div style={{ marginBottom: '14px' }}>
@@ -876,9 +882,9 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       </DndContext>
 
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        <Button variant="ghost" title="Static art, identical on every announcement — backgrounds, decorative overlays, branding blocks. Not this speaker/partner's own photo or logo." onClick={() => addLayer('image')}>+ Image Layer</Button>
+                        <Button variant="ghost" title="Static art, identical on every announcement — backgrounds, decorative overlays, branding blocks. Not this speaker/partner's own photo or logo." onClick={() => addLayer('image')} disabled={activeVariant.category === 'memento'}>+ Image Layer</Button>
                         <Button variant="ghost" title="A slot that fills in with each real speaker/partner's own photo or logo at generation time. Not static art." onClick={() => addLayer('photo_slot')}>+ Photo/Logo Slot</Button>
-                        <Button variant="ghost" title="A field of text (name, title, company, a static caption, etc.) rendered live at generation time." onClick={() => addLayer('text')}>+ Text Layer</Button>
+                        <Button variant="ghost" title="A field of text (name, title, company, a static caption, etc.) rendered live at generation time." onClick={() => addLayer('text')} disabled={activeVariant.category === 'memento'}>+ Text Layer</Button>
                         <Button variant="ghost" title="A mockup to place text and photos against. Shown in Generate Preview only — never in real announcements, website photos or print." onClick={addPreviewLayer}>+ Preview Layer</Button>
                         <Button variant="ghost" title="Copies this variant with all its layers intact — into this event, or into another event (e.g. the same badge for a sister event)." onClick={() => openCopyDialog(activeVariant.id)}>Copy this</Button>
                         <Button variant="red" onClick={() => deleteVariant(activeVariant.id)}>Delete Variant</Button>
@@ -1057,6 +1063,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                 ['promo', 'Promo', 'Org’s own channel-publish flow'],
                 ['self_promo', 'Self Promo', 'Emailed to the speaker for them to post'],
                 ['website_photo', 'Website Photo', `Square speaker card photo, ${CLEANING_CYCLE_CANVAS_SIZE}x${CLEANING_CYCLE_CANVAS_SIZE}`],
+                ['memento', 'Speaker Memento (photo cut-out)', 'Transparent PNG of the speaker for the memento vendor — you set the size, then upload a reference layer'],
                 ['badge', 'Speaker Badge (print)', 'PVC card — you set the size next; vector layers uploaded as PDFs'],
               ] as const).map(([value, label, hint]) => (
                 <button key={value} onClick={() => value === 'badge' ? setBadgeSetup({ trim_w: String(BADGE_DEFAULT.trim_w), trim_h: String(BADGE_DEFAULT.trim_h), bleed: String(BADGE_DEFAULT.bleed) }) : addVariant(value)} style={{
@@ -1906,7 +1913,7 @@ function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLa
 
       {/* Monochrome speaker photo (2026-10-01, DFS) — per template, because each template has its own photo
           layer. Announcement creatives only: Website Photo variants render through a separate path and stay in colour. */}
-      {isPhoto && variantCategory !== 'website_photo' && (
+      {isPhoto && variantCategory !== 'website_photo' && variantCategory !== 'memento' && (
         <label style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'flex-start', gap: '6px', cursor: 'pointer', lineHeight: 1.4 }}>
           <input type="checkbox" checked={!!layer.monochrome} onChange={e => onChange({ monochrome: e.target.checked })} style={{ marginTop: '1px', width: '16px', height: '16px', flexShrink: 0 }} />
           <span>Monochrome (black &amp; white) speaker photo — applies to creatives generated from this template. Click Generate Preview to see it; already-generated announcements keep their colour until regenerated.</span>

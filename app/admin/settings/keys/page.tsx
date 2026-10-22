@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
-import { Card, Button, Badge, Input, Select } from '@/app/components/ui'
+import { Card, Button, Badge, Input, Select, Toast } from '@/app/components/ui'
 import type { BadgeColor } from '@/app/components/ui'
 import { CREDENTIALS, RETIRED_VARS, type RotateMode, type CredentialStore } from '@/app/lib/registry/credentials'
 
@@ -107,7 +107,7 @@ export default function KeysAndCredentialsPage() {
             &quot;Last rotated&quot; history isn&apos;t available yet — run supabase/credentials_rotation_migration.sql to enable it. The list below works without it.
           </div>
         )}
-        {msg && <div style={{ fontSize: '12.5px', color: msg.ok ? 'var(--teal-mid)' : 'var(--red)' }}>{msg.text}</div>}
+        {msg && <Toast message={msg.text} type={msg.ok ? 'success' : 'error'} onClose={() => setMsg(null)} />}
 
         {rows.map(c => {
           const mode = MODE[c.mode]

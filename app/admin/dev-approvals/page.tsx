@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import PageHeader from '@/app/components/PageHeader'
-import { Button } from '@/app/components/ui'
+import { Button, Toast } from '@/app/components/ui'
 
 /* PR Approvals (2026-08-20) — replaces "open GitHub, read the diff, click
    Approve, click Merge, hope CI is green" with one page: a friendly
@@ -109,16 +109,7 @@ export default function DevApprovalsPage() {
             👁 View-only — you can see status here, but only Madhu or Durga can approve or send back.
           </div>
         )}
-        {msg && (
-          <div style={{
-            padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '13.5px',
-            background: msg.type === 'error' ? 'var(--red-light)' : 'var(--teal-light)',
-            border: `1px solid ${msg.type === 'error' ? 'var(--red-border)' : 'var(--teal-border)'}`,
-            color: msg.type === 'error' ? 'var(--red)' : 'var(--teal)',
-          }}>
-            {msg.text} <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>
-          </div>
-        )}
+        <Toast message={msg?.text ?? null} type={msg?.type} onClose={() => setMsg(null)} />
 
         {loading ? (
           <div style={{ color: 'var(--ink3)', fontSize: '13px' }}>Loading…</div>

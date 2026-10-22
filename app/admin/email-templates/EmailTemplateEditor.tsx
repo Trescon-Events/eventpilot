@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Button, Card } from '@/app/components/ui'
+import { Button, Card, Toast } from '@/app/components/ui'
 import { Input, Textarea } from '@/app/components/ui'
 import EmailBodyEditor from './EmailBodyEditor'
 import SenderPicker from './SenderPicker'
@@ -211,7 +211,7 @@ export default function EmailTemplateEditor({ template }: { template?: EmailTemp
         </Card>
       )}
 
-      {msg && <div style={{ fontSize: '13px', color: msg.ok ? 'var(--teal-mid)' : 'var(--red)' }}>{msg.text}</div>}
+      {msg && <Toast message={msg.text} type={msg.ok ? 'success' : 'error'} onClose={() => setMsg(null)} />}
 
       <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
         <Button variant="teal" onClick={save}>{saving ? 'Saving…' : 'Save'}</Button>

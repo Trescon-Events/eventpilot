@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Button, Card, Badge } from '@/app/components/ui'
+import { Button, Card, Badge, Toast } from '@/app/components/ui'
 import { ACCESS_REGISTRY, type AccessModule } from '@/app/lib/registry/access-permissions'
 
 type RoleRow = { id: string; name: string; slug: string; description: string | null; permission_keys: string[] }
@@ -157,7 +157,7 @@ export default function RolesTab() {
             })}
           </div>
 
-          {msg && <div style={{ fontSize: '12.5px', color: 'var(--red)', marginBottom: '12px' }}>{msg}</div>}
+          <Toast message={msg} type="error" onClose={() => setMsg(null)} />
           <div style={{ display: 'flex', gap: '8px' }}>
             <Button variant="teal" onClick={save}>{saving ? 'Saving…' : editing ? 'Save Changes' : 'Create Role'}</Button>
             <Button variant="ghost" onClick={() => setAdding(false)}>Cancel</Button>

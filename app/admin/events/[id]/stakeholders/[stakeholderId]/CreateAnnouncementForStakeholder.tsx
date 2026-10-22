@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, ProcessingOverlay } from '@/app/components/ui'
+import { Button, ProcessingOverlay, Toast } from '@/app/components/ui'
 import type { Variant } from '@/app/lib/announcements/composite'
 import { type StakeholderKind, type Stakeholder, displayName } from '../../creative-templates/page'
 import { missingAssetLabels } from '../../creative-templates/CreateAnnouncementModal'
@@ -85,11 +85,7 @@ export default function CreateAnnouncementForStakeholder({
           </div>
         ) : (
           <>
-            {error && (
-              <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '12.5px', marginBottom: '14px' }}>
-                {error}
-              </div>
-            )}
+            <Toast message={error} type="error" onClose={() => setError(null)} />
 
             {stakeholderType === 'speaker' && (
               <div style={{ display: 'flex', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden', width: 'fit-content', marginBottom: '16px' }}>

@@ -1,6 +1,6 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
-import { Card, Button, Select } from '@/app/components/ui'
+import { Card, Button, Select, Toast } from '@/app/components/ui'
 
 /* Agenda mapping (2026-10-18): where each EventPilot agenda field (stage, session type, theme) lives in KonfHub for this event, plus the one-time
    import that links the event's existing KonfHub sessions in place. Import is a preview first; "Import" only appears after a clean preview. */
@@ -91,7 +91,7 @@ export default function AgendaMappingCard({ eventId, canManage }: { eventId: str
             {filterSelect('Theme filter', 'theme_filter_id', m.mapped.theme)}
             {filterSelect('Roundtable room filter (optional)', 'room_filter_id', m.mapped.room)}
           </div>
-          {msg && <div style={{ fontSize: '12.5px', marginBottom: '10px', color: msg.ok ? 'var(--green, #15803d)' : 'var(--red, #b91c1c)' }}>{msg.text}</div>}
+          <Toast message={msg?.text ?? null} type={msg?.ok ? 'success' : 'error'} onClose={() => setMsg(null)} />
 
           {tagMode && canManage && (
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px' }}>

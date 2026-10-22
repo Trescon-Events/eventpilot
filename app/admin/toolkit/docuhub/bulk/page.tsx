@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import PageHeader from '@/app/components/PageHeader'
+import { notify } from '@/app/lib/ui/notify'
 import LocationSelect from '@/app/components/LocationSelect'
 import { KNOWN_CITIES, COUNTRIES } from '@/app/lib/docuhub/locations'
 
@@ -39,7 +40,6 @@ export default function DocuHubBulkPage() {
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([])
   const [rows, setRows] = useState<Row[]>([])
   const [publishing, setPublishing] = useState(false)
-  const [resultMsg, setResultMsg] = useState('')
 
   useEffect(() => {
     fetch('/api/docuhub/doc-types').then(r => r.json()).then(d => setDocTypes(Array.isArray(d) ? d : []))
@@ -80,7 +80,7 @@ export default function DocuHubBulkPage() {
   }
 
   async function publishAll() {
-    setPublishing(true); setResultMsg('')
+    setPublishing(true)
     const payload = rows.map(r => {
       const type = docTypes.find(t => t.id === r.doc_type_id)
       return {
@@ -105,8 +105,8 @@ export default function DocuHubBulkPage() {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows: payload }),
     })
     const data = await res.json()
-    if (!res.ok) { setResultMsg(data.error ?? 'Bulk publish failed.'); setPublishing(false); return }
-    setResultMsg(`Published ${data.succeeded} of ${rows.length}.${data.failed ? ` ${data.failed} row(s) failed — check details below.` : ''}`)
+    if (!res.ok) { notify(data.error ?? 'Bulk publish failed.', 'error'); setPublishing(false); return }
+    notify(`Published ${data.succeeded} of ${rows.length}.${data.failed ? ` ${data.failed} row(s) failed — check details below.` : ''}`, data.failed ? 'error' : 'success')
     if (data.failed) {
       // Keep only the rows that failed (with their error shown) so they can be fixed and retried;
       // drop the ones that published successfully.
@@ -134,7 +134,6 @@ export default function DocuHubBulkPage() {
           <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>Click to select files, or add more anytime</span>
         </label>
 
-        {resultMsg && <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: 'var(--amber-light)', border: '1px solid var(--amber-border)', color: 'var(--amber)', marginBottom: '16px' }}>{resultMsg}</div>}
 
         {rows.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>

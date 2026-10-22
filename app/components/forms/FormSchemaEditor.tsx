@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Button, Card, Input } from '@/app/components/ui'
+import { Button, Card, Input, Toast } from '@/app/components/ui'
 import { FormFieldInput } from '@/app/components/forms/FormFieldInput'
 import { AddFieldForm, NewFieldDraft, EMPTY_FIELD_DRAFT, buildFieldFromDraft, FieldRow, FIELD_TYPE_OPTIONS } from '@/app/components/forms/AddFieldForm'
 import { FieldSchema, FIELD_USAGE_HINTS } from '@/app/lib/forms/types'
@@ -129,16 +129,7 @@ export function FormSchemaEditor({
         </div>
       )}
 
-      {msg && (
-        <div style={{
-          padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '12.5px',
-          background: msgIsError ? 'var(--red-light)' : 'var(--success-light)',
-          border: `1px solid ${msgIsError ? 'var(--red-border)' : 'color-mix(in srgb, var(--success) 40%, transparent)'}`,
-          color: msgIsError ? 'var(--red)' : 'var(--success)',
-        }}>
-          {msg}
-        </div>
-      )}
+      <Toast message={msg} type={msgIsError ? 'error' : 'success'} onClose={() => setMsg(null)} />
 
       {loading ? (
         <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>Loading…</div>

@@ -5,7 +5,8 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { Download } from 'lucide-react'
 import PageHeader from '@/app/components/PageHeader'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
-import { Button, Card, Badge, Select, Input, Textarea, ProcessingOverlay } from '@/app/components/ui'
+import { Button, Card, Badge, Select, Input, Textarea, ProcessingOverlay, Toast } from '@/app/components/ui'
+import { notify } from '@/app/lib/ui/notify'
 import { FormFieldInput } from '@/app/components/forms/FormFieldInput'
 import { FieldSchema, FormType, SubmittedValue } from '@/app/lib/forms/types'
 import { downloadFile } from '@/app/lib/download-file'
@@ -362,8 +363,6 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   const rawPhotoInputRef = useRef<HTMLInputElement | null>(null)
   const websitePhotoInputRef = useRef<HTMLInputElement | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
-  // Any error banner lives at the top of the page — bring it into view so a failed action further down is never silent.
-  useEffect(() => { if (msg) window.scrollTo({ top: 0, behavior: 'smooth' }) }, [msg])
 
   const [logoApproval, setLogoApproval] = useState<{ url: string } | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -816,7 +815,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { setMsg(data.error || 'Could not upload this photo — please try again.'); return }
       setRecord(prev => prev ? { ...prev, website_card_url: data.website_card_url, website_photo_crop_warning: null, website_photo_manual: true } : prev)
-      setMsg('Website Photo uploaded. It will be used as it is.')
+      notify('Website Photo uploaded. It will be used as it is.', 'success')
     } catch {
       setMsg('Could not upload this photo — check your connection and try again.')
     } finally {
@@ -932,9 +931,9 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       const res = await fetch(`${base}/${stakeholderId}/asset?type=${type}`, { method: 'DELETE' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { setMsg(data?.error ?? `Could not delete (${res.status}).`); return }
-      setMsg(data.added_to_open_request
+      notify(data.added_to_open_request
         ? `${type === 'photo' ? 'Photo' : 'Full Bio'} deleted — added to this speaker's open request, so their same link asks for it again.`
-        : `${type === 'photo' ? 'Photo' : 'Full Bio'} deleted. It now shows as missing — use Request Missing Items on the Communications tab to ask for it again.`)
+        : `${type === 'photo' ? 'Photo' : 'Full Bio'} deleted. It now shows as missing — use Request Missing Items on the Communications tab to ask for it again.`, 'success')
       await load()
     } catch (e) {
       setMsg(`Could not delete: ${(e as Error).message}`)
@@ -1294,6 +1293,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     // the page should always just stay pinned wherever it loaded
     // (normally the top) regardless of what shifts below.
     <div style={{ minHeight: '100vh', background: 'var(--surface)', overflowAnchor: 'none' }}>
+      <Toast message={msg} type="error" onClose={() => setMsg(null)} />
       <PageHeader
         eyebrow="Stakeholder Hub"
         title={name || (kind === 'speaker' ? 'New Speaker' : 'New Partner')}
@@ -1345,11 +1345,6 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
         <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '24px 32px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: '24px', alignItems: 'start' }}>
             <div style={{ display: 'grid', gap: '20px', minWidth: 0 }}>
-              {msg && (
-                <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '14.5px' }}>
-                  {msg} <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>
-                </div>
-              )}
               <Card padded>
                 <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '6px' }}>Registration Details</div>
                 <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '16px' }}>
@@ -1404,11 +1399,6 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       {activeTab === 'secondary' && kind === 'speaker' && (
         <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '24px 32px' }}>
           <div style={{ display: 'grid', gap: '20px', maxWidth: '860px' }}>
-            {msg && (
-              <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '14.5px' }}>
-                {msg} <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>
-              </div>
-            )}
             <Card padded>
               <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '6px' }}>Different role in a different session?</div>
               <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6 }}>
@@ -1528,11 +1518,6 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '24px 32px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: '24px', alignItems: 'start' }}>
         <div style={{ display: 'grid', gap: '20px', minWidth: 0 }}>
-          {msg && (
-            <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '14.5px' }}>
-              {msg} <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>
-            </div>
-          )}
 
           {/* Producer / Reference / Confirmation Status (2026-09-03) —
               internal-only tracking fields, deliberately separate from any

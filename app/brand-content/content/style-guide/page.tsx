@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import RulesPanel from '@/app/components/rules/RulesPanel'
-import { Button, Card } from '@/app/components/ui'
+import { Button, Card, Toast } from '@/app/components/ui'
 import { useBrandContentAccess } from '@/app/components/brand-content/access'
 import {
   DraftReview, LiveDocView, DOC_ROLE_LABELS, UploadDocButton,
@@ -87,7 +87,7 @@ export default function ContentStyleGuidePage() {
       </div>
 
       {access && !canEdit && <div style={{ padding: '8px 12px', marginBottom: '14px', borderRadius: '8px', fontSize: '12.5px', background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--ink3)' }}>View only. You can read and download everything here; editing needs permission.</div>}
-      {msg && <div style={{ marginBottom: '12px', fontSize: '13px', color: msgIsError ? 'var(--red)' : 'var(--success)' }}>{msg}</div>}
+      <Toast message={msg} type={msgIsError ? 'error' : 'success'} onClose={() => setMsg(null)} />
 
       {tab === 'rules' && <RulesPanel ownerType="org" ownerId="trescon" title="Trescon-wide rules" />}
 

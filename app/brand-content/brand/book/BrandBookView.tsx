@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { ProcessingOverlay } from '@/app/components/ui'
+import { ProcessingOverlay, Toast } from '@/app/components/ui'
 
 /* Trescon Corporate Brand — admin Branding tab, "Corporate Brand" section
    (2026-08-06, restructured same day into a Canva Brand Kit-style asset
@@ -368,12 +368,7 @@ export default function CorporateBrandPage() {
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 32px 80px' }}>
 
 
-        {msg && (
-          <div style={{ marginBottom: '20px', padding: '12px 18px', borderRadius: '10px', background: msg.ok ? 'rgba(192,244,60,0.08)' : 'rgba(241,102,122,0.08)', border: `1px solid ${msg.ok ? 'rgba(192,244,60,0.3)' : 'rgba(241,102,122,0.3)'}`, color: msg.ok ? 'var(--lime)' : 'var(--red)', fontSize: '14px', fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            {msg.text}
-            <button data-keep onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontSize: '18px', padding: '0 4px' }}>×</button>
-          </div>
-        )}
+        <Toast message={msg?.text ?? null} type={msg?.ok ? 'success' : 'error'} onClose={() => setMsg(null)} />
 
         <div style={{ display: 'flex', gap: '4px', marginBottom: '28px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '5px', overflowX: 'auto', flexWrap: 'nowrap' }}>
           {TABS.map(t => (

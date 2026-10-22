@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import PageHeader from '@/app/components/PageHeader'
+import { Toast } from '@/app/components/ui'
 
 const C = {
   bg: 'var(--surface)', surface: 'var(--card)', border: 'var(--border)', text: 'var(--ink)', muted: 'var(--ink3)',
@@ -152,7 +153,7 @@ export default function PerCreatorPage() {
             </div>
           </details>
 
-          {error && <div style={{ marginTop: '14px', fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: 'rgba(255,107,107,0.07)', border: '1px solid rgba(255,107,107,0.2)', color: C.red }}>{error}</div>}
+          {error && <Toast message={error} type="error" onClose={() => setError('')} />}
 
           <button onClick={generate} disabled={generating}
             style={{ marginTop: '18px', width: '100%', padding: '12px', borderRadius: '9px', border: 'none', background: generating ? C.border : C.blue, color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: generating ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
@@ -181,7 +182,7 @@ export default function PerCreatorPage() {
                 {workspaces.map(ws => <option key={ws.id} value={ws.id}>{ws.name}</option>)}
               </select>
 
-              {saveMsg && <div style={{ marginBottom: '10px', fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: saveMsg.includes('Saved') ? 'rgba(192,244,60,0.08)' : 'rgba(255,107,107,0.07)', border: `1px solid ${saveMsg.includes('Saved') ? 'rgba(192,244,60,0.25)' : 'rgba(255,107,107,0.2)'}`, color: saveMsg.includes('Saved') ? 'var(--lime)' : C.red }}>{saveMsg}</div>}
+              {saveMsg && <Toast message={saveMsg} type={saveMsg.includes('Saved') ? 'success' : 'error'} onClose={() => setSaveMsg('')} />}
 
               <button onClick={saveToKB} disabled={saving}
                 style={{ width: '100%', padding: '11px', borderRadius: '9px', border: 'none', background: saving ? C.border : C.green, color: C.text, fontSize: '13px', fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>

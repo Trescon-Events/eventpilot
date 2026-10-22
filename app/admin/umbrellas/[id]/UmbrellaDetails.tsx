@@ -5,7 +5,7 @@ import PageHeader from '@/app/components/PageHeader'
 import Link from 'next/link'
 import EventDaysCard from '@/app/admin/operations-shared/EventDaysCard'
 import BadgeApprovalCard from '@/app/admin/events/[id]/integrations/BadgeApprovalCard'
-import { Button, Card } from '@/app/components/ui'
+import { Button, Card, Toast } from '@/app/components/ui'
 
 /* Umbrella Event Details (2026-10-02, split out of the old single Overview page): Common Details (now with status and
    cycle dates), Content Approval, the Event Days card and each child event's dates. An umbrella is the top of the
@@ -78,7 +78,7 @@ export default function UmbrellaDetails({ params }: { params: Promise<{ id: stri
     <div style={{ maxWidth: '900px', margin: '0 auto', padding: '24px 32px' }}>
       <PageHeader eyebrow="Umbrella Event" title="Event Details" description={`Basic details, dates and content approval for ${umbrella.name}, and the dates of the events under it.`} backHref={`/admin/umbrellas/${umbrellaId}`} backLabel="Overview" />
 
-      {msg && <div style={{ marginBottom: '12px', fontSize: '13px', color: msgIsError ? 'var(--red)' : 'var(--success)' }}>{msg}</div>}
+      <Toast message={msg} type={msgIsError ? 'error' : 'success'} onClose={() => setMsg(null)} />
 
       <Card padded>
         <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '14px' }}>Common Details</div>

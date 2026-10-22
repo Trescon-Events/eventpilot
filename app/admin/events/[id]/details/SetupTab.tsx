@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Button, Card } from '@/app/components/ui'
+import { notify } from '@/app/lib/ui/notify'
 import RulesPanel from '@/app/components/rules/RulesPanel'
 
 /* Event Details → Setup. One screen an admin approves per event (docs/build_suggestions/sae-readiness-and-setup-approval.md, Part 3):
@@ -29,7 +30,6 @@ const label = { fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textT
 export default function SetupTab({ eventId }: { eventId: string }) {
   const [s, setS] = useState<Setup | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState<'approve' | 'samples' | null>(null)
   const [samples, setSamples] = useState<Sample[] | null>(null)
 
@@ -48,19 +48,19 @@ export default function SetupTab({ eventId }: { eventId: string }) {
   }, [eventId, reloadKey])
 
   async function approve() {
-    setBusy('approve'); setMsg(null)
+    setBusy('approve')
     const res = await fetch('/api/events/sae-setup/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId }) })
     const d = await res.json().catch(() => ({}))
     setBusy(null)
-    setMsg(res.ok ? 'Setup approved.' : (d.error ?? 'Could not approve.'))
+    notify(res.ok ? 'Setup approved.' : (d.error ?? 'Could not approve.'), res.ok ? 'success' : 'error')
     if (res.ok) await load()
   }
   async function runSamples() {
-    setBusy('samples'); setMsg(null); setSamples(null)
+    setBusy('samples'); setSamples(null)
     const res = await fetch('/api/events/sae-setup/samples', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId }) })
     const d = await res.json().catch(() => ({}))
     setBusy(null)
-    if (res.ok) setSamples(d.samples as Sample[]); else setMsg(d.error ?? 'Could not generate samples.')
+    if (res.ok) setSamples(d.samples as Sample[]); else notify(d.error ?? 'Could not generate samples.', 'error')
   }
 
   if (error) return <Card padded><div style={{ fontSize: '13px', color: 'var(--red)' }}>{error}</div></Card>
@@ -71,7 +71,6 @@ export default function SetupTab({ eventId }: { eventId: string }) {
 
   return (
     <div style={{ display: 'grid', gap: '20px' }}>
-      {msg && <div style={{ padding: '10px 14px', borderRadius: '8px', fontSize: '12.5px', background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--ink2)' }}>{msg}</div>}
 
       {s.gate.changed_since_approval && !s.gate.enforced && (
         <div style={{ padding: '10px 14px', borderRadius: '8px', fontSize: '12.5px', background: 'var(--amber-light)', border: '1px solid var(--amber)', color: 'var(--ink)' }}>

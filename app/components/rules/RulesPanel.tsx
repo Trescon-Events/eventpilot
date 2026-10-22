@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Button, Card } from '@/app/components/ui'
+import { notify } from '@/app/lib/ui/notify'
 
 /* Rules screen (2026-10-15, docs/build_suggestions/rules-screen-and-trescon-layer.md Part 3) — one component, used on the Event Details
    Setup tab, the umbrella Reference Documents page and the Trescon house style page. Shows the EFFECTIVE rules grouped by level
@@ -31,7 +32,6 @@ const tag = (bg: string, fg: string) => ({ fontSize: '10px', fontWeight: 800, le
 export default function RulesPanel({ ownerType, ownerId, title = 'Rules' }: { ownerType: 'event' | 'umbrella' | 'org'; ownerId: string; title?: string }) {
   const [data, setData] = useState<Payload | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [msg, setMsg] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   const [busy, setBusy] = useState(false)
 
@@ -61,7 +61,7 @@ export default function RulesPanel({ ownerType, ownerId, title = 'Rules' }: { ow
   const reload = () => setReloadKey(k => k + 1)
 
   async function call(url: string, method: string, body: unknown): Promise<{ ok: boolean; status: number; d: Record<string, unknown> }> {
-    setBusy(true); setMsg(null)
+    setBusy(true)
     const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     const d = await res.json().catch(() => ({}))
     setBusy(false)
@@ -71,24 +71,24 @@ export default function RulesPanel({ ownerType, ownerId, title = 'Rules' }: { ow
   async function addRule(acknowledge = false) {
     const r = await call('/api/events/validation-rules', 'POST', { ...draft, owner_type: ownerType, owner_id: ownerId, acknowledge_warnings: acknowledge })
     if (r.status === 409 && r.d.needs_acknowledgement) { setWarnings(r.d.warnings as string[]); return }
-    if (!r.ok) { setWarnings([]); setMsg(String(r.d.error ?? 'Could not add the rule.')); return }
-    setAdding(false); setDraft(EMPTY); setWarnings([]); setDraftCheck(null); setMsg('Rule added.'); reload()
+    if (!r.ok) { setWarnings([]); notify(String(r.d.error ?? 'Could not add the rule.'), 'error'); return }
+    setAdding(false); setDraft(EMPTY); setWarnings([]); setDraftCheck(null); notify('Rule added.', 'success'); reload()
   }
   async function saveEdit(rule: Rule, acknowledge = false) {
     const r = await call(`/api/events/validation-rules?id=${rule.id}`, 'PATCH', { ...edit, acknowledge_warnings: acknowledge })
     if (r.status === 409 && r.d.needs_acknowledgement) { setWarnings(r.d.warnings as string[]); return }
-    if (!r.ok) { setWarnings([]); setMsg(String(r.d.error ?? 'Could not save.')); return }
-    setEditing(null); setEdit({}); setWarnings([]); setMsg('Rule updated.'); reload()
+    if (!r.ok) { setWarnings([]); notify(String(r.d.error ?? 'Could not save.'), 'error'); return }
+    setEditing(null); setEdit({}); setWarnings([]); notify('Rule updated.', 'success'); reload()
   }
   async function toggleActive(rule: Rule) {
     const r = await call(`/api/events/validation-rules?id=${rule.id}`, 'PATCH', { is_active: !rule.is_active })
-    setMsg(r.ok ? (rule.is_active ? 'Rule disabled.' : 'Rule enabled.') : String(r.d.error ?? 'Could not change the rule.'))
+    if (r.ok) notify(rule.is_active ? 'Rule disabled.' : 'Rule enabled.', 'success'); else notify(String(r.d.error ?? 'Could not change the rule.'), 'error')
     if (r.ok) reload()
   }
   async function override(rule: Rule, disabled: boolean) {
     const r = await call('/api/events/validation-rules/override', 'POST', { owner_type: ownerType, owner_id: ownerId, rule_key: rule.rule_key, disabled, reason })
-    if (!r.ok) { setMsg(String(r.d.error ?? 'Could not change the override.')); return }
-    setOffFor(null); setReason(''); setMsg(disabled ? 'Switched off here. The rule itself is untouched.' : 'Switched back on.'); reload()
+    if (!r.ok) { notify(String(r.d.error ?? 'Could not change the override.'), 'error'); return }
+    setOffFor(null); setReason(''); notify(disabled ? 'Switched off here. The rule itself is untouched.' : 'Switched back on.', 'success'); reload()
   }
   async function runTest() {
     const useDraft = adding && draft.pattern.trim()
@@ -96,7 +96,7 @@ export default function RulesPanel({ ownerType, ownerId, title = 'Rules' }: { ow
       owner_type: ownerType, owner_id: ownerId, text: testText,
       ...(useDraft ? { draft: { rule_key: draft.rule_key || undefined, rule_type: draft.rule_type, pattern: draft.pattern, severity: draft.severity, message: draft.message } } : {}),
     })
-    if (!r.ok) { setMsg(String(r.d.error ?? 'Test failed.')); return }
+    if (!r.ok) { notify(String(r.d.error ?? 'Test failed.'), 'error'); return }
     setFindings(r.d.findings as Finding[]); setDraftCheck((r.d.draft_check as typeof draftCheck) ?? null)
   }
 
@@ -108,7 +108,6 @@ export default function RulesPanel({ ownerType, ownerId, title = 'Rules' }: { ow
       <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '8px' }}>{title} ({total})</div>
       {error && <div style={{ fontSize: '12.5px', color: 'var(--red)' }}>{error}</div>}
       {!data && !error && <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>Loading…</div>}
-      {msg && <div style={{ fontSize: '12.5px', color: 'var(--ink2)', margin: '0 0 8px' }}>{msg}</div>}
 
       {data?.levels.map(block => (
         <div key={block.level} style={{ marginBottom: '14px' }}>

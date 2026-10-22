@@ -3,6 +3,8 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { sendGraphMail } from '@/app/lib/email/graph-mail'
+import { sendSpeakerThreadMail } from '@/app/lib/email/speaker-thread'
+import { sendKeyedThreadMail, inviteThreadKey } from '@/app/lib/email/keyed-thread'
 import { resolveSenderIdentity } from '@/app/lib/email/sender-identity'
 
 /* POST /api/events/stakeholders/invites/send
@@ -39,7 +41,7 @@ export async function POST(req: NextRequest) {
     // reason (producer attribution) — kept in sync so the actually-sent
     // email matches what compose previewed.
     body.form_type === 'speaker'
-      ? supabaseAdmin.from('event_speakers').select('producer_staff_id').eq('event_id', body.event_id).ilike('email', body.recipient_email).maybeSingle()
+      ? supabaseAdmin.from('event_speakers').select('id, producer_staff_id').eq('event_id', body.event_id).ilike('email', body.recipient_email).maybeSingle()
       : Promise.resolve({ data: null }),
   ])
   if (!template) return NextResponse.json({ error: 'Template not found' }, { status: 404 })
@@ -60,7 +62,12 @@ export async function POST(req: NextRequest) {
   if (upsertErr || !invite) return NextResponse.json({ error: upsertErr?.message ?? 'Could not create invite record' }, { status: 500 })
 
   try {
-    await sendGraphMail({ senderEmail: sender.email, senderName: sender.name, to: body.recipient_email, subject: body.subject, html: body.html })
+    const mail = { senderEmail: sender.email, senderName: sender.name, to: body.recipient_email, subject: body.subject, html: body.html }
+    // A speaker invite is the first email of that speaker's one thread (see app/lib/email/speaker-thread.ts): into their existing thread when they
+    // already have a speaker record, otherwise into an invite thread that their speaker thread adopts once they appear. Everyone else: plain send.
+    if (body.form_type !== 'speaker') await sendGraphMail(mail)
+    else if (existingSpeaker?.id) await sendSpeakerThreadMail(existingSpeaker.id as string, mail)
+    else await sendKeyedThreadMail(body.event_id, inviteThreadKey(body.recipient_email), mail)
 
     await supabaseAdmin.from('stakeholder_invites').update({ status: 'sent', sent_at: new Date().toISOString(), send_error: null }).eq('id', invite.id)
     await supabaseAdmin.from('email_template_sends').insert({

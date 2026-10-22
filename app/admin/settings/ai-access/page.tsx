@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
+import { notify } from '@/app/lib/ui/notify'
 import { Button, Card, Input, Badge } from '@/app/components/ui'
 
 /* Super Admin: Platform-Wide Read-Only AI Access API (2026-09-29, per
@@ -147,8 +148,6 @@ export default function AiAccessPage() {
   const [tokens, setTokens] = useState<TokenRow[]>([])
   const [events, setEvents] = useState<EventOption[]>([])
   const [loading, setLoading] = useState(true)
-  const [msg, setMsg] = useState<string | null>(null)
-  const [msgIsError, setMsgIsError] = useState(false)
 
   const [showCreate, setShowCreate] = useState(false)
   const [label, setLabel] = useState('')
@@ -176,8 +175,7 @@ export default function AiAccessPage() {
     } else {
       setTokens([])
       const err = await tokensRes.json().catch(() => null)
-      setMsg(err?.error ?? 'Could not load tokens.')
-      setMsgIsError(true)
+      notify(err?.error ?? 'Could not load tokens.', 'error')
     }
     const evData = eventsRes.ok ? await eventsRes.json().catch(() => []) : []
     setEvents((Array.isArray(evData) ? evData : []).map((e: { id: string; name: string }) => ({ id: e.id, name: e.name })))
@@ -202,12 +200,11 @@ export default function AiAccessPage() {
   }
 
   async function createToken() {
-    if (!label.trim()) { setMsg('Give this token a label first.'); setMsgIsError(true); return }
-    if (selectedDomains.size === 0) { setMsg('Pick at least one data domain.'); setMsgIsError(true); return }
-    if (eventScope === 'specific' && selectedEventIds.size === 0) { setMsg('Pick at least one event, or choose "All events".'); setMsgIsError(true); return }
+    if (!label.trim()) { notify('Give this token a label first.', 'error'); return }
+    if (selectedDomains.size === 0) { notify('Pick at least one data domain.', 'error'); return }
+    if (eventScope === 'specific' && selectedEventIds.size === 0) { notify('Pick at least one event, or choose "All events".', 'error'); return }
 
     setCreating(true)
-    setMsg(null)
     const res = await fetch('/api/admin/platform-api-tokens', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -219,7 +216,7 @@ export default function AiAccessPage() {
     })
     const data = await res.json().catch(() => ({}))
     setCreating(false)
-    if (!res.ok) { setMsg(data.error ?? 'Could not create token.'); setMsgIsError(true); return }
+    if (!res.ok) { notify(data.error ?? 'Could not create token.', 'error'); return }
     setNewToken(data.token)
     setNewTokenLabel(data.label ?? label.trim())
     setNewTokenDomains(data.domains ?? [...selectedDomains])
@@ -230,7 +227,7 @@ export default function AiAccessPage() {
   async function revokeToken(id: string) {
     if (!confirm('Revoke this token? Anything using it will stop working immediately — this can\'t be undone.')) return
     const res = await fetch(`/api/admin/platform-api-tokens/${id}/revoke`, { method: 'POST' })
-    if (!res.ok) { setMsg('Could not revoke token.'); setMsgIsError(true); return }
+    if (!res.ok) { notify('Could not revoke token.', 'error'); return }
     await load()
   }
 
@@ -272,7 +269,6 @@ export default function AiAccessPage() {
       />
 
       <div style={{ padding: '24px', maxWidth: '960px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-        {msg && <div style={{ fontSize: '13px', color: msgIsError ? 'var(--red)' : 'var(--teal)' }}>{msg}</div>}
 
         {newToken && (
           <Card padded color="amber">

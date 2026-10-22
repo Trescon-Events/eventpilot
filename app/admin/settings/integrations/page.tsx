@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
-import { Card, Button, Badge, Input } from '@/app/components/ui'
+import { Card, Button, Badge, Input, Toast } from '@/app/components/ui'
 
 /* Global Integrations (2026-09-21) — credentials shared across every
    event, not scoped to any one of them (contrast with each event's own
@@ -90,9 +90,7 @@ export default function GlobalIntegrationsSettingsPage() {
                   {saving ? 'Saving…' : 'Save'}
                 </Button>
               </div>
-              {msg && (
-                <div style={{ fontSize: '12.5px', color: msg.ok ? 'var(--teal-mid)' : 'var(--red)', marginTop: '10px' }}>{msg.text}</div>
-              )}
+              <Toast message={msg?.text ?? null} type={msg?.ok ? 'success' : 'error'} onClose={() => setMsg(null)} />
             </>
           )}
         </Card>

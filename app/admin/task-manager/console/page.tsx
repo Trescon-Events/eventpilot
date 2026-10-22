@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Button from '@/app/components/ui/Button'
 import Card from '@/app/components/ui/Card'
+import Toast from '@/app/components/ui/Toast'
 import PageHeader from '@/app/components/PageHeader'
 import StatCard from '@/app/components/ui/StatCard'
 import { WorkloadBarChart } from '../charts'
@@ -137,11 +138,7 @@ export default function TaskManagerConsolePage() {
         }
       />
     <div style={{ padding: '20px 32px 48px' }}>
-      {error && (
-        <div style={{ background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', marginBottom: '16px' }}>
-          {error}
-        </div>
-      )}
+      {error && <Toast message={error} type="error" onClose={() => setError(null)} />}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '18px' }}>
         <StatTile color="indigo" label="Total tasks" value={stats.total} />

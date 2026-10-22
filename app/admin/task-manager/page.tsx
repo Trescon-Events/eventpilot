@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Button from '@/app/components/ui/Button'
 import Card from '@/app/components/ui/Card'
 import PageHeader from '@/app/components/PageHeader'
+import { Toast } from '@/app/components/ui'
+import { notify } from '@/app/lib/ui/notify'
 import { CategoryDonutChart } from './charts'
 import QuickAssignCard from './QuickAssignCard'
 import RunningTimerWidget from './RunningTimerWidget'
@@ -28,7 +30,6 @@ export default function TaskManagerPage() {
 
   const [dashboardMode, setDashboardMode] = useState<'focus' | 'admin'>('focus')
   const [focusSubTab, setFocusSubTab] = useState<'assigned_to_me' | 'assigned_by_me' | 'all'>('assigned_to_me')
-  const [toast, setToast] = useState<{ message: string; submessage?: string } | null>(null)
   const [groupByEvent, setGroupByEvent] = useState(false)
   const [view, setView] = useState<ViewMode>('table')
   const [myTasksOnly, setMyTasksOnly] = useState(false)
@@ -42,13 +43,6 @@ export default function TaskManagerPage() {
   const currentStaff = useMemo(() => {
     return staff.find(s => s.id === currentStaffId) ?? null
   }, [staff, currentStaffId])
-
-  // Auto-dismiss toast after 4.5 seconds
-  useEffect(() => {
-    if (!toast) return
-    const t = setTimeout(() => setToast(null), 4500)
-    return () => clearTimeout(t)
-  }, [toast])
 
   const [editingTask, setEditingTask] = useState<Task | null | undefined>(undefined) // undefined = modal closed
   const [modalDefaultStatus, setModalDefaultStatus] = useState<TaskStatus>('Not-Started')
@@ -318,7 +312,7 @@ export default function TaskManagerPage() {
       const b = await res.json().catch(() => ({}))
       throw new Error(b.error ?? 'Failed to assign task')
     }
-    setToast({ message: 'Task created successfully!', submessage: values.description })
+    notify(values.description ? `Task created successfully! ${values.description}` : 'Task created successfully!', 'success')
     if (dashboardMode === 'focus' && values.assigned_to !== currentStaffId) {
       setFocusSubTab('assigned_by_me')
     }
@@ -367,7 +361,7 @@ export default function TaskManagerPage() {
         body: JSON.stringify(values),
       })
       if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error ?? 'Failed to save task') }
-      setToast({ message: 'Task updated successfully!', submessage: values.description })
+      notify(values.description ? `Task updated successfully! ${values.description}` : 'Task updated successfully!', 'success')
     } else {
       const res = await fetch('/api/task-manager', {
         method: 'POST',
@@ -375,7 +369,7 @@ export default function TaskManagerPage() {
         body: JSON.stringify({ ...values, status: modalDefaultStatus }),
       })
       if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error ?? 'Failed to create task') }
-      setToast({ message: 'Task created successfully!', submessage: values.description })
+      notify(values.description ? `Task created successfully! ${values.description}` : 'Task created successfully!', 'success')
       if (dashboardMode === 'focus' && values.assigned_to !== currentStaffId) {
         setFocusSubTab('assigned_by_me')
       }
@@ -475,11 +469,7 @@ export default function TaskManagerPage() {
     <div style={{ padding: '20px 32px 48px' }}>
       <RunningTimerWidget active={activeTimer} onStopped={() => { refreshActiveTimer(); loadTasks(); if (timeLogsLoaded) loadTimeLogs() }} />
 
-      {error && (
-        <div style={{ background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', marginBottom: '16px' }}>
-          {error}
-        </div>
-      )}
+      <Toast message={error} type="error" onClose={() => setError(null)} />
 
       {/* ── Mode 1: Admin Oversight View ──────────────────────── */}
       {dashboardMode === 'admin' && (
@@ -846,43 +836,6 @@ export default function TaskManagerPage() {
           onClose={() => setShowTimeLogModal(false)}
           onSave={handleSaveManualLog}
         />
-      )}
-
-      {/* Floating Confirmation Toast */}
-      {toast && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: '28px',
-            right: '28px',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            padding: '14px 20px',
-            background: 'var(--card)',
-            border: '1px solid var(--teal)',
-            borderRadius: '12px',
-            boxShadow: 'var(--shadow-md)',
-          }}
-        >
-          <span style={{ fontSize: '20px' }}>✅</span>
-          <div>
-            <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>{toast.message}</div>
-            {toast.submessage && (
-              <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '2px', maxWidth: '320px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {toast.submessage}
-              </div>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={() => setToast(null)}
-            style={{ background: 'none', border: 'none', color: 'var(--ink4)', fontSize: '14px', cursor: 'pointer', marginLeft: '6px', padding: '2px' }}
-          >
-            ✕
-          </button>
-        </div>
       )}
     </div>
     </>

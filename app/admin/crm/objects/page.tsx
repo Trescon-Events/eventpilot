@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import PageHeader from '@/app/components/PageHeader'
-import { Button, Card, Input, Select } from '@/app/components/ui'
+import { Button, Card, Input, Select, Toast } from '@/app/components/ui'
 
 type EntityType = 'contact' | 'company'
 type PropertyGroup = { id: string; entity_type: EntityType; key: string; label: string; order_index: number }
@@ -95,7 +95,7 @@ export default function CrmObjectsPage() {
     if (!window.confirm(`Delete property "${label}"? This does not affect any data already stored under it.`)) return
     const res = await fetch(`/api/crm/properties/${id}`, { method: 'DELETE' })
     if (res.ok) load(entityType)
-    else setMsg('Could not delete — please try again.')
+    else { setMsg('Could not delete — please try again.'); setMsgIsError(true) }
   }
 
   function startMapping(p: Property) {
@@ -137,16 +137,7 @@ export default function CrmObjectsPage() {
         backLabel="Back to CRM Admin"
       />
       <div style={{ padding: '24px 32px', maxWidth: '900px' }}>
-        {msg && (
-          <div style={{
-            padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '12.5px',
-            background: msgIsError ? 'var(--red-light)' : 'var(--success-light)',
-            border: `1px solid ${msgIsError ? 'var(--red-border)' : 'color-mix(in srgb, var(--success) 40%, transparent)'}`,
-            color: msgIsError ? 'var(--red)' : 'var(--success)',
-          }}>
-            {msg}
-          </div>
-        )}
+        <Toast message={msg} type={msgIsError ? 'error' : 'success'} onClose={() => setMsg(null)} />
 
         <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
           {(['contact', 'company'] as EntityType[]).map(t => (

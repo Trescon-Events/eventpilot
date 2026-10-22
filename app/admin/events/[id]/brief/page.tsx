@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
+import { Toast } from '@/app/components/ui'
 
 // bg/surface/border/text/muted/blue are plain CSS var() refs — safe everywhere
 // they're used in this file. green/amber/red/purple/teal stay literal hex
@@ -172,7 +173,7 @@ export default function BriefPage({ params }: { params: Promise<{ id: string }> 
       </div>
 
       <div style={{ maxWidth: 1000, margin: '0 auto', padding: '24px 32px' }}>
-        {msg && <div style={{ padding: '10px 16px', borderRadius: 8, marginBottom: 16, background: msg.ok ? `${C.green}12` : `${C.red}12`, border: `1px solid ${msg.ok ? C.green : C.red}30`, color: msg.ok ? C.green : C.red, fontSize: 13, fontWeight: 600 }}>{msg.text}</div>}
+        <Toast message={msg?.text ?? null} type={msg?.ok ? 'success' : 'error'} onClose={() => setMsg(null)} />
 
         {/* Section tabs */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 24 }}>

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo, use } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
-import { Button, Card, Input, Select, ProcessingBanner, ProcessingOverlay } from '@/app/components/ui'
+import { Button, Card, Input, Select, ProcessingBanner, ProcessingOverlay, Toast } from '@/app/components/ui'
 import DeleteSensitiveDocumentModal from '../stakeholders/[stakeholderId]/DeleteSensitiveDocumentModal'
 import { FORM_TITLES, FormType } from '@/app/lib/forms/types'
 import { TRACKED_EVENT_FIELDS, FIELD_LABELS, TrackedEventField } from '@/app/lib/events/detail-fields'
@@ -864,16 +864,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
       </div>
 
       <div style={{ padding: '24px 32px', maxWidth: '980px', display: 'grid', gap: '20px' }}>
-        {msg && (
-          <div style={{
-            padding: '10px 14px', borderRadius: '8px', fontSize: '12.5px',
-            background: msgIsError ? 'var(--red-light)' : 'var(--success-light)',
-            border: `1px solid ${msgIsError ? 'var(--red-border)' : 'color-mix(in srgb, var(--success) 40%, transparent)'}`,
-            color: msgIsError ? 'var(--red)' : 'var(--success)',
-          }}>
-            {msg}
-          </div>
-        )}
+        <Toast message={msg} type={msgIsError ? 'error' : 'success'} onClose={() => setMsg(null)} />
 
         {tab === 'setup' && <SetupTab eventId={eventId} />}
 

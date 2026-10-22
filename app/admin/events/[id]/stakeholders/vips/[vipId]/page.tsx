@@ -3,7 +3,7 @@
 import { use, useCallback, useEffect, useRef, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
-import { Badge, Button, Card, Input } from '@/app/components/ui'
+import { Badge, Button, Card, Input, Toast } from '@/app/components/ui'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import { AssetTile } from '../../AssetTile'
 import PhotoCleaningWizard from '../../PhotoCleaningWizard'
@@ -123,7 +123,7 @@ export default function VipDetailsPage({ params }: { params: Promise<{ id: strin
       </div>
 
       <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '24px 32px', display: 'grid', gap: '20px' }}>
-        {error && <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '14.5px' }}>{error}</div>}
+        {error && <Toast message={error} type="error" onClose={() => setError(null)} />}
 
         <Card padded>
           <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink3)', marginBottom: '14px' }}>Photo</div>

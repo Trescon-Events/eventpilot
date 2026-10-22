@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Card, Button, Badge } from '@/app/components/ui'
+import { Card, Button, Badge, Toast } from '@/app/components/ui'
 import DeleteSensitiveDocumentModal from './DeleteSensitiveDocumentModal'
 import SensitiveDocViewer from '@/app/components/SensitiveDocViewer'
 
@@ -176,11 +176,7 @@ export default function SensitiveDocumentsTab({
   return (
     <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '24px 32px' }}>
       <div style={{ display: 'grid', gap: '20px', maxWidth: '760px' }}>
-        {error && (
-          <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '14.5px' }}>
-            {error} <button onClick={() => setError(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>
-          </div>
-        )}
+        {error && <Toast message={error} type="error" onClose={() => setError(null)} />}
 
         <Card padded color="amber">
           <div style={{ fontSize: '13px', color: 'var(--ink)', lineHeight: 1.6 }}>

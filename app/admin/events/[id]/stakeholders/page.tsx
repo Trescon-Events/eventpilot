@@ -6,6 +6,7 @@ import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
 import { Button, Card, Badge, Input, Select, ProcessingOverlay } from '@/app/components/ui'
+import { notify } from '@/app/lib/ui/notify'
 import { FormFieldInput } from '@/app/components/forms/FormFieldInput'
 import { downloadFilesAsZip } from '@/app/lib/download-file'
 import CalendarView from './CalendarView'
@@ -197,7 +198,6 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   const [partners, setPartners] = useState<Partner[]>([])
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [loading, setLoading] = useState(true)
-  const [msg, setMsg] = useState<string | null>(null)
   const [excelPickerOpen, setExcelPickerOpen] = useState(false)
   // Speaker Mementos (step 1) — null/false for every event that hasn't switched it on, which hides every memento control.
   const [mementosEnabled, setMementosEnabled] = useState(false)
@@ -391,7 +391,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
       const formType = category.kind === 'speaker' ? 'speaker' : (category.formType ?? 'sponsor')
       router.push(`/admin/events/${eventId}/stakeholders/${created.id}?kind=${category.kind}&formType=${formType}`)
     } else {
-      setMsg('Save failed — check required fields.')
+      notify('Save failed — check required fields.', 'error')
     }
     setSaving(false)
   }
@@ -425,16 +425,15 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
       .filter((f): f is { url: string; filename: string } => f !== null)
 
     if (files.length === 0) {
-      setMsg(`None of the ${selected.length} selected speakers have a ${config.noun} uploaded.`)
+      notify(`None of the ${selected.length} selected speakers have a ${config.noun} uploaded.`, 'error')
       return
     }
 
     setBulkDownloading(key)
-    setMsg(null)
     try {
       await downloadFilesAsZip(files, `speaker-${key.replace(/_/g, '-')}s-${Date.now()}.zip`)
     } catch (e) {
-      setMsg(`Could not prepare download: ${(e as Error).message}`)
+      notify(`Could not prepare download: ${(e as Error).message}`, 'error')
     }
     setBulkDownloading(null)
   }
@@ -473,7 +472,6 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     const selected = visibleItems.filter(i => selectedIds.has(i.id)) as Speaker[]
     if (selected.length === 0 || keys.length === 0) return
     setBulkDownloading('excel')
-    setMsg(null)
     try {
       const fields = SPEAKER_EXPORT_FIELDS.filter(f => keys.includes(f.key))
       const statusCols = statusExportColumns.filter(c => keys.includes(c.key))
@@ -512,7 +510,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
       })
       setExcelPickerOpen(false)
     } catch (e) {
-      setMsg(`Could not prepare Excel export: ${(e as Error).message}`)
+      notify(`Could not prepare Excel export: ${(e as Error).message}`, 'error')
     }
     setBulkDownloading(null)
   }
@@ -532,7 +530,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
       // takes over.
     } else {
       setProcessingSubmissionId(null)
-      setMsg('Could not process this submission.')
+      notify('Could not process this submission.', 'error')
     }
   }
 
@@ -624,7 +622,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     // every push hits the same server-side check) is worth a real message
     // rather than the silent refetch performDelete's own bulk pattern uses,
     // since "nothing visibly happened" would otherwise be the only signal.
-    if (failed > 0) setMsg(`${failed} of ${bulkKonfhubConfirm.length} pushes failed — try again, or check KonfHub is configured in Website Settings.`)
+    if (failed > 0) notify(`${failed} of ${bulkKonfhubConfirm.length} pushes failed — try again, or check KonfHub is configured in Website Settings.`, 'error')
     setBulkPushingKonfhub(false)
     setBulkKonfhubConfirm(null)
     setSelectedIds(new Set())
@@ -651,7 +649,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
       fetch(`${base}/${item.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ announcement_status: 'ready' }) })
     ))
     const failed = results.filter(r => !r.ok).length
-    if (failed > 0) setMsg(`${failed} of ${bulkApproveConfirm.length} approvals failed — try again.`)
+    if (failed > 0) notify(`${failed} of ${bulkApproveConfirm.length} approvals failed — try again.`, 'error')
     setBulkApproving(false)
     setBulkApproveConfirm(null)
     setSelectedIds(new Set())
@@ -709,7 +707,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     const created = results.filter(r => r.result?.action === 'created').length
     const updated = results.filter(r => r.result?.action === 'updated' || r.result?.action === 'linked_existing').length
     const failed = results.filter(r => r.status === 'error').length
-    if (failed > 0) setMsg(`${created + updated} of ${results.length} registrations succeeded, ${failed} failed — check individual speakers' Registration tabs for details.`)
+    if (failed > 0) notify(`${created + updated} of ${results.length} registrations succeeded, ${failed} failed — check individual speakers' Registration tabs for details.`, 'error')
     setBulkRegistering(false)
     setBulkRegistrationConfirm(null)
     setSelectedIds(new Set())
@@ -764,7 +762,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     if (ids.length === 0) return
     const res = await fetch('/api/events/stakeholders/speakers/konfhub-category', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, ids, category_id: categoryId }) })
     const data = await res.json().catch(() => ({}))
-    setMsg(res.ok ? `${data.updated ?? ids.length} speaker${ids.length === 1 ? '' : 's'} set to ${label}. Use Push to KonfHub to move them on KonfHub.` : data.error ?? 'Could not set the category.')
+    notify(res.ok ? `${data.updated ?? ids.length} speaker${ids.length === 1 ? '' : 's'} set to ${label}. Use Push to KonfHub to move them on KonfHub.` : data.error ?? 'Could not set the category.', res.ok ? 'success' : 'error')
     if (res.ok) setSelectedIds(new Set())
   }
   const bulkActionItems = [
@@ -774,7 +772,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     ] : []),
     ...(category?.kind === 'speaker' && can('sae.approvals.approve') ? [{ label: 'Push to KonfHub', onClick: openBulkKonfhubConfirm }] : []),
     ...(category?.kind === 'speaker' && can('sae.approvals.approve') ? [{ label: 'Register on KonfHub', onClick: openBulkRegistrationConfirm }] : []),
-    ...(category?.kind === 'speaker' && prMediaEnabled && can('sae.stakeholders.edit') ? [{ label: 'Request media interest', onClick: () => setMediaRequestOpen(true) }] : []),
+    ...(category?.kind === 'speaker' && prMediaEnabled && can('sae.stakeholders.edit') ? [{ label: 'Media interview request', onClick: () => setMediaRequestOpen(true) }] : []),
     ...(can('sae.approvals.approve') ? [{ label: 'Approve for Announcements', onClick: openBulkApproveConfirm }] : []),
     // Cancel (2026-09-23) — speaker-only (confirmation_status doesn't exist
     // on partners), gated on the same edit permission the confirmation_
@@ -852,6 +850,15 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
             }}>
             <span>Invites</span>
           </button>
+          {can('sae.stakeholders.edit') && (
+            <Link href="/admin/email-templates"
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', borderRadius: '8px', textDecoration: 'none',
+                fontFamily: 'inherit', fontSize: '15px', fontWeight: 700, background: 'transparent', color: 'var(--ink3)',
+              }}>
+              <span>Email Templates</span>
+            </Link>
+          )}
           <button onClick={() => setActiveTab(CANCELLED_KEY)}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px',
@@ -924,6 +931,11 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                   <Link href={`/admin/events/${eventId}/stakeholders/guest-invites`}>
                     <Button variant="ghost">Guest Invites</Button>
                   </Link>
+                  {prMediaEnabled && (
+                    <Link href={`/admin/events/${eventId}/stakeholders/media-interviews`}>
+                      <Button variant="ghost">Media Interviews</Button>
+                    </Link>
+                  )}
                   {can('sae.badges.view') && (
                     <Link href={`/admin/events/${eventId}/stakeholders/badges`}>
                       <Button variant="ghost">Badges</Button>
@@ -949,11 +961,6 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
             <CalendarView eventId={eventId} />
           ) : (
           <>
-          {msg && (
-            <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '14.5px', marginBottom: '14px' }}>
-              {msg} <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>
-            </div>
-          )}
 
           {/* Submissions inbox */}
           {category.formType && submissions.length > 0 && can('sae.submissions.view') && (

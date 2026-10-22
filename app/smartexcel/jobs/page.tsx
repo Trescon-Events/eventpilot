@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
+import { notify } from "@/app/lib/ui/notify";
 import { JOB_STATUS_LABELS, type JobStatus } from "@/app/lib/smartexcel/lib/job-states";
 
 interface JobRow {
@@ -24,7 +25,6 @@ export default function JobsPage() {
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/smartexcel/jobs")
@@ -40,7 +40,6 @@ export default function JobsPage() {
     const title = name.trim();
     if (!title) return;
     setBusy(true);
-    setError(null);
     try {
       const res = await fetch("/api/smartexcel/jobs", {
         method: "POST",
@@ -51,7 +50,7 @@ export default function JobsPage() {
       if (!res.ok) throw new Error(d.error ?? "Could not create job.");
       router.push(`/smartexcel/jobs/${d.id}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not create job.");
+      notify(e instanceof Error ? e.message : "Could not create job.", "error");
       setBusy(false);
     }
   }
@@ -91,7 +90,6 @@ export default function JobsPage() {
             <Plus size={14} /> {busy ? "Creating…" : "Create job"}
           </button>
         </div>
-        {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
       </div>
 
       {jobs.length === 0 ? (

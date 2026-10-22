@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Button } from '@/app/components/ui'
+import { Button, Toast } from '@/app/components/ui'
 
 type StaffOption = { id: string; name: string; email: string }
 type RoleOption = { id: string; name: string }
@@ -117,7 +117,7 @@ export default function AssignmentsTab({ eventId }: { eventId?: string }) {
           style={{ padding: '6px 8px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '12.5px', fontFamily: 'inherit' }} />
         {expiresAt && <button onClick={() => setExpiresAt('')} style={{ fontSize: '12px', color: 'var(--ink3)', background: 'none', border: 'none', cursor: 'pointer' }}>Clear</button>}
       </div>
-      {msg && <div style={{ fontSize: '12.5px', color: 'var(--red)', marginBottom: '10px' }}>{msg}</div>}
+      <Toast message={msg} type="error" onClose={() => setMsg(null)} />
 
       <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', margin: '20px 0 10px' }}>Current Assignments ({assignments.length})</div>
       <div style={{ display: 'grid', gap: '6px' }}>

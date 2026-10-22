@@ -2,6 +2,7 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
+import { Toast } from "@/app/components/ui";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
@@ -90,7 +91,7 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ recipeI
       </div>
       <p className="mt-1 text-sm text-zinc-400">{recipe.description}</p>
 
-      {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
+      <Toast message={error} type="error" onClose={() => setError(null)} />
 
       <div className="mt-5 flex gap-2">
         {canApply && recipe.status === "published" && (

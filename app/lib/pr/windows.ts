@@ -2,7 +2,9 @@
    A window is event-local wall-clock time on one day; the speaker's answer is a set of them, never a booking. */
 
 export type MediaWindow = { date: string; from: string; to: string }
-export type MediaDay = { day: string; open: string; close: string }
+export type SlotMinutes = 30 | 60
+export type MediaDay = { day: string; open: string; close: string; slot?: SlotMinutes }
+export const slotOf = (d: { slot?: number }): SlotMinutes => (d.slot === 30 ? 30 : 60)
 
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/
 const DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -41,12 +43,12 @@ export function validateWindows(input: unknown, days: MediaDay[]): { ok: true; w
   return { ok: true, windows: mergeWindows(cleaned) }
 }
 
-/** The hour blocks the form shows for one day: open..close split on the hour (a part-hour start or end gives a shorter first/last block). */
-export function dayBlocks(open: string, close: string): { from: string; to: string }[] {
+/** The slots the form shows for one day: open..close split on the slot grid (30 or 60 minutes; an off-grid start or end gives a shorter first/last slot). */
+export function dayBlocks(open: string, close: string, slot: SlotMinutes = 60): { from: string; to: string }[] {
   const o = toMinutes(open), c = toMinutes(close)
   if (!(c > o)) return []
   const out: { from: string; to: string }[] = []
-  for (let s = o; s < c;) { const e = Math.min(c, (Math.floor(s / 60) + 1) * 60); out.push({ from: fromMinutes(s), to: fromMinutes(e) }); s = e }
+  for (let s = o; s < c;) { const e = Math.min(c, (Math.floor(s / slot) + 1) * slot); out.push({ from: fromMinutes(s), to: fromMinutes(e) }); s = e }
   return out
 }
 

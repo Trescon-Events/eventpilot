@@ -1,7 +1,7 @@
 'use client'
 
 import { use, useEffect, useMemo, useState } from 'react'
-import { dayBlocks, mergeWindows, toMinutes, type MediaDay, type MediaWindow } from '@/app/lib/pr/windows'
+import { dayBlocks, mergeWindows, slotOf, toMinutes, type MediaDay, type MediaWindow } from '@/app/lib/pr/windows'
 
 /* Media interview interest (2026-10-21) — the page a speaker opens from the email. No login; the private link in the URL is the key.
    One question (open to media bites / interviews?) and, if yes, the hours they are free on each event day, tapped as hour blocks that merge into ranges.
@@ -66,7 +66,7 @@ export default function MediaInterestPage({ params }: { params: Promise<{ token:
       if (d.answer) {
         setInterested(d.answer.interested); setNote(d.answer.note ?? ''); setDone(true)
         const s = new Set<string>()
-        for (const day of d.days as MediaDay[]) for (const b of dayBlocks(day.open, day.close)) {
+        for (const day of d.days as MediaDay[]) for (const b of dayBlocks(day.open, day.close, slotOf(day))) {
           if ((d.answer.windows as MediaWindow[]).some(w => w.date === day.day && toMinutes(w.from) <= toMinutes(b.from) && toMinutes(w.to) >= toMinutes(b.to))) s.add(key(day.day, b.from))
         }
         setPicked(s)
@@ -80,7 +80,7 @@ export default function MediaInterestPage({ params }: { params: Promise<{ token:
   function preset(day: MediaDay, fromMin: number | null, toMin: number | null) {
     setPicked(p => {
       const n = new Set(p)
-      const blocks = dayBlocks(day.open, day.close).filter(b => (fromMin === null || toMinutes(b.from) >= fromMin) && (toMin === null || toMinutes(b.to) <= toMin) && !busyOf(day.day, b.from, b.to))
+      const blocks = dayBlocks(day.open, day.close, slotOf(day)).filter(b => (fromMin === null || toMinutes(b.from) >= fromMin) && (toMin === null || toMinutes(b.to) <= toMin) && !busyOf(day.day, b.from, b.to))
       const allOn = blocks.length > 0 && blocks.every(b => n.has(key(day.day, b.from)))
       for (const b of blocks) { if (allOn) n.delete(key(day.day, b.from)); else n.add(key(day.day, b.from)) }
       return n
@@ -88,7 +88,7 @@ export default function MediaInterestPage({ params }: { params: Promise<{ token:
   }
   const windows = useMemo<MediaWindow[]>(() => {
     const ws: MediaWindow[] = []
-    for (const day of data?.days ?? []) for (const b of dayBlocks(day.open, day.close)) if (picked.has(key(day.day, b.from))) ws.push({ date: day.day, from: b.from, to: b.to })
+    for (const day of data?.days ?? []) for (const b of dayBlocks(day.open, day.close, slotOf(day))) if (picked.has(key(day.day, b.from))) ws.push({ date: day.day, from: b.from, to: b.to })
     return mergeWindows(ws)
   }, [data, picked])
 
@@ -147,7 +147,7 @@ export default function MediaInterestPage({ params }: { params: Promise<{ token:
     <div className="mi-shell"><style>{STYLES}</style>
       <div className="mi-wrap">
         <div className="mi-event">{data.event_name}</div>
-        <h1 className="mi-h1">Media interviews — are you open to it, {first}?</h1>
+        <h1 className="mi-h1">Media Interviews</h1>
         <p className="mi-p">Media houses and journalists will be at the event, and many would like short bites or interviews with our speakers. Tell us if you are open to it and when you are free. There is nothing to book: our PR team will coordinate with you, within the times you choose.</p>
 
         <div className="mi-choice" style={{ marginBottom: 16 }}>
@@ -160,7 +160,7 @@ export default function MediaInterestPage({ params }: { params: Promise<{ token:
             {data.days.map(day => (
               <div key={day.day} className="mi-card">
                 <h2 className="mi-day">{fmtDay(day.day)}</h2>
-                <p className="mi-hint">Tap every hour you could do (event time, {data.timezone.replace('_', ' ')}). Tap again to remove.</p>
+                <p className="mi-hint">Tap every {slotOf(day) === 30 ? 'half-hour' : 'hour'} slot you could do — as many as you like (event time, {data.timezone.replace('_', ' ')}). Tap again to remove.</p>
                 <div className="mi-presets">
                   <button className="mi-chip" onClick={() => preset(day, null, 12 * 60)}>Morning</button>
                   <button className="mi-chip" onClick={() => preset(day, 12 * 60, 14 * 60)}>Lunch</button>
@@ -168,7 +168,7 @@ export default function MediaInterestPage({ params }: { params: Promise<{ token:
                   <button className="mi-chip" onClick={() => preset(day, null, null)}>Whole day</button>
                 </div>
                 <div className="mi-blocks">
-                  {dayBlocks(day.open, day.close).map(b => {
+                  {dayBlocks(day.open, day.close, slotOf(day)).map(b => {
                     const busy = busyOf(day.day, b.from, b.to)
                     const on = picked.has(key(day.day, b.from))
                     return busy

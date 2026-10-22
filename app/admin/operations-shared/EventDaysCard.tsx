@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { Toast } from '@/app/components/ui'
 
 /* "Event days" editor (2026-09-25) — the REAL first / last day of an event or an
    umbrella, as proper dates. They drive when Passport / National ID documents are
@@ -105,12 +106,13 @@ function DaysEditor({ target, label, start, end, canEdit, onSaved, info, note, c
         {warn ? ' Event days aren’t set, so this follows the event cycle’s end date — set the real days above.' : ''}
       </div>}
       {note && <div style={{ fontSize: '11px', color: 'var(--ink3)' }}>{note}</div>}
-      {msg && (
-        <div style={{ fontSize: '12px', color: msg.kind === 'ok' ? 'var(--lime)' : 'var(--amber)', fontWeight: 600, display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+      {msg?.kind === 'confirm' && (
+        <div style={{ fontSize: '12px', color: 'var(--amber)', fontWeight: 600, display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           {msg.text}
-          {msg.kind === 'confirm' && <button onClick={() => save(true)} disabled={busy} style={{ ...btn, background: 'var(--amber)', color: 'var(--surface)' }}>Yes, save and delete them</button>}
+          <button onClick={() => save(true)} disabled={busy} style={{ ...btn, background: 'var(--amber)', color: 'var(--surface)' }}>Yes, save and delete them</button>
         </div>
       )}
+      <Toast message={msg && msg.kind !== 'confirm' ? msg.text : null} type={msg?.kind === 'ok' ? 'success' : 'error'} onClose={() => setMsg(null)} />
     </div>
   )
 }

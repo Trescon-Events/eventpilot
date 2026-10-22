@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import PageHeader from '@/app/components/PageHeader'
+import { Toast } from '@/app/components/ui'
 
 const C = {
   bg: 'var(--surface)', surface: 'var(--card)', border: 'var(--border)', text: 'var(--ink)',
@@ -200,7 +201,7 @@ export default function SalaryPage() {
         {/* Detail panel */}
         {selected && (
           <div>
-            {msg && <div style={{ padding: '10px 16px', borderRadius: 8, marginBottom: 16, background: msg.ok ? `${'color-mix(in srgb, ' + (C.green) + ' 7%, transparent)'}` : `${'color-mix(in srgb, ' + (C.red) + ' 7%, transparent)'}`, border: `1px solid ${'color-mix(in srgb, ' + (msg.ok ? C.green : C.red) + ' 19%, transparent)'}`, color: msg.ok ? C.green : C.red, fontSize: 13, fontWeight: 600 }}>{msg.text}</div>}
+            <Toast message={msg?.text ?? null} type={msg?.ok ? 'success' : 'error'} onClose={() => setMsg(null)} />
 
             {/* Current salary card */}
             <div style={{ background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, padding: 24, marginBottom: 20 }}>

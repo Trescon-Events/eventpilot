@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import Button from '@/app/components/ui/Button'
 import Card from '@/app/components/ui/Card'
+import Toast from '@/app/components/ui/Toast'
 import { Input } from '@/app/components/ui/Field'
 import PageHeader from '@/app/components/PageHeader'
 import { VendorContact } from '../../types'
@@ -94,11 +95,7 @@ export default function VendorContactsPage() {
         backLabel="Admin Console"
       />
       <div style={{ padding: '20px 32px 48px', maxWidth: '720px' }}>
-        {error && (
-          <div style={{ background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', marginBottom: '16px' }}>
-            {error}
-          </div>
-        )}
+        <Toast message={error} type="error" onClose={() => setError(null)} />
 
         {vendors.length === 0 ? (
           <Card padded>

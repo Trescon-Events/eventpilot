@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
+import { canEditEmailTemplates } from '@/app/lib/access/email-template-access'
 
 /* GET    /api/admin/email-templates/[id]
    PATCH  /api/admin/email-templates/[id] — in-place edit, direct edit
@@ -20,7 +21,7 @@ const PATCHABLE_FIELDS = [
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = getSession(req)
-  if (!session?.adm) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
+  if (!session || !(await canEditEmailTemplates(session))) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   const { id } = await params
 
   const { data, error } = await supabaseAdmin.from('email_templates').select('*').eq('id', id).single()
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = getSession(req)
-  if (!session?.adm) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
+  if (!session || !(await canEditEmailTemplates(session))) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   const { id } = await params
 
   const body = await req.json().catch(() => null) as Record<string, unknown> | null

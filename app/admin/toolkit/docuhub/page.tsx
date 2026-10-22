@@ -6,6 +6,7 @@ import PageHeader from '@/app/components/PageHeader'
 import LocationSelect from '@/app/components/LocationSelect'
 import { KNOWN_CITIES, COUNTRIES } from '@/app/lib/docuhub/locations'
 import { docuhubDomain } from '@/app/lib/docuhub/domain'
+import { notify } from '@/app/lib/ui/notify'
 
 const EVENT_TYPES = [
   { value: 'managed', label: 'Managed' },
@@ -86,7 +87,6 @@ export default function DocuHubPage() {
   const [search, setSearch] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Record<string, string>>({})
-  const [msg, setMsg] = useState('')
   const [deletingDoc, setDeletingDoc] = useState<DocRow | null>(null)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deleting, setDeleting] = useState(false)
@@ -134,7 +134,6 @@ export default function DocuHubPage() {
       owner_staff_id: doc.owner_staff_id ?? '',
       link_expires_at: doc.link_expires_at ? doc.link_expires_at.slice(0, 10) : '',
     })
-    setMsg('')
   }
 
   async function saveEdit(doc: DocRow) {
@@ -153,7 +152,7 @@ export default function DocuHubPage() {
     })
     if (res.ok) { setEditingId(null); fetchDocs() } else {
       const data = await res.json().catch(() => ({}))
-      setMsg(data.error ?? 'Could not save changes.')
+      notify(data.error ?? 'Could not save changes.', 'error')
     }
   }
 
@@ -163,13 +162,12 @@ export default function DocuHubPage() {
     const res = await fetch(`/api/docuhub/documents/${deletingDoc.id}`, { method: 'DELETE' })
     setDeleting(false)
     if (res.ok) { setDeletingDoc(null); setDeleteConfirmText(''); fetchDocs() }
-    else { const data = await res.json().catch(() => ({})); setMsg(data.error ?? 'Could not delete.') }
+    else { const data = await res.json().catch(() => ({})); notify(data.error ?? 'Could not delete.', 'error') }
   }
 
   function copyLink(doc: DocRow) {
     navigator.clipboard.writeText(permalinkFor(doc))
-    setMsg('Link copied.')
-    setTimeout(() => setMsg(''), 2000)
+    notify('Link copied.', 'success')
   }
 
   return (
@@ -196,7 +194,6 @@ export default function DocuHubPage() {
           </div>
         )}
 
-        {msg && <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: 'var(--amber-light)', border: '1px solid var(--amber-border)', color: 'var(--amber)', marginBottom: '16px' }}>{msg}</div>}
 
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search title or event…"

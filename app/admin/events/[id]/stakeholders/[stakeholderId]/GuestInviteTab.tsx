@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Card, Input } from '@/app/components/ui'
+import { Button, Card, Input, Toast } from '@/app/components/ui'
 import ComposeEmailFields from '@/app/components/EmailComposeFields'
 
 /* A speaker's "Guest Invite" tab: their personal KonfHub registration link and — read from KonfHub the
@@ -76,7 +76,7 @@ export default function GuestInviteTab({ speakerId, eventId, stakeholderName, ca
 
   return (
     <div style={{ maxWidth: '980px', padding: '24px 32px', display: 'grid', gap: '18px' }}>
-      {msg && <div style={{ padding: '10px 14px', borderRadius: '8px', fontSize: '14px', background: msg.ok ? 'var(--teal-light)' : 'var(--red-light)', border: `1px solid ${msg.ok ? 'var(--teal-border)' : 'var(--red-border)'}`, color: msg.ok ? 'var(--teal-mid)' : 'var(--red)' }}>{msg.text}</div>}
+      <Toast message={msg?.text ?? null} type={msg?.ok ? 'success' : 'error'} onClose={() => setMsg(null)} />
 
       <Card padded>
         <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Registration link</div>

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { knownStaffId } from '@/app/lib/badges/service'
+import { listMementoVariants, renderAndStoreMemento } from '@/app/lib/mementos/render'
+import type { CreativeTemplateConfig } from '@/app/lib/announcements/composite'
+import type { HeadBox } from '@/app/lib/media/face-alignment'
 import { requireMementoAccess } from '@/app/lib/mementos/access'
 import { getMementoStatuses, MEMENTO_STATE_LABEL } from '@/app/lib/mementos/status'
 import { mementoBatchContext, notifyMementoOps } from '@/app/lib/mementos/dispatch'
@@ -17,6 +20,11 @@ import { logOpsAccess, clientIp } from '@/app/lib/ops/audit'
    PATCH  { event_id, id, action: 'rename', name } | 'remove_speaker' { speaker_id } | 'push' { note? }     (draft batches only)
    DELETE { event_id, id }                                              -> deletes a DRAFT batch */
 
+async function eventMementoVariants(eventId: string) {
+  const { data } = await supabaseAdmin.from('events').select('creative_template_config').eq('id', eventId).single()
+  return listMementoVariants(data?.creative_template_config as CreativeTemplateConfig | null)
+}
+
 const clean = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
 
 export async function GET(req: NextRequest) {
@@ -31,8 +39,10 @@ export async function GET(req: NextRequest) {
       supabaseAdmin.from('event_speakers').select('id, name, public_name, role, company, photo_processed_url, photo_cleaning_cycle_done').eq('event_id', eventId).eq('active', true).order('name'),
       getMementoStatuses(eventId),
     ])
+    const variants = await eventMementoVariants(eventId)
     return NextResponse.json({
       enabled: true,
+      variants: variants.map(v => ({ id: v.id, name: v.name, width: v.canvas_width, height: v.canvas_height })),
       speakers: (speakers ?? []).map(s => {
         const st = statuses.get(s.id as string)
         const state = st?.state ?? 'not_shared'
@@ -43,11 +53,11 @@ export async function GET(req: NextRequest) {
 
   const batchId = req.nextUrl.searchParams.get('id')
   const { data: batches } = await supabaseAdmin.from('memento_batches')
-    .select('id, name, note, kind, status, shared_at, pushed_at, created_at, staff:staff_members!memento_batches_created_by_fkey(name)')
+    .select('id, name, note, kind, status, variant_id, shared_at, pushed_at, created_at, staff:staff_members!memento_batches_created_by_fkey(name)')
     .eq('event_id', eventId).order('shared_at', { ascending: false })
   const wanted = (batches ?? []).filter(b => !batchId || b.id === batchId)
   if (batchId && wanted.length === 0) return NextResponse.json({ error: 'Batch not found.' }, { status: 404 })
-  const { data: items } = await supabaseAdmin.from('memento_batch_items').select('batch_id, speaker_id, speaker_name, photo_url').in('batch_id', wanted.map(b => b.id as string).concat('00000000-0000-0000-0000-000000000000'))
+  const { data: items } = await supabaseAdmin.from('memento_batch_items').select('batch_id, speaker_id, speaker_name, photo_url, source_photo_url').in('batch_id', wanted.map(b => b.id as string).concat('00000000-0000-0000-0000-000000000000'))
   const speakerIds = [...new Set((items ?? []).map(i => i.speaker_id as string))]
   const { data: sp } = speakerIds.length ? await supabaseAdmin.from('event_speakers').select('id, company, role, photo_processed_url').in('id', speakerIds) : { data: [] as { id: string; company: string | null; role: string | null; photo_processed_url: string | null }[] }
   const speakerById = new Map((sp ?? []).map(s => [s.id as string, s]))
@@ -55,15 +65,15 @@ export async function GET(req: NextRequest) {
     const cur = speakerById.get(i.speaker_id as string)
     return {
       speaker_id: i.speaker_id as string, name: i.speaker_name as string, company: cur?.company ?? null, title: cur?.role ?? null,
-      photo_url: (cur?.photo_processed_url as string | null) ?? null,
-      changed: !!i.photo_url && i.photo_url !== (cur?.photo_processed_url ?? null),
+      photo_url: (i.photo_url as string | null) ?? (cur?.photo_processed_url as string | null) ?? null,
+      changed: !!(i.source_photo_url ?? i.photo_url) && (i.source_photo_url ?? i.photo_url) !== (cur?.photo_processed_url ?? null),
     }
   })
   const dispatch = batchId ? (await supabaseAdmin.from('memento_dispatches').select('id, status, speakers, requested_at, sent_at, first_downloaded_at, vendor_response_at, vendor_note, revoked_at, ops_vendors(name)').eq('batch_id', batchId).order('requested_at', { ascending: false }).limit(5)).data ?? [] : []
   const shape = (b: (typeof wanted)[number]) => {
     const its = itemsOf(b.id as string)
     return {
-      id: b.id, name: b.name, note: b.note, kind: b.kind, status: b.status, shared_at: b.shared_at, pushed_at: b.pushed_at, created_at: b.created_at,
+      id: b.id, name: b.name, note: b.note, kind: b.kind, variant_id: b.variant_id, status: b.status, shared_at: b.shared_at, pushed_at: b.pushed_at, created_at: b.created_at,
       created_by_name: (b as unknown as { staff: { name: string } | null }).staff?.name ?? null,
       speakers: its.length, changed: b.status === 'pushed' && b.kind === 'shared' ? its.filter(i => i.changed).length : 0,
       ...(batchId ? { items: its, dispatches: dispatch.map(d => ({ ...d, vendor_name: ((Array.isArray(d.ops_vendors) ? d.ops_vendors[0] : d.ops_vendors) as { name?: string } | null)?.name ?? null, ops_vendors: undefined })) } : {}),
@@ -73,7 +83,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => null) as { event_id?: string; name?: string; note?: string; speaker_ids?: string[] } | null
+  const body = await req.json().catch(() => null) as { event_id?: string; name?: string; note?: string; speaker_ids?: string[]; variant_id?: string } | null
   if (!body?.event_id || !Array.isArray(body.speaker_ids) || body.speaker_ids.length === 0) return NextResponse.json({ error: 'event_id and speaker_ids are required.' }, { status: 400 })
   const auth = await requireMementoAccess(req, body.event_id, 'edit')
   if ('error' in auth) return auth.error
@@ -81,14 +91,30 @@ export async function POST(req: NextRequest) {
   if (!name) return NextResponse.json({ error: 'Give the batch a name.' }, { status: 400 })
 
   const { data: speakers } = await supabaseAdmin.from('event_speakers')
-    .select('id, name, public_name, photo_processed_url, photo_cleaning_cycle_done').eq('event_id', body.event_id).eq('active', true).in('id', body.speaker_ids)
+    .select('id, name, public_name, photo_processed_url, photo_cleaning_cycle_done, photo_head_box').eq('event_id', body.event_id).eq('active', true).in('id', body.speaker_ids)
   const usable = (speakers ?? []).filter(s => s.photo_cleaning_cycle_done && s.photo_processed_url)
   if (usable.length === 0) return NextResponse.json({ error: 'None of the selected speakers has a Cleaned Photo yet.' }, { status: 422 })
 
+  // Artwork: render each speaker through the chosen Memento variant BEFORE anything is created, so a missing head position fails cleanly.
+  const variants = await eventMementoVariants(body.event_id)
+  const variant = body.variant_id ? variants.find(v => v.id === body.variant_id) : variants.length === 1 ? variants[0] : undefined
+  if (body.variant_id && !variant) return NextResponse.json({ error: 'That Memento template no longer exists.' }, { status: 422 })
+  if (variants.length > 1 && !variant) return NextResponse.json({ error: 'Choose which Memento template to use.' }, { status: 400 })
+  const art = new Map<string, string>()
+  if (variant) {
+    const failed: string[] = []
+    for (const s of usable) {
+      const r = await renderAndStoreMemento(body.event_id, s.id as string, variant, s.photo_processed_url as string, s.photo_head_box as HeadBox | null)
+      if (r.ok) art.set(s.id as string, r.url)
+      else failed.push(`${s.public_name || s.name}: ${r.error}`)
+    }
+    if (failed.length > 0) return NextResponse.json({ error: `Could not render the memento artwork — ${failed.join(' | ')}` }, { status: 422 })
+  }
+
   const { data: batch, error } = await supabaseAdmin.from('memento_batches')
-    .insert({ event_id: body.event_id, name, note: clean(body.note), kind: 'shared', status: 'draft', created_by: await knownStaffId(auth.session.sid) }).select('id').single()
+    .insert({ event_id: body.event_id, name, note: clean(body.note), kind: 'shared', status: 'draft', variant_id: variant?.id ?? null, created_by: await knownStaffId(auth.session.sid) }).select('id').single()
   if (error || !batch) return NextResponse.json({ error: error?.message ?? 'Could not create the batch.' }, { status: 500 })
-  const { error: itemsErr } = await supabaseAdmin.from('memento_batch_items').insert(usable.map(s => ({ batch_id: batch.id, speaker_id: s.id, speaker_name: s.public_name || s.name, photo_url: s.photo_processed_url })))
+  const { error: itemsErr } = await supabaseAdmin.from('memento_batch_items').insert(usable.map(s => ({ batch_id: batch.id, speaker_id: s.id, speaker_name: s.public_name || s.name, photo_url: art.get(s.id as string) ?? s.photo_processed_url, source_photo_url: s.photo_processed_url })))
   if (itemsErr) {
     await supabaseAdmin.from('memento_batches').delete().eq('id', batch.id)
     return NextResponse.json({ error: itemsErr.message }, { status: 500 })
@@ -101,7 +127,7 @@ export async function PATCH(req: NextRequest) {
   if (!body?.event_id || !body.id || !body.action) return NextResponse.json({ error: 'event_id, id and action are required.' }, { status: 400 })
   const auth = await requireMementoAccess(req, body.event_id, 'edit')
   if ('error' in auth) return auth.error
-  const { data: batch } = await supabaseAdmin.from('memento_batches').select('id, status').eq('id', body.id).eq('event_id', body.event_id).maybeSingle()
+  const { data: batch } = await supabaseAdmin.from('memento_batches').select('id, status, variant_id').eq('id', body.id).eq('event_id', body.event_id).maybeSingle()
   if (!batch) return NextResponse.json({ error: 'Batch not found.' }, { status: 404 })
   if (batch.status !== 'draft') return NextResponse.json({ error: 'This batch has already been pushed to Ops and can no longer be changed.' }, { status: 409 })
 
@@ -120,11 +146,24 @@ export async function PATCH(req: NextRequest) {
     const { data: items } = await supabaseAdmin.from('memento_batch_items').select('id, speaker_id, speaker_name').eq('batch_id', body.id)
     if (!items || items.length === 0) return NextResponse.json({ error: 'The batch has no speakers.' }, { status: 422 })
     // Ops gets what is current: refresh each speaker's frozen photo to their Cleaned Photo as of now, and refuse if one lost it.
-    const { data: sp } = await supabaseAdmin.from('event_speakers').select('id, photo_processed_url, photo_cleaning_cycle_done').in('id', items.map(i => i.speaker_id as string))
+    const { data: sp } = await supabaseAdmin.from('event_speakers').select('id, photo_processed_url, photo_cleaning_cycle_done, photo_head_box').in('id', items.map(i => i.speaker_id as string))
     const photoOf = new Map((sp ?? []).map(s => [s.id as string, s.photo_cleaning_cycle_done ? (s.photo_processed_url as string | null) : null]))
     const missing = items.filter(i => !photoOf.get(i.speaker_id as string)).map(i => i.speaker_name as string)
     if (missing.length > 0) return NextResponse.json({ error: `No Cleaned Photo any more for: ${missing.join(', ')}. Remove them from the batch first.` }, { status: 422 })
-    for (const i of items) await supabaseAdmin.from('memento_batch_items').update({ photo_url: photoOf.get(i.speaker_id as string) }).eq('id', i.id)
+    const variant = batch.variant_id ? (await eventMementoVariants(body.event_id)).find(v => v.id === batch.variant_id) : undefined
+    if (batch.variant_id && !variant) return NextResponse.json({ error: 'The Memento template this batch used was deleted. Create a new batch.' }, { status: 422 })
+    const headOf = new Map((sp ?? []).map(s => [s.id as string, s.photo_head_box as HeadBox | null]))
+    const rendered = new Map<string, string>()
+    if (variant) {
+      const failed: string[] = []
+      for (const i of items) {
+        const r = await renderAndStoreMemento(body.event_id, i.speaker_id as string, variant, photoOf.get(i.speaker_id as string)!, headOf.get(i.speaker_id as string) ?? null)
+        if (r.ok) rendered.set(i.speaker_id as string, r.url)
+        else failed.push(`${i.speaker_name}: ${r.error}`)
+      }
+      if (failed.length > 0) return NextResponse.json({ error: `Could not render the memento artwork — ${failed.join(' | ')}` }, { status: 422 })
+    }
+    for (const i of items) await supabaseAdmin.from('memento_batch_items').update({ photo_url: rendered.get(i.speaker_id as string) ?? photoOf.get(i.speaker_id as string), source_photo_url: photoOf.get(i.speaker_id as string) }).eq('id', i.id)
     // Ops must have someone to receive it, or a push could vanish (same rule as badges).
     const { staff } = await staffForSection(body.event_id, 'mementos')
     if (!staff.length) return NextResponse.json({ error: 'No one is assigned to Mementos for this event yet. Ask your Operations lead to assign someone under Operations > Access.' }, { status: 409 })

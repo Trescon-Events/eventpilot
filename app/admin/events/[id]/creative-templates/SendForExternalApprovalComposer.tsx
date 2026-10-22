@@ -75,6 +75,7 @@ export default function SendForExternalApprovalComposer({
   const [templateId, setTemplateId] = useState('')
   const [reviewToken, setReviewToken] = useState('')
   const [subject, setSubject] = useState('')
+  const [subjectFixed, setSubjectFixed] = useState(false)
   const [senderName, setSenderName] = useState('')
   const [senderEmail, setSenderEmail] = useState('')
   const [ccComposed, setCcComposed] = useState<ComposedCc[]>([])
@@ -130,6 +131,7 @@ export default function SendForExternalApprovalComposer({
       setTemplateId(data.template_id)
       setReviewToken(data.review_token)
       setSubject(data.subject)
+      setSubjectFixed(!!data.subject_fixed)
       setSenderName(data.sender_name)
       setSenderEmail(data.sender_email)
       setCcComposed(data.cc_recipients ?? [])
@@ -253,7 +255,8 @@ export default function SendForExternalApprovalComposer({
             </div>
             <div>
               <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Subject</span>
-              <Input value={subject} onChange={e => setSubject(e.target.value)} />
+              <Input value={subject} onChange={e => setSubject(e.target.value)} disabled={subjectFixed} />
+              {subjectFixed && <div style={{ fontSize: '11.5px', color: 'var(--ink4)', marginTop: '4px' }}>Fixed — approvals about this announcement stay in one email thread.</div>}
             </div>
             <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '14px' }}>
               <RichTextToolbar editor={editor} />

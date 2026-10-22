@@ -3,6 +3,7 @@ import { Manrope } from "next/font/google";
 import "./globals.css";
 import StaffOnlyWidgets from "@/app/components/StaffOnlyWidgets";
 import AuthedShellGate from "@/app/components/AuthedShellGate";
+import ToastViewport from "@/app/components/ToastViewport";
 
 const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope", display: "swap" });
 
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-full">
         <AuthedShellGate>{children}</AuthedShellGate>
         <StaffOnlyWidgets />
+        <ToastViewport />
       </body>
     </html>
   );

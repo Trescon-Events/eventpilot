@@ -30,3 +30,9 @@ test('daysBetween is inclusive and capped', () => {
   assert.equal(daysBetween('2026-01-01', '2026-12-31').length, 14)
   assert.deepEqual(daysBetween('2026-11-02', '2026-11-01'), ['2026-11-02'])
 })
+
+test('dayBlocks splits into half-hour slots', () => {
+  assert.deepEqual(dayBlocks('10:00', '11:00', 30), [{ from: '10:00', to: '10:30' }, { from: '10:30', to: '11:00' }])
+  assert.equal(dayBlocks('10:00', '17:00', 30).length, 14)
+  assert.equal(dayBlocks('10:00', '17:00', 60).length, 7)
+})

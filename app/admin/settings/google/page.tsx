@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
-import { Card, Button, Badge } from '@/app/components/ui'
+import { Card, Button, Badge, Toast } from '@/app/components/ui'
 
 /* Site Operations module — admin settings page for the Google service
    account (GA4 + Search Console). v1.4: replaces the earlier per-user
@@ -68,16 +68,7 @@ export default function GoogleServiceAccountSettingsPage() {
       <PageHeader eyebrow="Admin Settings" title="Google Service Account" backHref="/admin" backLabel="Back to Admin" />
 
       <div style={{ maxWidth: '760px', margin: '0 auto', padding: '20px 28px 60px' }}>
-        {msg && (
-          <div style={{
-            padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '14px',
-            background: msg.ok ? 'var(--teal-light)' : 'var(--red-light)',
-            border: `1px solid ${msg.ok ? 'var(--teal-border)' : 'var(--red-border)'}`,
-            color: msg.ok ? 'var(--ink)' : 'var(--red)',
-          }}>
-            {msg.text} <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>
-          </div>
-        )}
+        <Toast message={msg?.text ?? null} type={msg?.ok ? 'success' : 'error'} onClose={() => setMsg(null)} />
 
         <Card padded>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>

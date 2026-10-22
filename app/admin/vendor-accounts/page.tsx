@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import Button from '@/app/components/ui/Button'
 import Card from '@/app/components/ui/Card'
+import Toast from '@/app/components/ui/Toast'
 import { Input } from '@/app/components/ui/Field'
 import PageHeader from '@/app/components/PageHeader'
 import { getModuleRegistry } from '@/app/lib/registry/modules'
@@ -93,11 +94,7 @@ export default function VendorAccountsPage() {
         backLabel="Admin"
       />
       <div style={{ padding: '20px 32px 48px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        {error && (
-          <div style={{ background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', borderRadius: '8px', padding: '10px 14px', fontSize: '13px' }}>
-            {error}
-          </div>
-        )}
+        <Toast message={error} type="error" onClose={() => setError(null)} />
 
         <Card padded>
           <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '14px' }}>New Vendor Account</div>

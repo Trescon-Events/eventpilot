@@ -2,6 +2,7 @@ import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { getSession } from '@/app/lib/access/session'
+import { canEditEmailTemplates } from '@/app/lib/access/email-template-access'
 
 /* POST /api/admin/email-templates/ai-rewrite
    Body: { html: string, instruction: string }
@@ -19,7 +20,7 @@ function getGemini() {
 
 export async function POST(req: NextRequest) {
   const session = getSession(req)
-  if (!session?.adm) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
+  if (!session || !(await canEditEmailTemplates(session))) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
 
   const body = await req.json().catch(() => null) as { html?: string; instruction?: string } | null
   if (!body?.instruction?.trim()) return NextResponse.json({ error: 'instruction required' }, { status: 400 })

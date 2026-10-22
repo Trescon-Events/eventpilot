@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Card, Input } from '@/app/components/ui'
+import { Button, Card, Input, Toast } from '@/app/components/ui'
 
 /* "Client approval — badge printing" (2026-10-21). For events where the client signs off speaker badges before they are printed: an on/off switch and
    the client's approvers (any one of them is enough). Lives once per umbrella (the umbrella's Event Details page); an event follows its umbrella
@@ -105,7 +105,7 @@ export default function BadgeApprovalCard({ scope, id, canManage = true }: { sco
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '14px' }}>
         {canManage && <Button variant="teal" onClick={() => void save()} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>}
-        {msg && <span style={{ fontSize: '12.5px', color: msg.ok ? 'var(--success)' : 'var(--red)' }}>{msg.text}</span>}
+        {msg && <Toast message={msg.text} type={msg.ok ? 'success' : 'error'} onClose={() => setMsg(null)} />}
       </div>
     </Card>
   )

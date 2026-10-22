@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import PageHeader from '@/app/components/PageHeader'
+import { notify } from '@/app/lib/ui/notify'
 
 const C = {
   bg: 'var(--surface)', surface: 'var(--card)', border: 'var(--border)', text: 'var(--ink)',
@@ -44,7 +45,6 @@ export default function PerformancePage() {
   const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [selectedReview, setSelectedReview] = useState<Review | null>(null)
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterPeriod, setFilterPeriod] = useState('all')
@@ -88,8 +88,8 @@ export default function PerformancePage() {
   })
 
   async function createReview() {
-    if (!fStaff) { setMsg({ text: 'Select a staff member', ok: false }); return }
-    setSaving(true); setMsg(null)
+    if (!fStaff) { notify('Select a staff member', 'error'); return }
+    setSaving(true)
     const res = await fetch('/api/hr/performance', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -107,13 +107,13 @@ export default function PerformancePage() {
       }),
     })
     if (res.ok) {
-      setMsg({ text: 'Review created', ok: true })
+      notify('Review created', 'success')
       setTab('overview')
       setFStaff(''); setFStrengths(''); setFImprove(''); setFGoals(''); setFComments(''); setFKpi('')
       fetchData()
     } else {
       const d = await res.json()
-      setMsg({ text: d.error ?? 'Failed', ok: false })
+      notify(d.error ?? 'Failed', 'error')
     }
     setSaving(false)
   }
@@ -149,7 +149,6 @@ export default function PerformancePage() {
       } />
 
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 32px' }}>
-        {msg && <div style={{ padding: '10px 16px', borderRadius: 8, marginBottom: 16, background: msg.ok ? `${'color-mix(in srgb, ' + (C.green) + ' 7%, transparent)'}` : `${'color-mix(in srgb, ' + (C.red) + ' 7%, transparent)'}`, border: `1px solid ${'color-mix(in srgb, ' + (msg.ok ? C.green : C.red) + ' 19%, transparent)'}`, color: msg.ok ? C.green : C.red, fontSize: 13, fontWeight: 600 }}>{msg.text}</div>}
 
         {/* ══════════ OVERVIEW TAB ══════════ */}
         {tab === 'overview' && (

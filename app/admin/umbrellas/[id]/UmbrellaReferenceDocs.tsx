@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
-import { Button, Card } from '@/app/components/ui'
+import { Button, Card, Toast } from '@/app/components/ui'
 import RulesPanel from '@/app/components/rules/RulesPanel'
 import {
   DraftReview, LiveDocView, DOC_ROLE_LABELS, UploadDocButton,
@@ -97,7 +97,7 @@ export default function UmbrellaReferenceDocs({ params }: { params: Promise<{ id
     <div style={{ maxWidth: '900px', margin: '0 auto', padding: '24px 32px' }}>
       <PageHeader eyebrow="Umbrella Event" title="Reference Documents" description={`Style guide, messaging document and production pack for ${umbrellaName}. They apply to every event in the umbrella.`} backHref={`/admin/umbrellas/${umbrellaId}`} backLabel="Overview" />
 
-      {msg && <div style={{ marginBottom: '12px', fontSize: '13px', color: msgIsError ? 'var(--red)' : 'var(--success)' }}>{msg}</div>}
+      <Toast message={msg} type={msgIsError ? 'error' : 'success'} onClose={() => setMsg(null)} />
 
       <div style={{ marginBottom: '16px' }}>
         {canManage && (

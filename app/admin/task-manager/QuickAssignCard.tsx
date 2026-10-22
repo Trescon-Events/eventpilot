@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Button from '@/app/components/ui/Button'
+import { notify } from '@/app/lib/ui/notify'
 import { EventLite, PRIORITIES, PRIORITY_COLOR, StaffLite, TaskPriority, TaskSaveValues, TaskType, isBrandingStaff } from './types'
 import { Avatar, PillSelect, SearchableSelect } from './ui'
 
@@ -22,14 +23,12 @@ export default function QuickAssignCard({ staff, events, taskTypes, counts, curr
   const [priority, setPriority] = useState<TaskPriority>('Medium')
   const [remarks, setRemarks] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const canSubmit = description.trim().length > 0 && assignedTo.length > 0 && taskTypeId.length > 0 && !busy
 
   async function handleSubmit() {
     if (!canSubmit) return
     setBusy(true)
-    setError(null)
     try {
       await onAssign({
         description: description.trim(),
@@ -46,7 +45,7 @@ export default function QuickAssignCard({ staff, events, taskTypes, counts, curr
       setRemarks('')
       setDeadline('')
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to assign task')
+      notify(err instanceof Error ? err.message : 'Failed to assign task', 'error')
     } finally {
       setBusy(false)
     }
@@ -99,12 +98,6 @@ export default function QuickAssignCard({ staff, events, taskTypes, counts, curr
           Press <kbd style={{ background: 'var(--border-light)', padding: '2px 5px', borderRadius: '4px', border: '1px solid var(--border)', fontSize: '10px' }}>Ctrl + Enter</kbd> to assign
         </span>
       </div>
-
-      {error && (
-        <div style={{ background: 'var(--red-light)', color: 'var(--red)', border: '1px solid var(--red-border)', borderRadius: '6px', padding: '6px 10px', fontSize: '12px', marginBottom: '10px' }}>
-          {error}
-        </div>
-      )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {/* Row 1: Task Title Input */}

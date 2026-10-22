@@ -2,7 +2,7 @@
 
 import { useState, use } from 'react'
 import PageHeader from '@/app/components/PageHeader'
-import { Button, Card } from '@/app/components/ui'
+import { Button, Card, Toast } from '@/app/components/ui'
 
 /* Reference Documents spec, Stage 3 (2026-09-10) — standalone "check this
    copy" tool. Paste hand-written copy, check it against this event's
@@ -70,9 +70,7 @@ export default function ContentCheckPage({ params }: { params: Promise<{ id: str
         </div>
       </Card>
 
-      {error && (
-        <div style={{ marginTop: '16px', fontSize: '13px', color: 'var(--red)' }}>{error}</div>
-      )}
+      <Toast message={error} type="error" onClose={() => setError(null)} />
 
       {findings !== null && (
         <div style={{ marginTop: '20px' }}>

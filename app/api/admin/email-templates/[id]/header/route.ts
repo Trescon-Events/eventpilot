@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
+import { canEditEmailTemplates } from '@/app/lib/access/email-template-access'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { getStakeholderHeaderUrl } from '@/app/lib/branding/email-header'
 import { compositeHeaderText } from '@/app/lib/email/header-composite'
@@ -41,7 +42,7 @@ async function recomputeHeaderImage(id: string, sessionSid: string, baseUrl: str
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = getSession(req)
-  if (!session?.adm) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
+  if (!session || !(await canEditEmailTemplates(session))) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   const { id } = await params
 
   const { data: existing, error: existingErr } = await supabaseAdmin

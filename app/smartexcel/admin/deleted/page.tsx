@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Toast } from "@/app/components/ui";
 import { ArrowLeft, RotateCcw, Trash2 } from "lucide-react";
 
 interface DeletedJob {
@@ -62,7 +63,7 @@ export default function DeletedJobsPage() {
         workspace can no longer restore them.
       </p>
 
-      {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
+      <Toast message={error} type="error" onClose={() => setError(null)} />
 
       {jobs.length === 0 ? (
         <div className="mt-6 rounded-lg border border-dashed border-zinc-700 bg-zinc-900 py-16 text-center text-sm text-zinc-400">

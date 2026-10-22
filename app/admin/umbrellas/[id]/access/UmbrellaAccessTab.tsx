@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Button } from '@/app/components/ui'
+import { Button, Toast } from '@/app/components/ui'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
 
 type StaffOption = { id: string; name: string; email: string }
@@ -107,7 +107,7 @@ export default function UmbrellaAccessTab({ umbrellaId, umbrellaName, eventCount
             : <>It does not give access to this umbrella&apos;s Reference Documents. Use the &quot;Umbrella document manager&quot; role for that.</>}
         </div>
       ) : null })()}
-      {msg && <div style={{ fontSize: '12.5px', color: 'var(--red)', marginBottom: '10px' }}>{msg}</div>}
+      {msg && <Toast message={msg} type="error" onClose={() => setMsg(null)} />}
 
       <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', margin: '22px 0 10px' }}>Current umbrella-level assignments ({assignments.length})</div>
       <div style={{ display: 'grid', gap: '6px' }}>

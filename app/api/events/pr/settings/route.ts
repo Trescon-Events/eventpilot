@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const body = await req.json().catch(() => null) as { event_id?: string; contact_ids?: string[]; days?: { day?: string; open?: string; close?: string }[]; intro?: string; confirm_days?: boolean } | null
+  const body = await req.json().catch(() => null) as { event_id?: string; contact_ids?: string[]; days?: { day?: string; open?: string; close?: string; slot?: number }[]; intro?: string; confirm_days?: boolean } | null
   if (!body?.event_id) return NextResponse.json({ error: 'event_id is required' }, { status: 400 })
   const eventId = body.event_id
   const auth = await requirePrAccess(req, eventId, 'manage'); if ('error' in auth) return auth.error
@@ -47,7 +47,7 @@ export async function PUT(req: NextRequest) {
   }
 
   if (Array.isArray(body.days)) {
-    const rows = body.days.map(d => ({ event_id: eventId, day: String(d.day ?? ''), open_time: String(d.open ?? ''), close_time: String(d.close ?? '') }))
+    const rows = body.days.map(d => ({ event_id: eventId, day: String(d.day ?? ''), open_time: String(d.open ?? ''), close_time: String(d.close ?? ''), slot_minutes: d.slot === 30 ? 30 : 60 }))
     for (const r of rows) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(r.day) || !(toMinutes(r.open_time) >= 0) || !(toMinutes(r.close_time) > toMinutes(r.open_time))) return NextResponse.json({ error: 'Each day needs a date and an opening time before its closing time.' }, { status: 400 })
     }

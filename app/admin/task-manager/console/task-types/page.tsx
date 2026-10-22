@@ -4,6 +4,7 @@ import Button from '@/app/components/ui/Button'
 import Card from '@/app/components/ui/Card'
 import { Input } from '@/app/components/ui/Field'
 import PageHeader from '@/app/components/PageHeader'
+import Toast from '@/app/components/ui/Toast'
 import { TaskType } from '../../types'
 
 /*
@@ -116,11 +117,7 @@ export default function TaskTypesPage() {
         backLabel="Admin Console"
       />
       <div style={{ padding: '20px 32px 48px', maxWidth: '720px' }}>
-        {error && (
-          <div style={{ background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', marginBottom: '16px' }}>
-            {error}
-          </div>
-        )}
+        <Toast message={error} type="error" onClose={() => setError(null)} />
 
         <Card padded>
           <div style={{ display: 'flex', gap: '8px', marginBottom: '18px' }}>

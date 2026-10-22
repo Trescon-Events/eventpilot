@@ -95,6 +95,7 @@ ${a.message ? `<p style="padding:10px 14px;background:#F0F4F8;border-radius:8px;
 // ── sending ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 import { renderEmailTemplate } from '@/app/lib/email/render-template'
 import { sendGraphMail } from '@/app/lib/email/graph-mail'
+import { sendKeyedThreadMail } from '@/app/lib/email/keyed-thread'
 import { sendSystemMail } from '@/app/lib/email/system-mail'
 import { notifyStaff } from '@/app/lib/notify'
 
@@ -107,12 +108,14 @@ export async function senderFor(sid: string | null | undefined): Promise<{ name:
   return { name: 'Trescon Events', email: null, staffId: null }
 }
 
-export async function sendApprovalEmail(a: { to: string; recipientName: string; eventName: string; batchName: string; badges: number; token: string; sender: { name: string; email: string | null }; message: string | null; reminder?: boolean }): Promise<boolean> {
+export async function sendApprovalEmail(a: { eventId?: string; to: string; recipientName: string; eventName: string; batchName: string; badges: number; token: string; sender: { name: string; email: string | null }; message: string | null; reminder?: boolean }): Promise<boolean> {
   const body = approvalEmailBody({ name: a.recipientName, eventName: a.eventName, batchName: a.batchName, badges: a.badges, link: reviewLink(a.token), senderName: a.sender.name, message: a.message, reminder: a.reminder })
   const { html } = renderEmailTemplate({ subject: '', body_html: body, header_image_url: null, header_alt_text: null } as Parameters<typeof renderEmailTemplate>[0], {})
   const subject = `${a.reminder ? 'Reminder: ' : ''}Speaker badges for your approval — ${a.eventName}`
   try {
-    if (a.sender.email) await sendGraphMail({ senderEmail: a.sender.email, senderName: a.sender.name, to: a.to, subject, html })
+    // From a producer's mailbox: one thread per (event, client) so every badge round and reminder stays in one conversation ("Speaker badges @ <Event>").
+    if (a.sender.email && a.eventId) await sendKeyedThreadMail(a.eventId, `badge-approval:${a.to.trim().toLowerCase()}`, { senderEmail: a.sender.email, senderName: a.sender.name, to: a.to, subject: `Speaker badges @ ${a.eventName}`, html })
+    else if (a.sender.email) await sendGraphMail({ senderEmail: a.sender.email, senderName: a.sender.name, to: a.to, subject, html })
     else await sendSystemMail({ to: a.to, subject, html })
     return true
   } catch (e) {

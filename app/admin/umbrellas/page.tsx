@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Card } from '@/app/components/ui'
+import { notify } from '@/app/lib/ui/notify'
 
 /* Umbrella/event separation (2026-09-11) — umbrellas live in their own
    event_umbrellas table now (see supabase/umbrella_events_separation_migration.sql),
@@ -25,7 +26,6 @@ export default function UmbrellasListPage() {
   const [reloadKey, setReloadKey] = useState(0)
   const [newName, setNewName] = useState('')
   const [pick, setPick] = useState<Record<string, string>>({})
-  const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
@@ -41,11 +41,11 @@ export default function UmbrellasListPage() {
   }, [reloadKey])
 
   async function send(url: string, body: unknown, ok: string) {
-    setBusy(true); setMsg(null)
+    setBusy(true)
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     const d = await res.json().catch(() => ({}))
     setBusy(false)
-    setMsg(res.ok ? ok : (d.error ?? 'Failed.'))
+    notify(res.ok ? ok : (d.error ?? 'Failed.'), res.ok ? 'success' : 'error')
     if (res.ok) setReloadKey(k => k + 1)
     return res.ok
   }
@@ -53,7 +53,7 @@ export default function UmbrellasListPage() {
   return (
     <div style={{ maxWidth: '700px', margin: '0 auto', padding: '24px 32px' }}>
       <PageHeader eyebrow="Events" title="Umbrella Events" description="Groupings of related events sharing top-level reference documents and content rules." />
-      {msg && <div style={{ fontSize: '13px', marginBottom: '12px', color: 'var(--ink2)' }}>{msg}</div>}
+      
       {loading ? (
         <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>Loading…</div>
       ) : umbrellas.length === 0 ? (

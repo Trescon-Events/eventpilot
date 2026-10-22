@@ -228,7 +228,12 @@ export type Variant = {
   // generate route both read as an already-clean input. That version uses
   // two annotated reference images plus a mandatory second manual confirm,
   // which is what the earlier abandoned attempt lacked.
-  category?: 'promo' | 'self_promo' | 'website_photo' | 'badge'
+  category?: 'promo' | 'self_promo' | 'website_photo' | 'badge' | 'memento'
+  // 'memento' (2026-10-22) — the speaker's photo cut-out for a physical memento, handed to the memento vendor (see
+  // app/lib/mementos/render.ts). ONE layer: a Photo/Logo Slot (source: speaker photo) with `alignment` traced from an uploaded
+  // reference exactly like Website Photo — but NO background and NO other layers; the output is a transparent PNG of exactly
+  // canvas_width x canvas_height. Mementos differ per event (size, framing), so canvas W/H, the slot box and the head marker are all
+  // freely editable per variant. Never offered in announcement/badge pickers (they filter by exact category).
   // 'badge' (2026-10-02) — a speaker badge printed on a PVC card (see supabase/badge_batches_migration.sql
   // and app/lib/badges/*). Layers composite exactly like any other variant for the on-screen preview; the
   // print PDF is built separately from `print` below, with vector layer art, outlined vector text and the

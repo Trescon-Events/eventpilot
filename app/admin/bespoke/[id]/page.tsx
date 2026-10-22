@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, use } from 'react'
 import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
+import { notify } from '@/app/lib/ui/notify'
 import { ImportDelegatesModal } from './ImportDelegatesModal'
 import { DelegateKanban } from './DelegateKanban'
 import AssetsTabContent from './AssetsTabContent'
@@ -289,7 +290,6 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
   const [reseedState, setReseedState] = useState<'idle' | 'seeding' | 'seeded' | 'error'>('idle')
   const [reseedError, setReseedError] = useState<string | null>(null)
   const autoSeedTriedRef = useRef(false)
-  const [briefSaveState, setBriefSaveState] = useState<'idle' | 'saved' | 'error'>('idle')
   const [recalcState, setRecalcState] = useState<'idle' | 'pending' | 'done'>('idle')
   const [showAddDelegate, setShowAddDelegate] = useState(false)
   const [newDelegate, setNewDelegate] = useState({ name: '', company: '', title: '', email: '', source: 'client_wishlist', notes: '' })
@@ -599,7 +599,6 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
      user typed is lost across saves. */
   const saveBrief = async () => {
     setBriefSaving(true)
-    setBriefSaveState('idle')
     try {
       const payload = {
         id,
@@ -625,14 +624,13 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
         body: JSON.stringify(payload),
       })
       if (res.ok) {
-        setBriefSaveState('saved')
-        setTimeout(() => setBriefSaveState('idle'), 2400)
+        notify('✓ Draft saved', 'success')
         loadProject()
       } else {
-        setBriefSaveState('error')
+        notify('Couldn\u2019t save. Please retry.', 'error')
       }
     } catch {
-      setBriefSaveState('error')
+      notify('Couldn\u2019t save. Please retry.', 'error')
     } finally {
       setBriefSaving(false)
     }
@@ -1608,27 +1606,6 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                 }}>
                   {lockBusy ? 'Working…' : 'Submit Brief'}
                 </button>
-
-                {briefSaveState === 'saved' && (
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '6px',
-                    padding: '6px 12px', borderRadius: '999px',
-                    background: 'var(--success-light)', color: 'var(--success)',
-                    fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-manrope)',
-                  }}>
-                    ✓ Draft saved
-                  </span>
-                )}
-                {briefSaveState === 'error' && (
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '6px',
-                    padding: '6px 12px', borderRadius: '999px',
-                    background: 'var(--red-light)', color: 'var(--red)',
-                    fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-manrope)',
-                  }}>
-                    Couldn&rsquo;t save. Please retry.
-                  </span>
-                )}
 
               </div>
             </div>

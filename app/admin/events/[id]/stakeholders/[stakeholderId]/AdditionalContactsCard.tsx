@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, Button, Input, Badge } from '@/app/components/ui'
+import { Card, Button, Input, Badge, Toast } from '@/app/components/ui'
 
 /* Additional Contacts (2026-09-20, Madhu) — a speaker's own small pool of
    extra people a producer coordinates with about them: an assistant,
@@ -89,9 +89,7 @@ export default function AdditionalContactsCard({ speakerId, canEdit }: { speaker
         Anyone else you coordinate with about this speaker — an assistant, their office, whoever. Every one of them is CC&apos;d by default (still editable) any time you send this speaker something from EventPilot, so you stop retyping the same email.
       </div>
 
-      {error && (
-        <div style={{ padding: '8px 12px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '12.5px', marginBottom: '12px' }}>{error}</div>
-      )}
+      {error && <Toast message={error} type="error" onClose={() => setError(null)} />}
 
       {contacts.length === 0 ? (
         <div style={{ fontSize: '13px', color: 'var(--ink4)', marginBottom: '14px' }}>None yet — sends go directly to the speaker unless you type someone else in on the fly.</div>

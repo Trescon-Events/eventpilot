@@ -85,7 +85,8 @@ export async function POST(req: NextRequest) {
   let websitePhotoError: string | null = null
   let renderVariant = body.variant
   let websitePhotoFinalBuffer: Buffer | null = null
-  const photoLayer = body.variant.category === 'website_photo'
+  const isMemento = body.variant.category === 'memento' // transparent cut-out only: no background, no extra layers
+  const photoLayer = (body.variant.category === 'website_photo' || isMemento)
     ? body.variant.layers.find((l): l is PhotoSlotLayer => l.type === 'photo_slot' && l.source === 'speaker_photo')
     : undefined
   if (photoLayer && assets.speaker_photo) {
@@ -109,8 +110,10 @@ export async function POST(req: NextRequest) {
         }
 
         const backgroundLayer = body.variant.layers.find((l): l is ImageLayer => l.type === 'image' && !l.reference_only)
-        const backgroundBuffer = backgroundLayer?.asset_url ? await fetchAssetBuffer(backgroundLayer.asset_url) : null
-        if (!backgroundBuffer) {
+        const backgroundBuffer = !isMemento && backgroundLayer?.asset_url ? await fetchAssetBuffer(backgroundLayer.asset_url) : null
+        if (isMemento) {
+          websitePhotoFinalBuffer = cropped
+        } else if (!backgroundBuffer) {
           websitePhotoError = 'No background image set on the Image layer yet — showing the plain crop.'
         } else {
           websitePhotoFinalBuffer = await compositeOnBackground(cropped, backgroundBuffer, {
@@ -130,7 +133,7 @@ export async function POST(req: NextRequest) {
   // everything else (extra Text/Image/Photo-Logo-Slot layers) composites on
   // top through the same generic pipeline Promo/Self Promo layers use. See
   // compositeExtraLayersOnto's own comment.
-  if (websitePhotoFinalBuffer && photoLayer) {
+  if (websitePhotoFinalBuffer && photoLayer && !isMemento) {
     const backgroundLayer = body.variant.layers.find((l): l is ImageLayer => l.type === 'image' && !l.reference_only)
     const extraLayers = body.variant.layers.filter(l => l.id !== photoLayer.id && l.id !== backgroundLayer?.id)
     if (extraLayers.length > 0) {
@@ -158,7 +161,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       preview_data_url: `data:image/png;base64,${draftBuffer.toString('base64')}`,
       text_diagnostics,
-      ...(body.variant.category === 'website_photo' ? { website_photo_error: websitePhotoError } : {}),
+      ...(body.variant.category === 'website_photo' || isMemento ? { website_photo_error: websitePhotoError } : {}),
     })
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Preview render failed'

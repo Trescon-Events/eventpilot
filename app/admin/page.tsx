@@ -10,6 +10,7 @@ import type { Question } from '@/app/lib/questions'
 import { getModuleRegistry } from '@/app/lib/registry/modules'
 import { VALID_ACCESS_ROLES } from '@/app/lib/access/access-roles'
 import PageHeader from '@/app/components/PageHeader'
+import { Toast } from '@/app/components/ui'
 import AiLearningTab from './ai-learning/AiLearningTab'
 import MemberFilterRow from './ai-learning/MemberFilterRow'
 
@@ -1080,7 +1081,7 @@ function AdminPageInner() {
             </div>
 
             {/* AI Report */}
-            {reportError && <div style={{ marginBottom: '16px', padding: '12px 16px', background: 'rgba(255,107,107,0.08)', border: '1px solid rgba(255,107,107,0.2)', borderRadius: '10px', fontSize: '13px', color: 'var(--red)' }}>{reportError}</div>}
+            <Toast message={reportError || null} type="error" onClose={() => setReportError('')} />
 
             {feedbackReport && (() => {
               const r = feedbackReport as {
@@ -1684,7 +1685,7 @@ function AdminPageInner() {
               <textarea value={eventForm.description} onChange={e => setEventForm(p => ({ ...p, description: e.target.value }))}
                 placeholder="Brief description of this event…" rows={2}
                 style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'none', marginBottom: '12px' }} />
-              {eventMsg && <div style={{ fontSize: '13px', color: eventMsg.includes('created') ? 'var(--lime)' : 'var(--red)', marginBottom: '10px' }}>{eventMsg}</div>}
+              <Toast message={eventMsg || null} type={eventMsg.includes('created') ? 'success' : 'error'} onClose={() => setEventMsg('')} />
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button onClick={async () => { await createEvent(); if (events.length > 0) setShowCreateEvent(false) }} disabled={eventSaving}
                   style={{ padding: '10px 22px', borderRadius: '9px', border: 'none', background: 'var(--teal-mid)', color: 'var(--teal-light)', fontSize: '13px', fontWeight: 700, cursor: eventSaving ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: eventSaving ? 0.6 : 1 }}>
@@ -2039,11 +2040,7 @@ function AdminPageInner() {
               <p style={{ fontSize: '13px', color: 'var(--ink3)', margin: 0, lineHeight: 1.6 }}>These courses were generated via Learning Lab and are waiting for your review. Approve to publish them to the library, or reject to remove them.</p>
             </div>
 
-            {reviewMsg && (
-              <div style={{ marginBottom: '20px', padding: '12px 16px', background: reviewMsg.includes('approved') ? 'rgba(192,244,60,0.08)' : 'rgba(0,165,163,0.08)', border: `1px solid ${reviewMsg.includes('approved') ? 'rgba(192,244,60,0.25)' : 'rgba(0,165,163,0.25)'}`, borderRadius: '10px', fontSize: '13px', color: reviewMsg.includes('approved') ? 'var(--lime)' : 'var(--teal-mid)', fontWeight: 600 }}>
-                {reviewMsg}
-              </div>
-            )}
+            <Toast message={reviewMsg || null} type={reviewMsg.includes('approved') || reviewMsg.includes('rejected') ? 'success' : 'error'} onClose={() => setReviewMsg('')} />
 
             {draftsLoading ? (
               <div style={{ padding: '60px', textAlign: 'center', color: 'var(--ink)', fontSize: '13px' }}>Loading drafts...</div>

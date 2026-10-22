@@ -3,6 +3,7 @@
 import { purposeForCategory } from '@/app/lib/ops/vendor-purpose'
 import { useCallback, useEffect, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
+import { Toast } from '@/app/components/ui'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import { useOpsScope } from './scope-context'
 
@@ -73,7 +74,7 @@ export default function VendorsView() {
         actions={editing === null ? <button onClick={() => setEditing('new')} style={btnPrimary}>+ Add vendor</button> : undefined}
       />
       <div style={{ padding: '24px 32px', maxWidth: '960px' }}>
-        {error && <div style={{ marginBottom: '14px', padding: '10px 14px', borderRadius: '8px', background: 'var(--amber-light)', color: 'var(--amber)', fontSize: '13px' }}>{error}</div>}
+        <Toast message={error} type="error" onClose={() => setError(null)} />
 
         {editing !== null && (
           <VendorForm
@@ -181,7 +182,7 @@ function VendorLogins({ vendor, setError }: { vendor: Vendor; setError: (e: stri
       <button onClick={() => setOpen(o => !o)} style={{ ...btnGhost, padding: '6px 12px', fontSize: '12px' }}>{open ? 'Hide portal logins' : 'Portal logins'}</button>
       {open && (
         <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {note && <div style={{ fontSize: '12px', color: 'var(--lime)', fontWeight: 600 }}>{note}</div>}
+          <Toast message={note} type="success" onClose={() => setNote(null)} />
           {users === null && <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>Loading…</div>}
           {users?.length === 0 && <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>No logins yet. The vendor can&rsquo;t sign in until you create one.</div>}
           {users?.map(u => (

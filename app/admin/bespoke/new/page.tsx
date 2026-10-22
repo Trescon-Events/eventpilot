@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader'
+import { notify } from '@/app/lib/ui/notify'
 
 const INPUT_STYLE: React.CSSProperties = {
   width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--ink4)',
@@ -188,7 +189,6 @@ function StaffComboBox({
 export default function NewBespokeProjectPage() {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [stepErrors, setStepErrors] = useState<Record<string, string>>({})
 
@@ -295,7 +295,6 @@ export default function NewBespokeProjectPage() {
     if (!validateStep(2)) { setStep(2); return }
 
     setSaving(true)
-    setError('')
 
     // Clear venue/city if webinar so we don't persist stale physical data.
     const isWebinar = format === 'virtual'
@@ -339,7 +338,7 @@ export default function NewBespokeProjectPage() {
 
       if (!res.ok) {
         const d = await res.json()
-        setError(d.error || 'Failed to create project')
+        notify(d.error || 'Failed to create project', 'error')
         setSaving(false)
         return
       }
@@ -347,7 +346,7 @@ export default function NewBespokeProjectPage() {
       const data = await res.json()
       router.push(`/admin/bespoke/${data.id}`)
     } catch {
-      setError('Network error. Please try again.')
+      notify('Network error. Please try again.', 'error')
       setSaving(false)
     }
   }
@@ -581,13 +580,6 @@ export default function NewBespokeProjectPage() {
                   </Field>
                 </div>
               </div>
-            </div>
-          )}
-
-          {/* ── Error ───────────────────────────────────────────── */}
-          {error && (
-            <div style={{ padding: '12px 16px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid color-mix(in srgb, var(--red) 35%, transparent)', color: 'var(--red)', fontSize: '14px', fontWeight: 600, marginBottom: '16px' }}>
-              {error}
             </div>
           )}
 

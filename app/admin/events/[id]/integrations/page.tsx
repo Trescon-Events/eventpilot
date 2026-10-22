@@ -4,7 +4,7 @@ import BadgeApprovalCard from './BadgeApprovalCard'
 import { use, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
-import { Card, Button, Input, Select, Badge } from '@/app/components/ui'
+import { Card, Button, Input, Select, Badge, Toast } from '@/app/components/ui'
 import AgendaMappingCard from './AgendaMappingCard'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import { FORM_TYPES, FORM_TITLES, type FormType } from '@/app/lib/forms/types'
@@ -975,16 +975,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
         <IntegrationsSideNav active={activeSection} sections={NAV_SECTIONS.filter(s => sectionEnabled[s.id] && (s.id !== 'agenda-structure' || agendaSource === 'konfhub_authoritative'))} />
 
         <div style={{ flex: 1, minWidth: 0, maxWidth: '900px' }}>
-        {msg && (
-          <div style={{
-            padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '14px',
-            background: msg.ok ? 'var(--teal-light)' : 'var(--red-light)',
-            border: `1px solid ${msg.ok ? 'var(--teal-border)' : 'var(--red-border)'}`,
-            color: msg.ok ? 'var(--ink)' : 'var(--red)',
-          }}>
-            {msg.text} <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>
-          </div>
-        )}
+        <Toast message={msg?.text ?? null} type={msg?.ok ? 'success' : 'error'} onClose={() => setMsg(null)} />
 
         {!canManage && (
           <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--amber-light)', border: '1px solid var(--amber-border)', color: 'var(--amber)', fontSize: '13.5px', marginBottom: '16px' }}>

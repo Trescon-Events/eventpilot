@@ -267,13 +267,14 @@ export const CREDENTIALS: Credential[] = [
   },
   {
     id: 'hubspot-webhook', platform: 'HubSpot form-submission webhook', group: 'CRM, social & marketing',
-    what: 'Password HubSpot\'s workflow sends to /api/public/hubspot/submissions.',
+    what: 'Password HubSpot\'s workflows send to /api/public/hubspot/submissions. All 8 connected speaker forms share ONE portal-wide HubSpot secret named EVENTPILOT_WEBHOOK_TOKEN that holds the text "Bearer <HUBSPOT_WEBHOOK_SECRET>".',
     vars: ['HUBSPOT_WEBHOOK_SECRET'], stores: ['railway', 'external'],
-    alsoSet: 'The HubSpot workflow header (re-run "Set Up Automatic Sync" in EventPilot to rewrite it)',
-    consoleUrl: 'https://app.hubspot.com/workflows/2953901',
+    alsoSet: 'HubSpot secret EVENTPILOT_WEBHOOK_TOKEN = "Bearer " + the Railway value. Edit it once: open any EventPilot workflow → Send a webhook → API key dropdown → Manage secrets → pencil. All workflows update at once.',
+    consoleUrl: 'https://app.hubspot.com/workflows/2953901/platform/flow/1893915960/edit/actions/1/webhook',
     login: 'confirm',
-    rotate: 'Random value → Railway; after the deploy, update the HubSpot workflow header to match.',
+    rotate: 'Set the new value in Railway and deploy. Then copy it from Railway\'s copy icon (NOT from a note: pbcopy adds a hidden newline that breaks the match) and paste after "Bearer " in the HubSpot secret. Test: submit a fresh fake contact on a connected form; it must appear as New Submission in the Stakeholder Hub.',
     mode: 'must-match',
+    note: 'The "Set Up Automatic Sync" button only shows when no workflow exists, so it cannot rewrite the header — edit the HubSpot secret instead. Verified working 22 Oct 2026.',
   },
   {
     id: 'postiz', platform: 'Postiz', group: 'CRM, social & marketing',

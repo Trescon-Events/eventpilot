@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
-import { Button } from '@/app/components/ui'
+import { Button, Toast } from '@/app/components/ui'
 
 /* Internal approvals inbox (2026-08-16) — the counterpart to the external,
    token-based review page (app/admin/events/[id]/announcements/
@@ -88,11 +88,7 @@ export default function MyApprovalsPage() {
         description="Announcements waiting on your review before they can be scheduled or posted."
       />
       <div style={{ maxWidth: '780px', margin: '0 auto', padding: '28px 32px' }}>
-        {msg && (
-          <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '13.5px', marginBottom: '16px' }}>
-            {msg} <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>
-          </div>
-        )}
+        <Toast message={msg} type="error" onClose={() => setMsg(null)} />
         {loading ? (
           <div style={{ color: 'var(--ink3)', fontSize: '13px' }}>Loading…</div>
         ) : loadError ? (

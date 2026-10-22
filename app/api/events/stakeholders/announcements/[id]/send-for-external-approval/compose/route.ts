@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { renderEmailTemplate } from '@/app/lib/email/render-template'
+import { approvalThreadFor } from '@/app/lib/email/keyed-thread'
 import { resolveSenderIdentity, getSpeakerProducerId } from '@/app/lib/email/sender-identity'
 
 /* POST /api/events/stakeholders/announcements/[id]/send-for-external-approval/compose
@@ -85,7 +86,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     review_token: primary.review_token,
     recipient_name: body.recipient_name,
     recipient_email: body.recipient_email,
-    subject: primary.subject, html: primary.html,
+    // Approvals about one announcement share a single Outlook thread per reviewer, so the subject is fixed (see app/lib/email/keyed-thread.ts).
+    subject: (await approvalThreadFor(announcement, body.recipient_email)).subject, subject_fixed: true, html: primary.html,
     cc_recipients: ccComposed,
     sender_name: sender.name, sender_email: sender.email,
   })

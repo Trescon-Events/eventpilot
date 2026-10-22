@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { sendGraphMailNewThread, sendGraphMailReply, GraphThreadGoneError } from '@/app/lib/email/graph-mail'
+import { findKeyedThread, inviteThreadKey } from '@/app/lib/email/keyed-thread'
 
 // One shared subject per speaker per event — the same convention producers use
 // by hand ("<Speaker> @ <Event>"), so EventPilot sends land in their existing
@@ -31,15 +32,27 @@ type SendOpts = Parameters<typeof sendGraphMailNewThread>[0]
   thread's subject. Returns the subject actually used, for send logging.
 */
 export async function sendSpeakerThreadMail(speakerId: string, opts: SendOpts): Promise<{ subject: string; threaded: boolean }> {
-  const { data: speaker } = await supabaseAdmin.from('event_speakers').select('event_id, name, public_name').eq('id', speakerId).single()
+  const { data: speaker } = await supabaseAdmin.from('event_speakers').select('event_id, name, public_name, email').eq('id', speakerId).single()
   if (!speaker) throw new Error('Speaker not found for threading')
   const { data: event } = await supabaseAdmin.from('events').select('name, public_name').eq('id', speaker.event_id).single()
   const threadSubject = speakerThreadSubject(speaker.public_name || speaker.name || '', event?.public_name || event?.name || '')
   const sender = opts.senderEmail.toLowerCase()
 
-  const { data: existing } = await supabaseAdmin
+  let { data: existing } = await supabaseAdmin
     .from('speaker_email_threads').select('graph_message_id, subject')
     .eq('speaker_id', speakerId).eq('sender_email', sender).maybeSingle()
+
+  // The thread this speaker was invited on (sent before they had a speaker record) becomes their thread — the conversation continues, it does not restart.
+  if (!existing && speaker.email) {
+    const invited = await findKeyedThread(speaker.event_id as string, inviteThreadKey(speaker.email as string), sender)
+    if (invited) {
+      await supabaseAdmin.from('speaker_email_threads').upsert({
+        speaker_id: speakerId, event_id: speaker.event_id, sender_email: sender, graph_message_id: invited.graph_message_id,
+        graph_conversation_id: invited.graph_conversation_id, subject: invited.subject, updated_at: new Date().toISOString(),
+      }, { onConflict: 'speaker_id,sender_email' })
+      existing = { graph_message_id: invited.graph_message_id, subject: invited.subject }
+    }
+  }
 
   if (existing) {
     try {

@@ -4,7 +4,7 @@ import { useState, useEffect, use } from 'react'
 import { useSearchParams } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
-import { Button, Card, Input, Select, SearchableSelect } from '@/app/components/ui'
+import { Button, Card, Input, Select, SearchableSelect, Toast } from '@/app/components/ui'
 import { FormType, FORM_TYPES, FORM_TITLES, PROPERTY_TITLES, FieldSchema } from '@/app/lib/forms/types'
 import { HubSpotFieldMapping, HubSpotFormField, EventHubSpotForm, guessFieldTypeFromHubSpot } from '@/app/lib/hubspot/types'
 import { AddFieldForm, NewFieldDraft, EMPTY_FIELD_DRAFT, FIELD_TYPE_OPTIONS, buildFieldFromDraft, applyDraftToField } from '@/app/components/forms/AddFieldForm'
@@ -308,7 +308,7 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
     const res = await fetch(`/api/events/stakeholders/hubspot/connection?event_id=${eventId}&form_type=${formType}`, { method: 'DELETE' })
     setSaving(false)
     if (res.ok) { setConnection(null); setMapping([]); setDirty(false); setMsg('Disconnected.'); setMsgIsError(false) }
-    else setMsg('Could not disconnect — please try again.')
+    else { setMsg('Could not disconnect — please try again.'); setMsgIsError(true) }
   }
 
   async function createWorkflow() {
@@ -348,16 +348,7 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
             You can view this connection but don&apos;t have permission to manage it.
           </div>
         )}
-        {msg && (
-          <div style={{
-            padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '12.5px',
-            background: msgIsError ? 'var(--red-light)' : 'var(--success-light)',
-            border: `1px solid ${msgIsError ? 'var(--red-border)' : 'color-mix(in srgb, var(--success) 40%, transparent)'}`,
-            color: msgIsError ? 'var(--red)' : 'var(--success)',
-          }}>
-            {msg}
-          </div>
-        )}
+        {msg && <Toast message={msg} type={msgIsError ? 'error' : 'success'} onClose={() => setMsg(null)} />}
 
         {loading ? (
           <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>Loading…</div>

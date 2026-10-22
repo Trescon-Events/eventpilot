@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
-import { sendGraphMail } from '@/app/lib/email/graph-mail'
+import { sendKeyedThreadMail, approvalThreadFor } from '@/app/lib/email/keyed-thread'
 import { resolveSenderIdentity, getSpeakerProducerId } from '@/app/lib/email/sender-identity'
 
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000
@@ -97,7 +97,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const results: { email: string; sent: boolean }[] = []
 
   try {
-    await sendGraphMail({ senderEmail: sender.email, senderName: sender.name, to: body.recipient_email, subject: body.subject, html: body.html })
+    {
+      // One Outlook thread per (speaker/partner, reviewer): approvals about the same announcement stay in one conversation in the producer's inbox.
+      const thread = await approvalThreadFor(announcement, body.recipient_email)
+      await sendKeyedThreadMail(announcement.event_id, thread.key, { senderEmail: sender.email, senderName: sender.name, to: body.recipient_email, subject: thread.subject, html: body.html })
+    }
     await supabaseAdmin.from('email_template_sends').insert({
       template_id: body.template_id, send_type: 'live', to_email: body.recipient_email, subject: body.subject, status: 'sent', sent_by: session!.sid,
     })
@@ -114,7 +118,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   for (const cc of ccRows) {
     try {
-      await sendGraphMail({ senderEmail: sender.email, senderName: sender.name, to: cc.email, subject: cc.subject, html: cc.html })
+      {
+        const thread = await approvalThreadFor(announcement, cc.email)
+        await sendKeyedThreadMail(announcement.event_id, thread.key, { senderEmail: sender.email, senderName: sender.name, to: cc.email, subject: thread.subject, html: cc.html })
+      }
       await supabaseAdmin.from('announcement_external_approval_cc').update({ notified_at: new Date().toISOString() }).eq('id', cc.id)
       await supabaseAdmin.from('email_template_sends').insert({
         template_id: body.template_id, send_type: 'live', to_email: cc.email, subject: cc.subject, status: 'sent', sent_by: session!.sid,

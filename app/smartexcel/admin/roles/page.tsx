@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
+import { notify } from "@/app/lib/ui/notify";
 
 interface CatalogItem {
   key: string;
@@ -59,7 +60,6 @@ export default function RolesPage() {
 function RoleCard({ role, catalog, onSaved }: { role: RoleData; catalog: CatalogItem[]; onSaved: () => void }) {
   const [selected, setSelected] = useState<Set<string>>(new Set(role.permissions));
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
 
   function toggle(key: string) {
     setSelected((prev) => {
@@ -72,7 +72,6 @@ function RoleCard({ role, catalog, onSaved }: { role: RoleData; catalog: Catalog
 
   async function save() {
     setBusy(true);
-    setMsg(null);
     try {
       const res = await fetch("/api/smartexcel/admin/roles", {
         method: "POST",
@@ -81,10 +80,10 @@ function RoleCard({ role, catalog, onSaved }: { role: RoleData; catalog: Catalog
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? "Something went wrong.");
-      setMsg("Saved.");
+      notify("Saved.", "success");
       onSaved();
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Something went wrong.");
+      notify(e instanceof Error ? e.message : "Something went wrong.", "error");
     } finally {
       setBusy(false);
     }
@@ -124,7 +123,6 @@ function RoleCard({ role, catalog, onSaved }: { role: RoleData; catalog: Catalog
         >
           {busy ? "Saving…" : "Save"}
         </button>
-        {msg && <span className="text-xs text-zinc-400">{msg}</span>}
       </div>
     </div>
   );

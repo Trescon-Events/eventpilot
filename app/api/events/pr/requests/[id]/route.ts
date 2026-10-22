@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getSession } from '@/app/lib/access/session'
 import { requirePrAccess } from '@/app/lib/pr/access'
+import { requireMediaSendAccess } from '@/app/lib/pr/send-access'
 import { composeMediaRequest, sendMediaRequest } from '@/app/lib/pr/media-interest'
 import { mediaSetupProblem } from '@/app/lib/pr/send-access'
 
@@ -23,7 +25,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const row = await load(id); if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  const auth = await requirePrAccess(req, row.event_id as string, 'manage'); if ('error' in auth) return auth.error
+  // Reminders are the producers' job (they own the speaker relationship); PR managers may send one too.
+  let auth = await requireMediaSendAccess(req, row.event_id as string)
+  if ('error' in auth) { const pr = await requirePrAccess(req, row.event_id as string, 'manage'); if ('error' in pr) return auth.error; auth = pr }
   const body = await req.json().catch(() => null) as { action?: string } | null
   if (body?.action !== 'remind') return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   if (row.status !== 'pending') return NextResponse.json({ error: 'This speaker has already answered.' }, { status: 409 })
@@ -33,5 +37,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const r = await sendMediaRequest(c)
   if ('error' in r) return NextResponse.json({ error: r.error }, { status: 502 })
   await supabaseAdmin.from('media_interest_requests').update({ reminder_count: (row.reminder_count as number) + 1, last_reminder_at: new Date().toISOString() }).eq('id', id)
+  return NextResponse.json({ ok: true })
+}
+
+/* DELETE — removes a speaker's request and answer entirely so they can be asked again (the speaker goes back to "Not asked"). Platform admins only: it throws away the speaker's reply.
+   The Outlook thread record is not touched. */
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const session = getSession(req)
+  if (!session?.adm) return NextResponse.json({ error: 'Only a platform admin can delete a media interview request.' }, { status: 403 })
+  const row = await load(id); if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const { error } = await supabaseAdmin.from('media_interest_requests').delete().eq('id', id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

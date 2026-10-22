@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
-import { Button, Card } from '@/app/components/ui'
+import { Button, Card, Toast } from '@/app/components/ui'
 import { FieldSchema } from '@/app/lib/forms/types'
 import { AddFieldForm, NewFieldDraft, EMPTY_FIELD_DRAFT, FIELD_TYPE_OPTIONS, buildFieldFromDraft } from '@/app/components/forms/AddFieldForm'
 
@@ -95,16 +95,7 @@ export default function EventPropertiesPage({ params }: { params: Promise<{ id: 
           <strong style={{ color: 'var(--ink)' }}>What this is:</strong> a property created here (e.g. a Passport upload, or a question specific to this event) becomes available to <em>any</em> stakeholder type&apos;s form on this event — it just shows up as an option wherever &quot;EventPilot field&quot; is offered (the manual Add/Edit panel, the HubSpot field-mapping page). It&apos;s <strong>not</strong> the same as CRM Admin&apos;s Properties (that registry is global, shared across every event, and syncs with HubSpot) — these stay local to this one event only.
         </div>
 
-        {msg && (
-          <div style={{
-            padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '12.5px',
-            background: msg.ok ? 'var(--success-light)' : 'var(--red-light)',
-            border: `1px solid ${msg.ok ? 'color-mix(in srgb, var(--success) 40%, transparent)' : 'var(--red-border)'}`,
-            color: msg.ok ? 'var(--success)' : 'var(--red)',
-          }}>
-            {msg.text}
-          </div>
-        )}
+        <Toast message={msg?.text ?? null} type={msg?.ok ? 'success' : 'error'} onClose={() => setMsg(null)} />
 
         {loading ? (
           <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>Loading…</div>

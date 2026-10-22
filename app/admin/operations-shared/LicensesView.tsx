@@ -5,6 +5,7 @@ import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import SensitiveDocViewer from '@/app/components/SensitiveDocViewer'
+import { notify } from '@/app/lib/ui/notify'
 import { useOpsScope } from './scope-context'
 import EventDaysNotice from './EventDaysNotice'
 import { SpeakerDocumentsPanel } from './SpeakerDocumentsView'
@@ -88,7 +89,7 @@ export default function LicensesView() {
     })
     const body = await res.json().catch(() => null)
     setCreating(false)
-    if (!res.ok) { setError(body?.error ?? 'Could not create the batch.'); reload(); return }
+    if (!res.ok) { notify(body?.error ?? 'Could not create the batch.', 'error'); reload(); return }
     setSelected(new Set()); setTab('batches'); reload()
   }
 
@@ -96,7 +97,7 @@ export default function LicensesView() {
     if (!window.confirm(`Cancel Batch ${b.batch_number}? Its ${b.items.length} speaker(s) will go back to the ready list.`)) return
     setError(null)
     const res = await fetch(`/api/events/operations/licenses/batches/${b.id}/cancel`, { method: 'POST' })
-    if (!res.ok) setError((await res.json().catch(() => null))?.error ?? 'Could not cancel the batch.')
+    if (!res.ok) notify((await res.json().catch(() => null))?.error ?? 'Could not cancel the batch.', 'error')
     reload()
   }
 
@@ -196,8 +197,8 @@ export default function LicensesView() {
             <div style={{ color: 'var(--ink3)', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>No batches yet. Select ready speakers and create the first one.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <MultiLicensePanel batches={data.batches} onChanged={reload} onError={setError} />
-              {data.batches.map(b => <BatchCard key={b.id} batch={b} onCancel={() => cancelBatch(b)} onChanged={reload} onError={setError} />)}
+              <MultiLicensePanel batches={data.batches} onChanged={reload} onError={e => { if (e) notify(e, 'error') }} />
+              {data.batches.map(b => <BatchCard key={b.id} batch={b} onCancel={() => cancelBatch(b)} onChanged={reload} onError={e => { if (e) notify(e, 'error') }} />)}
             </div>
           )
         )}
@@ -248,7 +249,7 @@ function BatchCard({ batch: b, onCancel, onChanged, onError }: { batch: Batch; o
     setBusy(false)
     if (!r.ok) onError(r.error)
     else {
-      if (body.action === 'send' && typeof r.data.emailed === 'number') onError(`${okMessage ?? 'Sent.'} Notice emailed to ${r.data.emailed} of ${String(r.data.of)} vendor login(s).`)
+      if (body.action === 'send' && typeof r.data.emailed === 'number') notify(`${okMessage ?? 'Sent.'} Notice emailed to ${r.data.emailed} of ${String(r.data.of)} vendor login(s).`, 'success')
       setPending(null)
     }
     onChanged()

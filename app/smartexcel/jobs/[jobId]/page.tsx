@@ -16,6 +16,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { Toast } from "@/app/components/ui";
 import { JOB_STATUS_LABELS, type JobStatus } from "@/app/lib/smartexcel/lib/job-states";
 
 interface JobData {
@@ -491,7 +492,7 @@ export default function JobWorkspacePage({ params }: { params: Promise<{ jobId: 
           )}
 
           <div className="border-t border-zinc-800/60 p-3">
-            {error && <p className="mb-2 text-xs text-red-400">{error}</p>}
+            {error && <Toast message={error} type="error" onClose={() => setError(null)} />}
             {file && (
               <div className="mb-2 flex items-center gap-2 rounded-md bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-300">
                 <Paperclip size={13} />

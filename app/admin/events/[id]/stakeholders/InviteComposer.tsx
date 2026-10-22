@@ -63,6 +63,7 @@ export default function InviteComposer({
 
   const [inviteToken, setInviteToken] = useState('')
   const [subject, setSubject] = useState('')
+  const [subjectFixed, setSubjectFixed] = useState(false)
   const [senderName, setSenderName] = useState('')
   const [senderEmail, setSenderEmail] = useState('')
   const [sendError, setSendError] = useState<string | null>(null)
@@ -95,6 +96,7 @@ export default function InviteComposer({
       if (!res.ok) throw new Error(data.error)
       setInviteToken(data.invite_token)
       setSubject(data.subject)
+      setSubjectFixed(!!data.subject_fixed)
       setSenderName(data.sender_name)
       setSenderEmail(data.sender_email)
       editor?.commands.setContent(data.html)
@@ -195,7 +197,8 @@ export default function InviteComposer({
             <div style={{ fontSize: '14px', color: 'var(--ink3)' }}>Sending as <strong style={{ color: 'var(--ink2)' }}>{senderName}</strong> &lt;{senderEmail}&gt; to <strong style={{ color: 'var(--ink2)' }}>{recipientEmail}</strong></div>
             <div>
               <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Subject</span>
-              <Input value={subject} onChange={e => setSubject(e.target.value)} />
+              <Input value={subject} onChange={e => setSubject(e.target.value)} disabled={subjectFixed} />
+              {subjectFixed && <div style={{ fontSize: '11.5px', color: 'var(--ink4)', marginTop: '4px' }}>Fixed — every email to this speaker uses the same subject so it stays in one thread.</div>}
             </div>
             <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '14px' }}>
               <RichTextToolbar editor={editor} />

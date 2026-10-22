@@ -2,6 +2,8 @@
 
 import { useState, use, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
+import { Toast } from '@/app/components/ui'
+import { notify } from '@/app/lib/ui/notify'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 
@@ -123,18 +125,12 @@ export default function PressReleaseWorkspace({ params }: { params: Promise<{ id
   const [editableFixText, setEditableFixText] = useState<Record<string, string>>({})
   const [checkingCompliance, setCheckingCompliance] = useState(false)
   const [complianceStatus, setComplianceStatus] = useState<'unchecked' | 'checking' | 'suggesting' | 'checked' | 'all_clear'>('unchecked')
-  const [toast, setToast] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const splitRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef(false)
-  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  function showToast(message: string) {
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
-    setToast(message)
-    toastTimerRef.current = setTimeout(() => setToast(null), 2600)
-  }
+  function showToast(message: string) { notify(message, 'success') }
 
   useBreadcrumbLabel(eventId, pr?.event_name ?? null)
   useBreadcrumbLabel(prId, pr?.title ?? null)
@@ -537,25 +533,11 @@ export default function PressReleaseWorkspace({ params }: { params: Promise<{ id
     <div style={{ height: 'calc(100vh - 55px)', display: 'flex', flexDirection: 'column', background: 'var(--surface)' }}>
       <style>{`
         @keyframes prsPulse { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
-        @keyframes prsToastIn { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
         .pr-divider .pr-divider-line { transition: background 0.15s; }
         .pr-divider .pr-divider-handle { opacity: 0; transition: opacity 0.15s; }
         .pr-divider:hover .pr-divider-line { background: var(--teal); }
         .pr-divider:hover .pr-divider-handle { opacity: 1; }
       `}</style>
-
-      {toast && (
-        <div style={{
-          position: 'fixed', bottom: '28px', left: '50%', zIndex: 50,
-          animation: 'prsToastIn 0.2s ease-out forwards',
-          display: 'flex', alignItems: 'center', gap: '8px',
-          padding: '10px 18px', borderRadius: '999px', fontSize: '13px', fontWeight: 600,
-          color: 'var(--lime)', background: 'var(--lime-light)', border: '1px solid var(--lime-border)',
-          backdropFilter: 'blur(6px)',
-        }}>
-          <span style={{ fontSize: '15px' }}>✓</span> {toast}
-        </div>
-      )}
 
       {/* ── Compact header ── */}
       <div style={{ flexShrink: 0, padding: '10px 20px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -573,11 +555,7 @@ export default function PressReleaseWorkspace({ params }: { params: Promise<{ id
       {boilerplateWarning && (
         <div style={{ margin: '0 0 12px', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--amber)', color: 'var(--amber)', fontSize: '13px', fontWeight: 600 }}>{boilerplateWarning}</div>
       )}
-      {error && (
-        <div style={{ flexShrink: 0, padding: '8px 20px', background: 'var(--red-light)', color: 'var(--red)', fontSize: '13px' }}>
-          {error}
-        </div>
-      )}
+      <Toast message={error} type="error" onClose={() => setError(null)} />
 
       {/* ── Split pane: research (left) / generated content (right) ── */}
       <div ref={splitRef} style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>

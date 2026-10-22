@@ -111,6 +111,8 @@ function NewBatchModal({ eventId, onClose, onCreated, onError }: { eventId: stri
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [saving, setSaving] = useState(false)
+  const [variants, setVariants] = useState<{ id: string; name: string; width: number; height: number }[]>([])
+  const [variantId, setVariantId] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -119,7 +121,7 @@ function NewBatchModal({ eventId, onClose, onCreated, onError }: { eventId: stri
       const data = await res.json().catch(() => ({}))
       if (cancelled) return
       if (!res.ok) { onError(data.error ?? 'Could not load speakers.'); onClose(); return }
-      setSpeakers(data.speakers ?? []); setLoading(false)
+      setSpeakers(data.speakers ?? []); setVariants(data.variants ?? []); setVariantId((data.variants ?? [])[0]?.id ?? ''); setLoading(false)
     })()
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load once when the modal opens
@@ -137,7 +139,7 @@ function NewBatchModal({ eventId, onClose, onCreated, onError }: { eventId: stri
 
   async function create() {
     setSaving(true)
-    const res = await fetch('/api/events/mementos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, name, speaker_ids: [...picked] }) })
+    const res = await fetch('/api/events/mementos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, name, speaker_ids: [...picked], variant_id: variantId || undefined }) })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) { setSaving(false); onError(data.error ?? 'Could not create the batch.'); return }
     // Stay "Creating…" until the batch page opens — a second click while it loads would create a duplicate batch.
@@ -162,6 +164,16 @@ function NewBatchModal({ eventId, onClose, onCreated, onError }: { eventId: stri
           <label style={{ fontSize: '13px', color: 'var(--ink3)' }}>Batch name
             <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Mementos — first batch" style={{ marginTop: '4px' }} />
           </label>
+          {variants.length > 0 ? (
+            <label style={{ fontSize: '13px', color: 'var(--ink3)', display: 'block', marginTop: '10px' }}>Memento artwork template
+              <select value={variantId} onChange={e => setVariantId(e.target.value)} style={{ display: 'block', marginTop: '4px', padding: '8px 10px', borderRadius: '8px', border: '1.5px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontFamily: 'inherit', fontSize: '14px' }}>
+                {variants.map(v => <option key={v.id} value={v.id}>{v.name} — {v.width}×{v.height}px</option>)}
+              </select>
+              <span style={{ fontSize: '12px' }}>Each speaker&apos;s Cleaned Photo is placed on a transparent PNG of this size with the head fixed in position.</span>
+            </label>
+          ) : (
+            <div style={{ fontSize: '12.5px', color: 'var(--amber)', marginTop: '10px' }}>No Memento template is set up for this event — the vendor will get the plain Cleaned Photos. Add one under Creative Templates → Admin Console → New Variant → Speaker Memento.</div>
+          )}
         </div>
         <div style={{ padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', borderBottom: '1px solid var(--border-light)' }}>
           <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search speakers…" style={{ flex: '1 1 220px', maxWidth: '320px' }} />

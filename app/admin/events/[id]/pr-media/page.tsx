@@ -1,22 +1,26 @@
 'use client'
 
-import { use, useCallback, useEffect, useMemo, useState } from 'react'
+import { use, useCallback, useEffect, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
-import { Badge, Button, Card, Input, Select, Textarea } from '@/app/components/ui'
+import { Button, Card, Input, Select, Textarea } from '@/app/components/ui'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import { downloadFormattedXlsx } from '@/app/lib/export/formatted-xlsx'
-import { toMinutes, fromMinutes, describeWindows, type MediaDay, type MediaWindow } from '@/app/lib/pr/windows'
+import { notify } from '@/app/lib/ui/notify'
+import { toMinutes, dayBlocks, slotOf, describeWindows, type MediaDay, type MediaWindow } from '@/app/lib/pr/windows'
 
-/* PR & Media (2026-10-21): what the event's PR person works from. Responses = every speaker with their media-interview answer; Availability = per day,
-   who is free when; Settings = PR contacts, the days/hours the speaker form offers, and the line speakers see about who contacts them.
-   Asking speakers happens in the Stakeholder Hub (bulk action "Request media interest"). */
+/* PR & Media (2026-10-21): what the event's PR person works from. Speakers = only those who said YES to media interviews, with their times and notes (that is all PR acts on);
+   Availability = per day, who is free when; Settings = PR contacts, the days/hours the speaker form offers, and the line speakers see about who contacts them.
+   Asking speakers, reminders and who has not answered are the producers' side: Stakeholder Hub › Speakers › Media Interviews. */
 
 type State = 'not_asked' | 'asked' | 'interested' | 'declined'
-type Row = { speaker_id: string; name: string; company: string | null; role: string | null; producer: string | null; request_id: string | null; state: State; windows: MediaWindow[]; note: string | null; pr_note: string | null; sent_at: string | null; submitted_at: string | null; last_opened_at: string | null; reminder_count: number; expired: boolean }
+type Row = {
+  speaker_id: string; name: string; public_name: string; company: string | null; role: string | null; country: string | null; producer: string | null; request_id: string | null; state: State; windows: MediaWindow[]
+  note: string | null; pr_note: string | null; sent_at: string | null; submitted_at: string | null; last_opened_at: string | null; short_bio: string | null; full_bio_url: string | null
+  email: string | null; phone: string | null; additional_contacts: { name: string; email: string }[]
+}
 type Person = { id: string; name: string; email: string; role?: string | null }
 type Settings = { contacts: Person[]; contacts_assigned: boolean; candidates: Person[]; days: MediaDay[]; suggestion: { days: MediaDay[]; source: string }; intro: string | null; days_confirmed_at: string | null; timezone: string }
 
-const TONE: Record<State, { label: string; color: 'grey' | 'amber' | 'teal' | 'red' }> = { not_asked: { label: 'Not asked', color: 'grey' }, asked: { label: 'Waiting for answer', color: 'amber' }, interested: { label: 'Interested', color: 'teal' }, declined: { label: 'Not available', color: 'red' } }
 const fmtDay = (d: string) => new Date(d + 'T12:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
 const fmtDate = (s: string | null) => s ? new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : ''
 
@@ -26,10 +30,11 @@ export default function PrMediaPage({ params }: { params: Promise<{ id: string }
   const [rows, setRows] = useState<Row[] | null>(null)
   const [settings, setSettings] = useState<Settings | null>(null)
   const [eventName, setEventName] = useState<string | null>(null)
+  const [eventVenue, setEventVenue] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [toast, setToast] = useState<{ text: string; ok: boolean } | null>(null)
-  const [filter, setFilter] = useState<'all' | State>('all')
   const [search, setSearch] = useState('')
+  const [exportOpen, setExportOpen] = useState(false)
+  const [exportFields, setExportFields] = useState<Set<string>>(new Set())
   useBreadcrumbLabel(eventId, eventName)
 
   const [tick, setTick] = useState(0)
@@ -42,96 +47,137 @@ export default function PrMediaPage({ params }: { params: Promise<{ id: string }
       if (cancelled) return
       if (!a.ok) { setError(ad.error ?? 'Could not load PR & Media.'); setRows([]); return }
       setRows(ad.rows); if (b.ok) setSettings(bd)
-      const ev = Array.isArray(ed) ? ed[0] : ed; setEventName(ev?.public_name || ev?.name || null)
+      const ev = Array.isArray(ed) ? ed[0] : ed; setEventName(ev?.public_name || ev?.name || null); setEventVenue(ev?.public_venue_display || [ev?.venue, ev?.city].filter(Boolean).join(', ') || null)
     })()
     return () => { cancelled = true }
   }, [eventId, tick])
 
-  const say = (text: string, ok = true) => setToast({ text, ok })
-  const counts = useMemo(() => { const c = { not_asked: 0, asked: 0, interested: 0, declined: 0 }; for (const r of rows ?? []) c[r.state]++; return c }, [rows])
-  const shown = (rows ?? []).filter(r => (filter === 'all' || r.state === filter) && (!search.trim() || `${r.name} ${r.company ?? ''}`.toLowerCase().includes(search.trim().toLowerCase())))
+  const say = (text: string, ok = true) => notify(text, ok ? 'success' : 'error')
+  const shown = (rows ?? []).filter(r => (!search.trim() || `${r.public_name} ${r.company ?? ''} ${r.role ?? ''} ${r.country ?? ''}`.toLowerCase().includes(search.trim().toLowerCase())))
 
-  async function remind(r: Row) {
-    const res = await fetch(`/api/events/pr/requests/${r.request_id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'remind' }) })
-    const d = await res.json().catch(() => ({}))
-    if (!res.ok) { say(d.error ?? 'Could not send the reminder.', false); return }
-    say(`Reminder sent to ${r.name}.`); void load()
-  }
   async function saveNote(r: Row, text: string) {
     if (text === (r.pr_note ?? '')) return
     const res = await fetch(`/api/events/pr/requests/${r.request_id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pr_note: text }) })
     if (!res.ok) { say('Could not save the note.', false); return }
     setRows(prev => prev?.map(x => x.speaker_id === r.speaker_id ? { ...x, pr_note: text || null } : x) ?? prev)
   }
+  // Columns the PR team can put in the Excel they share with the media. Contact details start unticked: only added when really needed.
+  const EXPORT_FIELDS: { key: string; label: string; width: number; contact?: boolean; locked?: boolean; get: (r: Row) => string }[] = [
+    { key: 'event', label: 'Event', width: 30, get: () => eventName ?? '' },
+    { key: 'venue', label: 'Venue', width: 30, get: () => eventVenue ?? '' },
+    { key: 'name', label: 'Speaker', width: 26, locked: true, get: r => r.public_name },
+    { key: 'role', label: 'Job title', width: 30, get: r => r.role ?? '' },
+    { key: 'company', label: 'Company', width: 26, get: r => r.company ?? '' },
+    { key: 'country', label: 'Country', width: 16, get: r => r.country ?? '' },
+    { key: 'short_bio', label: 'Short bio', width: 60, get: r => r.short_bio ?? '' },
+    { key: 'full_bio', label: 'Full bio (download link)', width: 18, get: r => r.full_bio_url ?? '' },
+    { key: 'available', label: 'Available', width: 36, get: r => [...new Set(r.windows.map(w => w.date))].sort().map(d => `${fmtDay(d)}: ${describeWindows(r.windows.filter(w => w.date === d))}`).join('\n') },
+    { key: 'note', label: 'Speaker note', width: 36, get: r => r.note ?? '' },
+    { key: 'producer', label: 'Producer', width: 20, get: r => r.producer ?? '' },
+    { key: 'asked', label: 'Asked', width: 12, get: r => fmtDate(r.sent_at) },
+    { key: 'answered', label: 'Answered', width: 12, get: r => fmtDate(r.submitted_at) },
+    { key: 'email', label: 'Email', width: 28, contact: true, get: r => r.email ?? '' },
+    { key: 'phone', label: 'Phone', width: 18, contact: true, get: r => r.phone ?? '' },
+    { key: 'extra', label: 'Additional contacts', width: 40, contact: true, get: r => r.additional_contacts.map(c => `${c.name ? `${c.name} — ` : ''}${c.email}`).join('\n') },
+  ]
   async function exportXlsx() {
-    const list = (rows ?? []).filter(r => r.state !== 'not_asked')
+    const list = rows ?? []
+    const cols = EXPORT_FIELDS.filter(f => exportFields.has(f.key))
+    // For sharing with the media. PR's own notes stay internal and are never exported.
     await downloadFormattedXlsx({
-      filename: `media-availability-${new Date().toISOString().slice(0, 10)}.xlsx`, sheetName: 'Media availability', title: `${eventName ? `${eventName} — ` : ''}Media interview availability`,
-      subtitle: `${list.length} speaker${list.length === 1 ? '' : 's'} asked · times are event time (${settings?.timezone ?? ''})`,
-      columns: [{ header: 'Speaker', width: 26 }, { header: 'Company', width: 26 }, { header: 'Status', width: 18 }, { header: 'Available', width: 48 }, { header: 'Speaker note', width: 40 }, { header: 'PR note', width: 40 }, { header: 'Producer', width: 20 }],
-      rows: list.map(r => [r.name, r.company ?? '', TONE[r.state].label, [...new Set(r.windows.map(w => w.date))].map(d => `${fmtDay(d)}: ${describeWindows(r.windows.filter(w => w.date === d))}`).join('\n'), r.note ?? '', r.pr_note ?? '', r.producer ?? '']),
-      tone: (h, v) => h !== 'Status' ? undefined : v === 'Interested' ? 'teal' : v === 'Not available' ? 'red' : v === 'Waiting for answer' ? 'amber' : 'grey',
+      filename: `media-speakers-${new Date().toISOString().slice(0, 10)}.xlsx`, sheetName: 'Speakers open to media', title: `${eventName ? `${eventName} — ` : ''}Speakers open to media interviews`,
+      subtitle: `${list.length} speaker${list.length === 1 ? '' : 's'} · times are event time (${settings?.timezone ?? ''})`,
+      columns: cols.map(f => ({ header: f.label, width: f.width })),
+      rows: list.map(r => cols.map(f => f.get(r))),
     })
+    setExportOpen(false)
   }
 
   const needsSetup = settings && (!settings.days.length || !settings.days_confirmed_at || !settings.contacts.length)
   return (
     <div style={{ minHeight: '100vh', background: 'var(--surface)' }}>
-      <PageHeader eyebrow="PR & Media" title="Media interview availability" backHref={`/admin/events/${eventId}`} backLabel="Event workspace"
-        description="Speakers who are open to media bites or interviews, and the times they are free. Ask speakers from the Stakeholder Hub (select speakers › Actions › Request media interest)." />
+      <PageHeader eyebrow="PR & Media" title="Speakers open to media interviews" backHref={`/admin/events/${eventId}`} backLabel="Event workspace"
+        description="Speakers who said yes to media bites or interviews, and the times they are free. Producers ask the speakers; you see the ones who agreed." />
       <div style={{ padding: '20px 32px 60px', maxWidth: '1100px' }}>
         {error && <div style={{ color: 'var(--red)', fontSize: '14px', marginBottom: '12px' }}>{error}</div>}
-        {toast && <div role="status" style={{ marginBottom: '12px', padding: '10px 14px', borderRadius: '8px', fontSize: '13.5px', background: toast.ok ? 'var(--teal-light)' : 'var(--red-light)', border: `1px solid ${toast.ok ? 'var(--teal)' : 'var(--red-border)'}`, color: toast.ok ? 'var(--teal)' : 'var(--red)' }}>{toast.text} <button onClick={() => setToast(null)} aria-label="Dismiss" style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700 }}>×</button></div>}
         {needsSetup && (
           <div style={{ marginBottom: '14px', padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--amber)', background: 'var(--amber-light)', color: 'var(--ink)', fontSize: '13.5px', lineHeight: 1.5 }}>
             Before producers can ask speakers: {[!settings.contacts.length && 'choose the PR contact', !settings.days.length ? 'add the media days and hours' : !settings.days_confirmed_at && 'confirm the media days and hours'].filter(Boolean).join(' and ')}. Do it under <button onClick={() => setTab('settings')} style={{ background: 'none', border: 'none', color: 'var(--teal)', cursor: 'pointer', fontWeight: 800, padding: 0, fontFamily: 'inherit', fontSize: 'inherit' }}>Settings</button>.
           </div>
         )}
         <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
-          {(['responses', 'availability', 'settings'] as const).map(t => <Button key={t} variant={tab === t ? 'teal' : 'ghost'} onClick={() => setTab(t)}>{t === 'responses' ? 'Responses' : t === 'availability' ? 'Availability' : 'Settings'}</Button>)}
+          {(['responses', 'availability', 'settings'] as const).map(t => <Button key={t} variant={tab === t ? 'teal' : 'ghost'} onClick={() => setTab(t)}>{t === 'responses' ? 'Speakers' : t === 'availability' ? 'Availability' : 'Settings'}</Button>)}
           <div style={{ flex: 1 }} />
-          {tab === 'responses' && <Button variant="ghost" onClick={exportXlsx} disabled={!rows?.some(r => r.state !== 'not_asked')}>Download Excel</Button>}
+          {tab === 'responses' && <Button variant="ghost" onClick={() => { setExportFields(new Set(EXPORT_FIELDS.filter(f => !f.contact).map(f => f.key))); setExportOpen(true) }} disabled={!rows?.length}>Download Excel</Button>}
         </div>
 
         {tab === 'responses' && (
           <>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '12px' }}>
-              {(['all', 'interested', 'asked', 'declined', 'not_asked'] as const).map(f => (
-                <button key={f} onClick={() => setFilter(f)} style={{ padding: '6px 12px', borderRadius: '999px', border: '1.5px solid var(--border)', background: filter === f ? 'var(--ink)' : 'transparent', color: filter === f ? 'var(--card)' : 'var(--ink2)', fontWeight: 700, fontSize: '12.5px', cursor: 'pointer', fontFamily: 'inherit' }}>
-                  {f === 'all' ? `All ${rows?.length ?? 0}` : `${TONE[f].label} ${counts[f]}`}
-                </button>
-              ))}
+              <div style={{ fontWeight: 800, fontSize: '14px' }}>{rows === null ? '' : `${rows.length} speaker${rows.length === 1 ? '' : 's'} open to media`}</div>
               <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search speaker or company" style={{ width: '220px', marginLeft: 'auto' }} />
             </div>
-            {rows === null ? <div style={{ color: 'var(--ink3)' }}>Loading…</div> : shown.length === 0 ? <div style={{ color: 'var(--ink3)', fontSize: '14px' }}>Nobody matches.</div> : (
+            {rows === null ? <div style={{ color: 'var(--ink3)' }}>Loading…</div> : shown.length === 0 ? <div style={{ color: 'var(--ink3)', fontSize: '14px' }}>{rows?.length ? 'Nobody matches.' : 'No speaker has said yes yet. Producers ask the speakers from Stakeholder Hub › Speakers › Media Interviews.'}</div> : (
               <div style={{ display: 'grid', gap: '10px' }}>
                 {shown.map(r => (
                   <Card key={r.speaker_id} padded>
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                      <div style={{ fontWeight: 800, fontSize: '15px' }}>{r.name}</div>
-                      <Badge color={TONE[r.state].color}>{TONE[r.state].label}</Badge>
-                      {r.expired && r.state === 'asked' && <Badge color="red">Link expired</Badge>}
-                      <div style={{ color: 'var(--ink3)', fontSize: '12.5px' }}>{[r.role, r.company].filter(Boolean).join(' · ')}</div>
-                      <div style={{ flex: 1 }} />
-                      {r.state === 'asked' && <Button variant="ghost" onClick={() => remind(r)}>Send reminder{r.reminder_count ? ` (${r.reminder_count} sent)` : ''}</Button>}
+                    <div style={{ fontWeight: 800, fontSize: '16px' }}>{r.public_name}</div>
+                    <div style={{ color: 'var(--ink2)', fontSize: '13.5px', marginTop: '2px' }}>{[r.role, r.company, r.country].filter(Boolean).join(' · ') || '—'}</div>
+                    {r.short_bio && <p style={{ margin: '10px 0 0', fontSize: '13.5px', lineHeight: 1.6, color: 'var(--ink2)', whiteSpace: 'pre-wrap' }}>{r.short_bio}</p>}
+                    <div style={{ marginTop: '8px', fontSize: '13px' }}>
+                      {r.full_bio_url
+                        ? <a href={r.full_bio_url} download target="_blank" rel="noopener noreferrer" style={{ color: 'var(--teal)', fontWeight: 700 }}>Download full bio ↓</a>
+                        : <span style={{ color: 'var(--ink4)' }}>No full bio on file</span>}
                     </div>
-                    {r.state === 'interested' && (
-                      <div style={{ marginTop: '8px', fontSize: '13.5px', lineHeight: 1.6 }}>
-                        {[...new Set(r.windows.map(w => w.date))].map(d => <div key={d}><strong>{fmtDay(d)}</strong>: {describeWindows(r.windows.filter(w => w.date === d))}</div>)}
+                    <div style={{ marginTop: '12px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px 24px', fontSize: '13.5px', lineHeight: 1.6 }}>
+                      <div>
+                        <div style={{ fontSize: '11.5px', fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--ink3)' }}>Available</div>
+                        {[...new Set(r.windows.map(w => w.date))].sort().map(d => <div key={d}><strong>{fmtDay(d)}</strong>: {describeWindows(r.windows.filter(w => w.date === d))}</div>)}
                         {r.note && <div style={{ color: 'var(--ink3)', marginTop: '4px' }}>“{r.note}”</div>}
                       </div>
-                    )}
-                    <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--ink4)' }}>
-                      {r.state === 'not_asked' ? 'Not asked yet.' : `Asked ${fmtDate(r.sent_at)}${r.submitted_at ? ` · answered ${fmtDate(r.submitted_at)}` : r.last_opened_at ? ` · opened ${fmtDate(r.last_opened_at)}` : ''}${r.producer ? ` · producer ${r.producer}` : ''}`}
+                      <div>
+                        <div style={{ fontSize: '11.5px', fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--ink3)' }}>Contact</div>
+                        {r.email ? <div><a href={`mailto:${r.email}`} style={{ color: 'var(--teal)' }}>{r.email}</a></div> : null}
+                        {r.phone ? <div><a href={`tel:${r.phone}`} style={{ color: 'var(--teal)' }}>{r.phone}</a></div> : null}
+                        {r.additional_contacts.map(c => <div key={c.email}>{c.name ? `${c.name} — ` : ''}<a href={`mailto:${c.email}`} style={{ color: 'var(--teal)' }}>{c.email}</a></div>)}
+                        {!r.email && !r.phone && r.additional_contacts.length === 0 && <div style={{ color: 'var(--ink4)' }}>No contact details on file</div>}
+                      </div>
+                    </div>
+                    <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--ink4)' }}>
+                      Asked {fmtDate(r.sent_at)}{r.submitted_at ? ` · answered ${fmtDate(r.submitted_at)}` : ''}{r.producer ? ` · producer ${r.producer}` : ''}
                     </div>
                     {r.request_id && (
-                      <Textarea defaultValue={r.pr_note ?? ''} onBlur={e => void saveNote(r, e.target.value.trim())} placeholder="PR note (e.g. interview with the TV crew at 11:30)" rows={1} style={{ marginTop: '8px', fontSize: '13px' }} />
+                      <Textarea defaultValue={r.pr_note ?? ''} onBlur={e => void saveNote(r, e.target.value.trim())} placeholder="PR note (e.g. interview with the TV crew at 11:30) — internal, not in the Excel" rows={1} style={{ marginTop: '8px', fontSize: '13px' }} />
                     )}
                   </Card>
                 ))}
               </div>
             )}
           </>
+        )}
+
+        {exportOpen && (
+          <div role="dialog" aria-modal="true" style={{ position: 'fixed', inset: 0, background: 'var(--overlay-scrim)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+            <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '22px', width: 'min(520px, 100%)', maxHeight: '90vh', overflowY: 'auto' }}>
+              <div style={{ fontSize: '18px', fontWeight: 900, marginBottom: '4px' }}>Download Excel</div>
+              <div style={{ fontSize: '13.5px', color: 'var(--ink3)', marginBottom: '14px', lineHeight: 1.5 }}>Choose what goes in the sheet. Contact details are left out unless you tick them. Your PR notes are never included.</div>
+              {[false, true].map(contact => (
+                <div key={String(contact)} style={{ marginBottom: '12px' }}>
+                  <div style={{ fontSize: '11.5px', fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '6px' }}>{contact ? 'Contact details' : 'Speaker details'}</div>
+                  {EXPORT_FIELDS.filter(f => !!f.contact === contact).map(f => (
+                    <label key={f.key} style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '14px', padding: '3px 0', cursor: f.locked ? 'default' : 'pointer' }}>
+                      <input type="checkbox" checked={exportFields.has(f.key)} disabled={f.locked} onChange={() => setExportFields(prev => { const n = new Set(prev); if (n.has(f.key)) n.delete(f.key); else n.add(f.key); return n })} />
+                      {f.label}{f.locked ? <span style={{ color: 'var(--ink4)' }}> (always included)</span> : null}
+                    </label>
+                  ))}
+                </div>
+              ))}
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '16px' }}>
+                <Button variant="ghost" onClick={() => setExportOpen(false)}>Cancel</Button>
+                <Button variant="teal" onClick={exportXlsx}>Download</Button>
+              </div>
+            </div>
+          </div>
         )}
 
         {tab === 'availability' && <AvailabilityView rows={rows ?? []} days={settings?.days ?? []} />}
@@ -149,8 +195,7 @@ function AvailabilityView({ rows, days }: { rows: Row[]; days: MediaDay[] }) {
   return (
     <div style={{ display: 'grid', gap: '16px' }}>
       {days.map(d => {
-        const hours: { from: string; to: string }[] = []
-        for (let s = toMinutes(d.open); s < toMinutes(d.close); s = (Math.floor(s / 60) + 1) * 60) hours.push({ from: fromMinutes(s), to: fromMinutes(Math.min(toMinutes(d.close), (Math.floor(s / 60) + 1) * 60)) })
+        const hours = dayBlocks(d.open, d.close, slotOf(d))
         return (
           <Card key={d.day} padded>
             <div style={{ fontWeight: 900, fontSize: '15px', marginBottom: '8px' }}>{fmtDay(d.day)}</div>
@@ -204,18 +249,27 @@ function SettingsView({ eventId, settings, reload, say }: { eventId: string; set
 
       <Card padded>
         <div style={{ fontWeight: 900, fontSize: '15px' }}>Media days and hours</div>
-        <p style={{ fontSize: '13px', color: 'var(--ink3)', margin: '4px 0 10px', lineHeight: 1.5 }}>The days and hours speakers can choose from (event time, {settings.timezone.replace('_', ' ')}). {settings.days.length ? '' : `Pre-filled from ${settings.suggestion.source === 'agenda' ? 'the agenda' : settings.suggestion.source === 'event_days' ? 'the event dates (09:00–17:00)' : 'nothing yet — add the days'}; check them.`}</p>
+        <p style={{ fontSize: '13px', color: 'var(--ink3)', margin: '4px 0 10px', lineHeight: 1.5 }}>Set each day’s overall hours (e.g. 10:00 to 17:00), then split them into half-hour or one-hour slots. Speakers tap as many slots as they are free for (event time, {settings.timezone.replace('_', ' ')}). {settings.days.length ? '' : `Pre-filled from ${settings.suggestion.source === 'agenda' ? 'the agenda' : settings.suggestion.source === 'event_days' ? 'the event dates (09:00–17:00)' : 'nothing yet — add the days'}; check them.`}</p>
         {days.map((d, i) => (
           <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap' }}>
             <Input type="date" value={d.day} onChange={e => setDay(i, { day: e.target.value })} style={{ width: '160px' }} />
             <Input type="time" value={d.open} onChange={e => setDay(i, { open: e.target.value })} style={{ width: '120px' }} />
             <span style={{ color: 'var(--ink3)' }}>to</span>
             <Input type="time" value={d.close} onChange={e => setDay(i, { close: e.target.value })} style={{ width: '120px' }} />
+            {([30, 60] as const).map(m => (
+              <Button key={m} variant={slotOf(d) === m ? 'teal' : 'ghost'} onClick={() => setDay(i, { slot: m })}>{m === 30 ? 'Split into half-hour slots' : 'Split into one-hour slots'}</Button>
+            ))}
+            <span style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>{dayBlocks(d.open, d.close, slotOf(d)).length === 1 ? '1 slot' : `${dayBlocks(d.open, d.close, slotOf(d)).length} slots`}</span>
             <Button variant="ghost" onClick={() => setDays(ds => ds.filter((_, j) => j !== i))}>Remove</Button>
+            <div style={{ flexBasis: '100%', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              {dayBlocks(d.open, d.close, slotOf(d)).map(b => (
+                <span key={b.from} style={{ fontSize: '12.5px', fontWeight: 700, padding: '4px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card-hi)', color: 'var(--ink2)' }}>{b.from}–{b.to}</span>
+              ))}
+            </div>
           </div>
         ))}
         <div style={{ display: 'flex', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
-          <Button variant="ghost" onClick={() => setDays(ds => [...ds, { day: '', open: '09:00', close: '17:00' }])}>＋ Add a day</Button>
+          <Button variant="ghost" onClick={() => setDays(ds => [...ds, { day: '', open: '09:00', close: '17:00', slot: 60 }])}>＋ Add a day</Button>
           <Button variant="ghost" onClick={() => setDays(settings.suggestion.days)} disabled={!settings.suggestion.days.length}>Reset to suggestion</Button>
         </div>
         <div style={{ marginTop: '12px', fontSize: '13px', color: settings.days_confirmed_at && !unsavedDays ? 'var(--teal)' : 'var(--amber)' }}>

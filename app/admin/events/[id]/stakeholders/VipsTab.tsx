@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import * as XLSX from 'xlsx'
-import { Badge, Button, Card, Input, Select } from '@/app/components/ui'
+import { Badge, Button, Card, Input, Select, Toast } from '@/app/components/ui'
 
 /* VIPs (2026-10-19) — people a client (DIFC, KSDC …) sends us only so we can print a badge for them: name, job title, company, country and an
    optional photo. Deliberately laid out like the Speakers registry in page.tsx (same row cards, select-all + bulk bar, Add slide-over, search,
@@ -158,16 +158,8 @@ export default function VipsTab({ eventId, can }: { eventId: string; can: (key: 
         </div>
       </div>
 
-      {msg && (
-        <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '14.5px', marginBottom: '14px' }}>
-          {msg} <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>
-        </div>
-      )}
-      {note && (
-        <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--surface)', border: '1px solid var(--border-light)', color: 'var(--teal)', fontSize: '14.5px', marginBottom: '14px' }}>
-          {note} <button onClick={() => setNote(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>
-        </div>
-      )}
+      <Toast message={msg} type="error" onClose={() => setMsg(null)} />
+      <Toast message={note} type="success" onClose={() => setNote(null)} />
 
       {selectedIds.size > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', background: 'var(--red-light)', border: '1px solid var(--red-border)', borderRadius: '8px', marginBottom: '14px', flexWrap: 'wrap' }}>

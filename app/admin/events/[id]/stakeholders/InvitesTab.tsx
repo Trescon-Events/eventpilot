@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, Button, Input, Select, Badge } from '@/app/components/ui'
+import { Card, Button, Input, Select, Badge, Toast } from '@/app/components/ui'
 import InviteComposer from './InviteComposer'
 
 /* Unified top-level Invites tab (2026-08-14, per Madhu) — every invite sent
@@ -85,11 +85,7 @@ export default function InvitesTab({ eventId, can }: { eventId: string; can: (ke
         {can('sae.invites.send') && <Button variant="lime" onClick={() => setComposeOpen(true)}>+ Invite</Button>}
       </div>
 
-      {msg && (
-        <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '14.5px', marginBottom: '14px' }}>
-          {msg} <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>
-        </div>
-      )}
+      {msg && <Toast message={msg} type="error" onClose={() => setMsg(null)} />}
 
       <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
         <Card padded>

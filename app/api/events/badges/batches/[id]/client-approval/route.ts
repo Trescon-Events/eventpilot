@@ -58,7 +58,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Rows exist before any email goes out, so a failed send still leaves usable links.
     const results: { email: string; sent: boolean }[] = []
     for (const r of recipients as RecipientRow[]) {
-      const sent = await sendApprovalEmail({ to: r.email, recipientName: r.name, eventName, batchName: batch.name, badges: live.length, token: r.token, sender, message })
+      const sent = await sendApprovalEmail({ eventId: batch.event_id, to: r.email, recipientName: r.name, eventName, batchName: batch.name, badges: live.length, token: r.token, sender, message })
       if (sent) await supabaseAdmin.from('badge_approval_recipients').update({ notified_at: new Date().toISOString() }).eq('id', r.id)
       results.push({ email: r.email, sent })
     }
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const sender = await senderFor(auth.session.sid)
     const results: { email: string; sent: boolean }[] = []
     for (const r of (recipients ?? []) as RecipientRow[]) {
-      const sent = await sendApprovalEmail({ to: r.email, recipientName: r.name, eventName, batchName: batch.name, badges: round.badges, token: r.token, sender, message: round.message, reminder: true })
+      const sent = await sendApprovalEmail({ eventId: batch.event_id, to: r.email, recipientName: r.name, eventName, batchName: batch.name, badges: round.badges, token: r.token, sender, message: round.message, reminder: true })
       if (sent) await supabaseAdmin.from('badge_approval_recipients').update({ reminder_count: r.reminder_count + 1, last_reminder_at: new Date().toISOString() }).eq('id', r.id)
       results.push({ email: r.email, sent })
     }

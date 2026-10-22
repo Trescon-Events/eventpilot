@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
+import { canEditEmailTemplates } from '@/app/lib/access/email-template-access'
 import { renderEmailTemplate } from '@/app/lib/email/render-template'
 import { sendGraphMail } from '@/app/lib/email/graph-mail'
 
@@ -17,7 +18,7 @@ type VariableHint = { key: string; label?: string }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = getSession(req)
-  if (!session?.adm) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
+  if (!session || !(await canEditEmailTemplates(session))) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   const { id } = await params
 
   const body = await req.json().catch(() => ({})) as { to?: string }

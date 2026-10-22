@@ -5,7 +5,7 @@ import { DndContext, PointerSensor, useSensor, useSensors, DragEndEvent } from '
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import PageHeader from '@/app/components/PageHeader'
-import { Button, Input } from '@/app/components/ui'
+import { Button, Input, Toast } from '@/app/components/ui'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 
 /* Speaker Order (2026-09-09) — drag-to-reorder for speakers already live
@@ -212,16 +212,7 @@ export default function SpeakerOrderPage({ params }: { params: Promise<{ id: str
           </Button>
         </div>
 
-        {msg && (
-          <div style={{
-            padding: '10px 14px', borderRadius: '8px', marginBottom: '14px', fontSize: '12.5px',
-            background: msgIsError ? 'var(--red-light)' : 'var(--success-light)',
-            border: `1px solid ${msgIsError ? 'var(--red-border)' : 'color-mix(in srgb, var(--success) 40%, transparent)'}`,
-            color: msgIsError ? 'var(--red)' : 'var(--success)',
-          }}>
-            {msg}
-          </div>
-        )}
+        <Toast message={msg} type={msgIsError ? 'error' : 'success'} onClose={() => setMsg(null)} />
 
         {loading ? (
           <div style={{ fontSize: '13px', color: 'var(--ink4)', padding: '40px', textAlign: 'center' }}>Loading…</div>

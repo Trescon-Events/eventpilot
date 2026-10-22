@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
+import { canEditEmailTemplates } from '@/app/lib/access/email-template-access'
 import { getStakeholderHeaderUrl } from '@/app/lib/branding/email-header'
 
 /* GET  /api/admin/email-templates — list all templates
@@ -13,7 +14,7 @@ import { getStakeholderHeaderUrl } from '@/app/lib/branding/email-header'
 
 export async function GET(req: NextRequest) {
   const session = getSession(req)
-  if (!session?.adm) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
+  if (!session || !(await canEditEmailTemplates(session))) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
 
   const { data, error } = await supabaseAdmin
     .from('email_templates')

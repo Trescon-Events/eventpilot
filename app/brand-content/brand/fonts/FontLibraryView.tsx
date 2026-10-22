@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Button, Card, Input } from '@/app/components/ui'
+import { Button, Card, Input, Toast } from '@/app/components/ui'
 
 /* Platform-level font library (SAE Phase C v4) — not event-scoped. Fonts
    uploaded or fetched here become selectable from any text layer's Font
@@ -121,11 +121,7 @@ export default function BrandingFontsPage() {
     <div style={{ minHeight: '100vh', background: 'var(--surface)' }}>
 
       <div style={{ padding: '24px 32px', maxWidth: '860px' }}>
-        {msg && (
-          <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '12.5px', marginBottom: '16px' }}>
-            {msg} <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>
-          </div>
-        )}
+        {msg && <Toast message={msg} type="error" onClose={() => setMsg(null)} />}
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
           <Card padded>
