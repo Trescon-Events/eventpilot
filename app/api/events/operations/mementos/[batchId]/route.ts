@@ -39,7 +39,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
       const safe = batch.name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'mementos'
       return new NextResponse(stream, { headers: { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${safe}-photos.zip"`, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } })
     } catch (e) {
-      return NextResponse.json({ error: e instanceof PhotoFetchError ? e.message : 'Could not build the photo pack.' }, { status: 502 })
+      return NextResponse.json({ error: e instanceof PhotoFetchError ? e.message : 'Could not build the photo pack.' }, { status: 424 })
     }
   }
 

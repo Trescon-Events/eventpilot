@@ -63,7 +63,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ use
     if (purpose === 'invite') await sendVendorInvite({ to: user.email, name: user.name, vendorName: vendor?.name ?? 'your company', link: url, hours })
     else await sendVendorReset({ to: user.email, name: user.name, link: url, hours })
   } catch (e) {
-    return NextResponse.json({ error: `The email could not be sent. ${e instanceof Error ? e.message : ''}`.trim() }, { status: 502 })
+    return NextResponse.json({ error: `The email could not be sent. ${e instanceof Error ? e.message : ''}`.trim() }, { status: 424 })
   }
   await audit(purpose === 'invite' ? 'vendor_user_invite_resent' : 'vendor_user_reset_sent')
   return NextResponse.json({ ok: true, sent_to: user.email })

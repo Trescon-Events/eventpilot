@@ -122,13 +122,13 @@ export const CREDENTIALS: Credential[] = [
   },
   {
     id: 'resend', platform: 'Resend', group: 'Sign-in & email',
-    what: 'System email (internal notices, approvals).',
-    vars: ['RESEND_API_KEY'], stores: ['railway'],
-    consoleUrl: 'https://resend.com/api-keys',
-    login: 'confirm',
-    rotate: 'Create API Key (sending access, domain eventpilot.tresconglobal.com) → Railway → deploy → delete old.',
+    what: 'System email (internal notices, approvals, vendor-portal invites/OTPs). Sends from noreply@eventpilot.tresconglobal.com, so the key MUST come from the Resend account where that domain is verified.',
+    vars: ['RESEND_API_KEY', 'RESEND_FROM', 'RESEND_FROM_EMAIL'], stores: ['railway'],
+    consoleUrl: 'https://resend.com/domains',
+    login: 'The Resend account that shows eventpilot.tresconglobal.com as Verified on its Domains page. NOT webadmin@tresconglobal.com — that account has no domain and cannot send (found 22 Oct 2026).',
+    rotate: 'In the right account: API keys → Create API key (sending access, that domain) → Railway RESEND_API_KEY → deploy → send a test (vendor-portal invite) → delete old. RESEND_FROM / RESEND_FROM_EMAIL are just the sender address, not secrets.',
     mode: 'old-stays',
-    note: 'The Staff Portal has its own RESEND_API_KEY — check whether it is the same key before deleting the old one.',
+    note: 'A key from the wrong account fails every send (vendor invites showed only "Could not create the login"). The Staff Portal has its own RESEND_API_KEY — check whether it is the same key before deleting the old one.',
   },
   {
     id: 'turnstile', platform: 'Cloudflare Turnstile', group: 'Sign-in & email',
@@ -157,7 +157,8 @@ export const CREDENTIALS: Credential[] = [
     vars: ['OPENAI_API_KEY'], stores: ['railway'],
     consoleUrl: 'https://platform.openai.com/api-keys',
     login: 'confirm',
-    rotate: 'Create new secret key → Railway → deploy → delete old. Check Usage for anything unexpected.',
+    rotate: 'Create new secret key (sk-proj-…) with the Copy button → verify it starts with sk- → Railway → deploy → delete old. Check Usage for anything unexpected.',
+    note: 'On 22 Oct 2026 a truncated copy (start of the key missing) caused "Incorrect API key" in Clean Photo. Always check the pasted value begins with sk-.',
     mode: 'old-stays',
   },
   {
@@ -222,7 +223,7 @@ export const CREDENTIALS: Credential[] = [
     vars: ['DOCUHUB_R2_ACCESS_KEY_ID', 'DOCUHUB_R2_SECRET_ACCESS_KEY', 'DOCUHUB_R2_ACCOUNT_ID', 'DOCUHUB_R2_BUCKET'], stores: ['railway'],
     consoleUrl: 'https://dash.cloudflare.com/?to=/:account/r2/api-tokens',
     login: 'md@tresconglobal.com (Cloudflare admin)',
-    rotate: 'R2 → Manage API tokens → Create Account API token (Object Read & Write, bucket docuhub-documents) → Railway → deploy → delete old token "EventPilot-DocuHub-Docs".',
+    rotate: 'R2 → Manage API tokens → Create Account API token (Object Read & Write, bucket docuhub-documents). Save the Access Key ID (32 chars) AND Secret Access Key (64 chars) — NOT the "token value". → Railway → deploy → delete old token "EventPilot-DocuHub-Docs".',
     mode: 'old-stays',
   },
   {

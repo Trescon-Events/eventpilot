@@ -65,7 +65,8 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     // Don't leave a login nobody can activate; ops can simply retry.
     await supabaseAdmin.from('ops_vendor_users').delete().eq('id', user.id)
-    return NextResponse.json({ error: `The invitation email could not be sent. ${e instanceof Error ? e.message : ''}`.trim() }, { status: 502 })
+    // 424, not 502: Cloudflare swaps an origin 502 for its own HTML page, which hid the real reason from the admin (22 Oct 2026).
+    return NextResponse.json({ error: `The invitation email could not be sent. ${e instanceof Error ? e.message : ''}`.trim() }, { status: 424 })
   }
 
   await logOpsAccess({ ...auditOwner(auth.scope), actorType: 'staff', actorId: auth.staffId, action: 'vendor_user_invited', targetType: 'vendor_user', targetId: user.id, meta: { vendor_id: body.vendor_id }, ip: clientIp(req) })
