@@ -54,5 +54,8 @@ jobs:
       - name: Nav + branding registry completeness
         run: npm run check:nav
 
+      - name: Credentials registry completeness
+        run: npm run check:keys
+
       - name: Build
         run: npm run build
