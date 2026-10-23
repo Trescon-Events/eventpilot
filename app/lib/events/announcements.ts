@@ -41,7 +41,7 @@ function getGemini() {
 // event_speakers.pronoun_style's CHECK constraint exactly (see
 // supabase/sae_migration.sql + supabase/sae_deterministic_copy_migration.sql
 // for 'honble'). Self-promo copy is first-person and never needs this.
-const PRONOUN_GUIDANCE: Record<string, string> = {
+export const PRONOUN_GUIDANCE: Record<string, string> = {
   he_him: 'he/him',
   she_her: 'she/her',
   his_excellency: '"His Excellency" (not "he/him")',

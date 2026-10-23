@@ -1,5 +1,7 @@
 'use client'
 
+import ExtraCcField from '@/app/components/ExtraCcField'
+import { parseExtraCc } from '@/app/lib/email/extra-cc'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/app/components/ui'
 
@@ -19,6 +21,8 @@ export default function BulkSendDialog({ eventId, kind, rows, deadlineText, onCl
   const [results, setResults] = useState<Record<string, Result>>({})
   const [stop, setStop] = useState(false)
   const stopRef = useRef(false)
+  const [ccText, setCcText] = useState('')
+  const extra = parseExtraCc(ccText)
   const noun = kind === 'invite' ? 'invite' : 'reminder'
 
   useEffect(() => {
@@ -36,7 +40,7 @@ export default function BulkSendDialog({ eventId, kind, rows, deadlineText, onCl
     for (let i = 0; i < ids.length; i += CHUNK) {
       if (stopRef.current) break
       const chunk = ids.slice(i, i + CHUNK)
-      const res = await fetch('/api/events/guest-invites/bulk-send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, kind, speaker_ids: chunk, batch_id: batchId }) })
+      const res = await fetch('/api/events/guest-invites/bulk-send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, kind, speaker_ids: chunk, batch_id: batchId, extra_cc: 'emails' in extra ? extra.emails : [] }) })
       const d = await res.json().catch(() => ({}))
       const out: Result[] = res.ok ? d.results : chunk.map(id => ({ id, status: 'failed' as const, reason: d.error ?? 'Request failed' }))
       setResults(prev => ({ ...prev, ...Object.fromEntries(out.map(r => [r.id, r])) }))
@@ -62,6 +66,8 @@ export default function BulkSendDialog({ eventId, kind, rows, deadlineText, onCl
             {kind === 'reminder' && ' Each reminder is worded to match how many places that speaker has used right now.'} Places are re-read from KonfHub as each email goes out; anyone who is no longer eligible is skipped.
           </div>
         )}
+
+        {stage === 'review' && <ExtraCcField value={ccText} onChange={setCcText} />}
 
         {stage === 'review' && (
           <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '12px' }}>
@@ -94,7 +100,7 @@ export default function BulkSendDialog({ eventId, kind, rows, deadlineText, onCl
         {stage === 'done' && <div style={{ fontSize: '14px', color: 'var(--ink2)' }}><strong>{count('sent')}</strong> sent{count('skipped') > 0 && <> · <strong>{count('skipped')}</strong> skipped</>}{count('failed') > 0 && <> · <strong style={{ color: 'var(--red)' }}>{count('failed')}</strong> failed</>}{done.length < rows.length && <> · {rows.length - done.length} not attempted</>}. Everything sent is in the send history below.</div>}
 
         <div style={{ display: 'flex', gap: '8px' }}>
-          {stage === 'review' && <Button variant="teal" onClick={run} disabled={sendable === 0}>{`Send ${rows.length} ${noun}${rows.length === 1 ? '' : 's'}`}</Button>}
+          {stage === 'review' && <Button variant="teal" onClick={run} disabled={sendable === 0 || 'error' in extra}>{`Send ${rows.length} ${noun}${rows.length === 1 ? '' : 's'}`}</Button>}
           {stage === 'review' && <Button variant="ghost" onClick={onClose}>Cancel</Button>}
           {stage === 'sending' && <Button variant="ghost" onClick={() => { stopRef.current = true; setStop(true) }} disabled={stop}>{stop ? 'Stopping after this batch…' : 'Stop after this batch'}</Button>}
           {stage === 'done' && <Button variant="teal" onClick={onClose}>Close</Button>}

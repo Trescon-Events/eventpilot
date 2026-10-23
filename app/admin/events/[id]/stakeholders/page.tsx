@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, use } from 'react'
+import { Fragment, useState, useEffect, useRef, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
@@ -9,7 +9,6 @@ import { Button, Card, Badge, Input, Select, ProcessingOverlay } from '@/app/com
 import { notify } from '@/app/lib/ui/notify'
 import { FormFieldInput } from '@/app/components/forms/FormFieldInput'
 import { downloadFilesAsZip } from '@/app/lib/download-file'
-import CalendarView from './CalendarView'
 import DeletedTab from './DeletedTab'
 import CancelledTab from './CancelledTab'
 import DeleteConfirmModal from './DeleteConfirmModal'
@@ -57,6 +56,8 @@ type Speaker = {
   // create-vs-update counts in the bulk confirm summary, same signal the
   // Details page's own Registration tab uses.
   konfhub_booking_id: string | null
+  // Hub filters (2026-10-23) — computed in GET .../speakers
+  docs_pending?: boolean; no_contact_email?: boolean
 }
 
 type Partner = {
@@ -193,7 +194,9 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   const router = useRouter()
 
   const [activeTab, setActiveTab] = useState(CATEGORIES[0].key)
-  const [viewMode, setViewMode] = useState<'registry' | 'calendar'>('registry')
+  const [speakerMenuOpen, setSpeakerMenuOpen] = useState(true)
+  const [quick, setQuick] = useState({ docs: false, noEmail: false, notPublished: false })
+  const [sendMenuOpen, setSendMenuOpen] = useState(true)
   const [speakers, setSpeakers] = useState<Speaker[]>([])
   const [partners, setPartners] = useState<Partner[]>([])
   const [submissions, setSubmissions] = useState<Submission[]>([])
@@ -724,7 +727,12 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
 
   const items: (Speaker | Partner)[] = category ? (category.kind === 'speaker' ? speakers : visiblePartners) : []
   const q = search.trim().toLowerCase()
-  const visibleItems = category ? items.filter(item => matchesSearch(item, category.kind, q)) : []
+  const quickMatch = (item: Speaker | Partner) => {
+    if (category?.kind !== 'speaker') return true
+    const sp = item as Speaker
+    return (!quick.docs || !!sp.docs_pending) && (!quick.noEmail || !!sp.no_contact_email) && (!quick.notPublished || sp.website_status !== 'published')
+  }
+  const visibleItems = category ? items.filter(item => matchesSearch(item, category.kind, q) && quickMatch(item)) : []
   const allVisibleSelected = visibleItems.length > 0 && visibleItems.every(i => selectedIds.has(i.id))
 
   // One overlay descriptor covering the blocking actions on this page that
@@ -765,6 +773,14 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     notify(res.ok ? `${data.updated ?? ids.length} speaker${ids.length === 1 ? '' : 's'} set to ${label}. Use Push to KonfHub to move them on KonfHub.` : data.error ?? 'Could not set the category.', res.ok ? 'success' : 'error')
     if (res.ok) setSelectedIds(new Set())
   }
+  const speakerTools = [
+    { href: 'status-board', label: 'Status Board' },
+    { href: 'speaker-order', label: 'Speaker Order' },
+    ...(mementosEnabled ? [{ href: 'mementos', label: 'Mementos' }] : []),
+    { href: 'guest-invites', label: 'Guest Invites' },
+    ...(prMediaEnabled ? [{ href: 'media-interviews', label: 'Media Interviews' }] : []),
+    ...(can('sae.badges.view') ? [{ href: 'badges', label: 'Badges' }] : []),
+  ]
   const bulkActionItems = [
     ...(category?.kind === 'speaker' && konfhubCategories.length > 0 && can('sae.stakeholders.edit') ? [
       ...konfhubCategories.map(c => ({ label: `Set category: ${c.label}`, onClick: () => bulkSetKonfhubCategory(c.id, c.label) })),
@@ -773,6 +789,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     ...(category?.kind === 'speaker' && can('sae.approvals.approve') ? [{ label: 'Push to KonfHub', onClick: openBulkKonfhubConfirm }] : []),
     ...(category?.kind === 'speaker' && can('sae.approvals.approve') ? [{ label: 'Register on KonfHub', onClick: openBulkRegistrationConfirm }] : []),
     ...(category?.kind === 'speaker' && prMediaEnabled && can('sae.stakeholders.edit') ? [{ label: 'Media interview request', onClick: () => setMediaRequestOpen(true) }] : []),
+    ...(category?.kind === 'speaker' && can('sae.stakeholders.edit') ? [{ label: 'Email speakers', onClick: () => router.push(`/admin/events/${eventId}/stakeholders/send-email/speakers?speakers=${[...selectedIds].join(',')}`) }] : []),
     ...(can('sae.approvals.approve') ? [{ label: 'Approve for Announcements', onClick: openBulkApproveConfirm }] : []),
     // Cancel (2026-09-23) — speaker-only (confirmation_status doesn't exist
     // on partners), gated on the same edit permission the confirmation_
@@ -811,7 +828,8 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
             const count = c.kind === 'speaker' ? speakers.length : partners.filter(p => !c.partnerTypes || c.partnerTypes.includes(p.partner_type)).length
             const inboxCount = c.formType ? submissions.filter(s => s.form_type === c.formType).length : 0
             return (
-              <button key={c.key} onClick={() => setActiveTab(c.key)}
+              <Fragment key={c.key}>
+              <button onClick={() => setActiveTab(c.key)}
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px',
                   padding: '9px 12px', borderRadius: '8px', border: 'none', textAlign: 'left', cursor: 'pointer',
@@ -819,7 +837,13 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                   background: activeTab === c.key ? 'var(--card)' : 'transparent',
                   color: activeTab === c.key ? 'var(--ink)' : 'var(--ink3)',
                 }}>
-                <span>{c.label}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {c.kind === 'speaker' && (
+                    <span role="button" aria-label={speakerMenuOpen ? 'Collapse speaker tools' : 'Expand speaker tools'} aria-expanded={speakerMenuOpen}
+                      onClick={e => { e.stopPropagation(); setSpeakerMenuOpen(o => !o) }} style={{ fontSize: '12px', color: 'var(--ink3)', width: '14px', cursor: 'pointer' }}>{speakerMenuOpen ? '▾' : '▸'}</span>
+                  )}
+                  {c.label}
+                </span>
                 <span style={{ display: 'flex', gap: '4px' }}>
                   {count > 0 && <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>{count}</span>}
                   {inboxCount > 0 && (
@@ -827,6 +851,17 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                   )}
                 </span>
               </button>
+              {c.kind === 'speaker' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginBottom: '4px' }}>
+                  {speakerMenuOpen && speakerTools.map(t => (
+                    <Link key={t.href} href={`/admin/events/${eventId}/stakeholders/${t.href}`}
+                      style={{ display: 'block', padding: '7px 12px 7px 26px', borderRadius: '8px', textDecoration: 'none', fontFamily: 'inherit', fontSize: '14.5px', fontWeight: 600, color: 'var(--ink3)' }}>
+                      {t.label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+              </Fragment>
             )
           })}
           <button onClick={() => setActiveTab(VIPS_KEY)}
@@ -840,6 +875,20 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
             <span>VIPs</span>
           </button>
           <div style={{ height: '1px', background: 'var(--border-light)', margin: '6px 4px' }} />
+          {can('sae.stakeholders.edit') && (
+            <>
+              <button onClick={() => setSendMenuOpen(o => !o)} aria-expanded={sendMenuOpen}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 12px', borderRadius: '8px', border: 'none', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', fontSize: '15px', fontWeight: 700, background: 'transparent', color: 'var(--ink3)' }}>
+                <span style={{ fontSize: '12px', width: '14px' }}>{sendMenuOpen ? '▾' : '▸'}</span>Send Email
+              </button>
+              {sendMenuOpen && (
+                <Link href={`/admin/events/${eventId}/stakeholders/send-email/speakers`}
+                  style={{ display: 'block', padding: '7px 12px 7px 26px', borderRadius: '8px', textDecoration: 'none', fontFamily: 'inherit', fontSize: '14.5px', fontWeight: 600, color: 'var(--ink3)' }}>
+                  Speakers
+                </Link>
+              )}
+            </>
+          )}
           <button onClick={() => setActiveTab(INVITES_KEY)}
             style={{
               display: 'flex', alignItems: 'center', gap: '8px',
@@ -902,49 +951,9 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
           <>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-              <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--ink)' }}>{viewMode === 'registry' ? category.label : 'Social Calendar'}</div>
-              <div style={{ display: 'flex', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden' }}>
-                {(['registry', 'calendar'] as const).map(v => (
-                  <button key={v} onClick={() => setViewMode(v)}
-                    style={{
-                      padding: '5px 12px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: 700,
-                      background: viewMode === v ? 'var(--card)' : 'transparent',
-                      color: viewMode === v ? 'var(--ink)' : 'var(--ink3)',
-                    }}>
-                    {v === 'registry' ? 'Registry' : 'Calendar'}
-                  </button>
-                ))}
-              </div>
-              {category.kind === 'speaker' && (
-                <>
-                  <Link href={`/admin/events/${eventId}/stakeholders/status-board`}>
-                    <Button variant="ghost">Status Board</Button>
-                  </Link>
-                  <Link href={`/admin/events/${eventId}/stakeholders/speaker-order`}>
-                    <Button variant="ghost">Speaker Order</Button>
-                  </Link>
-                  {mementosEnabled && (
-                    <Link href={`/admin/events/${eventId}/stakeholders/mementos`}>
-                      <Button variant="ghost">Mementos</Button>
-                    </Link>
-                  )}
-                  <Link href={`/admin/events/${eventId}/stakeholders/guest-invites`}>
-                    <Button variant="ghost">Guest Invites</Button>
-                  </Link>
-                  {prMediaEnabled && (
-                    <Link href={`/admin/events/${eventId}/stakeholders/media-interviews`}>
-                      <Button variant="ghost">Media Interviews</Button>
-                    </Link>
-                  )}
-                  {can('sae.badges.view') && (
-                    <Link href={`/admin/events/${eventId}/stakeholders/badges`}>
-                      <Button variant="ghost">Badges</Button>
-                    </Link>
-                  )}
-                </>
-              )}
+              <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--ink)' }}>{category.label}</div>
             </div>
-            {viewMode === 'registry' && (
+            {(
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search ${category.label.toLowerCase()}…`} style={{ width: '240px' }} />
                 {category.formType && can('sae.forms.manage') && (
@@ -957,9 +966,6 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
             )}
           </div>
 
-          {viewMode === 'calendar' ? (
-            <CalendarView eventId={eventId} />
-          ) : (
           <>
 
           {/* Submissions inbox */}
@@ -1013,15 +1019,30 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
             <div style={{ color: 'var(--ink3)', fontSize: '15px' }}>Loading…</div>
           ) : visibleItems.length === 0 ? (
             <div style={{ color: 'var(--ink3)', fontSize: '15px', padding: '30px 0', textAlign: 'center' }}>
-              {items.length === 0 ? `No ${category.label.toLowerCase()} yet.` : `No ${category.label.toLowerCase()} match your search.`}
+              {items.length === 0 ? `No ${category.label.toLowerCase()} yet.` : `No ${category.label.toLowerCase()} match your search or filters.`}
+              {(quick.docs || quick.noEmail || quick.notPublished) && (
+                <div style={{ marginTop: '10px' }}><Button variant="ghost" onClick={() => setQuick({ docs: false, noEmail: false, notPublished: false })}>Clear filters</Button></div>
+              )}
             </div>
           ) : (
             <div style={{ display: 'grid', gap: '10px' }}>
               {items.length > 1 && (
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13.5px', fontWeight: 700, color: 'var(--ink3)', cursor: 'pointer', padding: '0 4px' }}>
-                  <input type="checkbox" checked={allVisibleSelected} onChange={e => setSelectedIds(e.target.checked ? new Set(visibleItems.map(i => i.id)) : new Set())} />
-                  Select all
-                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flexWrap: 'wrap', padding: '0 4px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13.5px', fontWeight: 700, color: 'var(--ink3)', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={allVisibleSelected} onChange={e => setSelectedIds(e.target.checked ? new Set(visibleItems.map(i => i.id)) : new Set())} />
+                    Select all
+                  </label>
+                  {category.kind === 'speaker' && ([
+                    { key: 'docs' as const, label: 'Pending passport / ID', n: speakers.filter(x => x.docs_pending).length },
+                    { key: 'noEmail' as const, label: 'No contact email', n: speakers.filter(x => x.no_contact_email).length },
+                    { key: 'notPublished' as const, label: 'Not published', n: speakers.filter(x => x.website_status !== 'published').length },
+                  ]).map(f => (
+                    <label key={f.key} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13.5px', fontWeight: 700, color: quick[f.key] ? 'var(--ink)' : 'var(--ink3)', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={quick[f.key]} onChange={e => setQuick(prev => ({ ...prev, [f.key]: e.target.checked }))} />
+                      {f.label} <span style={{ fontWeight: 600, color: 'var(--ink4)' }}>({f.n})</span>
+                    </label>
+                  ))}
+                </div>
               )}
               {visibleItems.map(item => {
                 const isSpeaker = category.kind === 'speaker'
@@ -1099,7 +1120,6 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
             </div>
           )}
           </>
-          )}
           </>
           )}
         </div>

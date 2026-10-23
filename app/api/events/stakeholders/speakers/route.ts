@@ -83,9 +83,28 @@ export async function GET(req: NextRequest) {
   const { data, error } = await q
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const announcementStatus = await fetchAnnouncementStatus((data ?? []).map(s => s.id))
+  const ids = (data ?? []).map(s => s.id as string)
+  const announcementStatus = await fetchAnnouncementStatus(ids)
+
+  // Hub filters (2026-10-23): "pending passport/ID" (same rule as the Status Board's "Passport or National ID Not Reviewed") and "no contact email"
+  // (no address of their own AND no Additional Contact — nobody to email).
+  const [sensitiveOn, uaeOn, docRows, contactRows] = await Promise.all([
+    isEventFeatureEnabled(eventId, 'sensitive-documents'),
+    isEventFeatureEnabled(eventId, 'uae-resident-field'),
+    ids.length ? supabaseAdmin.from('speaker_sensitive_documents').select('speaker_id, document_type, reviewed_at').in('speaker_id', ids).is('deleted_at', null).then(r => r.data ?? []) : Promise.resolve([]),
+    ids.length ? supabaseAdmin.from('speaker_additional_contacts').select('speaker_id, email').in('speaker_id', ids).then(r => r.data ?? []) : Promise.resolve([]),
+  ])
+  const reviewed = new Set(docRows.filter(d => d.reviewed_at).map(d => `${d.speaker_id}:${d.document_type}`))
+  const withContact = new Set(contactRows.filter(c => ((c.email as string | null) ?? '').trim()).map(c => c.speaker_id as string))
+  const ownEmail = (cf: unknown, legacy: unknown) => {
+    const v = (cf as Record<string, unknown> | null)?.email
+    const f = Array.isArray(v) ? v[0] : v
+    return !!((typeof f === 'string' ? f : '').trim() || (typeof legacy === 'string' ? legacy : '').trim())
+  }
   return NextResponse.json((data ?? []).map(row => ({
     ...fromRow(row),
+    docs_pending: sensitiveOn && (!reviewed.has(`${row.id}:passport`) || (uaeOn && row.is_uae_resident !== false && !reviewed.has(`${row.id}:national_id`))),
+    no_contact_email: !ownEmail(row.custom_fields, row.email) && !withContact.has(row.id as string),
     website_status: websiteStatus(row),
     social_post_status: announcementStatus.get(row.id)?.socialPostStatus ?? 'pending',
     self_promo_status: announcementStatus.get(row.id)?.selfPromoStatus ?? 'pending',

@@ -6,6 +6,7 @@ import { requireGuestInviteAccess } from '@/app/lib/guest-invites/access'
 import { composeGuestEmail, sendGuestEmail } from '@/app/lib/guest-invites/send'
 import { loadKonfhubConfig } from '@/app/lib/guest-invites/sync'
 import { fetchKonfhubCodes } from '@/app/lib/guest-invites/codes'
+import { mergeCc, parseExtraCc } from '@/app/lib/email/extra-cc'
 
 /* POST /api/events/guest-invites/bulk-send
    Body: { event_id, kind: 'invite' | 'reminder', speaker_ids: string[], batch_id?: string, resend?: boolean }
@@ -21,10 +22,11 @@ const MAX_PER_CALL = 8
 type Result = { id: string; status: 'sent' | 'skipped' | 'failed'; reason?: string; to?: string; cc?: string[] }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => null) as { event_id?: string; kind?: string; speaker_ids?: string[]; batch_id?: string; resend?: boolean } | null
+  const body = await req.json().catch(() => null) as { event_id?: string; kind?: string; speaker_ids?: string[]; batch_id?: string; resend?: boolean; extra_cc?: string[] } | null
   if (!body?.event_id || (body.kind !== 'invite' && body.kind !== 'reminder') || !Array.isArray(body.speaker_ids) || !body.speaker_ids.length) return NextResponse.json({ error: 'event_id, kind and speaker_ids are required' }, { status: 400 })
   if (body.speaker_ids.length > MAX_PER_CALL) return NextResponse.json({ error: `Send at most ${MAX_PER_CALL} speakers per request.` }, { status: 400 })
   const denied = await requireGuestInviteAccess(req, body.event_id, 'edit'); if (denied) return denied
+  const extra = parseExtraCc(body.extra_cc ?? []); if ('error' in extra) return NextResponse.json({ error: extra.error }, { status: 400 })
   const session = getSession(req)
   const batchId = body.batch_id && /^[0-9a-f-]{36}$/i.test(body.batch_id) ? body.batch_id : randomUUID()
   const kind = body.kind
@@ -45,9 +47,10 @@ export async function POST(req: NextRequest) {
     if (kind === 'invite' && s.guest_invite_sent_at && !body.resend) { results.push({ id, status: 'skipped', reason: 'Already invited' }); continue }
     const c = await composeGuestEmail(id, kind, session, { fresh: false })
     if ('error' in c) { results.push({ id, status: 'skipped', reason: c.error }); continue }
-    const r = await sendGuestEmail(id, kind, { to: c.recipient_email, cc: c.cc_emails, html: c.html, subject: c.subject }, session, { batchId, used: c.used, cap: c.cap })
-    if ('error' in r) results.push({ id, status: 'failed', reason: r.errors?.length ? `${r.error} ${r.errors.map(e => e.message).join('; ')}` : r.error, to: c.recipient_email, cc: c.cc_emails })
-    else results.push({ id, status: 'sent', to: c.recipient_email, cc: c.cc_emails })
+    const cc = mergeCc(c.cc_emails, extra.emails, c.recipient_email)
+    const r = await sendGuestEmail(id, kind, { to: c.recipient_email, cc, html: c.html, subject: c.subject }, session, { batchId, used: c.used, cap: c.cap })
+    if ('error' in r) results.push({ id, status: 'failed', reason: r.errors?.length ? `${r.error} ${r.errors.map(e => e.message).join('; ')}` : r.error, to: c.recipient_email, cc })
+    else results.push({ id, status: 'sent', to: c.recipient_email, cc })
     await new Promise(res => setTimeout(res, 400))
   }
   return NextResponse.json({ batch_id: batchId, results })

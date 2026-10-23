@@ -10,7 +10,7 @@ import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import type { BadgeFlag, BadgeItemRow, BadgeOverrides } from '@/app/lib/badges/types'
 
 /* Review one badge batch: scrollable grid of every badge, automatic flags, small adjustments (text / photo position),
-   approve each (or all unflagged), approve the batch for print, then build and download the print file. */
+   approve each (or all unflagged / all), approve the batch for print, then build and download the print file. */
 
 type Batch = {
   id: string; name: string; status: 'draft' | 'review' | 'approved'; template_name: string; canvas_width: number; canvas_height: number
@@ -131,12 +131,17 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
     say(action === 'refresh_speakers' ? `${r.data.changed ?? 0} badge${r.data.changed === 1 ? '' : 's'} updated from the speaker records.` : `Done: ${label}.`)
     await load()
   }
-  async function approveAllUnflagged() {
+  async function approveAllBadges(includeFlagged: boolean) {
     setBusy('approve-all')
-    const targets = items.filter(i => !i.removed && !i.approved && i.flags.length === 0 && i.preview_url && !i.preview_stale)
+    const targets = items.filter(i => !i.removed && !i.approved && (includeFlagged || i.flags.length === 0) && i.preview_url && !i.preview_stale)
     for (const it of targets) await patchItem(it, { approved: true })
     setBusy(null)
     say(`${targets.length} badge${targets.length === 1 ? '' : 's'} approved.`)
+  }
+  function approveAllIncludingFlagged() {
+    const n = items.filter(i => !i.removed && !i.approved && i.flags.length > 0).length
+    if (n > 0 && !window.confirm(`${n} badge${n === 1 ? ' has' : 's have'} flags (missing field, low-resolution photo, text overflow…). Approve ${n === 1 ? 'it' : 'them'} anyway?`)) return
+    void approveAllBadges(true)
   }
   async function generatePdf() {
     setBusy('pdf')
@@ -200,7 +205,8 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
             <Button variant="ghost" disabled={!!activeJob || !!busy} onClick={() => void startRender(stats.stale === 0)}>{stats.stale > 0 ? `Render ${stats.stale} badge${stats.stale === 1 ? '' : 's'}` : 'Re-render all'}</Button>
             <Button variant="ghost" disabled={!!activeJob || !!busy} title="Pull the latest name, title, company, country and photo from the speaker records" onClick={() => void batchAction('refresh_speakers', 'refreshed from speaker records')}>Refresh from speakers</Button>
             <Button variant="ghost" disabled={!!activeJob || !!busy} title="Use the template's current design (re-renders every badge)" onClick={() => void batchAction('update_template', 'updated the template')}>Update template</Button>
-            <Button variant="ghost" disabled={!!activeJob || !!busy || stats.stale > 0} onClick={() => void approveAllUnflagged()}>Approve all unflagged</Button>
+            <Button variant="ghost" disabled={!!activeJob || !!busy || stats.stale > 0} onClick={() => void approveAllBadges(false)}>Approve all unflagged</Button>
+            <Button variant="ghost" disabled={!!activeJob || !!busy || stats.stale > 0} title="Approves every badge, including the flagged ones" onClick={approveAllIncludingFlagged}>Approve all</Button>
           </>)}
           {canApprove && !locked && <Button variant="lime" disabled={!!activeJob || !!busy || stats.approved < stats.total || stats.total === 0} title={stats.approved < stats.total ? 'Approve every badge first' : ''} onClick={() => void batchAction('approve', 'approved for print')}>Approve for print</Button>}
           {canApprove && locked && <Button variant="ghost" disabled={!!busy || roundPending} title={roundPending ? 'Withdraw the client approval first' : ''} onClick={() => void batchAction('reopen', 'reopened')}>Reopen</Button>}

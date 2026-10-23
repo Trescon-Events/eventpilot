@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import ExtraCcField from '@/app/components/ExtraCcField'
+import { parseExtraCc } from '@/app/lib/email/extra-cc'
 import { Button, Textarea } from '@/app/components/ui'
 
 /* "Media interview request" (PR & Media): asks the selected speakers whether they will give media bites / interviews, each by email from their own producer,
@@ -19,6 +21,8 @@ export default function MediaRequestDialog({ eventId, speakers, onClose, onFinis
   const [planError, setPlanError] = useState<string | null>(null)
   const [again, setAgain] = useState<Set<string>>(new Set())
   const [note, setNote] = useState('')
+  const [ccText, setCcText] = useState('')
+  const extra = parseExtraCc(ccText)
   const [sample, setSample] = useState<{ html: string; subject: string; speaker: string } | { error: string } | null>(null)
   const [results, setResults] = useState<Record<string, Result>>({})
   const [fatal, setFatal] = useState<string | null>(null)
@@ -56,7 +60,7 @@ export default function MediaRequestDialog({ eventId, speakers, onClose, onFinis
     for (const g of groups) {
       for (let i = 0; i < g.ids.length; i += CHUNK) {
         if (stopRef.current) break
-        const res = await fetch('/api/events/pr/requests/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, speaker_ids: g.ids.slice(i, i + CHUNK), note, resend: g.resend }) })
+        const res = await fetch('/api/events/pr/requests/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, speaker_ids: g.ids.slice(i, i + CHUNK), note, resend: g.resend, extra_cc: 'emails' in extra ? extra.emails : [] }) })
         const d = await res.json().catch(() => ({}))
         if (!res.ok) { setFatal(d.error ?? 'Could not send.'); stopRef.current = true; break }
         setResults(prev => { const n = { ...prev }; for (const r of d.results as Result[]) n[r.id] = r; return n })
@@ -115,6 +119,7 @@ export default function MediaRequestDialog({ eventId, speakers, onClose, onFinis
 
             {stage === 'review' && (
               <>
+                <ExtraCcField value={ccText} onChange={setCcText} />
                 <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: 'var(--ink3)', margin: '16px 0 4px' }}>Extra note for everyone (optional)</label>
                 <Textarea value={note} onChange={e => setNote(e.target.value)} rows={2} maxLength={600} placeholder="e.g. Several TV channels have confirmed." />
                 {sampleId && (
@@ -140,7 +145,7 @@ export default function MediaRequestDialog({ eventId, speakers, onClose, onFinis
         <div style={{ display: 'flex', gap: '10px', marginTop: '16px', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap' }}>
           {stage === 'done' && <div style={{ flex: 1, fontSize: '14px' }}><strong>{count('sent')}</strong> sent{count('skipped') > 0 && <> · <strong>{count('skipped')}</strong> skipped</>}{count('failed') > 0 && <> · <strong style={{ color: 'var(--red)' }}>{count('failed')}</strong> failed</>}</div>}
           {stage === 'review' && <Button variant="ghost" onClick={onClose}>Cancel</Button>}
-          {stage === 'review' && <Button variant="teal" onClick={run} disabled={!plan || toSend.length === 0 || !sample || 'error' in sample}>{toSend.length === 0 ? 'Nobody to send to' : `Send to ${toSend.length}`}</Button>}
+          {stage === 'review' && <Button variant="teal" onClick={run} disabled={!plan || toSend.length === 0 || !sample || 'error' in sample || 'error' in extra}>{toSend.length === 0 ? 'Nobody to send to' : `Send to ${toSend.length}`}</Button>}
           {stage === 'sending' && <Button variant="ghost" onClick={() => { stopRef.current = true; setStopping(true) }} disabled={stopping}>{stopping ? 'Stopping after this batch…' : 'Stop after this batch'}</Button>}
           {stage === 'done' && <Button variant="teal" onClick={() => { onFinished(); onClose() }}>Close</Button>}
         </div>
