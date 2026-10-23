@@ -1,3 +1,4 @@
+import { CONFIRMED_STATUSES } from '@/app/lib/badges/types'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { requireGuestInviteAccess } from '@/app/lib/guest-invites/access'
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
   if (!b?.event_id) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
   const denied = await requireGuestInviteAccess(req, b.event_id, 'edit'); if (denied) return denied
 
-  let q = supabaseAdmin.from('event_speakers').select('id, name, public_name').eq('event_id', b.event_id).eq('active', true).eq('confirmation_status', 'Confirmed').is('guest_invite_url', null).is('guest_invite_code', null).order('public_name')
+  let q = supabaseAdmin.from('event_speakers').select('id, name, public_name').eq('event_id', b.event_id).eq('active', true).in('confirmation_status', [...CONFIRMED_STATUSES]).is('guest_invite_url', null).is('guest_invite_code', null).order('public_name')
   if (b.speaker_ids?.length) q = q.in('id', b.speaker_ids)
   else if (!b.all_missing) return NextResponse.json({ error: 'speaker_ids or all_missing required' }, { status: 400 })
   const { data: todo } = await q

@@ -1,3 +1,4 @@
+import { CONFIRMED_STATUSES } from '@/app/lib/badges/types'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { requireGuestInviteAccess, speakerEmailOf } from '@/app/lib/guest-invites/access'
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
     blocked, can_invite: !blocked && !s.guest_invite_sent_at, can_remind: !blocked && !!s.guest_invite_sent_at,
     confirmation_status: s.confirmation_status,
     // Confirmed with no link yet: a code can be created for them (proposed first in review mode).
-    needs_code: !s.guest_invite_url && s.confirmation_status === 'Confirmed', proposed_code: s.guest_invite_proposed_code, provision_error: s.guest_invite_provision_error,
+    needs_code: !s.guest_invite_url && (CONFIRMED_STATUSES as readonly string[]).includes(s.confirmation_status ?? ''), proposed_code: s.guest_invite_proposed_code, provision_error: s.guest_invite_provision_error,
     status: !s.guest_invite_url ? 'missing' : s.guest_invite_sent_at ? 'sent' : 'ready',
     url: s.guest_invite_url, code: s.guest_invite_code, code_found: s.guest_invite_code_found, ticket_name: s.guest_invite_ticket_name,
     limit: s.guest_invite_limit, used: s.guest_invite_used,

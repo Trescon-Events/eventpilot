@@ -1,3 +1,4 @@
+import { CONFIRMED_STATUSES } from '@/app/lib/badges/types'
 import { ensureGuestCode } from '@/app/lib/guest-invites/provision'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -14,6 +15,7 @@ import { syncContactToHubSpot } from '@/app/lib/hubspot/crm-sync'
 import { resolveEffectiveRules } from '@/app/lib/content/resolve-validation-rules'
 import { validateText } from '@/app/lib/content/validate'
 import type { HeadlineVariant } from '@/app/lib/events/announcements'
+const isConfirmedStatus = (v: unknown) => (CONFIRMED_STATUSES as readonly string[]).includes(String(v ?? ''))
 
 /* PATCH  /api/events/stakeholders/speakers/[id] — update any SAE-owned field
    DELETE /api/events/stakeholders/speakers/[id] — soft delete (Hub "Delete")
@@ -260,7 +262,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   // Newly confirmed: propose / create their guest-pass code if the event has that switched on (never throws, never emails).
-  if (body.confirmation_status === 'Confirmed' && existing.confirmation_status !== 'Confirmed') await ensureGuestCode(id)
+  if (isConfirmedStatus(body.confirmation_status) && !isConfirmedStatus(existing.confirmation_status)) await ensureGuestCode(id)
   const resolvedSchema = schema ?? await resolveFormSchema(existing.event_id, 'speaker')
   return NextResponse.json({ ...fromRow(data), fields: recordToFields('speaker', resolvedSchema, data) })
 }

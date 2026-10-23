@@ -1,3 +1,4 @@
+import { CONFIRMED_STATUSES } from '@/app/lib/badges/types'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { parseEventTime } from '@/app/lib/events/timezones'
 import { getKonfhubToken } from '@/app/lib/konfhub-speakers'
@@ -168,7 +169,7 @@ export async function proposeGuestCode(speakerId: string): Promise<string | null
 export async function ensureGuestCode(speakerId: string): Promise<void> {
   try {
     const { data: s } = await supabaseAdmin.from('event_speakers').select(SPEAKER_COLS).eq('id', speakerId).maybeSingle()
-    if (!s || s.confirmation_status !== 'Confirmed' || s.guest_invite_url || s.guest_invite_code) return
+    if (!s || !(CONFIRMED_STATUSES as readonly string[]).includes(s.confirmation_status ?? '') || s.guest_invite_url || s.guest_invite_code) return
     const { mode } = await loadAutoSettings(s.event_id)
     if (mode === 'review') await proposeGuestCode(speakerId)
     else if (mode === 'auto') await createGuestCodeFor(speakerId)
