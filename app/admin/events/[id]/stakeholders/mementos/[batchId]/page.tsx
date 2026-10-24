@@ -13,7 +13,8 @@ import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 
 type Item = { speaker_id: string; name: string; company: string | null; title: string | null; photo_url: string | null; changed: boolean }
 type Dispatch = { id: string; status: 'requested' | 'sent' | 'downloaded' | 'confirmed' | 'issue' | 'revoked'; requested_at: string; sent_at: string | null; first_downloaded_at: string | null; vendor_response_at: string | null; vendor_note: string | null; vendor_name: string | null }
-type Batch = { dispatches?: Dispatch[]; id: string; name: string; note: string | null; kind: 'shared' | 'legacy'; status: 'draft' | 'pushed'; shared_at: string; pushed_at: string | null; created_at: string; created_by_name: string | null; speakers: number; changed: number; items: Item[] }
+type PrintInfo = { status: 'none' | 'processing' | 'done' | 'error'; done: number; total: number; error: string | null; generated_at: string | null; bytes: number | null; stale: boolean }
+type Batch = { print_template?: boolean; print?: PrintInfo | null; dispatches?: Dispatch[]; id: string; name: string; note: string | null; kind: 'shared' | 'legacy'; status: 'draft' | 'pushed'; shared_at: string; pushed_at: string | null; created_at: string; created_by_name: string | null; speakers: number; changed: number; items: Item[] }
 
 const fmt = (iso: string) => new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
@@ -58,6 +59,23 @@ export default function MementoBatchPage({ params }: { params: Promise<{ id: str
   }
 
   const canEdit = can('sae.mementos.manage')
+  const printing = batch?.print?.status === 'processing'
+  useEffect(() => {
+    if (!printing) return
+    const t = setInterval(() => void load(), 3000)
+    return () => clearInterval(t)
+  }, [printing, load])
+  async function generatePrint() {
+    const r = await patch({ action: 'generate_print' })
+    if (r.ok) { say('Building the print file — you can leave this page; it keeps going.'); await load() }
+  }
+  async function downloadPrint() {
+    const res = await fetch(`/api/events/mementos?event_id=${eventId}&id=${batchId}&print_download=1`)
+    const d = await res.json().catch(() => ({}))
+    if (!res.ok) { say(d.error ?? 'Could not get the file.', 'error'); return }
+    const a = document.createElement('a'); a.href = d.url; a.download = d.filename; document.body.appendChild(a); a.click(); a.remove()
+  }
+  const printReady = !batch?.print_template || (batch.print?.status === 'done' && !batch.print.stale)
   const draft = batch?.status === 'draft'
 
   async function rename() {
@@ -93,7 +111,7 @@ export default function MementoBatchPage({ params }: { params: Promise<{ id: str
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <Button variant="ghost" onClick={() => { setNameDraft(batch.name); setRenaming(true) }} disabled={busy}>Rename</Button>
             <Button variant="ghost" onClick={() => void deleteBatch()} disabled={busy}>Delete batch</Button>
-            <Button variant="lime" onClick={() => setPushOpen(true)} disabled={busy || batch.items.length === 0}>Push to Ops</Button>
+            <Button variant="lime" onClick={() => setPushOpen(true)} disabled={busy || batch.items.length === 0 || !printReady} title={!printReady ? 'Generate the print file first — Ops and the vendor receive the print PDF' : ''}>Push to Ops</Button>
           </div>
         ) : undefined}
       />
@@ -107,6 +125,23 @@ export default function MementoBatchPage({ params }: { params: Promise<{ id: str
               {draft && <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>Draft — Ops can’t see it until you push it.</span>}
               {batch.changed > 0 && <span style={{ fontSize: '13px', color: 'var(--amber)', fontWeight: 700 }}>{batch.changed} speaker{batch.changed === 1 ? '' : 's'} had their Cleaned Photo changed after pushing</span>}
             </div>
+            {batch.print_template && batch.print && (
+              <div style={{ marginBottom: '16px', padding: '14px 16px', border: `1px solid ${batch.print.status === 'done' && !batch.print.stale ? 'var(--teal)' : 'var(--border-light)'}`, borderRadius: '10px', background: 'var(--card)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Print file</div>
+                  {batch.print.status === 'processing' ? <Badge color="amber">Building…</Badge> : batch.print.status === 'done' ? (batch.print.stale ? <Badge color="amber">Out of date</Badge> : <Badge color="teal">Ready</Badge>) : batch.print.status === 'error' ? <Badge color="red">Failed</Badge> : <Badge color="grey">Not generated yet</Badge>}
+                  <span style={{ fontSize: '13.5px', color: 'var(--ink3)', flex: 1 }}>
+                    {batch.print.status === 'processing' ? `Page ${batch.print.done} of ${batch.print.total}…`
+                      : batch.print.status === 'done' ? `${batch.speakers} memento${batch.speakers === 1 ? '' : 's'} · ${batch.print.bytes ? `${(batch.print.bytes / 1048576).toFixed(1)} MB · ` : ''}built ${batch.print.generated_at ? fmt(batch.print.generated_at) : ''}. ${batch.print.stale ? 'A speaker or a Cleaned Photo changed since — generate it again before pushing.' : 'Ops and the vendor receive this PDF.'}`
+                      : batch.print.status === 'error' ? (batch.print.error ?? 'It could not be built.')
+                      : 'Vector background + each speaker, one page each, 6 × 9 in. Ops and the vendor receive this PDF, so build it before pushing.'}
+                  </span>
+                  {batch.print.status === 'done' && <Button variant="ghost" onClick={() => void downloadPrint()}>Download PDF</Button>}
+                  {canEdit && draft && <Button variant={batch.print.status === 'done' && !batch.print.stale ? 'ghost' : 'lime'} disabled={busy || printing} onClick={() => void generatePrint()}>{batch.print.status === 'done' ? 'Generate again' : batch.print.status === 'error' ? 'Try again' : 'Generate print file'}</Button>}
+                </div>
+                {batch.print.status === 'processing' && <div style={{ marginTop: '10px', height: '6px', borderRadius: '3px', background: 'var(--border-light)' }}><div style={{ height: '6px', borderRadius: '3px', background: 'var(--teal)', width: `${batch.print.total ? (100 * batch.print.done) / batch.print.total : 5}%`, transition: 'width 0.3s' }} /></div>}
+              </div>
+            )}
             {(() => {
               const d = batch.dispatches?.find(x => x.status !== 'revoked')
               if (!d || batch.kind === 'legacy') return null

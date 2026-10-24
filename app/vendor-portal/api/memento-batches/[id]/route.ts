@@ -16,7 +16,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!d) return vpError(404, 'We could not find that photo pack.')
   await logOpsAccess({ eventId: d.event_id, actorType: 'vendor', actorId: auth.session.userId, action: 'vendor_memento_viewed', targetType: 'memento_dispatch', targetId: d.id, ip: auth.ip })
   const { data: items } = await supabaseAdmin.from('memento_batch_items').select('speaker_name').eq('batch_id', d.batch_id).order('speaker_name')
-  return NextResponse.json({
+  const { data: pb } = await supabaseAdmin.from('memento_batches').select('print_pdf_key').eq('id', d.batch_id).maybeSingle()
+  return NextResponse.json({ is_print: !!pb?.print_pdf_key,
     id: d.id, batch_name: d.batch_name, event_name: d.event_name, status: d.status, speakers: d.speakers, speaker_names: (items ?? []).map(i => i.speaker_name),
     sent_at: d.sent_at, downloaded_at: d.first_downloaded_at, download_count: d.download_count, responded_at: d.vendor_response_at, vendor_note: d.vendor_note,
     can_download: d.status === 'sent' || d.status === 'downloaded', can_respond: d.status === 'downloaded',

@@ -17,8 +17,8 @@ export async function POST(req: NextRequest) {
   if (!body?.event_id || !body.variant || (body.stakeholder_type !== 'speaker' && body.stakeholder_type !== 'partner')) {
     return NextResponse.json({ error: 'event_id, stakeholder_type, variant required' }, { status: 400 })
   }
-  if (body.variant.category !== 'badge' || !body.variant.print) {
-    return NextResponse.json({ error: 'Only Speaker Badge templates can produce a print file.' }, { status: 422 })
+  if ((body.variant.category !== 'badge' && body.variant.category !== 'memento') || !body.variant.print) {
+    return NextResponse.json({ error: 'Only Speaker Badge and print Speaker Memento templates can produce a print file.' }, { status: 422 })
   }
   try {
     const [{ data: event }, inputs] = await Promise.all([

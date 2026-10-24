@@ -10,7 +10,7 @@ import { ErrorBox, readError, ghostBtn, primaryBtn, inputStyle, labelStyle, type
 type Detail = {
   id: string; batch_name: string; event_name: string; status: 'sent' | 'downloaded' | 'confirmed' | 'issue'; speakers: number; speaker_names: string[]
   sent_at: string | null; downloaded_at: string | null; download_count: number; responded_at: string | null; vendor_note: string | null
-  can_download: boolean; can_respond: boolean
+  can_download: boolean; can_respond: boolean; is_print?: boolean
 }
 
 export default function MementoBatchPage({ params }: { params: Promise<{ id: string }> }) {
@@ -60,8 +60,8 @@ export default function MementoBatchPage({ params }: { params: Promise<{ id: str
           ) : (
             <>
               <ol style={{ margin: '0 0 14px', paddingLeft: '20px', color: 'var(--ink2)', fontSize: '14px', lineHeight: 1.8 }}>
-                <li>Download the photos (one ZIP, a transparent PNG per speaker, named after the speaker).</li>
-                <li>Check that every photo is usable for the memento.</li>
+                {d.is_print ? <li>Download the print file (one PDF: the first page(s) list each speaker, then one page per memento, 6 × 9 in, no bleed).</li> : <li>Download the photos (one ZIP, a transparent PNG per speaker, named after the speaker).</li>}
+                <li>{d.is_print ? 'Check that every page is usable for engraving.' : 'Check that every photo is usable for the memento.'}</li>
                 <li>Come back here and confirm that everything looks good — or tell us what is wrong.</li>
               </ol>
               <details style={{ marginBottom: '16px', fontSize: '13px', color: 'var(--ink3)' }}>
@@ -69,7 +69,7 @@ export default function MementoBatchPage({ params }: { params: Promise<{ id: str
                 <div style={{ marginTop: '6px', lineHeight: 1.7 }}>{d.speaker_names.join(' · ')}</div>
               </details>
               <a href={`/vendor-portal/api/memento-batches/${d.id}/download`} onClick={() => setTimeout(load, 5000)} style={{ ...primaryBtn, display: 'block', textAlign: 'center', textDecoration: 'none', boxSizing: 'border-box' }}>
-                {d.status === 'downloaded' ? 'Download again' : 'Download photos'}
+                {d.status === 'downloaded' ? 'Download again' : d.is_print ? 'Download print file' : 'Download photos'}
               </a>
               {d.status === 'downloaded' && (
                 <div style={{ marginTop: '22px', paddingTop: '18px', borderTop: '1px solid var(--border-light)' }}>

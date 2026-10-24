@@ -1,3 +1,4 @@
+import { composeMementoLayers } from '@/app/lib/mementos/render'
 import { NextRequest, NextResponse } from 'next/server'
 import sharp from 'sharp'
 import { compositeAnnouncement, compositeExtraLayersOnto, analyzeTextLayers, type Variant, type ImageLayer, type PhotoSlotLayer } from '@/app/lib/announcements/composite'
@@ -112,7 +113,7 @@ export async function POST(req: NextRequest) {
         const backgroundLayer = body.variant.layers.find((l): l is ImageLayer => l.type === 'image' && !l.reference_only)
         const backgroundBuffer = !isMemento && backgroundLayer?.asset_url ? await fetchAssetBuffer(backgroundLayer.asset_url) : null
         if (isMemento) {
-          websitePhotoFinalBuffer = cropped
+          websitePhotoFinalBuffer = body.variant.print ? await composeMementoLayers(body.variant, cropped) : cropped
         } else if (!backgroundBuffer) {
           websitePhotoError = 'No background image set on the Image layer yet — showing the plain crop.'
         } else {

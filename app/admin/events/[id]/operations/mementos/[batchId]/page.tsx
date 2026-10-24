@@ -16,7 +16,7 @@ type Dispatch = {
   revoked_at: string | null; vendor_name: string | null
 }
 type Detail = {
-  batch: { id: string; name: string; note: string | null; status: string; event_id: string; event_name: string }
+  batch: { id: string; name: string; note: string | null; status: string; event_id: string; event_name: string; print?: { generated_at: string | null } | null }
   items: Array<{ speaker_id: string; name: string; photo_url: string | null }>
   dispatches: Dispatch[]
   vendors: Array<{ id: string; name: string; logins: number }>
@@ -82,7 +82,7 @@ export default function OpsMementoBatchPage({ params }: { params: Promise<{ id: 
               <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)' }}>{current.speakers} speaker photo{current.speakers === 1 ? '' : 's'}</div>
               <Badge color={STATUS[current.status].color}>{STATUS[current.status].label}</Badge>
               <div style={{ flex: 1 }} />
-              <a href={`/api/events/operations/mementos/${batchId}?download=1`}><Button variant="ghost">Download photos (ZIP)</Button></a>
+              <a href={`/api/events/operations/mementos/${batchId}?download=1`}><Button variant="ghost">{d.batch.print ? 'Download print file (PDF)' : 'Download photos (ZIP)'}</Button></a>
             </div>
             <div style={{ fontSize: '14px', color: 'var(--ink2)', lineHeight: 1.7 }}>
               Pushed by the producer {when(current.requested_at)}.{current.request_note || d.batch.note ? ` Note: “${current.request_note ?? d.batch.note}”` : ''}

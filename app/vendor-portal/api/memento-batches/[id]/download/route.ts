@@ -6,6 +6,7 @@ import { loadOwnMementoDispatch } from '@/app/lib/ops/vendor-memento'
 import { logOpsAccess } from '@/app/lib/ops/audit'
 import { mementoBatchContext, notifyMementoOps } from '@/app/lib/mementos/dispatch'
 import { buildMementoZip } from '@/app/lib/mementos/zip'
+import { mementoPrintStream } from '@/app/lib/mementos/print'
 
 /* GET /vendor-portal/api/memento-batches/[id]/download — the speakers' Cleaned Photos as one ZIP, streamed.
    Vendors never get a storage link: this route fetches the photos server-side and builds the ZIP itself.
@@ -27,12 +28,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const audited = await logOpsAccess({ eventId: d.event_id, actorType: 'vendor', actorId: session.userId, action: 'vendor_memento_download_started', targetType: 'memento_dispatch', targetId: d.id, meta: { speakers: d.speakers }, ip })
   if (!audited) return vpError(500, 'The download could not be started.')
 
-  const { data: items } = await supabaseAdmin.from('memento_batch_items').select('speaker_name, photo_url').eq('batch_id', d.batch_id).order('speaker_name')
+  // A print memento is handed over as its print PDF; any other batch as the photo ZIP.
+  const { data: pb } = await supabaseAdmin.from('memento_batches').select('print_pdf_key').eq('id', d.batch_id).maybeSingle()
+  const isPrint = !!pb?.print_pdf_key
   let zip: ReadableStream<Uint8Array>
   try {
-    zip = await buildMementoZip((items ?? []).filter(i => i.photo_url).map(i => ({ name: i.speaker_name as string, url: i.photo_url as string })))
+    if (isPrint) zip = (await mementoPrintStream(pb!.print_pdf_key as string)).body
+    else {
+      const { data: items } = await supabaseAdmin.from('memento_batch_items').select('speaker_name, photo_url').eq('batch_id', d.batch_id).order('speaker_name')
+      zip = await buildMementoZip((items ?? []).filter(i => i.photo_url).map(i => ({ name: i.speaker_name as string, url: i.photo_url as string })))
+    }
   } catch {
-    return vpError(502, 'The photos could not be prepared right now. Please try again in a moment.')
+    return vpError(502, 'The file could not be prepared right now. Please try again in a moment.')
   }
 
   const first = !d.first_downloaded_at
@@ -52,6 +59,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const safe = d.batch_name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'mementos'
   return new NextResponse(zip.pipeThrough(done), {
     status: 200,
-    headers: { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${safe}-photos.zip"`, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+    headers: { 'Content-Type': isPrint ? 'application/pdf' : 'application/zip', 'Content-Disposition': `attachment; filename="${safe}-${isPrint ? 'print.pdf' : 'photos.zip'}"`, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
   })
 }

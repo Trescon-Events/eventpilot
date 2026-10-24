@@ -1,6 +1,7 @@
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 import type { CreativeTemplateConfig, PhotoSlotLayer, Variant } from '@/app/lib/announcements/composite'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
+import sharp from 'sharp'
 import { alignAndCropPhoto, type HeadBox } from '@/app/lib/media/face-alignment'
 
 // Memento artwork (2026-10-22): the speaker's Cleaned Photo placed on a TRANSPARENT canvas of the variant's own size, head fixed to the
@@ -12,6 +13,20 @@ export function listMementoVariants(config: CreativeTemplateConfig | null | unde
 
 export function mementoPhotoLayer(variant: Variant): PhotoSlotLayer | undefined {
   return variant.layers.find((l): l is PhotoSlotLayer => l.type === 'photo_slot' && l.source === 'speaker_photo')
+}
+
+/** Print mementos (variant.print set) have a background layer: the artwork is the layers in order on white — background PNG preview, then the speaker.
+    Plain mementos (no print spec) stay a transparent cut-out. `photoPng` is the speaker already aligned and cropped to the canvas. */
+export async function composeMementoLayers(variant: Variant, photoPng: Buffer): Promise<Buffer> {
+  const comps: { input: Buffer; left: number; top: number }[] = []
+  for (const l of variant.layers) {
+    if (l.type === 'image' && !l.reference_only && l.asset_url) {
+      const buf = await fetchAssetBuffer(l.asset_url)
+      if (!buf) throw new Error('Could not load the memento background layer.')
+      comps.push({ input: await sharp(buf).resize(Math.round(l.width), Math.round(l.height), { fit: 'fill' }).png().toBuffer(), left: Math.round(l.x), top: Math.round(l.y) })
+    } else if (l.type === 'photo_slot' && l.source === 'speaker_photo') comps.push({ input: photoPng, left: Math.round(l.x), top: Math.round(l.y) })
+  }
+  return sharp({ create: { width: variant.canvas_width, height: variant.canvas_height, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } } }).composite(comps).png().toBuffer()
 }
 
 export type MementoRenderResult =
@@ -33,7 +48,7 @@ export async function renderMementoPng(variant: Variant, photoUrl: string, headB
   const target = { ...layer.alignment, box: { x: 0, y: 0, width: variant.canvas_width, height: variant.canvas_height } }
   try {
     const { buffer, padding } = await alignAndCropPhoto(source, target, headBox)
-    return { ok: true, buffer, padding }
+    return { ok: true, buffer: variant.print ? await composeMementoLayers(variant, buffer) : buffer, padding }
   } catch (e) {
     console.error('Memento render failed:', e)
     return { ok: false, error: 'Rendering the memento failed.' }

@@ -18,6 +18,7 @@ import { toMonochrome } from '@/app/lib/media/monochrome'
 
 const MM = 72 / 25.4
 const TARGET_PPI = 600
+const MEMENTO_PPI = 300 // engraved on wood: 300 ppi is plenty (a 600 ppi page would be ~14 MB per memento)
 const PHOTO_JPEG_QUALITY = 92 // speaker photos only; flat artwork stays lossless (vector or Flate)
 // The slice of fontkit's Font this file uses (the shipped typings are awkward for layout runs).
 type Glyph = { path: { commands: unknown[]; scale(x: number, y: number): { toSVG(): string } } }
@@ -177,6 +178,45 @@ function setBoxes(page: PDFPage, spec: NonNullable<Variant['print']>) {
   page.setTrimBox(B, B, PW - 2 * B, PH - 2 * B); page.setArtBox(B, B, PW - 2 * B, PH - 2 * B)
 }
 
+// ── memento contents page(s) ─────────────────────────────────────────────────────────────────────────────
+// A memento print file is read by a vendor who engraves one per speaker, so the first page(s) say which page is which speaker.
+// Like the badge instruction page it is NOT artwork. Returns how many contents pages were written (the speakers start after them).
+export type MementoContentsInfo = { eventName: string; batchName: string; date: string; names: string[]; notes?: string }
+const CONTENTS_ROWS_PER_PAGE = 26
+
+function drawMementoContentsPages(doc: PDFDocument, spec: NonNullable<Variant['print']>, fonts: { regular: Font; bold: Font }, info: MementoContentsInfo): number {
+  const PWm = spec.width_mm, PHm = spec.height_mm, bleed = spec.bleed_mm
+  const PW = PWm * MM, PH = PHm * MM
+  const K = cmyk(0, 0, 0, 1)
+  const pages = Math.max(1, Math.ceil(info.names.length / CONTENTS_ROWS_PER_PAGE))
+  for (let pg = 0; pg < pages; pg++) {
+    const page = doc.addPage([PW, PH]); setBoxes(page, spec)
+    const text = (f: Font, t: string, xMm: number, topMm: number, pt: number) => drawOutlinedLine(page, PH, f, t, xMm * MM, topMm * MM, pt, 1, 1, K)
+    const width = (f: Font, t: string, pt: number) => advance(f, t, pt) / MM
+    const L = Math.max(bleed, 3) + 10, top = bleed + 12
+    text(fonts.bold, 'PRINT INSTRUCTIONS', L, top, 15)
+    text(fonts.regular, info.eventName, L, top + 8, 10)
+    text(fonts.regular, `${info.batchName} · ${info.date}`, L, top + 14, 10)
+    page.pushOperators(pushGraphicsState(), setLineWidth(0.7), setStrokingColor(K), moveTo(L * MM, PH - (top + 18.5) * MM), lineTo((PWm - L) * MM, PH - (top + 18.5) * MM), stroke(), popGraphicsState())
+    text(fonts.bold, pg === 0 ? 'THIS PAGE IS NOT ARTWORK — DO NOT ENGRAVE' : `THIS PAGE IS NOT ARTWORK — DO NOT ENGRAVE (contents ${pg + 1} of ${pages})`, L, top + 26, 9)
+    let y = top + 36
+    if (pg === 0) {
+      text(fonts.regular, `${info.names.length} memento${info.names.length === 1 ? '' : 's'} — one page each, in the order below.`, L, y, 9); y += 6.5
+      text(fonts.regular, `Page ${PWm} × ${PHm} mm, no bleed. Vector background, speaker photo as CMYK image.`, L, y, 9); y += 6.5
+      if (info.notes) { text(fonts.regular, info.notes.slice(0, 70), L, y, 9); y += 6.5 }
+      y += 4
+    }
+    text(fonts.bold, 'PAGE', L, y, 8.5); text(fonts.bold, 'SPEAKER', L + 22, y, 8.5); y += 7
+    const first = pg * CONTENTS_ROWS_PER_PAGE
+    info.names.slice(first, first + CONTENTS_ROWS_PER_PAGE).forEach((name, i) => {
+      let n = name; const maxW = PWm - 2 * L - 22
+      while (n.length > 4 && width(fonts.regular, n, 9) > maxW) n = n.slice(0, -2)
+      text(fonts.regular, String(pages + first + i + 1), L, y, 9); text(fonts.regular, n === name ? n : `${n.trimEnd()}…`, L + 22, y, 9); y += 6.6
+    })
+  }
+  return pages
+}
+
 // ── badge page ────────────────────────────────────────────────────────────────────────────────────────────
 type VectorCache = Map<string, Promise<PDFEmbeddedPage | null>>
 function embedVector(doc: PDFDocument, cache: VectorCache, url: string): Promise<PDFEmbeddedPage | null> {
@@ -188,13 +228,13 @@ function embedVector(doc: PDFDocument, cache: VectorCache, url: string): Promise
   return p
 }
 
-async function drawBadgePage(doc: PDFDocument, variant: Variant, assets: ResolvedAssets, texts: ResolvedTexts, vectors: VectorCache) {
+async function drawBadgePage(doc: PDFDocument, variant: Variant, assets: ResolvedAssets, texts: ResolvedTexts, vectors: VectorCache, targetPpi = TARGET_PPI) {
   const spec = variant.print!
   const PW = spec.width_mm * MM, PH = spec.height_mm * MM
   const cw = variant.canvas_width, ch = variant.canvas_height
   const kx = PW / cw, ky = PH / ch
   const ppi1x = cw / (spec.width_mm / 25.4)
-  const PX = Math.min(4, Math.max(1, Math.ceil(TARGET_PPI / ppi1x))) // raster render scale vs the design grid
+  const PX = Math.min(4, Math.max(1, Math.ceil(targetPpi / ppi1x - 1e-6))) // raster render scale vs the design grid
   const page = doc.addPage([PW, PH]); setBoxes(page, spec)
   const yPositions = await resolveTextLayerYPositions(variant, texts)
 
@@ -261,6 +301,8 @@ export type BadgeBatchPdfInput = {
   eventName: string
   batchName?: string
   notes?: string
+  /** Speaker mementos: the print file gets contents page(s) naming each speaker (index order = page order) instead of the badge instruction page and common back. */
+  mementoNames?: string[]
   onProgress?: (done: number, total: number) => void | Promise<void>
 }
 
@@ -268,27 +310,30 @@ export type BadgeBatchPdfInput = {
 export async function buildBadgeBatchPdf(input: BadgeBatchPdfInput): Promise<Buffer> {
   const { variant } = input
   const spec = variant.print
-  if (variant.category !== 'badge' || !spec) throw new Error('This template is not a speaker badge with a print size.')
+  const isMemento = variant.category === 'memento'
+  if ((variant.category !== 'badge' && !isMemento) || !spec) throw new Error('This template is not a speaker badge or memento with a print size.')
 
   const doc = await PDFDocument.create()
   doc.setTitle(`${input.eventName} — ${input.batchName ?? variant.name ?? 'Speaker badges'}`)
   doc.setProducer('EventPilot'); doc.setCreator('EventPilot')
   const fonts = await instructionFonts(variant)
-  drawInstructionPage(doc, spec, fonts, {
+  const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  if (isMemento) drawMementoContentsPages(doc, spec, fonts, { eventName: input.eventName, batchName: input.batchName ?? (variant.name || 'Speaker mementos'), date: today, names: input.mementoNames ?? Array.from({ length: input.count }, (_, i) => `Speaker ${i + 1}`), notes: input.notes })
+  else drawInstructionPage(doc, spec, fonts, {
     eventName: input.eventName,
     templateName: input.batchName ? `${variant.name || 'Speaker badge'} · ${input.batchName}` : variant.name || 'Speaker badge',
-    date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+    date: today,
     badges: input.count, hasBack: !!spec.back_pdf_url, notes: input.notes,
   })
 
   const vectors: VectorCache = new Map()
   for (let i = 0; i < input.count; i++) {
     const item = await input.getItem(i)
-    await drawBadgePage(doc, item.variant, item.assets, item.texts, vectors)
+    await drawBadgePage(doc, item.variant, item.assets, item.texts, vectors, isMemento ? MEMENTO_PPI : TARGET_PPI)
     await input.onProgress?.(i + 1, input.count)
   }
 
-  if (spec.back_pdf_url) {
+  if (!isMemento && spec.back_pdf_url) {
     const back = await embedVector(doc, vectors, spec.back_pdf_url)
     if (!back) throw new Error('Could not load the common back PDF.')
     const page = doc.addPage([spec.width_mm * MM, spec.height_mm * MM]); setBoxes(page, spec)
@@ -303,6 +348,7 @@ export async function buildBadgePrintPdf(input: BadgePrintInput): Promise<Buffer
   return buildBadgeBatchPdf({
     variant, count: 1, eventName: input.eventName,
     notes: input.sample ? 'SAMPLE — placeholder content, not a real order.' : undefined,
+    mementoNames: variant.category === 'memento' ? ['Sample speaker (placeholder photo)'] : undefined,
     getItem: async () => ({ variant, assets, texts }),
   })
 }

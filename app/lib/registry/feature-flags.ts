@@ -42,6 +42,7 @@ export type FeatureKey =
   | 'operations'
   | 'pr-media'
   | 'speaker-mementos'
+  | 'speaker-proposals'
 
 export type FeatureGroup = 'compliance' | 'integrations' | 'modules'
 
@@ -160,6 +161,13 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
     key: 'speaker-mementos',
     label: 'Speaker Mementos',
     description: 'Share speakers’ cleaned photos with Operations in batches (for speaker mementos) and track who has been shared.',
+    group: 'modules',
+    defaultForNewEvent: () => false,
+  },
+  {
+    key: 'speaker-proposals',
+    label: 'Speaker Proposals',
+    description: 'Research proposed speakers from a spreadsheet, review each card, and share the batch with the client to approve or reject. For managed events where the client signs off speakers.',
     group: 'modules',
     defaultForNewEvent: () => false,
   },

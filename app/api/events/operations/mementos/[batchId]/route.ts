@@ -1,3 +1,4 @@
+import { mementoPrintStream } from '@/app/lib/mementos/print'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
@@ -17,11 +18,11 @@ import { knownStaffId } from '@/app/lib/badges/service'
 
 async function gate(req: NextRequest, batchId: string) {
   if (!/^[0-9a-f-]{36}$/i.test(batchId)) return { error: NextResponse.json({ error: 'Batch not found.' }, { status: 404 }) }
-  const { data: batch } = await supabaseAdmin.from('memento_batches').select('id, name, event_id, status, note').eq('id', batchId).maybeSingle()
+  const { data: batch } = await supabaseAdmin.from('memento_batches').select('id, name, event_id, status, note, print_pdf_key, print_generated_at').eq('id', batchId).maybeSingle()
   if (!batch) return { error: NextResponse.json({ error: 'Batch not found.' }, { status: 404 }) }
   const session = getSession(req)
   if (!(await hasSectionAccessForEvent(session, batch.event_id as string, 'mementos'))) return { error: NextResponse.json({ error: 'Not authorized.' }, { status: 403 }) }
-  return { batch: batch as { id: string; name: string; event_id: string; status: string; note: string | null }, session }
+  return { batch: batch as { id: string; name: string; event_id: string; status: string; note: string | null; print_pdf_key: string | null; print_generated_at: string | null }, session }
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ batchId: string }> }) {
@@ -34,6 +35,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
 
   if (req.nextUrl.searchParams.get('download')) {
     await logOpsAccess({ eventId: batch.event_id, actorType: 'staff', actorId: await knownStaffId(g.session?.sid), action: 'memento_files_viewed_by_ops', targetType: 'memento_batch', targetId: batchId, ip: clientIp(req) })
+    if (batch.print_pdf_key) {
+      try {
+        const f = await mementoPrintStream(batch.print_pdf_key)
+        const safe = batch.name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'mementos'
+        return new NextResponse(f.body, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${safe}-print.pdf"`, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...(f.size ? { 'Content-Length': f.size } : {}) } })
+      } catch { return NextResponse.json({ error: 'Could not read the print file.' }, { status: 424 }) }
+    }
     try {
       const stream = await buildMementoZip((items ?? []).filter(i => i.photo_url).map(i => ({ name: i.speaker_name as string, url: i.photo_url as string })))
       const safe = batch.name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'mementos'
@@ -53,7 +61,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
       : Promise.resolve({ data: [] as { action: string; actor_type: string; created_at: string; meta: Record<string, unknown> | null; target_id: string }[] }),
   ])
   return NextResponse.json({
-    batch: { id: batch.id, name: batch.name, note: batch.note, status: batch.status, event_id: batch.event_id, event_name: ev?.name ?? '' },
+    batch: { id: batch.id, name: batch.name, note: batch.note, status: batch.status, event_id: batch.event_id, event_name: ev?.name ?? '', print: batch.print_pdf_key ? { generated_at: batch.print_generated_at } : null },
     items: (items ?? []).map(i => ({ speaker_id: i.speaker_id, name: i.speaker_name, photo_url: i.photo_url })),
     dispatches: (dispatches ?? []).map(d => ({ ...d, vendor_name: ((Array.isArray(d.ops_vendors) ? d.ops_vendors[0] : d.ops_vendors) as { name?: string } | null)?.name ?? null, ops_vendors: undefined })),
     vendors, audit: audit ?? [],

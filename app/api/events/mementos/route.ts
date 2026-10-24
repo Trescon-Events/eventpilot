@@ -9,6 +9,7 @@ import { getMementoStatuses, MEMENTO_STATE_LABEL } from '@/app/lib/mementos/stat
 import { mementoBatchContext, notifyMementoOps } from '@/app/lib/mementos/dispatch'
 import { staffForSection } from '@/app/lib/ops/section-access'
 import { logOpsAccess, clientIp } from '@/app/lib/ops/audit'
+import { eventMementoVariantFor, presignMementoPrint, printState, startMementoPrint } from '@/app/lib/mementos/print'
 
 /* Speaker mementos, modelled on the Badges module (2026-10-20): create a batch (name + speakers), then Push to Ops. Only the speakers'
    Cleaned Photos are involved. A batch is a draft until pushed; a pushed batch is locked. A speaker's status is derived from batch
@@ -52,8 +53,15 @@ export async function GET(req: NextRequest) {
   }
 
   const batchId = req.nextUrl.searchParams.get('id')
+  if (batchId && req.nextUrl.searchParams.get('print_download')) {
+    const { data: pb } = await supabaseAdmin.from('memento_batches').select('name, print_pdf_key').eq('id', batchId).eq('event_id', eventId).maybeSingle()
+    if (!pb?.print_pdf_key) return NextResponse.json({ error: 'No print file has been generated yet.' }, { status: 404 })
+    const safe = (pb.name as string).replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'mementos'
+    return NextResponse.json({ url: await presignMementoPrint(pb.print_pdf_key as string), filename: `${safe}-print.pdf` })
+  }
+  const eventVariants = await eventMementoVariants(eventId)
   const { data: batches } = await supabaseAdmin.from('memento_batches')
-    .select('id, name, note, kind, status, variant_id, shared_at, pushed_at, created_at, staff:staff_members!memento_batches_created_by_fkey(name)')
+    .select('id, name, note, kind, status, variant_id, shared_at, pushed_at, created_at, print_status, print_started_at, print_done, print_total, print_error, print_pdf_key, print_generated_at, print_pdf_bytes, print_sources, staff:staff_members!memento_batches_created_by_fkey(name)')
     .eq('event_id', eventId).order('shared_at', { ascending: false })
   const wanted = (batches ?? []).filter(b => !batchId || b.id === batchId)
   if (batchId && wanted.length === 0) return NextResponse.json({ error: 'Batch not found.' }, { status: 404 })
@@ -70,11 +78,13 @@ export async function GET(req: NextRequest) {
     }
   })
   const dispatch = batchId ? (await supabaseAdmin.from('memento_dispatches').select('id, status, speakers, requested_at, sent_at, first_downloaded_at, vendor_response_at, vendor_note, revoked_at, ops_vendors(name)').eq('batch_id', batchId).order('requested_at', { ascending: false }).limit(5)).data ?? [] : []
+  const printInfo = batchId ? await printState(wanted[0] as unknown as Parameters<typeof printState>[0]) : null
   const shape = (b: (typeof wanted)[number]) => {
     const its = itemsOf(b.id as string)
     return {
       id: b.id, name: b.name, note: b.note, kind: b.kind, variant_id: b.variant_id, status: b.status, shared_at: b.shared_at, pushed_at: b.pushed_at, created_at: b.created_at,
       created_by_name: (b as unknown as { staff: { name: string } | null }).staff?.name ?? null,
+      print_template: !!eventVariants.find(v => v.id === b.variant_id)?.print, ...(batchId ? { print: printInfo } : {}),
       speakers: its.length, changed: b.status === 'pushed' && b.kind === 'shared' ? its.filter(i => i.changed).length : 0,
       ...(batchId ? { items: its, dispatches: dispatch.map(d => ({ ...d, vendor_name: ((Array.isArray(d.ops_vendors) ? d.ops_vendors[0] : d.ops_vendors) as { name?: string } | null)?.name ?? null, ops_vendors: undefined })) } : {}),
     }
@@ -142,7 +152,21 @@ export async function PATCH(req: NextRequest) {
     await supabaseAdmin.from('memento_batch_items').delete().eq('batch_id', body.id).eq('speaker_id', body.speaker_id)
     return NextResponse.json({ ok: true })
   }
+  if (body.action === 'generate_print') {
+    const r = await startMementoPrint(body.id)
+    if ('error' in r) return NextResponse.json({ error: r.error }, { status: 422 })
+    return NextResponse.json({ ok: true })
+  }
   if (body.action === 'push') {
+    // A print memento goes to Ops as its print file: it must exist and be current (no speaker or Cleaned Photo changed since).
+    const printVariant = await eventMementoVariantFor(body.event_id, batch.variant_id as string | null)
+    if (printVariant?.print) {
+      const { data: pb } = await supabaseAdmin.from('memento_batches').select('id, print_status, print_started_at, print_done, print_total, print_error, print_pdf_key, print_generated_at, print_pdf_bytes, print_sources').eq('id', body.id).single()
+      const st = await printState(pb as unknown as Parameters<typeof printState>[0])
+      if (st.status === 'processing') return NextResponse.json({ error: 'The print file is still being built. Wait for it to finish, then push.' }, { status: 409 })
+      if (st.status !== 'done') return NextResponse.json({ error: 'Generate the print file first — Ops and the vendor receive the print PDF.' }, { status: 409 })
+      if (st.stale) return NextResponse.json({ error: 'A speaker or a Cleaned Photo changed since the print file was built. Generate it again, then push.' }, { status: 409 })
+    }
     const { data: items } = await supabaseAdmin.from('memento_batch_items').select('id, speaker_id, speaker_name').eq('batch_id', body.id)
     if (!items || items.length === 0) return NextResponse.json({ error: 'The batch has no speakers.' }, { status: 422 })
     // Ops gets what is current: refresh each speaker's frozen photo to their Cleaned Photo as of now, and refuse if one lost it.

@@ -181,7 +181,7 @@ export const CREDENTIALS: Credential[] = [
   },
   {
     id: 'serper', platform: 'Serper', group: 'AI & media',
-    what: 'Web search for KB Intel.',
+    what: 'Web, video and image search for KB Intel and Speaker Proposals research.',
     vars: ['SERPER_API_KEY'], stores: ['railway'],
     consoleUrl: 'https://serper.dev/api-keys',
     login: 'confirm',

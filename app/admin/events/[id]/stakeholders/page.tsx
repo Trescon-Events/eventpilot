@@ -205,6 +205,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   // Speaker Mementos (step 1) — null/false for every event that hasn't switched it on, which hides every memento control.
   const [mementosEnabled, setMementosEnabled] = useState(false)
   const [prMediaEnabled, setPrMediaEnabled] = useState(false)
+  const [proposalsEnabled, setProposalsEnabled] = useState(false)
   const [mediaRequestOpen, setMediaRequestOpen] = useState(false)
   // Per-speaker KonfHub categories (DFWS Roundtable Speaker) — empty for every event that doesn't use them, which hides the bulk items.
   const [konfhubCategories, setKonfhubCategories] = useState<{ id: string; label: string }[]>([])
@@ -457,6 +458,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
       const ev = Array.isArray(d) ? d[0] : d
       const stored = (ev?.enabled_features ?? {}) as Record<string, boolean>
       setPrMediaEnabled(stored['pr-media'] === true)
+      setProposalsEnabled(stored['speaker-proposals'] === true)
       const country = ev?.country ?? null
       setEventTitle(ev?.public_name || ev?.name || '')
       setEventFlags({
@@ -875,6 +877,12 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
             <span>VIPs</span>
           </button>
           <div style={{ height: '1px', background: 'var(--border-light)', margin: '6px 4px' }} />
+          {proposalsEnabled && can('sae.stakeholders.view') && (
+            <Link href={`/admin/events/${eventId}/stakeholders/speaker-proposals`}
+              style={{ display: 'block', padding: '9px 12px', borderRadius: '8px', textDecoration: 'none', fontFamily: 'inherit', fontSize: '15px', fontWeight: 700, color: 'var(--ink3)' }}>
+              Speaker Proposals
+            </Link>
+          )}
           {can('sae.stakeholders.edit') && (
             <>
               <button onClick={() => setSendMenuOpen(o => !o)} aria-expanded={sendMenuOpen}
