@@ -337,6 +337,22 @@ function CandidateRow({ cand, track, tracks, canEdit, onChanged }: { cand: Candi
     await onChanged()
   }
 
+  async function dropFiles(files: FileList | File[]) {
+    const imgs = [...files].filter(f => f.type.startsWith('image/'))
+    if (!imgs.length) { notify('Only images can be dropped here. Paste text straight into the box.', 'error'); return }
+    setBusy('drop')
+    for (const f of imgs.slice(0, 3)) {
+      const form = new FormData(); form.set('file', f)
+      const res = await fetch(`/api/events/speaker-proposals/candidates/${cand.id}/drop`, { method: 'POST', body: form })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) { notify(d.error ?? 'Could not read that image.', 'error'); continue }
+      if (d.kind === 'portrait') notify('Photo added. It is now this speaker’s photo.')
+      else if (d.kind === 'document') { setInp(p => ({ ...p, extra: d.extra })); notify('Read the text in that image and added it to the box. Press Research again to use it.') }
+      else notify(d.note ?? 'That does not look like a photo of the speaker or a page of text.', 'error')
+    }
+    setBusy(null); await onChanged()
+  }
+
   const statusBadge = cand.status === 'new' ? <Badge color="grey">Not researched</Badge> : cand.status === 'queued' ? <Badge color="grey">Waiting</Badge> : cand.status === 'researching' ? <Badge color="amber">Researching…</Badge> : cand.status === 'error' ? <Badge color="red">Failed</Badge>
     : r?.status === 'verified' ? <Badge color="teal">Verified</Badge> : r?.status === 'needs_review' ? <Badge color="amber">Needs review</Badge> : <Badge color="red">Not found</Badge>
   const chipColor = (a: Agreement) => (a === 'match' ? 'var(--teal-mid)' : a === 'differs' ? 'var(--red)' : 'var(--ink4)')
@@ -443,22 +459,30 @@ function CandidateRow({ cand, track, tracks, canEdit, onChanged }: { cand: Candi
         <div style={section}>{cand.raw.manual ? 'You entered' : 'From the sheet'}</div>
         <div style={{ fontSize: '12.5px', color: 'var(--ink3)', lineHeight: 1.5 }}>{[cand.input.name, cand.input.designation, cand.input.company, cand.input.country].filter(Boolean).join(' · ')}{cand.raw.extra.length > 0 && <div>Notes in the sheet: {cand.raw.extra.join(' · ')}</div>}{cand.input.extra && <div>Extra information supplied: {cand.input.extra.length} characters</div>}</div>
         {canEdit && (<>
-          <div style={section}>Producer notes <span style={{ textTransform: 'none', fontWeight: 600 }}>(team only — the research does not read this)</span></div>
+          <div style={section}>Producer notes</div>
           <Textarea value={notes} rows={2} onChange={e => setNotes(e.target.value)} onBlur={() => { if (notes !== (cand.producer_notes ?? '')) void patch({ producer_notes: notes }, 'notes') }} placeholder="Only visible to the team" />
+
+          <div style={section}>Drop more info <span style={{ textTransform: 'none', fontWeight: 600 }}>— the research reads this</span></div>
+          <Textarea rows={5} value={inp.extra} disabled={inProgress}
+            onChange={e => setInp({ ...inp, extra: e.target.value })}
+            onBlur={() => { if (inp.extra !== (cand.input.extra ?? '')) void patch({ extra: inp.extra }, 'extra') }}
+            onPaste={e => { const files = [...e.clipboardData.files]; if (files.length) { e.preventDefault(); void dropFiles(files) } }}
+            onDrop={e => { e.preventDefault(); void dropFiles(e.dataTransfer.files) }} onDragOver={e => e.preventDefault()}
+            placeholder="Paste or drop anything here, no formatting needed: text copied from their LinkedIn page, a bio, notes, links to pages or videos, or an image (a photo of them, or a screenshot of a page)." />
+          <div style={{ fontSize: '12px', color: 'var(--ink4)', lineHeight: 1.45, marginTop: '4px' }}>{busy === 'drop' ? 'Reading the image…' : 'Links are opened and read. A pasted photo of the speaker becomes their photo; a screenshot of text is read and added here. Then press the button below.'}</div>
           <div style={{ marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-            {!again && (cand.status === 'new' || cand.status === 'error') && <Button variant="teal" disabled={!!busy} onClick={() => void startNow()}>{cand.status === 'error' ? 'Try again' : 'Start research'}</Button>}
-            {!again && <Button variant="ghost" disabled={inProgress || !!busy} onClick={() => setAgain(true)}>{cand.status === 'researched' ? 'Add information & research again' : 'Edit details first'}</Button>}
+            {!again && <Button variant="teal" disabled={inProgress || !!busy} onClick={() => void research()}>{cand.status === 'researched' ? 'Research again' : cand.status === 'error' ? 'Try again' : 'Start research'}</Button>}
+            {!again && <Button variant="ghost" disabled={inProgress || !!busy} onClick={() => setAgain(true)}>Edit details</Button>}
             {!again && <button onClick={() => void removeSpeaker()} disabled={inProgress} style={{ border: 'none', background: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: '12.5px', fontFamily: 'inherit' }}>Remove from drop</button>}
           </div>
           {again && (
             <div style={{ display: 'grid', gap: '6px', marginTop: '8px' }}>
-              <div style={{ fontSize: '12.5px', color: 'var(--ink3)', lineHeight: 1.5 }}>Correct anything the sheet got wrong and add what you know. <strong>No formatting needed</strong> — paste it as it comes: text copied from their LinkedIn profile (open it, select all, copy), a bio, notes, or links to pages about them (the system reads the links). The research treats it as <strong>trusted information</strong> and uses the first ~12,000 characters. This replaces the current card.</div>
+              <div style={{ fontSize: '12.5px', color: 'var(--ink3)', lineHeight: 1.5 }}>Correct anything the sheet got wrong. Whatever is in the “Drop more info” box above is used too.</div>
               <Input value={inp.name} onChange={e => setInp({ ...inp, name: e.target.value })} placeholder="Name" /><Input value={inp.designation} onChange={e => setInp({ ...inp, designation: e.target.value })} placeholder="Job title" />
               <Input value={inp.company} onChange={e => setInp({ ...inp, company: e.target.value })} placeholder="Company / organisation" /><Input value={inp.website} onChange={e => setInp({ ...inp, website: e.target.value })} placeholder="Company website" />
               <CountryPicker value={inp.country} onChange={c => setInp({ ...inp, country: c })} placeholder="Nationality — type to search" />
               <Input value={inp.linkedin} onChange={e => setInp({ ...inp, linkedin: e.target.value })} placeholder="LinkedIn profile link" />
-              <Textarea rows={5} value={inp.extra} onChange={e => setInp({ ...inp, extra: e.target.value })} placeholder="Anything else you know — paste LinkedIn text (open their profile, select all, copy), a bio, or links to pages about them." />
-              <div style={{ display: 'flex', gap: '8px' }}><Button variant="teal" disabled={busy === 'research'} onClick={() => void research()}>{cand.status === 'researched' ? 'Research again' : 'Start research'}</Button><Button variant="ghost" onClick={() => setAgain(false)}>Cancel</Button></div>
+              <div style={{ display: 'flex', gap: '8px' }}><Button variant="teal" disabled={busy === 'research' || inProgress} onClick={() => void research()}>{cand.status === 'researched' ? 'Save and research again' : 'Save and start research'}</Button><Button variant="ghost" onClick={() => setAgain(false)}>Cancel</Button></div>
             </div>
           )}
         </>)}

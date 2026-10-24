@@ -30,6 +30,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     for (const k of ['photo_url', 'logo_url'] as const) if (old[k] && next[k] !== old[k]) await deletePublicAssetByUrl(old[k] as string).catch(() => {})
   }
   if (b.review_state !== undefined) { if (!['pending', 'ready', 'excluded'].includes(b.review_state)) return NextResponse.json({ error: 'Bad state.' }, { status: 400 }); patch.review_state = b.review_state }
+  if ((b as { extra?: string | null }).extra !== undefined) { const ex = (b as { extra?: string | null }).extra; patch.input = { ...(a.candidate.input as Record<string, unknown>), extra: typeof ex === 'string' && ex.trim() ? ex.trim().slice(0, 12000) : null } }
   if (b.producer_notes !== undefined) patch.producer_notes = text(b.producer_notes, 2000)
   if (b.track_id !== undefined) patch.track_id = b.track_id || null
   const { error } = await supabaseAdmin.from('speaker_proposal_candidates').update(patch).eq('id', id)
