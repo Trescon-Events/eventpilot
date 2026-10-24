@@ -167,6 +167,8 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   const [previewDataUrl, setPreviewDataUrl] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [quickPreviewOpen, setQuickPreviewOpen] = useState(false)
+  const [artworkBusy, setArtworkBusy] = useState(false)
+  const [artworkError, setArtworkError] = useState<string | null>(null)
   // Stale-while-revalidate (2026-07-31 UX pass, replacing the old debounced
   // auto-render): any layer/variant edit keeps showing the last render,
   // dimmed + badged, rather than clearing it outright — an old image there
@@ -374,6 +376,21 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
       canvas_width: grid.w, canvas_height: grid.h, layers,
       print: pageChanged ? { ...print, back_pdf_url: undefined, back_preview_url: undefined } : { ...activeVariant.print, ...print },
     })
+  }
+
+  async function downloadArtwork() {
+    if (!activeVariant) return
+    setArtworkBusy(true); setArtworkError(null)
+    try {
+      const res = await fetch('/api/events/templates/preview', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_id: eventId, stakeholder_type: activeType, variant: activeVariant, full_res: true, hide_reference_layers: true }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.preview_data_url) throw new Error(data.error ?? `Could not render the artwork (${res.status})`)
+      downloadDataUrl(data.preview_data_url, artworkFileName(activeVariant))
+    } catch (e) { setArtworkError(e instanceof Error ? e.message : 'Download failed.') }
+    setArtworkBusy(false)
   }
 
   function updateActiveVariant(patch: Partial<Variant>) {
@@ -1007,7 +1024,13 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                   )}
                   {activeVariant && (
                     <div style={{ marginTop: '10px' }}>
-                      <Button variant="ghost" title="A clean full-size preview with no drag boxes or mockup layers — what a real render looks like." onClick={() => setQuickPreviewOpen(true)}>Quick preview</Button>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <Button variant="ghost" title="A clean full-size preview with no drag boxes or mockup layers — what a real render looks like." onClick={() => setQuickPreviewOpen(true)}>Quick preview</Button>
+                        {activeVariant.category === 'memento' && (
+                          <Button variant="teal" disabled={artworkBusy} title="Download the full-size sample artwork (PNG) to show the vendor — the placeholder speaker, exactly as a real one would be produced." onClick={() => void downloadArtwork()}>{artworkBusy ? 'Preparing…' : 'Download artwork (PNG)'}</Button>
+                        )}
+                      </div>
+                      {artworkError && <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--red)' }}>{artworkError}</div>}
                     </div>
                   )}
                 </div>
@@ -1563,6 +1586,13 @@ function BadgeSettings({ variant, eventId, activeType, onChange, onResize }: { v
   )
 }
 
+// Download the memento artwork sample: the full-size render of the draft (transparent PNG for a plain memento) with the placeholder speaker,
+// so a vendor can check the format before any real batch.
+function downloadDataUrl(dataUrl: string, filename: string) {
+  const a = document.createElement('a'); a.href = dataUrl; a.download = filename; document.body.appendChild(a); a.click(); a.remove()
+}
+const artworkFileName = (v: Variant) => `${(v.name || 'memento').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '')}-sample-artwork.png`
+
 // Quick preview: a clean, full-size render of the draft in a popup (no drag boxes, mockup/preview layers left out) so
 // branding can verify the template. Badge templates also get "Download print PDF": a real sample print file built from
 // the same placeholder content (instruction page, badge, common back) to inspect in Illustrator.
@@ -1618,6 +1648,7 @@ function QuickPreviewModal({ variant, eventId, activeType, onClose }: { variant:
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
           <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Quick preview — {variant.name || 'Untitled variant'}</div>
           <div style={{ display: 'flex', gap: '8px' }}>
+            {variant.category === 'memento' && image && <Button variant="teal" onClick={() => downloadDataUrl(image, artworkFileName(variant))}>Download artwork (PNG)</Button>}
             <Button variant="ghost" onClick={refresh} disabled={loading}>{loading ? 'Rendering…' : 'Refresh'}</Button>
             <Button variant="ghost" onClick={onClose}>Close</Button>
           </div>
