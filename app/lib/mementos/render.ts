@@ -2,6 +2,7 @@ import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 import type { CreativeTemplateConfig, PhotoSlotLayer, Variant } from '@/app/lib/announcements/composite'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import sharp from 'sharp'
+import { toMonochrome } from '@/app/lib/media/monochrome'
 import { alignAndCropPhoto, type HeadBox } from '@/app/lib/media/face-alignment'
 
 // Memento artwork (2026-10-22): the speaker's Cleaned Photo placed on a TRANSPARENT canvas of the variant's own size, head fixed to the
@@ -47,7 +48,9 @@ export async function renderMementoPng(variant: Variant, photoUrl: string, headB
   if (!source) return { ok: false, error: "Could not fetch this speaker's cleaned photo." }
   const target = { ...layer.alignment, box: { x: 0, y: 0, width: variant.canvas_width, height: variant.canvas_height } }
   try {
-    const { buffer, padding } = await alignAndCropPhoto(source, target, headBox)
+    const aligned = await alignAndCropPhoto(source, target, headBox)
+    const buffer = layer.monochrome ? await toMonochrome(aligned.buffer) : aligned.buffer
+    const padding = aligned.padding
     return { ok: true, buffer: variant.print ? await composeMementoLayers(variant, buffer) : buffer, padding }
   } catch (e) {
     console.error('Memento render failed:', e)

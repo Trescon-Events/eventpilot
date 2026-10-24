@@ -1924,10 +1924,10 @@ function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLa
 
       {/* Monochrome speaker photo (2026-10-01, DFS) — per template, because each template has its own photo
           layer. Announcement creatives only: Website Photo variants render through a separate path and stay in colour. */}
-      {isPhoto && variantCategory !== 'website_photo' && variantCategory !== 'memento' && (
+      {isPhoto && variantCategory !== 'website_photo' && (
         <label style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'flex-start', gap: '6px', cursor: 'pointer', lineHeight: 1.4 }}>
           <input type="checkbox" checked={!!layer.monochrome} onChange={e => onChange({ monochrome: e.target.checked })} style={{ marginTop: '1px', width: '16px', height: '16px', flexShrink: 0 }} />
-          <span>Monochrome (black &amp; white) speaker photo — applies to creatives generated from this template. Click Generate Preview to see it; already-generated announcements keep their colour until regenerated.</span>
+          <span>Monochrome (black &amp; white) speaker photo — applies to {variantCategory === 'memento' ? 'the memento artwork and its print file' : 'creatives generated from this template'}. Click Generate Preview to see it; already-generated announcements keep their colour until regenerated.</span>
         </label>
       )}
 
