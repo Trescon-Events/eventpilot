@@ -831,6 +831,7 @@ function AdminPageInner() {
             { href: '/admin/events/b470ee7f-77d9-4985-a5e3-f3c1ebb349c8/stakeholders', label: 'Stakeholder Hub (FSF)' },
             { href: '/admin/events/06f62069-37d3-4699-9871-16709fa1540e/stakeholders', label: 'Stakeholder Hub (FIFF)' },
             { href: '/admin/events/27edfe37-ab45-4656-922d-0503012c75a7/stakeholders', label: 'Stakeholder Hub (BSS)' },
+            { href: '/admin/events/ab48face-8c8f-4323-82d1-5bb74d1ead89/stakeholders', label: 'Stakeholder Hub (WPS)' },
           ].map(link => (
             <Link key={link.href} href={link.href} style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, padding: '6px 11px', borderRadius: '8px', textDecoration: 'none' }}>
               {link.label}
