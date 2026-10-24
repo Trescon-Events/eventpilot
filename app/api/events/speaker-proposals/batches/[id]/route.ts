@@ -10,7 +10,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params
   const a = await authBatch(req, id, 'view'); if ('error' in a) return a.error
   const [{ data: candidates }, { data: tracks }, { data: reviewers }, { data: share }] = await Promise.all([
-    supabaseAdmin.from('speaker_proposal_candidates').select('id, position, raw, input, track_id, status, research, card, review_state, producer_notes, error, researched_at').eq('batch_id', id).order('position'),
+    supabaseAdmin.from('speaker_proposal_candidates').select('id, position, raw, input, track_id, status, research, card, review_state, producer_notes, error, researched_at, started_at, progress').eq('batch_id', id).order('position'),
     supabaseAdmin.from('speaker_proposal_tracks').select('id, name, day_label, stage, time_label, position').eq('event_id', a.batch.event_id).order('position'),
     supabaseAdmin.from('speaker_proposal_reviewers').select('id, name, email, token, notified_at, last_opened_at, reminder_count, last_reminder_at').eq('batch_id', id).order('created_at'),
     supabaseAdmin.from('speaker_proposal_batches').select('shared_at, shared_by_name, share_message').eq('id', id).single(),
@@ -23,7 +23,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   ])
   const { data: prev } = others?.length ? await supabaseAdmin.from('speaker_proposal_reviewers').select('name, email').eq('batch_id', others[0].id as string).order('created_at') : { data: [] }
   const decOf = new Map((decisions ?? []).map(d => [d.candidate_id as string, d]))
-  const withOutcome = (candidates ?? []).map(c => ({ ...c, client_decision: decOf.get(c.id as string) ?? null, client_comments: (comments ?? []).filter(m => m.candidate_id === c.id) }))
+  // The saved source reports can be large (they are only needed server-side for cheap re-runs): the page gets a summary of them.
+  const slim = (research: unknown) => {
+    const r = research as { pipeline?: { pages_read?: number; rounds?: number; reports?: { about?: string }[] } | null } | null
+    return r?.pipeline ? { ...r, pipeline: { pages_read: r.pipeline.pages_read ?? 0, rounds: r.pipeline.rounds ?? 1, reports: (r.pipeline.reports ?? []).map(x => ({ about: x.about ?? 'maybe' })) } } : research
+  }
+  const withOutcome = (candidates ?? []).map(c => ({ ...c, research: slim(c.research), client_decision: decOf.get(c.id as string) ?? null, client_comments: (comments ?? []).filter(m => m.candidate_id === c.id) }))
   const base = process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com'
   const reviewerOut = (reviewers ?? []).map(r => ({ ...r, link: `${base.replace(/\/$/, '')}/public/speaker-proposals/${r.token}`, token: undefined }))
   const sender = await senderFor(a.session.sid)

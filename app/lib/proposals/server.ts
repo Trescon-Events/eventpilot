@@ -3,7 +3,8 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession, type TcsSession } from '@/app/lib/access/session'
 import { hasEventPermission, isEventFeatureEnabled } from '@/app/lib/access/event-access'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
-import { cleanLogoFromUrl, normalizeUrl, researchCandidate, type CardVideo, type ProposalInput, type ResearchResult } from './research'
+import { cleanLogoFromUrl, normalizeUrl, researchCandidate as researchV1, type CardVideo, type ProposalInput, type ResearchResult } from './research'
+import { researchCandidate as researchV2, type PipelineState } from './pipeline'
 import { countryCode } from './countries'
 
 /* Speaker Proposals — server side. Research runs in the background on the Node server (the HTTP call returns at once, the browser polls), at most 3 candidates at a time.
@@ -69,12 +70,22 @@ export function buildCard(input: ProposalInput, r: ResearchResult): Card {
 }
 
 async function processCandidate(candidateId: string): Promise<void> {
-  const { data: c } = await supabaseAdmin.from('speaker_proposal_candidates').select('id, event_id, input').eq('id', candidateId).maybeSingle()
+  const { data: c } = await supabaseAdmin.from('speaker_proposal_candidates').select('id, event_id, input, research').eq('id', candidateId).maybeSingle()
   if (!c) return
   const input = c.input as ProposalInput
   try {
-    const r = await researchCandidate(input)
+    // The staged pipeline. A producer adding information re-uses the saved source reports (no new searching) unless the name / role / organisation changed.
+    const prior = (c.research as { pipeline?: PipelineState | null } | null)?.pipeline ?? null
+    let r: ResearchResult
+    const limit = <T,>(p: Promise<T>) => Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error('The research took too long and was stopped — try again.')), RUN_LIMIT_MS))])
+    const onProgress = (p: unknown) => { void supabaseAdmin.from('speaker_proposal_candidates').update({ progress: p }).eq('id', candidateId).then(() => {}, () => {}) }
+    try { r = await limit(researchV2(input, prior, onProgress)) }
+    catch (e) {
+      if (e instanceof Error && /too long/.test(e.message)) throw e
+      console.error('[proposals] pipeline failed, falling back to the single-pass research:', e instanceof Error ? e.message : e); r = await limit(researchV1(input))
+    }
     const card = buildCard(input, r)
+    onProgress({ stage: 'write', label: 'Building the card', detail: 'Saving the photo and cleaning the logo', done: null, total: null, at: new Date().toISOString() })
     // Logo: first candidate that downloads and cleans to something visible, through the platform's logo engine (600×300, white).
     for (const l of r.logo_candidates.slice(0, 4)) {
       const png = await cleanLogoFromUrl(l.url)
@@ -83,21 +94,22 @@ async function processCandidate(candidateId: string): Promise<void> {
     // Photo: our own copy of the first candidate; the producer confirms or swaps it.
     for (const p of r.photo_candidates.slice(0, 3)) { const u = await rehostPhoto(c.event_id as string, candidateId, p.url); if (u) { card.photo_url = u; break } }
     const internal: Internal = { ...r, footprint_note: footprintNote(r) }
-    await supabaseAdmin.from('speaker_proposal_candidates').update({ status: 'researched', research: internal, card, error: null, researched_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', candidateId)
+    await supabaseAdmin.from('speaker_proposal_candidates').update({ status: 'researched', progress: null, research: internal, card, error: null, researched_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', candidateId)
   } catch (e) {
     console.error('[proposals] research failed for', candidateId, e instanceof Error ? e.message : e)
-    await supabaseAdmin.from('speaker_proposal_candidates').update({ status: 'error', error: e instanceof Error ? e.message.slice(0, 300) : 'Research failed', updated_at: new Date().toISOString() }).eq('id', candidateId)
+    await supabaseAdmin.from('speaker_proposal_candidates').update({ status: 'error', progress: null, error: e instanceof Error ? e.message.slice(0, 300) : 'Research failed', updated_at: new Date().toISOString() }).eq('id', candidateId)
   }
 }
 
 const running = new Set<string>()
-const STUCK_MS = 10 * 60 * 1000
+const STUCK_MS = 25 * 60 * 1000 // a run older than this died with its server and is re-queued
+const RUN_LIMIT_MS = 15 * 60 * 1000 // one speaker never takes longer than this: it fails cleanly and can be retried
 const WORKERS = 3
 
 /** Queues the given candidates (or everything not yet researched) and works through them in the background. Safe to call twice: one worker group per batch. */
 export async function startResearch(batchId: string, candidateIds?: string[]): Promise<{ queued: number }> {
   await supabaseAdmin.from('speaker_proposal_candidates').update({ status: 'queued', started_at: null }).eq('batch_id', batchId).eq('status', 'researching').lt('started_at', new Date(Date.now() - STUCK_MS).toISOString())
-  let q = supabaseAdmin.from('speaker_proposal_candidates').update({ status: 'queued', error: null, updated_at: new Date().toISOString() }, { count: 'exact' }).eq('batch_id', batchId).neq('status', 'researching')
+  let q = supabaseAdmin.from('speaker_proposal_candidates').update({ status: 'queued', error: null, progress: null, updated_at: new Date().toISOString() }, { count: 'exact' }).eq('batch_id', batchId).neq('status', 'researching')
   q = candidateIds?.length ? q.in('id', candidateIds) : q.in('status', ['new', 'queued', 'error'])
   const { count } = await q
   if (!running.has(batchId)) {

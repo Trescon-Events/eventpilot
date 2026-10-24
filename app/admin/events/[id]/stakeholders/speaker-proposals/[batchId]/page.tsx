@@ -22,14 +22,16 @@ type Video = { url: string; title: string; channel: string | null; date: string 
 type Card = { name: string; title: string | null; organization: string | null; nationality_iso2: string | null; linkedin_url: string | null; bio: string | null; videos: Video[]; photo_url: string | null; logo_url: string | null; website_url: string | null }
 type Agreement = 'match' | 'differs' | 'unknown'
 type Internal = {
-  status: 'verified' | 'needs_review' | 'not_found'; concerns: string[]; footprint_note: string | null; sources: { url: string; title: string }[]
+  pipeline?: { pages_read: number; rounds: number; reports: { about: string }[] } | null
+  status: 'verified' | 'needs_review' | 'not_found'; concerns: string[]; footprint_note: string | null; sources: { url: string; title: string; gave?: string[] }[]
   verification: { pass2_identified: boolean | null; title: Agreement; organization: Agreement; nationality: Agreement; linkedin: Agreement }
   bio_removed: string[]; photo_candidates: { url: string; page_url: string | null; title: string }[]; logo_candidates: { url: string; page_url: string | null; title: string }[]; linkedin_note: string | null
 }
+type Progress = { stage: 'search' | 'read' | 'merge' | 'fill' | 'write' | 'verify'; label: string; detail: string | null; done: number | null; total: number | null; at: string }
 type Input = { name: string; designation: string | null; company: string | null; country: string | null; linkedin: string | null; website?: string | null; extra?: string | null; track_text: string }
 type Candidate = {
   id: string; position: number; raw: { cells: Record<string, string>; extra: string[]; manual?: boolean }; input: Input
-  track_id: string | null; status: 'new' | 'queued' | 'researching' | 'researched' | 'error'; research: Internal | null; card: Card; review_state: 'pending' | 'ready' | 'excluded'; producer_notes: string | null; error: string | null; researched_at: string | null
+  track_id: string | null; status: 'new' | 'queued' | 'researching' | 'researched' | 'error'; research: Internal | null; card: Card; review_state: 'pending' | 'ready' | 'excluded'; producer_notes: string | null; error: string | null; researched_at: string | null; started_at: string | null; progress: Progress | null
   client_decision: { decision: 'approved' | 'rejected'; reviewer_name: string; decided_at: string } | null; client_comments: { id: string; reviewer_name: string; body: string; created_at: string }[]
 }
 type Reviewer = { id: string; name: string; email: string; link: string; notified_at: string | null; last_opened_at: string | null; reminder_count: number }
@@ -45,6 +47,10 @@ const STYLES = `
   .sp-spin { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--teal); border-radius: 50%; animation: spSpin 0.9s linear infinite; display: inline-block; flex-shrink: 0; }
   @keyframes spPulse { 0%, 100% { box-shadow: 0 0 0 0 var(--teal); } 50% { box-shadow: 0 0 0 6px transparent; } }
   .sp-pulse { animation: spPulse 1.6s ease-in-out infinite; border-radius: 8px; }
+  @keyframes spSlide { 0% { background-position: 0 0; } 100% { background-position: 40px 0; } }
+  .sp-live { background-image: repeating-linear-gradient(45deg, var(--teal) 0 10px, var(--teal-mid) 10px 20px); background-size: 40px 100%; animation: spSlide 0.8s linear infinite; }
+  @keyframes spBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+  .sp-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--teal); display: inline-block; animation: spBlink 1.2s ease-in-out infinite; flex-shrink: 0; }
 `
 
 async function call(url: string, method: string, body?: unknown): Promise<{ ok: boolean; data: Record<string, unknown> }> {
@@ -66,6 +72,8 @@ export default function ProposalBatchPage({ params }: { params: Promise<{ id: st
   const [filter, setFilter] = useState<Filter>('all')
   const [step, setStep] = useState<1 | 2 | 3 | null>(null)
   const [starting, setStarting] = useState(false)
+  const [finished, setFinished] = useState<{ done: number; attention: number; failed: number } | null>(null)
+  const wasWorking = useRef(false)
   useBreadcrumbLabel(eventId, eventName)
   useBreadcrumbLabel(batchId, batch?.name ?? null)
   const canEdit = permissionSetSatisfies(permissions, 'sae.stakeholders.edit')
@@ -94,11 +102,21 @@ export default function ProposalBatchPage({ params }: { params: Promise<{ id: st
   }, [fetchBatch, apply, eventId])
 
   const working = candidates.some(c => c.status === 'queued' || c.status === 'researching')
+  // Refresh every 3 s while research is running, and every 12 s otherwise (while the tab is visible) — so a job started from another tab,
+  // by a colleague, or in the background shows up here without a reload.
   useEffect(() => {
-    if (!working) return
-    const t = setInterval(() => void load(), 3500)
+    const t = setInterval(() => { void (async () => {
+      if (document.visibilityState !== 'visible') return
+      const r = await fetchBatch(); apply(r)
+      // when the last speaker finishes, say so clearly instead of just letting the spinner vanish
+      const list = (r.d.candidates as Candidate[] | undefined) ?? []
+      const stillWorking = list.some(c => c.status === 'queued' || c.status === 'researching')
+      if (!stillWorking && wasWorking.current) setFinished({ done: list.filter(c => c.status === 'researched').length, attention: list.filter(needsAttention).length, failed: list.filter(c => c.status === 'error').length })
+      wasWorking.current = stillWorking
+    })() }, working ? 3000 : 12000)
     return () => clearInterval(t)
-  }, [working, load])
+  }, [working, fetchBatch, apply])
+  useEffect(() => { wasWorking.current = working }, [working])
 
   async function startAll() {
     setStarting(true)
@@ -165,6 +183,7 @@ export default function ProposalBatchPage({ params }: { params: Promise<{ id: st
             ))}
           </div>
           <div style={{ flex: 1 }} />
+          {working ? <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 12px', borderRadius: '16px', border: '1px solid var(--teal)', fontSize: '13px', fontWeight: 800, color: 'var(--teal-mid)' }}><span className="sp-dot" />Researching — {counts.done} of {candidates.length} done</div> : null}
           <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>{nextHint}</div>
           {step > 1 && <Button variant="ghost" onClick={() => { setStep((step - 1) as 1 | 2); window.scrollTo({ top: 0 }) }}>← Back</Button>}
           {primary && <span className={primary.highlight ? 'sp-pulse' : undefined}><Button variant={primary.highlight ? 'lime' : 'ghost'} disabled={primary.disabled} onClick={() => { setStep(primary.go); window.scrollTo({ top: 0 }) }}>{primary.label}</Button></span>}
@@ -183,10 +202,13 @@ export default function ProposalBatchPage({ params }: { params: Promise<{ id: st
               <div style={{ flex: 1 }} />
               {canEdit && notStarted > 0 && !working && <Button variant="teal" onClick={() => void startAll()} disabled={starting}>{`Research ${notStarted} speaker${notStarted === 1 ? '' : 's'}`}</Button>}
             </div>
-            {working && (
-              <div style={{ marginBottom: '14px', padding: '12px 14px', border: '1px solid var(--border-light)', borderRadius: '10px', background: 'var(--card)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--ink2)', marginBottom: '6px' }}><span className="sp-spin" />Researching… {counts.done} done, {counts.active} in progress, {counts.queued} waiting. You can close this tab; it keeps going.</div>
-                <div style={{ height: '6px', borderRadius: '3px', background: 'var(--border-light)' }}><div style={{ height: '6px', borderRadius: '3px', background: 'var(--teal)', width: `${candidates.length ? (100 * counts.done) / candidates.length : 0}%`, transition: 'width 0.3s' }} /></div>
+            {working && <BatchProgress candidates={candidates} total={candidates.length} />}
+            {finished && !working && (
+              <div style={{ marginBottom: '14px', padding: '12px 16px', border: '1px solid var(--teal)', borderRadius: '12px', background: 'var(--card)', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '18px', color: 'var(--teal-mid)' }}>✓</span>
+                <div style={{ flex: 1, minWidth: '240px' }}><div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Research finished</div><div style={{ fontSize: '13.5px', color: 'var(--ink3)' }}>{finished.done} researched{finished.attention > 0 ? ` · ${finished.attention} need your attention (check them first)` : ' · nothing needs attention'}{finished.failed > 0 ? ` · ${finished.failed} failed — use Try again` : ''}. Review each card, then mark it Ready.</div></div>
+                {finished.attention > 0 && <Button variant="lime" onClick={() => { setFilter('attention'); setFinished(null) }}>Show the ones needing attention</Button>}
+                <Button variant="ghost" onClick={() => setFinished(null)}>Dismiss</Button>
               </div>
             )}
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '18px' }}>
@@ -194,7 +216,7 @@ export default function ProposalBatchPage({ params }: { params: Promise<{ id: st
               {shared && <>{chip('awaiting', 'Awaiting client', counts.awaiting)}{chip('approved', 'Client approved', counts.approved)}{chip('rejected', 'Client rejected', counts.rejected)}</>}
             </div>
             <div style={{ display: 'grid', gap: '18px' }}>
-              {shown.map(c => <CandidateRow key={`${c.id}-${c.researched_at ?? ''}`} cand={c} track={tracks.find(t => t.id === c.track_id)} tracks={tracks} canEdit={canEdit} onChanged={load} />)}
+              {shown.map(c => <CandidateRow key={`${c.id}-${c.researched_at ?? ''}`} cand={c} track={tracks.find(t => t.id === c.track_id)} tracks={tracks} canEdit={canEdit} ahead={candidates.filter(x => x.status === 'queued' && x.position < c.position).length} onChanged={load} />)}
               {shown.length === 0 && <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--ink3)' }}>Nothing here.</div>}
             </div>
           </>)}
@@ -209,6 +231,103 @@ export default function ProposalBatchPage({ params }: { params: Promise<{ id: st
 
         {step === 3 && <SendStep batchId={batchId} reviewers={reviewers} previous={previous} sender={sender} ready={counts.ready} approved={counts.approved} rejected={counts.rejected} canEdit={canEdit} onChanged={load} />}
       </div>
+    </div>
+  )
+}
+
+/* ── research progress ───────────────────────────────────────────────────── */
+const STAGES: { k: Progress['stage']; label: string }[] = [
+  { k: 'search', label: 'Search the web' }, { k: 'read', label: 'Read the pages' }, { k: 'merge', label: 'Compare the findings' },
+  { k: 'fill', label: 'Look for what is missing' }, { k: 'write', label: 'Build the card' }, { k: 'verify', label: 'Independent check' },
+]
+const stageOrder = (k: Progress['stage']) => STAGES.findIndex(s => k === s.k)
+/** 0–1: how far along a speaker is, from its stage and the page count inside it. */
+const progressFraction = (p: Progress | null) => (p ? Math.min(0.97, (stageOrder(p.stage) + (p.total ? (p.done ?? 0) / p.total : 0.4)) / STAGES.length) : 0.03)
+const mmss = (ms: number) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` }
+function useNow(active: boolean): number {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!active) return
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [active])
+  return now
+}
+
+/** The live tracker on a speaker that is being researched: queue position, then the current stage, what it is doing, and how long it has been going. */
+function ResearchProgress({ cand, ahead }: { cand: Candidate; ahead: number }) {
+  const now = useNow(true)
+  if (cand.status === 'queued') {
+    return (
+      <div style={{ padding: '12px 14px', background: 'var(--card)', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', fontWeight: 800, color: 'var(--ink)' }}><span className="sp-dot" style={{ background: 'var(--ink4)' }} />Waiting in line</div>
+        <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '4px' }}>{ahead === 0 ? 'Next up — it starts as soon as a researcher is free.' : `${ahead} speaker${ahead === 1 ? '' : 's'} ahead of this one.`} You can close this tab; it keeps going.</div>
+      </div>
+    )
+  }
+  const p = cand.progress
+  const cur = p ? stageOrder(p.stage) : 0
+  const steps = STAGES.filter(s => s.k !== 'fill' || p?.stage === 'fill')
+  const elapsed = cand.started_at ? now - new Date(cand.started_at).getTime() : 0
+  return (
+    <div style={{ padding: '12px 14px', background: 'var(--card)', borderRadius: '10px', border: '1px solid var(--teal)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+        <span className="sp-spin" /><span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)' }}>Researching</span>
+        <span style={{ flex: 1 }} /><span style={{ fontSize: '13px', color: 'var(--ink3)', fontVariantNumeric: 'tabular-nums' }}>{cand.started_at ? mmss(elapsed) : ''}</span>
+      </div>
+      <div style={{ display: 'grid', gap: '7px' }}>
+        {steps.map(st => {
+          const i = stageOrder(st.k), state = i < cur ? 'done' : i === cur ? 'now' : 'todo'
+          return (
+            <div key={st.k} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+              <span style={{ width: '18px', height: '18px', borderRadius: '50%', flexShrink: 0, marginTop: '1px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 900, border: `2px solid ${state === 'todo' ? 'var(--border)' : 'var(--teal)'}`, background: state === 'done' ? 'var(--teal)' : 'transparent', color: state === 'done' ? 'white' : 'var(--teal)' }}>
+                {state === 'done' ? '✓' : state === 'now' ? <span className="sp-dot" style={{ width: '7px', height: '7px' }} /> : ''}
+              </span>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: '13.5px', fontWeight: state === 'now' ? 800 : 600, color: state === 'todo' ? 'var(--ink4)' : 'var(--ink)' }}>{state === 'now' && p ? p.label : st.label}</div>
+                {state === 'now' && p?.detail && <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '1px' }}>{p.detail}</div>}
+                {state === 'now' && p?.total ? <div style={{ height: '4px', borderRadius: '2px', background: 'var(--border-light)', marginTop: '5px' }}><div style={{ height: '4px', borderRadius: '2px', background: 'var(--teal)', width: `${Math.round(100 * (p.done ?? 0) / p.total)}%`, transition: 'width 0.4s' }} /></div> : null}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <div style={{ fontSize: '12px', color: 'var(--ink4)', marginTop: '10px' }}>Usually 1–3 minutes. You can close this tab; it keeps going.</div>
+    </div>
+  )
+}
+
+/** The whole drop at a glance: a clear bar, the counts, a time estimate, and what each active researcher is doing right now. */
+function BatchProgress({ candidates, total }: { candidates: Candidate[]; total: number }) {
+  const now = useNow(true)
+  const done = candidates.filter(c => c.status === 'researched').length
+  const active = candidates.filter(c => c.status === 'researching'), waiting = candidates.filter(c => c.status === 'queued')
+  const frac = total ? (done + active.reduce((n, c) => n + progressFraction(c.progress), 0)) / total : 0
+  const samples = candidates.filter(c => c.status === 'researched' && c.started_at && c.researched_at).map(c => new Date(c.researched_at!).getTime() - new Date(c.started_at!).getTime()).filter(ms => ms > 5000 && ms < 30 * 60 * 1000)
+  const avg = samples.length >= 2 ? samples.reduce((a, b) => a + b, 0) / samples.length : null
+  const remaining = avg ? Math.max(0, ((waiting.length + active.length * 0.5) * avg) / Math.max(1, Math.min(3, active.length + waiting.length)) ) : null
+  void now
+  return (
+    <div style={{ marginBottom: '14px', padding: '14px 16px', border: '1px solid var(--teal)', borderRadius: '12px', background: 'var(--card)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '10px' }}>
+        <span className="sp-spin" />
+        <span style={{ fontSize: '16px', fontWeight: 900, color: 'var(--ink)' }}>Research in progress</span>
+        <span style={{ fontSize: '14px', color: 'var(--ink2)' }}><strong>{done}</strong> of {total} done · <strong>{active.length}</strong> researching · {waiting.length} waiting</span>
+        <span style={{ flex: 1 }} />
+        <span style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--teal-mid)' }}>{remaining === null ? 'Estimating time…' : remaining < 45_000 ? 'Almost done' : `About ${Math.max(1, Math.round(remaining / 60_000))} min left`}</span>
+      </div>
+      <div style={{ height: '10px', borderRadius: '5px', background: 'var(--border-light)', overflow: 'hidden' }}><div className="sp-live" style={{ height: '10px', borderRadius: '5px', width: `${Math.max(3, Math.round(frac * 100))}%`, transition: 'width 0.6s' }} /></div>
+      {active.length > 0 && (
+        <div style={{ display: 'grid', gap: '4px', marginTop: '10px' }}>
+          {active.map(c => (
+            <div key={c.id} style={{ display: 'flex', gap: '10px', alignItems: 'center', fontSize: '13px', color: 'var(--ink2)', flexWrap: 'wrap' }}>
+              <span className="sp-dot" /><strong style={{ minWidth: '150px' }}>{c.card.name}</strong>
+              <span style={{ color: 'var(--ink3)' }}>{c.progress ? `${c.progress.label}${c.progress.detail ? ` — ${c.progress.detail}` : ''}` : 'Starting…'}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ fontSize: '12.5px', color: 'var(--ink4)', marginTop: '10px' }}>You can leave this page or close the tab — the research keeps running on the server and your results will be waiting.</div>
     </div>
   )
 }
@@ -275,7 +394,7 @@ function AddSpeakers({ batchId, tracks, empty, onChanged }: { batchId: string; t
 }
 
 /* ── one speaker row ─────────────────────────────────────────────────────── */
-function CandidateRow({ cand, track, tracks, canEdit, onChanged }: { cand: Candidate; track: Track | undefined; tracks: Track[]; canEdit: boolean; onChanged: () => Promise<void> }) {
+function CandidateRow({ cand, track, tracks, canEdit, ahead, onChanged }: { cand: Candidate; track: Track | undefined; tracks: Track[]; canEdit: boolean; ahead: number; onChanged: () => Promise<void> }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<Card>(cand.card)
   const [notes, setNotes] = useState(cand.producer_notes ?? '')
@@ -315,10 +434,10 @@ function CandidateRow({ cand, track, tracks, canEdit, onChanged }: { cand: Candi
     const ok = await patch({ card: { [kind === 'logo' ? 'logo_url' : 'photo_url']: null } }, `rm-${kind}`)
     if (ok) setDraft(prev => ({ ...prev, [kind === 'logo' ? 'logo_url' : 'photo_url']: null }))
   }
-  async function research() {
-    if (cand.status === 'researched' && !window.confirm('Research this speaker again? It replaces the card and any edits you made to it.')) return
+  async function research(full = false) {
+    if (cand.status === 'researched' && !window.confirm(full ? 'Start over? This searches the web again and replaces the card and any edits you made to it.' : 'Research this speaker again? It re-uses the pages already read, adds what you dropped, and replaces the card and any edits you made to it.')) return
     setBusy('research')
-    const x = await call(`/api/events/speaker-proposals/candidates/${cand.id}/research`, 'POST', { input: { ...inp, country: inp.country ? countryNameOf(inp.country) : '' } })
+    const x = await call(`/api/events/speaker-proposals/candidates/${cand.id}/research`, 'POST', { full, input: { ...inp, country: inp.country ? countryNameOf(inp.country) : '' } })
     setBusy(null)
     if (!x.ok) { notify(String(x.data.error ?? 'Could not start.'), 'error'); return }
     setAgain(false); await onChanged()
@@ -353,13 +472,14 @@ function CandidateRow({ cand, track, tracks, canEdit, onChanged }: { cand: Candi
     setBusy(null); await onChanged()
   }
 
-  const statusBadge = cand.status === 'new' ? <Badge color="grey">Not researched</Badge> : cand.status === 'queued' ? <Badge color="grey">Waiting</Badge> : cand.status === 'researching' ? <Badge color="amber">Researching…</Badge> : cand.status === 'error' ? <Badge color="red">Failed</Badge>
+  const statusBadge = cand.status === 'new' ? <Badge color="grey">Not researched</Badge> : cand.status === 'queued' ? <Badge color="grey">Waiting in line</Badge> : cand.status === 'researching' ? <Badge color="amber">{cand.progress ? `${cand.progress.label}…` : 'Researching…'}</Badge> : cand.status === 'error' ? <Badge color="red">Failed</Badge>
     : r?.status === 'verified' ? <Badge color="teal">Verified</Badge> : r?.status === 'needs_review' ? <Badge color="amber">Needs review</Badge> : <Badge color="red">Not found</Badge>
   const chipColor = (a: Agreement) => (a === 'match' ? 'var(--teal-mid)' : a === 'differs' ? 'var(--red)' : 'var(--ink4)')
   const flag = flagPath(card.nationality_iso2)
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)', border: '1px solid var(--border)', borderRadius: '14px', overflow: 'hidden', background: 'var(--card)', opacity: dim ? 0.55 : 1 }}>
+    <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)', border: `1px solid ${inProgress ? 'var(--teal)' : 'var(--border)'}`, borderRadius: '14px', overflow: 'hidden', background: 'var(--card)', opacity: dim ? 0.55 : 1 }}>
+      {inProgress && <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: 'var(--border-light)', zIndex: 2 }}>{cand.status === 'researching' ? <div className="sp-live" style={{ height: '4px', width: `${Math.round(progressFraction(cand.progress) * 100)}%`, transition: 'width 0.6s' }} /> : null}</div>}
       {/* CLEAN card — what the client sees */}
       <div style={{ padding: '18px 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
@@ -444,7 +564,7 @@ function CandidateRow({ cand, track, tracks, canEdit, onChanged }: { cand: Candi
             {cand.client_comments.map(m => <div key={m.id} style={{ color: 'var(--ink2)', marginTop: '3px' }}>“{m.body}” <span style={{ color: 'var(--ink4)' }}>— {m.reviewer_name}</span></div>)}
           </div>
         )}
-        {inProgress && <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--ink2)', padding: '10px 12px', background: 'var(--card)', borderRadius: '8px' }}><span className="sp-spin" />{cand.status === 'queued' ? 'Waiting to be researched…' : 'Researching this speaker…'} <span style={{ color: 'var(--ink4)' }}>It keeps going if you close this tab.</span></div>}
+        {inProgress && <ResearchProgress cand={cand} ahead={ahead} />}
         {cand.status === 'new' && !again && <div style={{ fontSize: '13.5px', color: 'var(--ink2)', lineHeight: 1.5 }}>Not researched yet. The card shows what you entered. Press <strong>Start research</strong> to find the profile, bio, videos, photo and logo — or mark it Ready as it is.</div>}
         {cand.status === 'error' && <div style={{ fontSize: '13.5px', color: 'var(--red)' }}>Research failed: {cand.error ?? 'unknown error'}</div>}
         {r?.footprint_note && <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)', background: 'var(--card)', border: '1px solid var(--amber)', borderRadius: '8px', padding: '8px 10px', lineHeight: 1.45 }}>{r.footprint_note}</div>}
@@ -454,7 +574,7 @@ function CandidateRow({ cand, track, tracks, canEdit, onChanged }: { cand: Candi
             {(['title', 'organization', 'nationality', 'linkedin'] as const).map(k => <span key={k} style={{ color: chipColor(r.verification[k]), border: `1px solid ${chipColor(r.verification[k])}`, borderRadius: '10px', padding: '1px 8px' }}>{k === 'title' ? 'Role' : k === 'organization' ? 'Organisation' : k === 'linkedin' ? 'LinkedIn' : 'Nationality'}: {r.verification[k]}</span>)}
           </div></>)}
         {card.videos.length > 0 && (<><div style={section}>Videos</div><div style={{ display: 'grid', gap: '2px', fontSize: '12.5px', color: 'var(--ink3)' }}>{card.videos.map(v => <div key={v.url}>{v.checked === 'watched' ? '✓ watched — person confirmed' : v.checked === 'named' ? '• name + role in the text only' : '• added by you'}{v.date ? ` · ${v.date}` : ''}{v.duration ? ` · ${v.duration}` : ''}</div>)}</div></>)}
-        {r && r.sources.length > 0 && (<><div style={section}>Sources</div><div style={{ display: 'grid', gap: '2px' }}>{r.sources.slice(0, 6).map(s => <a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '12.5px', color: 'var(--teal)', overflowWrap: 'anywhere' }}>{(s.title || s.url).slice(0, 80)} ↗</a>)}</div></>)}
+        {r && r.sources.length > 0 && (<><div style={section}>Sources{r.pipeline ? <span style={{ textTransform: 'none', fontWeight: 600 }}> — read {r.pipeline.pages_read} page{r.pipeline.pages_read === 1 ? '' : 's'} in {r.pipeline.rounds} round{r.pipeline.rounds === 1 ? '' : 's'}; {r.pipeline.reports.filter(x => x.about === 'yes').length} confirmed it is them</span> : null}</div><div style={{ display: 'grid', gap: '2px' }}>{r.sources.slice(0, 8).map(s => <a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '12.5px', color: 'var(--teal)', overflowWrap: 'anywhere' }}>{(s.title || s.url).slice(0, 70)}{s.gave && s.gave.length ? <span style={{ color: 'var(--ink4)' }}> · gave {s.gave.join(', ')}</span> : null} ↗</a>)}</div></>)}
         {r && r.bio_removed.length > 0 && <details style={{ marginTop: '8px', fontSize: '12.5px', color: 'var(--ink3)' }}><summary style={{ cursor: 'pointer' }}>{r.bio_removed.length} bio sentence{r.bio_removed.length === 1 ? '' : 's'} removed (not supported)</summary><ul style={{ paddingLeft: '18px', listStyle: 'disc' }}>{r.bio_removed.map((x, i) => <li key={i}>{x}</li>)}</ul></details>}
         <div style={section}>{cand.raw.manual ? 'You entered' : 'From the sheet'}</div>
         <div style={{ fontSize: '12.5px', color: 'var(--ink3)', lineHeight: 1.5 }}>{[cand.input.name, cand.input.designation, cand.input.company, cand.input.country].filter(Boolean).join(' · ')}{cand.raw.extra.length > 0 && <div>Notes in the sheet: {cand.raw.extra.join(' · ')}</div>}{cand.input.extra && <div>Extra information supplied: {cand.input.extra.length} characters</div>}</div>
@@ -482,7 +602,7 @@ function CandidateRow({ cand, track, tracks, canEdit, onChanged }: { cand: Candi
               <Input value={inp.company} onChange={e => setInp({ ...inp, company: e.target.value })} placeholder="Company / organisation" /><Input value={inp.website} onChange={e => setInp({ ...inp, website: e.target.value })} placeholder="Company website" />
               <CountryPicker value={inp.country} onChange={c => setInp({ ...inp, country: c })} placeholder="Nationality — type to search" />
               <Input value={inp.linkedin} onChange={e => setInp({ ...inp, linkedin: e.target.value })} placeholder="LinkedIn profile link" />
-              <div style={{ display: 'flex', gap: '8px' }}><Button variant="teal" disabled={busy === 'research' || inProgress} onClick={() => void research()}>{cand.status === 'researched' ? 'Save and research again' : 'Save and start research'}</Button><Button variant="ghost" onClick={() => setAgain(false)}>Cancel</Button></div>
+              <div style={{ display: 'flex', gap: '8px' }}><Button variant="teal" disabled={busy === 'research' || inProgress} onClick={() => void research()}>{cand.status === 'researched' ? 'Save and research again' : 'Save and start research'}</Button><Button variant="ghost" onClick={() => setAgain(false)}>Cancel</Button>{cand.status === 'researched' && <Button variant="ghost" disabled={busy === 'research' || inProgress} title="Throw away what was read and search from scratch. Normally a re-run re-uses the pages already read and only adds what you dropped." onClick={() => void research(true)}>Start over (search again)</Button>}</div>
             </div>
           )}
         </>)}

@@ -22,40 +22,46 @@ export type ResearchResult = {
   linkedin_url: string | null; linkedin_note: string | null
   bio: string | null; bio_words: number; bio_removed: string[]
   videos: CardVideo[]; photo_candidates: Candidate[]; logo_candidates: Candidate[]
-  sources: { url: string; title: string }[]
+  sources: { url: string; title: string; gave?: string[] }[]
   verification: { pass2_identified: boolean | null; title: Agreement; organization: Agreement; nationality: Agreement; linkedin: Agreement; pass2: Record<string, unknown> | null }
   status: 'verified' | 'needs_review' | 'not_found'
   concerns: string[]
 }
 
 let _gemini: GoogleGenerativeAI | null = null
-const gemini = () => (_gemini ??= new GoogleGenerativeAI(process.env.GEMINI_API_KEY!))
-const words = (s: string | null | undefined) => (s ?? '').trim().split(/\s+/).filter(Boolean).length
-const clean = (s: string | null | undefined) => (s ?? '').replace(/ /g, ' ').replace(/\s+/g, ' ').replace(/^[\s,;:–-]+|[\s,;:–-]+$/g, '').trim()
-const norm = (s: string | null | undefined) => clean(s).toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim()
+export const gemini = () => (_gemini ??= new GoogleGenerativeAI(process.env.GEMINI_API_KEY!))
+export const words = (s: string | null | undefined) => (s ?? '').trim().split(/\s+/).filter(Boolean).length
+export const clean = (s: string | null | undefined) => (s ?? '').replace(/ /g, ' ').replace(/\s+/g, ' ').replace(/^[\s,;:–-]+|[\s,;:–-]+$/g, '').trim()
+export const norm = (s: string | null | undefined) => clean(s).toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim()
 const STOP = new Set(['of', 'the', 'and', 'for', 'at', 'in', 'to', 'a', 'an', 'senior', 'sr', 'vice', 'vp', 'chief', 'officer', 'director', 'head'])
-const toks = (s: string | null | undefined) => new Set(norm(s).split(' ').filter(t => t.length > 1 && !STOP.has(t)))
-function overlap(a: string | null | undefined, b: string | null | undefined): Agreement {
+export const toks = (s: string | null | undefined) => new Set(norm(s).split(' ').filter(t => t.length > 1 && !STOP.has(t)))
+export function overlap(a: string | null | undefined, b: string | null | undefined): Agreement {
   const A = toks(a), B = toks(b)
   if (!A.size || !B.size) return 'unknown'
   const inter = [...A].filter(t => B.has(t)).length
   return inter / Math.min(A.size, B.size) >= 0.5 ? 'match' : 'differs'
 }
-const slug = (u: string | null | undefined) => (u ?? '').toLowerCase().match(/linkedin\.com\/in\/([^/?#]+)/)?.[1]?.replace(/%[0-9a-f]{2}/g, '') ?? null
-const parseJson = <T,>(raw: string): T | null => { try { return JSON.parse(raw.replace(/^```(?:json)?\s*|\s*```$/g, '')) as T } catch { return null } }
+export const slug = (u: string | null | undefined) => (u ?? '').toLowerCase().match(/linkedin\.com\/in\/([^/?#]+)/)?.[1]?.replace(/%[0-9a-f]{2}/g, '') ?? null
+/** Reads model JSON. Models sometimes wrap a single answer in a list ( [ {…} ] ) — that is unwrapped, so callers always get the object. */
+export const parseJson = <T,>(raw: string): T | null => {
+  try {
+    const v = JSON.parse(raw.replace(/^```(?:json)?\s*|\s*```$/g, '')) as unknown
+    return (Array.isArray(v) && v.length >= 1 && v[0] && typeof v[0] === 'object' && !Array.isArray(v[0]) ? v[0] : v) as T
+  } catch { return null }
+}
 
 // Order shown on the card: YouTube, then other video platforms, then ordinary websites, then Instagram/Facebook/TikTok reels.
-const WATCHABLE_FIRST = (u: string) => /youtube\.com|youtu\.be/i.test(u) ? 0 : /vimeo\.com|dailymotion\.com|ted\.com|twitch\.tv/i.test(u) ? 1 : /instagram\.com|facebook\.com|fb\.watch|tiktok\.com/i.test(u) ? 4 : 2
-const NOT_VIDEO = /linkedin\.com\//i // LinkedIn posts sit behind a sign-in wall
-const BAD_IMAGE_HOST = /licdn\.com|fbcdn\.net|cdninstagram\.com|lookaside\.instagram\.com|gstatic\.com|encrypted-tbn/i
+export const WATCHABLE_FIRST = (u: string) => /youtube\.com|youtu\.be/i.test(u) ? 0 : /vimeo\.com|dailymotion\.com|ted\.com|twitch\.tv/i.test(u) ? 1 : /instagram\.com|facebook\.com|fb\.watch|tiktok\.com/i.test(u) ? 4 : 2
+export const NOT_VIDEO = /linkedin\.com\//i // LinkedIn posts sit behind a sign-in wall
+export const BAD_IMAGE_HOST = /licdn\.com|fbcdn\.net|cdninstagram\.com|lookaside\.instagram\.com|gstatic\.com|encrypted-tbn/i
 /** Same title = same video, whatever the URL (sites often publish one interview under two paths). */
-const titleKey = (t: string) => norm(t).slice(0, 48)
-function rankVideos(list: VideoHit[]): VideoHit[] {
+export const titleKey = (t: string) => norm(t).slice(0, 48)
+export function rankVideos(list: VideoHit[]): VideoHit[] {
   const seen = new Set<string>()
   return list.filter(v => !NOT_VIDEO.test(v.url)).sort((a, b) => WATCHABLE_FIRST(a.url) - WATCHABLE_FIRST(b.url)).filter(v => { const k = titleKey(v.title); if (seen.has(k)) return false; seen.add(k); return true })
 }
 /** A YouTube link must be public; other platforms are only checked to respond. */
-async function opensFine(url: string): Promise<boolean> {
+export async function opensFine(url: string): Promise<boolean> {
   try {
     if (/youtube\.com|youtu\.be/i.test(url)) return (await fetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(10_000) })).ok
     const r = await fetch(url, { method: 'GET', redirect: 'follow', signal: AbortSignal.timeout(12_000), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; EventPilot link check)' } })
@@ -64,16 +70,16 @@ async function opensFine(url: string): Promise<boolean> {
 }
 
 /** The distinctive part of a name: its last word of 3+ letters, ignoring titles. */
-const TITLE_WORDS = /^(mr|mrs|ms|dr|prof|professor|eng|h\.?e|hh|sheikh|major|general|brigadier|colonel|lt|col|captain|first|1st|lieutenant|his|her|excellency)\.?$/i
-function surnameOf(name: string): string | null {
+export const TITLE_WORDS = /^(mr|mrs|ms|dr|prof|professor|eng|h\.?e|hh|sheikh|major|general|brigadier|colonel|lt|col|captain|first|1st|lieutenant|his|her|excellency)\.?$/i
+export function surnameOf(name: string): string | null {
   const parts = clean(name).split(' ').filter(w => !TITLE_WORDS.test(w) && w.length >= 3)
   return parts.length ? norm(parts[parts.length - 1]) : null
 }
-const mentions = (text: string, token: string | null) => !!token && norm(text).split(' ').includes(token)
-const minutes = (d: string | null) => { const m = (d ?? '').match(/^(?:(\d+):)?(\d+):(\d+)$/); return m ? Number(m[1] ?? 0) * 60 + Number(m[2]) + Number(m[3]) / 60 : null }
+export const mentions = (text: string, token: string | null) => !!token && norm(text).split(' ').includes(token)
+export const minutes = (d: string | null) => { const m = (d ?? '').match(/^(?:(\d+):)?(\d+):(\d+)$/); return m ? Number(m[1] ?? 0) * 60 + Number(m[2]) + Number(m[3]) / 60 : null }
 
 /** Gemini watches a public YouTube video and says whether this person really speaks or appears in it. Null when it can't be checked. */
-async function watchCheck(url: string, name: string, role: string): Promise<{ appears: boolean; evidence: string } | null> {
+export async function watchCheck(url: string, name: string, role: string): Promise<{ appears: boolean; evidence: string } | null> {
   try {
     const model = gemini().getGenerativeModel({ model: GEMINI_FLASH_MODEL, generationConfig: { responseMimeType: 'application/json', mediaResolution: 'MEDIA_RESOLUTION_LOW' } as unknown as GenerationConfig })
     const r = await model.generateContent([{ fileData: { fileUri: url, mimeType: 'video/mp4' } }, { text: `Does the person named ${name}, who is ${role}, speak or appear in this video? Say true only if they are introduced by name AND the role or organisation given in the video matches (spoken or on-screen caption). A different person with the same name, or the same name with a different job or employer, is false. Return JSON {"appears":true|false,"evidence":"how you know, with a rough timestamp"}.` }] as never, { timeout: 70_000 })
@@ -82,10 +88,10 @@ async function watchCheck(url: string, name: string, role: string): Promise<{ ap
   } catch (e) { console.error('[proposals] watch check failed:', e instanceof Error ? e.message : e); return null }
 }
 
-function uniqBy<T>(list: T[], key: (t: T) => string): T[] { const seen = new Set<string>(); return list.filter(x => { const k = key(x); if (seen.has(k)) return false; seen.add(k); return true }) }
+export function uniqBy<T>(list: T[], key: (t: T) => string): T[] { const seen = new Set<string>(); return list.filter(x => { const k = key(x); if (seen.has(k)) return false; seen.add(k); return true }) }
 
 /** Searches shared by pass 1: web, videos, images. */
-async function gather(input: ProposalInput, queries: { web: string[]; video: string[]; image: string[] }) {
+export async function gather(input: ProposalInput, queries: { web: string[]; video: string[]; image: string[] }) {
   const settle = async <T,>(p: Promise<T[]>): Promise<T[]> => { try { return await p } catch (e) { console.error('[proposals] search failed:', e instanceof Error ? e.message : e); return [] } }
   const [web, video, image] = await Promise.all([
     Promise.all(queries.web.map(q => settle(webSearch(q, 8)))).then(r => uniqBy(r.flat(), x => x.link)),
@@ -95,7 +101,7 @@ async function gather(input: ProposalInput, queries: { web: string[]; video: str
   return { web, video, image }
 }
 
-const who = (i: ProposalInput) => `${clean(i.name)}${i.company ? ` ${clean(i.company)}` : ''}`
+export const who = (i: ProposalInput) => `${clean(i.name)}${i.company ? ` ${clean(i.company)}` : ''}`
 
 export async function researchCandidate(input: ProposalInput): Promise<ResearchResult> {
   const concerns: string[] = []
