@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { authorityOf, orgTokensOf, candidatePhotos, findGaps, gapQueries } from './pipeline'
+import { authorityOf, orgTokensOf, candidatePhotos, findGaps, gapQueries, laneAgreement } from './pipeline'
 import type { SourceReport } from './readers'
 
 const rep = (o: Partial<SourceReport>): SourceReport => ({ url: 'https://x.com/a', title: '', domain: 'x.com', authority: 3, page_date: null, about: 'yes', match_quote: 'q', person_title: null, organization: null, nationality: null, bio_excerpt: null, facts: [], photos: [], notes: null, ...o })
@@ -35,7 +35,7 @@ test('gaps are found and turned into targeted queries', () => {
   assert.deepEqual(none, ['identity', 'photo', 'bio', 'site'])
   const q = gapQueries({ name: 'Serge Potapov', designation: 'Executive Director', company: 'TSA', country: null, linkedin: null, track: null }, { full_name: 'Serge Potapov', title: 'Executive Director', organization: 'TSA', org_website: 'tsa.gov' }, ['bio', 'photo'])
   assert.ok(q.web.some(x => x.includes('site:tsa.gov')) && q.image.length > 0 && q.web.some(x => /biography/.test(x)))
-  assert.deepEqual(findGaps([rep({ bio_excerpt: 'word '.repeat(70) })], [{ url: 'u', authority: 3, via: 'x', why: '' }], { org_website: 'tsa.gov' }, false), [])
+  assert.deepEqual(findGaps([rep({ bio_excerpt: 'word '.repeat(70) })], [{ url: 'u', authority: 3, via: 'x', why: '', trusted: true }], { org_website: 'tsa.gov' }, false), [])
 })
 
 import { orgAgreement } from './pipeline'
@@ -47,4 +47,23 @@ test('organisation agreement ignores generic words and honours acronyms', () => 
   assert.equal(orgAgreement('Virtual Assets Regulatory Authority', 'VARA'), 'match', 'an acronym is made of the initials')
   assert.equal(orgAgreement(null, 'Anything'), 'unknown')
   assert.equal(orgAgreement('Etihad', 'Etihad Rail Infrastructure'), 'match')
+})
+
+test('v3 photo rules: a surname alone, stock agencies and avatar hosts do not make a candidate', () => {
+  const img = (imageUrl: string, title: string, pageUrl = 'https://site.com/p') => ({ imageUrl, title, pageUrl, width: 600, height: 600 }) as never
+  const kraag = [img('https://news.com/kraag.jpg', 'Kraag at the summit'), img('https://europol.europa.eu/andy-kraag.jpg', 'Andy Kraag Europol'), img('https://media.gettyimages.com/id/1/photo-77.jpg', 'Andy Kraag')]
+  assert.equal(candidatePhotos([], kraag, 'kraag').length, 3, 'v2 behaviour is unchanged')
+  const strict = candidatePhotos([], kraag, 'kraag', 'andy')
+  assert.deepEqual(strict.map(x => x.url), ['https://europol.europa.eu/andy-kraag.jpg'])
+  assert.equal(strict[0].trusted, false)
+  assert.deepEqual(candidatePhotos([], [img('https://i1.sndcdn.com/avatars-1.jpg', 'Marine Morin')], 'morin', 'marine'), [], 'avatar host is out')
+  assert.equal(candidatePhotos([], [img('https://x.org/kat-henn.jpg', 'Katarzyna Henn UNODC')], 'henn', 'kat').length, 1, 'a short first name matches its long form')
+})
+test('the snippet check agrees, differs or says nothing', () => {
+  const consol = { identified: true, full_name: 'Hans Henri P. Kluge', organization: 'World Health Organization' }
+  assert.equal(laneAgreement({ identified: true, full_name: 'Hans Kluge', organization: 'WHO Regional Office for Europe' }, consol), 'agrees')
+  assert.equal(laneAgreement({ identified: true, full_name: 'Hans Muller', organization: 'World Health Organization' }, consol), 'differs')
+  assert.equal(laneAgreement({ identified: true, full_name: 'Hans Kluge', organization: 'Kluge Bakery Ltd' }, consol), 'differs')
+  assert.equal(laneAgreement({ identified: false, full_name: null, organization: null }, consol), 'unknown')
+  assert.equal(laneAgreement(null, consol), 'unknown')
 })

@@ -1,0 +1,21 @@
+name: Speaker Proposals reminders
+
+# Fires /api/cron/speaker-proposals-reminders once a day (09:00 Dubai). Reminds the producer of any drop that still has researched speakers
+# waiting on them. Uses the Railway direct URL — the primary host is behind Cloudflare, which challenges GitHub Actions IPs.
+
+on:
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Call reminders endpoint
+        run: |
+          curl --fail-with-body --silent --show-error \
+            -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://eventpilot-production-90c6.up.railway.app/api/cron/speaker-proposals-reminders"

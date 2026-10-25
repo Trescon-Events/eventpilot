@@ -6,6 +6,7 @@ import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { cleanLogoFromUrl, normalizeUrl, researchCandidate as researchV1, type CardVideo, type ProposalInput, type ResearchResult } from './research'
 import { researchCandidate as researchV2, type PipelineState } from './pipeline'
 import { countryCode } from './countries'
+import { notifyResearchDone } from './notify'
 
 /* Speaker Proposals — server side. Research runs in the background on the Node server (the HTTP call returns at once, the browser polls), at most 3 candidates at a time.
    Two shapes are stored per candidate and kept apart on purpose:
@@ -16,7 +17,9 @@ export type Card = {
   name: string; title: string | null; organization: string | null; nationality_iso2: string | null
   linkedin_url: string | null; bio: string | null; videos: CardVideo[]; photo_url: string | null; logo_url: string | null; website_url: string | null
 }
-export type Internal = ResearchResult & { footprint_note: string | null }
+/** The card and findings as they were before a re-run replaced them, so a producer can undo a re-run that made things worse. One level deep (the pipeline's saved pages are not kept). */
+export type Previous = { card: Card; research: Record<string, unknown> | null; at: string | null }
+export type Internal = ResearchResult & { footprint_note: string | null; previous?: Previous | null }
 
 export async function requireProposalAccess(req: NextRequest, eventId: string, level: 'view' | 'edit'): Promise<{ session: TcsSession } | { error: NextResponse }> {
   const session = getSession(req)
@@ -70,7 +73,7 @@ export function buildCard(input: ProposalInput, r: ResearchResult): Card {
 }
 
 async function processCandidate(candidateId: string): Promise<void> {
-  const { data: c } = await supabaseAdmin.from('speaker_proposal_candidates').select('id, event_id, input, research').eq('id', candidateId).maybeSingle()
+  const { data: c } = await supabaseAdmin.from('speaker_proposal_candidates').select('id, event_id, input, research, card, researched_at').eq('id', candidateId).maybeSingle()
   if (!c) return
   const input = c.input as ProposalInput
   try {
@@ -79,11 +82,16 @@ async function processCandidate(candidateId: string): Promise<void> {
     let r: ResearchResult
     const limit = <T,>(p: Promise<T>) => Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error('The research took too long and was stopped — try again.')), RUN_LIMIT_MS))])
     const onProgress = (p: unknown) => { void supabaseAdmin.from('speaker_proposal_candidates').update({ progress: p }).eq('id', candidateId).then(() => {}, () => {}) }
-    try { r = await limit(researchV2(input, prior, onProgress)) }
-    catch (e) {
-      if (e instanceof Error && /too long/.test(e.message)) throw e
-      console.error('[proposals] pipeline failed, falling back to the single-pass research:', e instanceof Error ? e.message : e); r = await limit(researchV1(input))
+    const attempt = async (): Promise<ResearchResult> => {
+      try { return await limit(researchV2(input, prior, onProgress, { v3: process.env.PROPOSALS_ENGINE !== 'v2' })) }
+      catch (e) {
+        if (e instanceof Error && /too long/.test(e.message)) throw e
+        console.error('[proposals] pipeline failed, falling back to the single-pass research:', e instanceof Error ? e.message : e); return await limit(researchV1(input))
+      }
     }
+    // A hiccup (a timeout, a busy service) should never reach the producer: one automatic second try before it counts as a failure.
+    try { r = await attempt() }
+    catch (e) { console.error('[proposals] first attempt failed, trying once more:', candidateId, e instanceof Error ? e.message : e); onProgress({ stage: 'search', label: 'Trying again', detail: 'The first attempt hit a snag — retrying automatically', done: null, total: null, at: new Date().toISOString() }); r = await attempt() }
     const card = buildCard(input, r)
     onProgress({ stage: 'write', label: 'Building the card', detail: 'Saving the photo and cleaning the logo', done: null, total: null, at: new Date().toISOString() })
     // Logo: first candidate that downloads and cleans to something visible, through the platform's logo engine (600×300, white).
@@ -93,7 +101,10 @@ async function processCandidate(candidateId: string): Promise<void> {
     }
     // Photo: our own copy of the first candidate; the producer confirms or swaps it.
     for (const p of r.photo_candidates.slice(0, 3)) { const u = await rehostPhoto(c.event_id as string, candidateId, p.url); if (u) { card.photo_url = u; break } }
-    const internal: Internal = { ...r, footprint_note: footprintNote(r) }
+    // Keep what was there before, so a re-run that is worse can be undone with one click.
+    const old = c.research as (Record<string, unknown> & { status?: string }) | null
+    const previous: Previous | null = old?.status ? { card: c.card as Card, research: Object.fromEntries(Object.entries(old).filter(([k]) => k !== 'pipeline' && k !== 'previous')), at: (c.researched_at as string | null) ?? null } : null
+    const internal: Internal = { ...r, footprint_note: footprintNote(r), previous }
     await supabaseAdmin.from('speaker_proposal_candidates').update({ status: 'researched', progress: null, research: internal, card, error: null, researched_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', candidateId)
   } catch (e) {
     console.error('[proposals] research failed for', candidateId, e instanceof Error ? e.message : e)
@@ -103,30 +114,36 @@ async function processCandidate(candidateId: string): Promise<void> {
 
 const running = new Set<string>()
 const STUCK_MS = 25 * 60 * 1000 // a run older than this died with its server and is re-queued
-const RUN_LIMIT_MS = 15 * 60 * 1000 // one speaker never takes longer than this: it fails cleanly and can be retried
+const RUN_LIMIT_MS = 10 * 60 * 1000 // one speaker never takes longer than this: it fails cleanly and can be retried
 const WORKERS = 3
 
+function launchWorkers(batchId: string): void {
+  if (running.has(batchId)) return
+  running.add(batchId)
+  void (async () => {
+    let processed = 0
+    try {
+      await Promise.all(Array.from({ length: WORKERS }, async () => {
+        for (;;) {
+          const { data: next } = await supabaseAdmin.from('speaker_proposal_candidates').select('id').eq('batch_id', batchId).eq('status', 'queued').order('position').limit(1).maybeSingle()
+          if (!next) return
+          const { data: claimed } = await supabaseAdmin.from('speaker_proposal_candidates').update({ status: 'researching', started_at: new Date().toISOString() }).eq('id', next.id).eq('status', 'queued').select('id').maybeSingle()
+          if (claimed) { await processCandidate(next.id as string); processed++ }
+        }
+      }))
+    } finally { running.delete(batchId) }
+    if (processed >= 3) await notifyResearchDone(batchId) // a one-off re-run of a single card stays quiet
+  })()
+}
+
 /** Queues the given candidates (or everything not yet researched) and works through them in the background. Safe to call twice: one worker group per batch. */
-export async function startResearch(batchId: string, candidateIds?: string[]): Promise<{ queued: number }> {
+export async function startResearch(batchId: string, candidateIds?: string[], sid?: string | null): Promise<{ queued: number }> {
+  if (sid) await supabaseAdmin.from('speaker_proposal_batches').update({ researcher_sid: sid }).eq('id', batchId)
   await supabaseAdmin.from('speaker_proposal_candidates').update({ status: 'queued', started_at: null }).eq('batch_id', batchId).eq('status', 'researching').lt('started_at', new Date(Date.now() - STUCK_MS).toISOString())
   let q = supabaseAdmin.from('speaker_proposal_candidates').update({ status: 'queued', error: null, progress: null, updated_at: new Date().toISOString() }, { count: 'exact' }).eq('batch_id', batchId).neq('status', 'researching')
   q = candidateIds?.length ? q.in('id', candidateIds) : q.in('status', ['new', 'queued', 'error'])
   const { count } = await q
-  if (!running.has(batchId)) {
-    running.add(batchId)
-    void (async () => {
-      try {
-        await Promise.all(Array.from({ length: WORKERS }, async () => {
-          for (;;) {
-            const { data: next } = await supabaseAdmin.from('speaker_proposal_candidates').select('id').eq('batch_id', batchId).eq('status', 'queued').order('position').limit(1).maybeSingle()
-            if (!next) return
-            const { data: claimed } = await supabaseAdmin.from('speaker_proposal_candidates').update({ status: 'researching', started_at: new Date().toISOString() }).eq('id', next.id).eq('status', 'queued').select('id').maybeSingle()
-            if (claimed) await processCandidate(next.id as string)
-          }
-        }))
-      } finally { running.delete(batchId) }
-    })()
-  }
+  launchWorkers(batchId)
   return { queued: count ?? 0 }
 }
 
@@ -142,4 +159,12 @@ export async function authCandidate(req: NextRequest, candidateId: string, level
   if (!c) return { error: NextResponse.json({ error: 'Not found.' }, { status: 404 }) } as const
   const a = await requireProposalAccess(req, c.event_id as string, level)
   return 'error' in a ? a : { candidate: c, session: a.session }
+}
+
+/** If a drop has speakers waiting in the queue (or stuck mid-run) but nothing is working on them — a redeploy or crash killed the workers — start the workers again. Cheap; safe to call on every page load. */
+export async function resumeIfStalled(batchId: string): Promise<void> {
+  if (running.has(batchId)) return
+  await supabaseAdmin.from('speaker_proposal_candidates').update({ status: 'queued', started_at: null }).eq('batch_id', batchId).eq('status', 'researching').lt('started_at', new Date(Date.now() - STUCK_MS).toISOString())
+  const { count } = await supabaseAdmin.from('speaker_proposal_candidates').select('id', { count: 'exact', head: true }).eq('batch_id', batchId).eq('status', 'queued')
+  if (count) launchWorkers(batchId)
 }

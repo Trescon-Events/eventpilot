@@ -49,6 +49,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const input = { ...cleanRow({ name: s200(sp.name), designation: s200(sp.designation), company: s200(sp.company), country: s200(sp.country), linkedin: s200(sp.linkedin), website: s200(sp.website), extra: typeof sp.extra === 'string' ? sp.extra.slice(0, 12000) : null }), track_text: '' }
   const { data: row, error } = await supabaseAdmin.from('speaker_proposal_candidates').insert({ batch_id: id, event_id: eventId, position: position + 1, raw: { cells: {}, extra: [], manual: true }, input, track_id: trackId, status: 'new', card: initialCard(input) }).select('id').single()
   if (error || !row) return NextResponse.json({ error: 'Could not add the speaker.' }, { status: 500 })
-  if (b?.start) await startResearch(id, [row.id as string])
+  if (b?.start) await startResearch(id, [row.id as string], a.session.sid)
   return NextResponse.json({ added: 1, id: row.id })
 }

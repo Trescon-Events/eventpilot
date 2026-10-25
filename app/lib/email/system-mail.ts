@@ -17,8 +17,8 @@ export function systemFrom(): string {
   return raw.includes('<') ? raw : `EventPilot <${raw}>`
 }
 
-export async function sendSystemMail(opts: { to: string | string[]; subject: string; html: string }): Promise<void> {
+export async function sendSystemMail(opts: { to: string | string[]; cc?: string[]; subject: string; html: string }): Promise<void> {
   if (!process.env.RESEND_API_KEY) throw new Error('RESEND_API_KEY not configured — system notification not sent')
-  const { error } = await new Resend(process.env.RESEND_API_KEY).emails.send({ from: systemFrom(), to: opts.to, subject: opts.subject, html: opts.html })
+  const { error } = await new Resend(process.env.RESEND_API_KEY).emails.send({ from: systemFrom(), to: opts.to, ...(opts.cc?.length ? { cc: opts.cc } : {}), subject: opts.subject, html: opts.html })
   if (error) throw new Error(`System notification failed: ${error.message}`)
 }

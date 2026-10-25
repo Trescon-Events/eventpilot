@@ -5,12 +5,16 @@ import PageHeader from '@/app/components/PageHeader'
 import ExtraCcField from '@/app/components/ExtraCcField'
 import CountryPicker, { countryNameOf } from '@/app/components/proposals/CountryPicker'
 import { ClientGallery, type GalleryData, type GalleryItem } from '@/app/components/proposals/ClientGallery'
+import OwnerBar from '@/app/components/proposals/OwnerBar'
+import ReviewEmailComposer from '@/app/components/proposals/ReviewEmailComposer'
+import type { ReviewEmailKind } from '@/app/lib/proposals/review-email'
 import { Badge, Button, Input, Textarea } from '@/app/components/ui'
 import { notify } from '@/app/lib/ui/notify'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import { parseExtraCc } from '@/app/lib/email/extra-cc'
 import { countryCode, flagPath } from '@/app/lib/proposals/countries'
+import { asksFor } from '@/app/lib/proposals/needs'
 
 /* One drop (batch) of proposed speakers, as a three-step flow with a floating bar that always shows where you are and what comes next:
      1 Review speakers   — add speakers (Excel or typed), research them, check each card, mark it Ready or Exclude it
@@ -25,6 +29,7 @@ type Internal = {
   pipeline?: { pages_read: number; rounds: number; reports: { about: string }[] } | null
   status: 'verified' | 'needs_review' | 'not_found'; concerns: string[]; footprint_note: string | null; sources: { url: string; title: string; gave?: string[] }[]
   verification: { pass2_identified: boolean | null; title: Agreement; organization: Agreement; nationality: Agreement; linkedin: Agreement }
+  previous?: { at: string | null } | null
   bio_removed: string[]; photo_candidates: { url: string; page_url: string | null; title: string }[]; logo_candidates: { url: string; page_url: string | null; title: string }[]; linkedin_note: string | null
 }
 type Progress = { stage: 'search' | 'read' | 'merge' | 'fill' | 'write' | 'verify'; label: string; detail: string | null; done: number | null; total: number | null; at: string }
@@ -39,8 +44,8 @@ type Track = { id: string; name: string; day_label: string | null; stage: string
 type Filter = 'all' | 'attention' | 'ready' | 'excluded' | 'unresearched' | 'approved' | 'rejected' | 'awaiting'
 
 const words = (s: string | null | undefined) => (s ?? '').trim().split(/\s+/).filter(Boolean).length
-const trackLabel = (t: Track | undefined) => (t ? [t.day_label, t.stage, t.time_label, t.name].filter(Boolean).join(' · ') : null)
-const needsAttention = (c: Candidate) => c.status === 'error' || (c.status === 'researched' && c.review_state === 'pending' && (c.research?.status !== 'verified' || !c.card.photo_url))
+const trackLabel = (t: Track | undefined) => (t ? [t.day_label, t.stage, t.name].filter(Boolean).join(' · ') : null)
+const needsAttention = (c: Candidate) => c.status === 'error' || (c.status === 'researched' && c.review_state === 'pending' && (c.research?.status !== 'verified' || asksFor(c).length > 0))
 const section: React.CSSProperties = { fontSize: '11.5px', fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--ink3)', margin: '12px 0 4px' }
 const STYLES = `
   @keyframes spSpin { to { transform: rotate(360deg); } }
@@ -66,8 +71,8 @@ export default function ProposalBatchPage({ params }: { params: Promise<{ id: st
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [tracks, setTracks] = useState<Track[]>([])
   const [reviewers, setReviewers] = useState<Reviewer[]>([])
-  const [previous, setPrevious] = useState<{ name: string; email: string }[]>([])
   const [sender, setSender] = useState<{ name: string; email: string | null }>({ name: '', email: null })
+  const [coCc, setCoCc] = useState<string[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
   const [step, setStep] = useState<1 | 2 | 3 | null>(null)
@@ -86,7 +91,7 @@ export default function ProposalBatchPage({ params }: { params: Promise<{ id: st
     if (!r.ok) { setLoadError(String(r.d.error ?? 'Could not load this drop.')); return }
     const b = r.d.batch as { id: string; name: string; shared_at?: string | null }
     setBatch(b); setCandidates(r.d.candidates as Candidate[]); setTracks(r.d.tracks as Track[]); setReviewers((r.d.reviewers as Reviewer[]) ?? [])
-    setPrevious((r.d.previous_reviewers as { name: string; email: string }[]) ?? []); setSender((r.d.sender as { name: string; email: string | null }) ?? { name: '', email: null })
+    setSender((r.d.sender as { name: string; email: string | null }) ?? { name: '', email: null }); setCoCc(((r.d.co_owners as { email: string | null }[] | undefined) ?? []).map(c => c.email).filter((e): e is string => !!e))
     setStep(s => s ?? (b.shared_at ? 3 : 1))
   }, [])
   const load = useCallback(async () => { apply(await fetchBatch()) }, [apply, fetchBatch])
@@ -127,6 +132,7 @@ export default function ProposalBatchPage({ params }: { params: Promise<{ id: st
     await load()
   }
 
+  const shared = !!batch?.shared_at // sent to the client (approvers can be picked before this)
   const notStarted = candidates.filter(c => c.status === 'new' || c.status === 'queued' || c.status === 'error').length
   const counts = {
     done: candidates.filter(c => c.status === 'researched').length, ready: candidates.filter(c => c.review_state === 'ready').length, excluded: candidates.filter(c => c.review_state === 'excluded').length,
@@ -151,7 +157,6 @@ export default function ProposalBatchPage({ params }: { params: Promise<{ id: st
 
   if (loadError) return <div style={{ padding: '32px', color: 'var(--red)' }}>{loadError}</div>
   if (!batch || step === null) return <div style={{ padding: '32px', color: 'var(--ink3)' }}>Loading…</div>
-  const shared = reviewers.length > 0
   const chip = (f: Filter, label: string, n: number) => (
     <button key={f} onClick={() => setFilter(f)} style={{ padding: '6px 12px', borderRadius: '16px', border: `1px solid ${filter === f ? 'var(--teal)' : 'var(--border)'}`, background: 'transparent', color: filter === f ? 'var(--teal-mid)' : 'var(--ink3)', fontWeight: 700, fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' }}>{label} ({n})</button>
   )
@@ -193,12 +198,14 @@ export default function ProposalBatchPage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
+      <OwnerBar batchId={batchId} canEdit={canEdit} onChanged={() => void load()} batchName={batch.name} backHref={`/admin/events/${eventId}/stakeholders/speaker-proposals`} />
+
       <div style={{ padding: '20px 32px 60px' }}>
         {step === 1 && (<>
           {canEdit && <AddSpeakers batchId={batchId} tracks={tracks} empty={candidates.length === 0} onChanged={load} />}
           {candidates.length > 0 && (<>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '12px' }}>
-              <div style={{ fontSize: '15px', color: 'var(--ink2)' }}>{counts.attention > 0 && <span style={{ color: 'var(--amber)', fontWeight: 700 }}>{counts.attention} need your attention</span>}</div>
+              <div style={{ fontSize: '15px', color: 'var(--ink2)' }}>{counts.attention > 0 && <button onClick={() => setFilter('attention')} style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: '15px', color: 'var(--amber)', fontWeight: 700 }}>{counts.attention} speaker{counts.attention === 1 ? '' : 's'} need your input — show them</button>}</div>
               <div style={{ flex: 1 }} />
               {canEdit && notStarted > 0 && !working && <Button variant="teal" onClick={() => void startAll()} disabled={starting}>{`Research ${notStarted} speaker${notStarted === 1 ? '' : 's'}`}</Button>}
             </div>
@@ -229,7 +236,7 @@ export default function ProposalBatchPage({ params }: { params: Promise<{ id: st
           <ClientGallery data={previewData} preview />
         </>)}
 
-        {step === 3 && <SendStep batchId={batchId} reviewers={reviewers} previous={previous} sender={sender} ready={counts.ready} approved={counts.approved} rejected={counts.rejected} canEdit={canEdit} onChanged={load} />}
+        {step === 3 && <SendStep batchId={batchId} eventId={eventId} eventName={eventName ?? 'the event'} batchName={batch.name} coCc={coCc} shared={!!batch.shared_at} reviewers={reviewers} sender={sender} ready={counts.ready} approved={counts.approved} rejected={counts.rejected} canEdit={canEdit} onChanged={load} />}
       </div>
     </div>
   )
@@ -338,16 +345,27 @@ function AddSpeakers({ batchId, tracks, empty, onChanged }: { batchId: string; t
   const [open, setOpen] = useState(empty)
   const [f, setF] = useState(blank)
   const [busy, setBusy] = useState(false)
+  const [imgs, setImgs] = useState<File[]>([])
   const file = useRef<HTMLInputElement>(null)
+  const takeImages = (files: FileList | File[]) => { const pics = [...files].filter(x => x.type.startsWith('image/')); if (!pics.length) { notify('Only images can be dropped here. Paste text straight into the box.', 'error'); return } setImgs(prev => [...prev, ...pics].slice(0, 3)) }
 
   async function add(start: boolean) {
     if (!f.name.trim()) { notify('Type the speaker’s name first.', 'error'); return }
     setBusy(true)
-    const x = await call(`/api/events/speaker-proposals/batches/${batchId}/candidates`, 'POST', { speaker: { ...f, country: f.country ? countryNameOf(f.country) : '' }, start })
+    // Added first without research, so any photo / screenshot dropped in the box is read BEFORE the research starts.
+    const x = await call(`/api/events/speaker-proposals/batches/${batchId}/candidates`, 'POST', { speaker: { ...f, country: f.country ? countryNameOf(f.country) : '' }, start: false })
+    if (!x.ok) { setBusy(false); notify(String(x.data.error ?? 'Could not add the speaker.'), 'error'); return }
+    const newId = String(x.data.id ?? '')
+    for (const pic of imgs) {
+      const form = new FormData(); form.set('file', pic)
+      const res = await fetch(`/api/events/speaker-proposals/candidates/${newId}/drop`, { method: 'POST', body: form })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok || (d.kind !== 'portrait' && d.kind !== 'document')) notify(d.error ?? d.note ?? 'One image could not be used (it is neither a photo of the speaker nor a page of text).', 'error')
+    }
+    if (start) { const r = await call(`/api/events/speaker-proposals/candidates/${newId}/research`, 'POST', {}); if (!r.ok) notify(String(r.data.error ?? 'Added, but the research could not start.'), 'error') }
     setBusy(false)
-    if (!x.ok) { notify(String(x.data.error ?? 'Could not add the speaker.'), 'error'); return }
     notify(start ? `${f.name.trim()} added — researching…` : `${f.name.trim()} added.`)
-    setF(blank); await onChanged()
+    setF(blank); setImgs([]); await onChanged()
   }
   async function upload(picked: File) {
     setBusy(true)
@@ -364,7 +382,7 @@ function AddSpeakers({ batchId, tracks, empty, onChanged }: { batchId: string; t
     <div style={{ marginBottom: '20px', padding: '16px 18px', border: `1px solid ${empty ? 'var(--teal)' : 'var(--border-light)'}`, borderRadius: '12px', background: 'var(--card)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
         <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)' }}>{empty ? 'Add the speakers for this drop' : 'Add more speakers'}</div>
-        <span style={{ fontSize: '13.5px', color: 'var(--ink3)', flex: 1 }}>Upload a spreadsheet, or type speakers in one by one — whichever is quicker. Research starts only when you press it.</span>
+        <span style={{ fontSize: '13.5px', color: 'var(--ink3)', flex: 1 }}>Upload a spreadsheet (optional extra columns: Website, and Notes — paste LinkedIn text or a bio there), or type speakers in one by one. Research starts only when you press it.</span>
         <input ref={file} type="file" accept=".xlsx,.xls" hidden onChange={e => { const p = e.target.files?.[0]; if (p) void upload(p) }} />
         <Button variant="ghost" disabled={busy} onClick={() => file.current?.click()}>Upload Excel</Button>
         <Button variant={open ? 'ghost' : 'teal'} onClick={() => setOpen(o => !o)}>{open ? 'Hide the form' : '+ Type in a speaker'}</Button>
@@ -381,8 +399,12 @@ function AddSpeakers({ batchId, tracks, empty, onChanged }: { batchId: string; t
             {tracks.length > 0 && <div><label style={label}>Track</label>
               <select value={f.track_id} onChange={e => setF({ ...f, track_id: e.target.value })} style={{ width: '100%', padding: '9px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '14px' }}><option value="">No track yet</option>{tracks.map(t => <option key={t.id} value={t.id}>{trackLabel(t)}</option>)}</select></div>}
           </div>
-          <div><label style={label}>Anything else you know (optional)</label>
-            <Textarea rows={3} value={f.extra} onChange={e => setF({ ...f, extra: e.target.value })} placeholder="Paste text from their LinkedIn profile, a bio, or links to pages about them. The research treats this as trusted information." /></div>
+          <div><label style={label}>Paste anything you have about them <span style={{ fontWeight: 600 }}>(strongly recommended — the more here, the better and faster the research)</span></label>
+            <Textarea rows={5} value={f.extra} onChange={e => setF({ ...f, extra: e.target.value })}
+              onPaste={e => { const files = [...e.clipboardData.files]; if (files.length) { e.preventDefault(); takeImages(files) } }}
+              onDrop={e => { e.preventDefault(); takeImages(e.dataTransfer.files) }} onDragOver={e => e.preventDefault()}
+              placeholder="Paste or drop anything, no formatting needed: the text of their LinkedIn profile, a bio, links to pages or videos, a photo of them, or a screenshot of a page. The research treats this as trusted information." />
+            {imgs.length > 0 && <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '4px' }}>{imgs.length} image{imgs.length === 1 ? '' : 's'} attached ({imgs.map(i => i.name || 'pasted image').join(', ')}) — read when you add the speaker. <button onClick={() => setImgs([])} style={{ border: 'none', background: 'none', color: 'var(--red)', cursor: 'pointer', fontFamily: 'inherit' }}>Remove</button></div>}</div>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <Button variant="lime" disabled={busy} onClick={() => void add(true)}>Add and start research</Button>
             <Button variant="ghost" disabled={busy} onClick={() => void add(false)}>Add only</Button>
@@ -403,6 +425,7 @@ function CandidateRow({ cand, track, tracks, canEdit, ahead, onChanged }: { cand
   const [newVideo, setNewVideo] = useState('')
   const [assetUrl, setAssetUrl] = useState('')
   const photoFile = useRef<HTMLInputElement>(null)
+  const dropRef = useRef<HTMLDivElement>(null)
   const logoFile = useRef<HTMLInputElement>(null)
   const [inp, setInp] = useState({ name: cand.input.name, designation: cand.input.designation ?? '', company: cand.input.company ?? '', website: cand.input.website ?? cand.card.website_url ?? '', country: countryCode(cand.input.country), linkedin: cand.input.linkedin ?? '', extra: cand.input.extra ?? '' })
   const r = cand.research
@@ -449,6 +472,14 @@ function CandidateRow({ cand, track, tracks, canEdit, ahead, onChanged }: { cand
     if (!x.ok) { notify(String(x.data.error ?? 'Could not start.'), 'error'); return }
     await onChanged()
   }
+  async function undoRerun() {
+    if (!window.confirm('Go back to the card and findings as they were before the last re-run? Anything you changed since is replaced.')) return
+    setBusy('undo')
+    const x = await call(`/api/events/speaker-proposals/candidates/${cand.id}/undo`, 'POST')
+    setBusy(null)
+    if (!x.ok) { notify(String(x.data.error ?? 'Could not go back.'), 'error'); return }
+    notify('Back to the earlier version.'); await onChanged()
+  }
   async function removeSpeaker() {
     if (!window.confirm(`Remove ${card.name} from this drop?`)) return
     const x = await call(`/api/events/speaker-proposals/candidates/${cand.id}`, 'DELETE')
@@ -476,6 +507,7 @@ function CandidateRow({ cand, track, tracks, canEdit, ahead, onChanged }: { cand
     : r?.status === 'verified' ? <Badge color="teal">Verified</Badge> : r?.status === 'needs_review' ? <Badge color="amber">Needs review</Badge> : <Badge color="red">Not found</Badge>
   const chipColor = (a: Agreement) => (a === 'match' ? 'var(--teal-mid)' : a === 'differs' ? 'var(--red)' : 'var(--ink4)')
   const flag = flagPath(card.nationality_iso2)
+  const asks = asksFor(cand)
 
   return (
     <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)', border: `1px solid ${inProgress ? 'var(--teal)' : 'var(--border)'}`, borderRadius: '14px', overflow: 'hidden', background: 'var(--card)', opacity: dim ? 0.55 : 1 }}>
@@ -565,6 +597,13 @@ function CandidateRow({ cand, track, tracks, canEdit, ahead, onChanged }: { cand
           </div>
         )}
         {inProgress && <ResearchProgress cand={cand} ahead={ahead} />}
+        {canEdit && !inProgress && asks.length > 0 && (
+          <div style={{ marginBottom: '10px', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--amber)', background: 'var(--card)' }}>
+            <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>To finish this card</div>
+            <ul style={{ margin: 0, paddingLeft: '18px', listStyle: 'disc', fontSize: '13px', color: 'var(--ink2)', lineHeight: 1.5 }}>{asks.map(a => <li key={a.key} style={{ marginBottom: '3px' }}><strong>{a.text}</strong> {a.hint}</li>)}</ul>
+            <div style={{ marginTop: '8px' }}><Button variant="ghost" onClick={() => { dropRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); dropRef.current?.querySelector('textarea')?.focus() }}>Go to “Drop more info”</Button></div>
+          </div>
+        )}
         {cand.status === 'new' && !again && <div style={{ fontSize: '13.5px', color: 'var(--ink2)', lineHeight: 1.5 }}>Not researched yet. The card shows what you entered. Press <strong>Start research</strong> to find the profile, bio, videos, photo and logo — or mark it Ready as it is.</div>}
         {cand.status === 'error' && <div style={{ fontSize: '13.5px', color: 'var(--red)' }}>Research failed: {cand.error ?? 'unknown error'}</div>}
         {r?.footprint_note && <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)', background: 'var(--card)', border: '1px solid var(--amber)', borderRadius: '8px', padding: '8px 10px', lineHeight: 1.45 }}>{r.footprint_note}</div>}
@@ -583,15 +622,16 @@ function CandidateRow({ cand, track, tracks, canEdit, ahead, onChanged }: { cand
           <Textarea value={notes} rows={2} onChange={e => setNotes(e.target.value)} onBlur={() => { if (notes !== (cand.producer_notes ?? '')) void patch({ producer_notes: notes }, 'notes') }} placeholder="Only visible to the team" />
 
           <div style={section}>Drop more info <span style={{ textTransform: 'none', fontWeight: 600 }}>— the research reads this</span></div>
-          <Textarea rows={5} value={inp.extra} disabled={inProgress}
+          <div ref={dropRef}><Textarea rows={5} value={inp.extra} disabled={inProgress}
             onChange={e => setInp({ ...inp, extra: e.target.value })}
             onBlur={() => { if (inp.extra !== (cand.input.extra ?? '')) void patch({ extra: inp.extra }, 'extra') }}
             onPaste={e => { const files = [...e.clipboardData.files]; if (files.length) { e.preventDefault(); void dropFiles(files) } }}
             onDrop={e => { e.preventDefault(); void dropFiles(e.dataTransfer.files) }} onDragOver={e => e.preventDefault()}
-            placeholder="Paste or drop anything here, no formatting needed: text copied from their LinkedIn page, a bio, notes, links to pages or videos, or an image (a photo of them, or a screenshot of a page)." />
+            placeholder="Paste or drop anything here, no formatting needed: text copied from their LinkedIn page, a bio, notes, links to pages or videos, or an image (a photo of them, or a screenshot of a page)." /></div>
           <div style={{ fontSize: '12px', color: 'var(--ink4)', lineHeight: 1.45, marginTop: '4px' }}>{busy === 'drop' ? 'Reading the image…' : 'Links are opened and read. A pasted photo of the speaker becomes their photo; a screenshot of text is read and added here. Then press the button below.'}</div>
           <div style={{ marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
             {!again && <Button variant="teal" disabled={inProgress || !!busy} onClick={() => void research()}>{cand.status === 'researched' ? 'Research again' : cand.status === 'error' ? 'Try again' : 'Start research'}</Button>}
+            {!again && r?.previous && <Button variant="ghost" disabled={inProgress || !!busy} title="Put the card and findings back to how they were before the last re-run." onClick={() => void undoRerun()}>Undo last re-run</Button>}
             {!again && <Button variant="ghost" disabled={inProgress || !!busy} onClick={() => setAgain(true)}>Edit details</Button>}
             {!again && <button onClick={() => void removeSpeaker()} disabled={inProgress} style={{ border: 'none', background: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: '12.5px', fontFamily: 'inherit' }}>Remove from drop</button>}
           </div>
@@ -612,15 +652,27 @@ function CandidateRow({ cand, track, tracks, canEdit, ahead, onChanged }: { cand
 }
 
 /* ── step 3: send to the client, then track ──────────────────────────────── */
-function SendStep({ batchId, reviewers, previous, sender, ready, approved, rejected, canEdit, onChanged }: { batchId: string; reviewers: Reviewer[]; previous: { name: string; email: string }[]; sender: { name: string; email: string | null }; ready: number; approved: number; rejected: number; canEdit: boolean; onChanged: () => Promise<void> }) {
+function SendStep({ batchId, eventId, eventName, batchName, coCc, shared, reviewers, sender, ready, approved, rejected, canEdit, onChanged }: { batchId: string; eventId: string; eventName: string; batchName: string; coCc: string[]; shared: boolean; reviewers: Reviewer[]; sender: { name: string; email: string | null }; ready: number; approved: number; rejected: number; canEdit: boolean; onChanged: () => Promise<void> }) {
   const blank = { name: '', email: '' }
-  const [rows, setRows] = useState<{ name: string; email: string }[]>(() => (previous.length ? previous.slice(0, 3) : [blank, blank, blank]).map(r => ({ ...r })))
+  const [rows, setRows] = useState<{ name: string; email: string }[]>([{ ...blank }])
+  const [saved, setSaved] = useState<{ id: string; name: string; email: string }[]>([])
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const r = await fetch(`/api/events/speaker-proposals/setup?event_id=${eventId}`).then(x => (x.ok ? x.json() : null)).catch(() => null)
+      if (!cancelled && r) setSaved((r as { approvers: { id: string; name: string; email: string }[] }).approvers)
+    })()
+    return () => { cancelled = true }
+  }, [eventId, reviewers.length])
+  const picked = (email: string) => reviewers.some(r => r.email.toLowerCase() === email.toLowerCase())
   const [message, setMessage] = useState('')
   const [ccText, setCcText] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
-  const shared = reviewers.length > 0
   const extra = parseExtraCc(ccText)
+  // Every email to the client is previewed first: wording editable, greeting / button / sign-off locked.
+  const [compose, setCompose] = useState<{ kind: ReviewEmailKind; body: Record<string, unknown>; label: string; names: string[]; message: string | null; done?: () => void } | null>(null)
+  const ccShown = [...coCc, ...('error' in extra ? [] : extra.emails)]
   const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : null)
 
   async function send(body: Record<string, unknown>, label: string) {
@@ -643,24 +695,37 @@ function SendStep({ batchId, reviewers, previous, sender, ready, approved, rejec
           <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--ink)' }}>Send to the client</div>
           {shared ? <Badge color="teal">Sent</Badge> : <Badge color="grey">Not sent yet</Badge>}
           <span style={{ fontSize: '13.5px', color: 'var(--ink3)', flex: 1 }}>{shared ? `${approved} approved · ${rejected} rejected · ${Math.max(ready - approved - rejected, 0)} awaiting. Reviewers see only speakers marked Ready, so more can be added on the same links.` : `${ready} Ready speaker${ready === 1 ? '' : 's'} will be shared. Each reviewer gets a private link; a decision from any one of them settles that speaker.`}</span>
-          {shared && canEdit && <Button variant="ghost" disabled={!!busy} onClick={() => void send({ resend: true }, 'update')}>Email everyone again</Button>}
+          {shared && canEdit && <Button variant="ghost" disabled={!!busy} onClick={() => setCompose({ kind: 'update', body: { resend: true }, label: 'update', names: reviewers.map(r => r.name), message: null })}>Email everyone again</Button>}
         </div>
 
-        <div style={{ fontSize: '13.5px', color: 'var(--ink2)', marginTop: '10px' }}>{sender.email ? <>Sent from your Outlook: <strong>{sender.name}</strong> &lt;{sender.email}&gt;, in one email thread per reviewer.</> : <>Your account has no Outlook mailbox, so emails go from the Trescon system sender.</>}</div>
+        <div style={{ fontSize: '13.5px', color: 'var(--ink2)', marginTop: '10px' }}>{sender.email ? <>Sent from the drop owner’s Outlook: <strong>{sender.name}</strong> &lt;{sender.email}&gt;, in one email thread per reviewer. Co-owners are copied on every email.</> : <>This drop has no owner with an Outlook mailbox, so emails go from the Trescon system sender. Make yourself the owner (bar at the top) to send from your own Outlook.</>}</div>
 
         {!shared && canEdit && (
           <div style={{ marginTop: '14px', display: 'grid', gap: '8px' }}>
-            <div style={section}>Reviewers (up to 6)</div>
-            {rows.map((r, i) => (
-              <div key={i} style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                <div style={field}><Input value={r.name} onChange={e => setRows(rows.map((x, k) => (k === i ? { ...x, name: e.target.value } : x)))} placeholder="Reviewer name" /></div>
-                <div style={field}><Input value={r.email} onChange={e => setRows(rows.map((x, k) => (k === i ? { ...x, email: e.target.value } : x)))} placeholder="email@example.com" /></div>
-              </div>
+            <div style={section}>Approvers for this drop (up to 6)</div>
+            {saved.length === 0 && <div style={{ fontSize: '13.5px', color: 'var(--ink3)' }}>No saved approvers yet — add one below, or on the Speaker Proposals page.</div>}
+            {saved.map(p => (
+              <label key={p.id} style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '14px', color: 'var(--ink2)' }}>
+                <input type="checkbox" checked={picked(p.email)} disabled={!!busy} onChange={async e => {
+                  if (e.target.checked) await send({ action: 'select', approver_id: p.id }, 'pick')
+                  else { const r = reviewers.find(x => x.email.toLowerCase() === p.email.toLowerCase()); if (r) await send({ action: 'remove', reviewer_id: r.id }, 'pick') }
+                }} />
+                {p.name} <span style={{ color: 'var(--ink3)' }}>{p.email}</span>
+              </label>
             ))}
-            <div><Button variant="ghost" onClick={() => setRows([...rows, { ...blank }])} disabled={rows.length >= 6}>+ Add another reviewer</Button></div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={field}><Input value={rows[0].name} onChange={e => setRows([{ ...rows[0], name: e.target.value }])} placeholder="New approver name" /></div>
+              <div style={field}><Input value={rows[0].email} onChange={e => setRows([{ ...rows[0], email: e.target.value }])} placeholder="email@example.com" /></div>
+              <Button variant="ghost" disabled={!!busy || !rows[0].name.trim() || !rows[0].email.trim()} onClick={async () => {
+                setBusy('new')
+                const x = await call('/api/events/speaker-proposals/approvers', 'POST', { event_id: eventId, name: rows[0].name, email: rows[0].email })
+                if (!x.ok) { setBusy(null); notify(String(x.data.error ?? 'Could not add them.'), 'error'); return }
+                await send({ action: 'select', approver_id: String(x.data.id) }, 'pick'); setRows([{ ...blank }])
+              }}>+ Add &amp; select</Button>
+            </div>
             <ExtraCcField value={ccText} onChange={setCcText} />
             <div><div style={section}>Optional note</div><Textarea value={message} rows={2} onChange={e => setMessage(e.target.value)} placeholder="Included in the email and at the top of the page" /></div>
-            <div><Button variant="lime" disabled={!!busy || ready === 0 || 'error' in extra || rows.every(r => !r.email.trim())} onClick={() => void send({ reviewers: rows, message }, 'send')}>{busy === 'send' ? 'Sending…' : 'Send links'}</Button></div>
+            <div><Button variant="lime" disabled={!!busy || ready === 0 || 'error' in extra || reviewers.length === 0} onClick={() => setCompose({ kind: 'new', body: { message }, label: 'send', names: reviewers.map(r => r.name), message: message.trim() || null })}>{busy === 'send' ? 'Sending…' : 'Preview & send'}</Button></div>
           </div>
         )}
 
@@ -672,7 +737,7 @@ function SendStep({ batchId, reviewers, previous, sender, ready, approved, rejec
                 <span style={{ color: r.last_opened_at ? 'var(--teal)' : 'var(--ink4)', fontSize: '12.5px' }}>{r.last_opened_at ? `Opened ${when(r.last_opened_at)}` : 'Not opened yet'}{r.notified_at ? '' : ' · email not delivered'}{r.reminder_count ? ` · ${r.reminder_count} reminder${r.reminder_count === 1 ? '' : 's'}` : ''}</span>
                 <span style={{ flex: 1 }} />
                 <Button variant="ghost" onClick={() => { void navigator.clipboard.writeText(r.link); notify('Link copied.') }}>Copy link</Button>
-                {canEdit && <Button variant="ghost" disabled={!!busy} onClick={() => void send({ action: 'remind', reviewer_id: r.id }, 'remind')}>Remind</Button>}
+                {canEdit && <Button variant="ghost" disabled={!!busy} onClick={() => setCompose({ kind: 'reminder', body: { action: 'remind', reviewer_id: r.id }, label: 'remind', names: [r.name], message: null })}>Remind</Button>}
                 {canEdit && <Button variant="red" disabled={!!busy} onClick={() => { if (window.confirm(`Remove ${r.name}? Their link stops working; decisions they made stay.`)) void send({ action: 'remove', reviewer_id: r.id }, 'remove') }}>Remove</Button>}
               </div>
             ))}
@@ -681,13 +746,21 @@ function SendStep({ batchId, reviewers, previous, sender, ready, approved, rejec
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <div style={field}><Input value={rows[0].name} onChange={e => setRows([{ ...rows[0], name: e.target.value }])} placeholder="Reviewer name" /></div>
                 <div style={field}><Input value={rows[0].email} onChange={e => setRows([{ ...rows[0], email: e.target.value }])} placeholder="email@example.com" /></div>
-                <Button variant="lime" disabled={!!busy} onClick={async () => { if (await send({ reviewers: [rows[0]] }, 'add')) { setAdding(false); setRows([{ ...blank }]) } }}>Send link</Button>
+                <Button variant="lime" disabled={!!busy} onClick={() => setCompose({ kind: 'new', body: { reviewers: [rows[0]] }, label: 'add', names: [rows[0].name], message: null, done: () => { setAdding(false); setRows([{ ...blank }]) } })}>Preview &amp; send link</Button>
                 <Button variant="ghost" onClick={() => setAdding(false)}>Cancel</Button>
               </div>
-            ) : <div><Button variant="ghost" disabled={reviewers.length >= 6} onClick={() => { setRows([{ ...blank }]); setAdding(true) }}>+ Add a reviewer</Button></div>)}
+            ) : <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <Button variant="ghost" disabled={reviewers.length >= 6} onClick={() => { setRows([{ ...blank }]); setAdding(true) }}>+ Add a reviewer</Button>
+              {saved.some(p => !picked(p.email)) && <select aria-label="Add a saved approver" value="" disabled={!!busy || reviewers.length >= 6} onChange={e => { const p = saved.find(x => x.id === e.target.value); if (p) setCompose({ kind: 'new', body: { reviewers: [{ name: p.name, email: p.email }] }, label: 'add', names: [p.name], message: null }) }} style={{ fontSize: '13px', padding: '6px 8px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink2)' }}><option value="">Add a saved approver…</option>{saved.filter(p => !picked(p.email)).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>}
+            </div>)}
           </div>
         )}
       </div>
+      {compose && (
+        <ReviewEmailComposer kind={compose.kind} eventName={eventName} batchName={batchName} count={ready} message={compose.message} recipients={compose.names} senderName={sender.name || 'Trescon Events'} senderEmail={sender.email} cc={ccShown} sending={!!busy}
+          onCancel={() => setCompose(null)}
+          onSend={async middle => { const c = compose; if (await send({ ...c.body, body_html: middle }, c.label)) { setCompose(null); c.done?.() } }} />
+      )}
     </div>
   )
 }

@@ -14,5 +14,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const next = { ...old, name: s(b.input.name) || old.name, designation: s(b.input.designation) || null, company: s(b.input.company) || null, country: s(b.input.country) || null, linkedin: s(b.input.linkedin) || null, website: s(b.input.website) || null, extra: typeof b.input.extra === 'string' ? b.input.extra.trim().slice(0, 12000) || null : null }
     await supabaseAdmin.from('speaker_proposal_candidates').update({ input: next }).eq('id', id)
   }
-  return NextResponse.json(await startResearch(a.candidate.batch_id as string, [id]))
+  return NextResponse.json(await startResearch(a.candidate.batch_id as string, [id], a.session.sid))
 }

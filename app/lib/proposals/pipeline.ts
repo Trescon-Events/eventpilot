@@ -9,6 +9,7 @@ import { fetchBranding, imageSearch, type ImageHit, type VideoHit, type WebHit }
 import { canFetch, domainOf, fetchPageRich } from './pages'
 import { readSource, type SourceReport } from './readers'
 import { countryCode } from './countries'
+import { sameName, snippetHypothesis, type LaneA } from './lanes'
 
 /* Speaker Proposals — the research pipeline (v2). Fixed stages run by plain code, each stage using the tool that is best at it:
      1 Discover      Serper: many targeted searches (web, video, image) → candidate pages, ranked by how much each source deserves trust
@@ -23,8 +24,20 @@ import { countryCode } from './countries'
 export type PipelineState = {
   identity: { name: string; designation: string | null; company: string | null }
   reports: SourceReport[]; web: { title: string; link: string; snippet: string }[]; images: ImageHit[]; videos: VideoHit[]; rounds: number; read_urls: string[]; pages_read: number
+  /** v3: how the snippet check (lane A) compared with the pages */
+  lane?: { agreement: LaneAgreement; identified: boolean; full_name: string | null; organization: string | null; thin: boolean }
 }
 export type PipelineResult = ResearchResult & { pipeline: PipelineState }
+/** v3 switches on the snippet check and the stricter photo rules. v2 (the default) is unchanged. */
+export type EngineOpts = { v3?: boolean }
+export type LaneAgreement = 'agrees' | 'differs' | 'unknown'
+
+/** Does the snippet check (lane A) tell the same story as the page-based answer? A different name or a clearly different organisation is a disagreement; anything missing is "unknown". Pure. */
+export function laneAgreement(lane: Pick<LaneA, 'identified' | 'full_name' | 'organization'> | null, consol: { identified?: boolean; full_name: string | null; organization: string | null } | null): LaneAgreement {
+  if (!lane || !lane.identified || !consol?.identified || !lane.full_name || !consol.full_name) return 'unknown'
+  if (!sameName(lane.full_name, consol.full_name)) return 'differs'
+  return orgAgreement(lane.organization, consol.organization) === 'differs' ? 'differs' : 'agrees'
+}
 
 /** What the pipeline is doing right now, reported as it goes so the page can show real progress. */
 export type ProgressStage = 'search' | 'read' | 'merge' | 'fill' | 'write' | 'verify'
@@ -78,19 +91,24 @@ const fileKey = (url: string) => (url.split('?')[0].split('/').pop() ?? url).toL
 const urlKey = (u: string) => u.replace(/^https?:\/\/(www\.)?/, '').replace(/[#?].*$/, '').replace(/\/$/, '').toLowerCase()
 
 // ── photos ────────────────────────────────────────────────────────────────
-export type PhotoCand = { url: string; authority: number; via: string; why: string }
+export type PhotoCand = { url: string; authority: number; via: string; why: string; trusted: boolean }
+/** Hosts whose pictures are stock agency shots or user avatars, not a person's own profile photo. */
+const NOT_A_PROFILE_PHOTO = /gettyimages|shutterstock|alamy|istockphoto|depositphotos|sndcdn|soundcloud|doximity|gravatar|ytimg|ggpht|pinimg|vecteezy|freepik/i
 
 /** Every photo that could be this person's, best first: photos found ON trusted pages next to their name, then image-search hits that name them. Pure. */
-export function candidatePhotos(reports: SourceReport[], images: ImageHit[], surname: string | null): PhotoCand[] {
+export function candidatePhotos(reports: SourceReport[], images: ImageHit[], surname: string | null, strictFirst?: string | null): PhotoCand[] {
   const out: PhotoCand[] = []
   for (const r of reports) {
     if (r.about === 'no' || r.authority < 1) continue // lead-gen aggregators never supply the photo
-    for (const p of r.photos) out.push({ url: p.url, authority: r.authority + (r.about === 'yes' ? 2 : 0) + 4, via: r.domain, why: p.why })
+    for (const p of r.photos) out.push({ url: p.url, authority: r.authority + (r.about === 'yes' ? 2 : 0) + 4, via: r.domain, why: p.why, trusted: true })
   }
   for (const m of images) {
     if (BAD_IMAGE_HOST.test(m.imageUrl) || (m.width !== null && m.width < 250)) continue
-    if (!mentions(`${m.title} ${m.pageUrl} ${m.imageUrl.replace(/[-_./%]/g, ' ')}`, surname)) continue
-    out.push({ url: m.imageUrl, authority: 1, via: domainOf(m.pageUrl) || 'image search', why: m.title.slice(0, 60) })
+    const label = `${m.title} ${m.pageUrl} ${m.imageUrl.replace(/[-_./%]/g, ' ')}`
+    if (!mentions(label, surname)) continue
+    // v3: a surname alone is how a namesake's picture gets in — the first name must be there too, and stock / avatar hosts are out
+    if (strictFirst !== undefined && (NOT_A_PROFILE_PHOTO.test(m.imageUrl) || NOT_A_PROFILE_PHOTO.test(m.pageUrl) || (strictFirst && !norm(label).split(' ').some(t => t.length >= 3 && (t.startsWith(strictFirst) || strictFirst.startsWith(t)))))) continue
+    out.push({ url: m.imageUrl, authority: 1, via: domainOf(m.pageUrl) || 'image search', why: m.title.slice(0, 60), trusted: false })
   }
   const seen = new Set<string>()
   return out.filter(c => { const k = fileKey(c.url); if (seen.has(k)) return false; seen.add(k); return true }).sort((a, b) => b.authority - a.authority)
@@ -118,7 +136,7 @@ async function sameWho(bufs: Buffer[]): Promise<number[][] | null> {
   } catch (e) { console.error('[proposals] photo comparison failed:', e instanceof Error ? e.message : e); return null }
 }
 
-async function choosePhotos(cands: PhotoCand[], concerns: string[]): Promise<Candidate[]> {
+async function choosePhotos(cands: PhotoCand[], concerns: string[], strict = false): Promise<Candidate[]> {
   const loaded: { c: PhotoCand; buf: Buffer }[] = []
   for (const c of cands.slice(0, 6)) {
     if (loaded.length >= 4) break
@@ -138,6 +156,8 @@ async function choosePhotos(cands: PhotoCand[], concerns: string[]): Promise<Can
       concerns.push(`The photos found do not all show the same person; only ${keep.length === 1 ? 'the best-sourced one is' : 'the group that agrees is'} offered (${loaded.length - keep.length} dropped). Check the photo.`)
     }
   }
+  // v3: a lone picture that only an image search tied to this name has nothing to confirm it — better none than a namesake's
+  if (strict && keep.length < 2 && !keep.some(k => k.c.trusted)) { concerns.push('A possible photo was found by image search only, with nothing to confirm it is this person, so none is shown — add one.'); return [] }
   return keep.slice(0, 3).map(k => ({ url: k.c.url, page_url: null, title: `${k.c.via}${k.c.why ? ` — ${k.c.why}` : ''}` }))
 }
 
@@ -236,10 +256,12 @@ async function readPages(input: ProposalInput, hits: PipelineState['web'], ctx: 
 // ── the pipeline ──────────────────────────────────────────────────────────
 const sameIdentity = (a: PipelineState['identity'], i: ProposalInput) => norm(a.name) === norm(i.name) && norm(a.designation) === norm(i.designation) && norm(a.company) === norm(i.company)
 
-export async function researchCandidate(input: ProposalInput, prior?: PipelineState | null, onProgress?: OnProgress): Promise<PipelineResult> {
+export async function researchCandidate(input: ProposalInput, prior?: PipelineState | null, onProgress?: OnProgress, opts: EngineOpts = {}): Promise<PipelineResult> {
   const say = (stage: ProgressStage, label: string, detail: string | null = null, done: number | null = null, total: number | null = null) => { try { void Promise.resolve(onProgress?.({ stage, label, detail, done, total, at: new Date().toISOString() })).catch(() => {}) } catch { /* progress is best-effort */ } }
   const concerns: string[] = []
   const org = clean(input.company), surname = surnameOf(input.name)
+  const firstTok = norm(clean(input.name).split(' ').filter(w => !TITLE_WORDS.test(w))[0] ?? '')
+  const strictFirst = opts.v3 ? firstTok : undefined
   const reuse = !!prior && sameIdentity(prior.identity, input)
   const ctx0 = { orgDomains: [] as string[], orgTokens: orgTokensOf(org).tokens }
   if (normalizeUrl(input.website)) ctx0.orgDomains.push(domainOf(normalizeUrl(input.website)!))
@@ -273,9 +295,10 @@ export async function researchCandidate(input: ProposalInput, prior?: PipelineSt
   // 3 + 4 — consolidate, then fill gaps (max two more rounds)
   const linkedinHits = () => web.filter(h => /linkedin\.com\/in\//i.test(h.link))
   say('merge', 'Comparing what the pages say', `${reports.filter(r => r.about === 'yes').length} confirm it is them`)
+  const lanePromise = opts.v3 && !reuse ? snippetHypothesis(input, web) : null // v3: the snippet check runs alongside the page comparison
   let consol = await consolidate(input, reports, linkedinHits(), producerBlock)
   for (let round = 0; !reuse && round < 2; round++) {
-    const gaps = findGaps(reports, candidatePhotos(reports, images, surname), consol, producerSupplied)
+    const gaps = findGaps(reports, candidatePhotos(reports, images, surname, strictFirst), consol, producerSupplied)
     if (!gaps.length || (gaps.length === 1 && gaps[0] === 'site')) break
     const q = gapQueries(input, consol, gaps)
     if (!q.web.length && !q.image.length) break
@@ -301,8 +324,23 @@ export async function researchCandidate(input: ProposalInput, prior?: PipelineSt
     concerns: [why, ...(c?.concerns ?? [])], pipeline: { identity: { name: input.name, designation: input.designation, company: input.company }, reports: reports.filter(r => r.about !== 'no'), web, images, videos, rounds, read_urls: [...already], pages_read: pagesRead },
   })
   if (!consol) throw new Error('The research model returned something unreadable.')
-  const linkedinPick = consol.linkedin_index !== null ? linkedinHits()[Number(String(consol.linkedin_index).replace(/\D/g, ''))] : undefined
-  if (!consol.identified || (!yes.length && !producerSupplied && !(linkedinPick && /linkedin\.com\/in\//i.test(linkedinPick.link)))) {
+  let linkedinPick = consol.linkedin_index !== null ? linkedinHits()[Number(String(consol.linkedin_index).replace(/\D/g, ''))] : undefined
+  const lane = lanePromise ? await lanePromise : null
+  let laneAgree = laneAgreement(lane, consol)
+  let thinOnly = false
+  // v3 thin-evidence fallback: the pages gave nothing usable, but the search snippets clearly describe this person (right name, organisation not contradicted, a LinkedIn profile or two independent sites).
+  // The card is built from that, labelled, and can never be better than "needs review".
+  if (lane?.identified && !consol.identified && sameName(lane.full_name, input.name) && orgAgreement(input.company, lane.organization) !== 'differs') {
+    const sites = new Set(web.filter(h => mentions(`${h.title} ${h.snippet}`, surname) && !AGGREGATORS.test(h.link)).map(h => domainOf(h.link))).size
+    if (lane.linkedin_index !== null || sites >= 2) {
+      consol = { ...consol, identified: true, confidence: Math.min(consol.confidence || 0.6, 0.65), full_name: lane.full_name, title: lane.title ?? consol.title, organization: lane.organization ?? consol.organization, nationality: consol.nationality ?? lane.nationality, nationality_iso2: consol.nationality_iso2 ?? lane.nationality_iso2, nationality_basis: consol.nationality ? consol.nationality_basis : lane.nationality ? 'sources' : null }
+      if (lane.linkedin_index !== null && !linkedinPick) linkedinPick = web[lane.linkedin_index]
+      thinOnly = true; laneAgree = 'unknown'
+      concerns.push('The pages gave little, so this card comes from search-result snippets only — please confirm who this is, and the title and organisation.')
+    }
+  }
+  if (laneAgree === 'differs') concerns.push(`The quick snippet check reads this differently (${clean(lane?.full_name)}, ${clean(lane?.organization)}) — confirm it is the right person.`)
+  if (!consol.identified || (!yes.length && !producerSupplied && !(linkedinPick && /linkedin\.com\/in\//i.test(linkedinPick.link)) && !thinOnly)) {
     const r = emptyResult(consol, 'Could not confidently identify this person from public sources — a producer should supply details.')
     r.logo_candidates = await logoCandidates(consol, org, ctx0)
     return r
@@ -310,8 +348,8 @@ export async function researchCandidate(input: ProposalInput, prior?: PipelineSt
 
   // 5 — compose: photos, bio, videos, logos
   say('write', 'Building the card', 'Choosing and checking the photo')
-  const photoCands = candidatePhotos(reports, images, surname)
-  const photos = await choosePhotos(photoCands, concerns)
+  const photoCands = candidatePhotos(reports, images, surname, strictFirst)
+  const photos = await choosePhotos(photoCands, concerns, !!opts.v3)
   const linkedinHit = linkedinPick
   const linkedinUrl = linkedinHit && /linkedin\.com\/in\//i.test(linkedinHit.link) ? linkedinHit.link.split('?')[0] : null
 
@@ -407,7 +445,7 @@ ${evidence.slice(0, 14000)}`
   if (!nameSame) concerns.push(`The name found (${clean(consol.full_name)}) is spelled differently from the sheet (${clean(input.name)}) — confirm it is the same person.`)
   if (!yes.length) concerns.push('Nothing was read from an independent page; this rests on the producer’s information only.')
   // sources that disagree on the facts always go to a human
-  const agree = nameSame && orgOk && independent >= 2 && consol.conflicts.length === 0 && verification.pass2_identified === true && verification.title !== 'differs' && verification.organization !== 'differs' && verification.nationality !== 'differs' && verification.linkedin !== 'differs'
+  const agree = !thinOnly && laneAgree !== 'differs' && nameSame && orgOk && independent >= 2 && consol.conflicts.length === 0 && verification.pass2_identified === true && verification.title !== 'differs' && verification.organization !== 'differs' && verification.nationality !== 'differs' && verification.linkedin !== 'differs'
   const gave = (r: SourceReport) => [r.person_title || r.organization ? 'title' : '', r.bio_excerpt ? 'bio' : '', r.photos.length ? 'photo' : '', r.nationality ? 'nationality' : ''].filter(Boolean)
   const sources = reports.filter(r => r.about !== 'no').sort((a, b) => b.authority - a.authority).map(r => ({ url: r.url, title: r.title || r.domain, gave: gave(r) }))
 
@@ -416,7 +454,7 @@ ${evidence.slice(0, 14000)}`
     nationality: consol.nationality, nationality_iso2: iso1 ? iso1.toLowerCase() : null, linkedin_url: linkedinUrl, linkedin_note: consol.linkedin_note,
     bio, bio_words: bioWordsOut, bio_removed: removed, videos: cardVideos, photo_candidates: photos, logo_candidates: logos, sources, verification,
     status: agree && consol.confidence >= 0.7 && bioWordsOut >= 40 ? 'verified' : 'needs_review', concerns: [...new Set(concerns)],
-    pipeline: { identity: { name: input.name, designation: input.designation, company: input.company }, reports: reports.filter(r => r.about !== 'no'), web, images, videos, rounds, read_urls: [...already], pages_read: pagesRead },
+    pipeline: { identity: { name: input.name, designation: input.designation, company: input.company }, reports: reports.filter(r => r.about !== 'no'), web, images, videos, rounds, read_urls: [...already], pages_read: pagesRead, ...(opts.v3 ? { lane: { agreement: laneAgree, identified: !!lane?.identified, full_name: lane?.full_name ?? null, organization: lane?.organization ?? null, thin: thinOnly } } : {}) },
   }
 }
 

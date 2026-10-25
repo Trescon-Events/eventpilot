@@ -11,7 +11,7 @@ export type RawSpeakerRow = { position: number; cells: Record<string, string>; e
 export type ParsedTrack = { name: string; day_label: string | null; stage: string | null; time_label: string | null; position: number }
 
 const cellText = (v: unknown): string => (v == null ? '' : String(v)).replace(/ /g, ' ').replace(/\s+/g, ' ').trim()
-const HEADERS: Record<string, string> = { name: 'name', designation: 'designation', title: 'designation', company: 'company', organisation: 'company', organization: 'company', sex: 'sex', gender: 'sex', country: 'country', nationality: 'country', linkedin: 'linkedin', track: 'track' }
+const HEADERS: Record<string, string> = { name: 'name', designation: 'designation', title: 'designation', company: 'company', organisation: 'company', organization: 'company', sex: 'sex', gender: 'sex', country: 'country', nationality: 'country', linkedin: 'linkedin', track: 'track', website: 'website', 'company website': 'website', notes: 'notes', info: 'notes', 'more info': 'notes', 'additional info': 'notes', 'additional information': 'notes', about: 'notes', bio: 'notes', profile: 'notes', 'linkedin text': 'notes', 'linkedin profile text': 'notes' }
 
 export function parseSpeakerSheet(buf: Buffer): { rows: RawSpeakerRow[]; tracks: ParsedTrack[] } {
   const wb = XLSX.read(buf, { type: 'buffer' })
@@ -87,7 +87,7 @@ export function matchTrack<T extends { id: string; name: string }>(text: string,
 
 /** One call tidies every row: merged name/title, "Designation:" prefixes, designation split across cells, stray honorifics. Falls back to simple cleaning. */
 export async function normaliseRows(rows: RawSpeakerRow[]): Promise<ProposalInput[]> {
-  const fallback = rows.map(r => cleanRow({ name: r.cells.name, designation: r.cells.designation, company: r.cells.company, country: r.cells.country, linkedin: r.cells.linkedin, track: r.cells.track }))
+  const fallback = rows.map(r => cleanRow({ name: r.cells.name, designation: r.cells.designation, company: r.cells.company, country: r.cells.country, linkedin: r.cells.linkedin, track: r.cells.track, website: r.cells.website, extra: (r.cells.notes ?? '').slice(0, 12000) || null }))
   try {
     const gem = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!).getGenerativeModel({ model: GEMINI_FLASH_MODEL, generationConfig: COPY_GENERATION_CONFIG })
     const out: ProposalInput[] = []
