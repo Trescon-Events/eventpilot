@@ -41,6 +41,7 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
   const [dispatches, setDispatches] = useState<Dispatch[]>([])
   const [notifyOpen, setNotifyOpen] = useState(false)
   const [ca, setCa] = useState<CaSummary | null>(null)
+  const [tpl, setTpl] = useState<{ changed: boolean; auto: boolean } | null>(null)
   const [caRecipients, setCaRecipients] = useState<CaRecipient[]>([])
   const [caContacts, setCaContacts] = useState<{ name: string; email: string }[]>([])
   const [sendClientOpen, setSendClientOpen] = useState(false)
@@ -62,7 +63,7 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
     const data = await res.json().catch(() => ({}))
     if (!res.ok) { setLoadError(data.error ?? 'Could not load this batch.'); return }
     setBatch(data.batch); setItems(data.items); setJobs(data.jobs); setDispatches(data.dispatches ?? [])
-    setCa(data.client_approval ?? null)
+    setCa(data.client_approval ?? null); setTpl(data.template ?? null)
     if (data.client_approval?.required) {
       const caRes = await fetch(`/api/events/badges/batches/${batchId}/client-approval`)
       const caData = await caRes.json().catch(() => null)
@@ -104,6 +105,7 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
     const r = await api(`/api/events/badges/batches/${batchId}/render`, 'POST', { all })
     setBusy(null)
     if (!r.ok) { say(String(r.data.error ?? 'Could not start rendering.'), 'error'); return }
+    if (r.data.template_updated) say('The template changed since this batch was made, so every badge is being redrawn with the latest design.')
     await load()
   }
   // Land here from "Create batch": start the first render once.
@@ -211,6 +213,21 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
           {canApprove && !locked && <Button variant="lime" disabled={!!activeJob || !!busy || stats.approved < stats.total || stats.total === 0} title={stats.approved < stats.total ? 'Approve every badge first' : ''} onClick={() => void batchAction('approve', 'approved for print')}>Approve for print</Button>}
           {canApprove && locked && <Button variant="ghost" disabled={!!busy || roundPending} title={roundPending ? 'Withdraw the client approval first' : ''} onClick={() => void batchAction('reopen', 'reopened')}>Reopen</Button>}
         </div>
+
+        {tpl?.changed && (
+          <div style={{ marginBottom: '14px', padding: '12px 14px', border: '1px solid var(--amber)', borderRadius: '10px', background: 'var(--card)', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: '260px', fontSize: '14px', color: 'var(--ink2)', lineHeight: 1.5 }}>
+              <strong>The badge template has changed since this batch was made.</strong>{' '}
+              {tpl.auto
+                ? 'Nothing is approved yet, so the next render uses the latest design automatically.'
+                : locked
+                  ? 'These badges still show the old design. Reopen the batch, use “Update template” (it clears approvals) and approve again. The print file and sending to the client are blocked until then.'
+                  : 'These badges still show the old design. “Update template” redraws every badge with the latest design and clears their approvals. The print file and sending to the client are blocked until then.'}
+            </div>
+            {canManage && !locked && tpl.auto && <Button variant="teal" disabled={!!activeJob || !!busy} onClick={() => void startRender(true)}>Render with the latest design</Button>}
+            {canManage && !locked && !tpl.auto && <Button variant="teal" disabled={!!activeJob || !!busy} onClick={() => void batchAction('update_template', 'updated the template')}>Update template</Button>}
+          </div>
+        )}
 
         {activeJob && (
           <div style={{ marginBottom: '14px', padding: '12px 14px', border: '1px solid var(--border-light)', borderRadius: '10px', background: 'var(--card)' }}>

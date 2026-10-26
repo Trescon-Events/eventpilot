@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { logOpsAccess, clientIp } from '@/app/lib/ops/audit'
-import { knownStaffId, loadBatch, loadItems, requireBadgePermission } from '@/app/lib/badges/service'
+import { knownStaffId, loadBatch, loadItems, requireBadgePermission, templateBlock } from '@/app/lib/badges/service'
 import { TOKEN_TTL_MS, loadApprovalConfig, latestRound, newToken, pendingRound, reviewLink, sendApprovalEmail, senderFor, type RecipientRow } from '@/app/lib/badges/client-approval'
 
 /* The producer's side of client approval for speaker badges (2026-10-21).
@@ -41,6 +41,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (cfg.contacts.length === 0) return NextResponse.json({ error: 'No client approvers are set up yet. Add them under Integrations › Client Approval — Badges (or on the umbrella’s Event Details page).' }, { status: 409 })
     if (batch.status !== 'approved') return NextResponse.json({ error: 'Approve every badge and approve the batch first, then send it to the client.' }, { status: 409 })
     if (await pendingRound(id)) return NextResponse.json({ error: 'This batch is already with the client.' }, { status: 409 })
+    const stale = await templateBlock(batch)
+    if (stale) return NextResponse.json({ error: stale }, { status: 409 })
     const live = (await loadItems(id)).filter(i => !i.removed)
     if (live.length === 0) return NextResponse.json({ error: 'The batch has no badges.' }, { status: 409 })
 

@@ -13,6 +13,7 @@ import { putObject } from '@/app/lib/kb/storage'
 import { computeFlags, resolveItemInputs } from '@/app/lib/badges/batch-inputs'
 import { buildBadgeBatchPdf } from '@/app/lib/badges/print-pdf'
 import type { BadgeItemRow } from '@/app/lib/badges/types'
+import { templateChanged, templatePolicy } from '@/app/lib/badges/template-drift'
 
 export type BadgeBatchRow = {
   id: string; event_id: string; variant_id: string; name: string; status: 'draft' | 'review' | 'approved'
@@ -21,6 +22,37 @@ export type BadgeBatchRow = {
 }
 
 export const PREVIEW_SCALE = 0.6
+
+/** Has the live template changed since this batch took its copy, and may the batch take the new design by itself? Read-only. */
+export async function templateStatus(batch: BadgeBatchRow): Promise<{ changed: boolean; policy: 'auto' | 'ask'; fresh: Variant | null }> {
+  const { data: ev } = await supabaseAdmin.from('events').select('creative_template_config').eq('id', batch.event_id).single()
+  const variants = ((ev?.creative_template_config as { speaker?: { variants?: Variant[] } } | null)?.speaker?.variants ?? [])
+  const fresh = variants.find(v => v.id === batch.variant_id) ?? null
+  // The template may have been deleted or lost its print setup: keep the batch's own copy rather than break it.
+  if (!fresh || !fresh.print || !templateChanged(batch.template_snapshot, fresh)) return { changed: false, policy: 'ask', fresh }
+  const [{ count: approvedBadges }, { count: approvalRounds }, { count: dispatches }] = await Promise.all([
+    supabaseAdmin.from('badge_batch_items').select('id', { count: 'exact', head: true }).eq('batch_id', batch.id).eq('removed', false).eq('approved', true),
+    supabaseAdmin.from('badge_approval_rounds').select('id', { count: 'exact', head: true }).eq('batch_id', batch.id).neq('status', 'withdrawn'),
+    supabaseAdmin.from('badge_print_dispatches').select('id', { count: 'exact', head: true }).eq('batch_id', batch.id),
+  ])
+  return { changed: true, policy: templatePolicy({ status: batch.status, approvedBadges: approvedBadges ?? 0, approvalRounds: approvalRounds ?? 0, printFiles: (batch.pdf_versions ?? []).length, dispatches: dispatches ?? 0 }), fresh }
+}
+
+/** Before drawing: a batch nobody has signed off takes the current design on its own and every badge is redrawn. Returns true when it did. */
+export async function adoptTemplateIfSafe(batch: BadgeBatchRow): Promise<boolean> {
+  const st = await templateStatus(batch)
+  if (!st.changed || st.policy !== 'auto' || !st.fresh) return false
+  await supabaseAdmin.from('badge_batches').update({ template_snapshot: st.fresh, updated_at: new Date().toISOString() }).eq('id', batch.id)
+  await supabaseAdmin.from('badge_batch_items').update({ preview_stale: true }).eq('batch_id', batch.id)
+  batch.template_snapshot = st.fresh
+  return true
+}
+
+/** A 409 body for actions that must not go out on an old design (the print file, sending to the client). Null when fine. */
+export async function templateBlock(batch: BadgeBatchRow): Promise<string | null> {
+  const st = await templateStatus(batch)
+  return st.changed ? 'The badge template has changed since this batch was made, so these badges show the old design. Reopen the batch and use “Update template”, then approve it again.' : null
+}
 const JOB_DEAD_AFTER_MS = 3 * 60 * 1000
 const RENDER_CONCURRENCY = 3
 

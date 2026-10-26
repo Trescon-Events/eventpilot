@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { presignGet } from '@/app/lib/kb/storage'
-import { loadBatch, requireBadgePermission, runPdfJob, startJob, sweepDeadJobs } from '@/app/lib/badges/service'
+import { loadBatch, requireBadgePermission, runPdfJob, startJob, sweepDeadJobs, templateBlock } from '@/app/lib/badges/service'
 import { clientApprovalGate } from '@/app/lib/badges/client-approval'
 
 /* POST .../batches/[id]/pdf -> { job_id }  builds the real print PDF from the approved badges (batch must be approved)
@@ -15,6 +15,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const auth = await requireBadgePermission(req, batch.event_id, 'sae.badges.approve')
   if ('error' in auth) return auth.error
   if (batch.status !== 'approved') return NextResponse.json({ error: 'Approve the batch for print first.' }, { status: 409 })
+  const stale = await templateBlock(batch)
+  if (stale) return NextResponse.json({ error: stale }, { status: 409 })
   const gate = await clientApprovalGate(batch.event_id, batch)
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: 409 })
 
