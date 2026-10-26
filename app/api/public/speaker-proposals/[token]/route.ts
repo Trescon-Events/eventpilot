@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { OPEN_LINK_EMAIL } from '@/app/lib/proposals/open-link'
 import { isUuid, loadReviewContext, notifyProducer, publicCard, trackLabel } from '@/app/lib/proposals/review'
 import type { Card } from '@/app/lib/proposals/server'
 
@@ -42,7 +43,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   const actionedBy = new Map<string, number>()
   for (const d of decOf.values()) actionedBy.set(d.reviewer_name as string, (actionedBy.get(d.reviewer_name as string) ?? 0) + 1)
   return NextResponse.json({
-    event_name: eventName, batch_name: batch.name, shared_by_name: batch.shared_by_name, message: batch.share_message, reviewer: { id: reviewer.id, name: reviewer.name },
+    event_name: eventName, batch_name: batch.name, shared_by_name: batch.shared_by_name, message: batch.share_message, reviewer: { id: reviewer.id, name: reviewer.name }, open_link: reviewer.email === OPEN_LINK_EMAIL,
     colleagues: (reviewers ?? []).filter(r => r.id !== reviewer.id).map(r => r.name as string),
     actioned_by: [...actionedBy.entries()].map(([name, n]) => ({ name, n })),
     totals: { total: items.length, approved: items.filter(i => i.decision?.decision === 'approved').length, rejected: items.filter(i => i.decision?.decision === 'rejected').length },

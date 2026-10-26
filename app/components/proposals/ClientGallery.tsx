@@ -14,7 +14,7 @@ export type GalleryItem = {
   comments: { id: string; by: string; at: string; body: string; is_me: boolean }[]
 }
 export type GalleryData = {
-  event_name: string; batch_name: string; shared_by_name: string | null; message: string | null; reviewer: { id: string; name: string }; colleagues: string[]
+  event_name: string; batch_name: string; shared_by_name: string | null; message: string | null; reviewer: { id: string; name: string }; open_link?: boolean; colleagues: string[]
   actioned_by: { name: string; n: number }[]; totals: { total: number; approved: number; rejected: number }; tracks: { id: string; label: string | null }[]; items: GalleryItem[]
 }
 type Filter = 'all' | 'awaiting' | 'approved' | 'rejected'
@@ -81,7 +81,7 @@ export function ClientGallery({ data, token, preview, onChanged }: { data: Galle
       <style>{GALLERY_STYLES}</style>
       <div className={`sp-top${preview ? ' static' : ''}`}>
         <div className="sp-row">
-          <div><h1 className="sp-title">Proposed speakers — {data.event_name}</h1><div className="sp-sub">{data.batch_name}{preview ? '' : ` · reviewing as ${data.reviewer.name}`}</div></div>
+          <div><h1 className="sp-title">Proposed speakers — {data.event_name}</h1><div className="sp-sub">{data.batch_name}{preview || data.open_link ? '' : ` · reviewing as ${data.reviewer.name}`}</div></div>
           <div className="sp-grow" />
           <div className="sp-sub"><strong>{decided}</strong> of {data.totals.total} decided</div>
         </div>

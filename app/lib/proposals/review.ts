@@ -6,6 +6,7 @@ import { sendSystemMail } from '@/app/lib/email/system-mail'
 import { notifyStaff } from '@/app/lib/notify'
 import { siteUrl } from '@/app/lib/badges/client-approval'
 import type { Card } from './server'
+export { OPEN_LINK_EMAIL, OPEN_LINK_NAME } from './open-link'
 import { ownersOf, recipientSids } from './owners'
 import { defaultMiddle, reviewEmailHtml, type ReviewEmailKind } from './review-email'
 

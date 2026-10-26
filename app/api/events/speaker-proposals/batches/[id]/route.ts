@@ -29,7 +29,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const r = research as { pipeline?: { pages_read?: number; rounds?: number; reports?: { about?: string }[] } | null } | null
     return r?.pipeline ? { ...r, pipeline: { pages_read: r.pipeline.pages_read ?? 0, rounds: r.pipeline.rounds ?? 1, reports: (r.pipeline.reports ?? []).map(x => ({ about: x.about ?? 'maybe' })) } } : research
   }
-  const withOutcome = (candidates ?? []).map(c => ({ ...c, research: slim(c.research), client_decision: decOf.get(c.id as string) ?? null, client_comments: (comments ?? []).filter(m => m.candidate_id === c.id) }))
+  const slimInput = (i: unknown) => { const o = (i ?? {}) as Record<string, unknown>; return Array.isArray(o.files) ? { ...o, files: (o.files as Record<string, unknown>[]).map(f => ({ ...f, text: undefined })) } : o } // the files' words stay on the server; the page only needs each file's name and result
+  const withOutcome = (candidates ?? []).map(c => ({ ...c, input: slimInput(c.input), research: slim(c.research), client_decision: decOf.get(c.id as string) ?? null, client_comments: (comments ?? []).filter(m => m.candidate_id === c.id) }))
   const base = process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com'
   const reviewerOut = (reviewers ?? []).map(r => ({ ...r, link: `${base.replace(/\/$/, '')}/public/speaker-proposals/${r.token}`, token: undefined }))
   const owners = await ownersOf(id)

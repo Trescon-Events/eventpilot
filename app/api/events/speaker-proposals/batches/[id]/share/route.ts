@@ -3,12 +3,14 @@ import { randomBytes } from 'crypto'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { authBatch } from '@/app/lib/proposals/server'
 import { reviewLink, sendReviewEmail } from '@/app/lib/proposals/review'
+import { OPEN_LINK_EMAIL, OPEN_LINK_NAME } from '@/app/lib/proposals/open-link'
 import { senderFor } from '@/app/lib/badges/client-approval'
 import { ccEmails, ownersOf, senderForDrop } from '@/app/lib/proposals/owners'
 import { mergeCc, parseExtraCc } from '@/app/lib/email/extra-cc'
 import { sanitizeMiddle } from '@/app/lib/proposals/review-email'
 
-/* POST — sharing a batch with the client's reviewers.
+/* POST — sharing a batch with the client.
+   { action: 'open_link' }                            the way WPS shares: ONE open link for the drop, no email, no reviewer identity — the producer passes the link on themselves. Safe to repeat (returns the same link).
    { reviewers: [{name,email}], message?, resend? }   adds the reviewers (each gets a private link) and emails the ones not yet notified (everyone when `resend`) — the "send update" path
    { action: 'remind', reviewer_id }                  a reminder to one reviewer
    { action: 'remove', reviewer_id }                  removes a reviewer (their link stops working; their past decisions stay)
@@ -44,6 +46,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const sent = await sendReviewEmail({ eventId: a.batch.event_id, to: r.email as string, name: r.name as string, eventName, batchName: a.batch.name, count: ready ?? 0, token: r.token as string, sender, message: (batchRow?.share_message as string | null) ?? null, kind: 'reminder', middle, cc: mergeCc(teamCc, extra.emails, r.email as string) })
     if (sent) await supabaseAdmin.from('speaker_proposal_reviewers').update({ reminder_count: (r.reminder_count as number) + 1, last_reminder_at: new Date().toISOString() }).eq('id', r.id)
     return NextResponse.json({ results: [{ email: r.email, sent }] })
+  }
+
+  if (b.action === 'open_link') {
+    if (!ready) return NextResponse.json({ error: 'Mark at least one speaker Ready first — the client only sees Ready speakers.' }, { status: 409 })
+    const { data: have } = await supabaseAdmin.from('speaker_proposal_reviewers').select('token').eq('batch_id', id).eq('email', OPEN_LINK_EMAIL).maybeSingle()
+    let token = have?.token as string | undefined
+    if (!token) {
+      token = randomBytes(24).toString('hex')
+      const { error } = await supabaseAdmin.from('speaker_proposal_reviewers').insert({ batch_id: id, name: OPEN_LINK_NAME, email: OPEN_LINK_EMAIL, token, notified_at: new Date().toISOString() })
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+    await supabaseAdmin.from('speaker_proposal_batches').update({ shared_at: new Date().toISOString(), shared_by: sender.staffId ?? a.session.sid ?? null, shared_by_name: sender.name, shared_by_email: sender.email, status: 'sent', updated_at: new Date().toISOString() }).eq('id', id).is('shared_at', null)
+    return NextResponse.json({ ok: true, link: reviewLink(token) })
   }
 
   if (b.action === 'select') {

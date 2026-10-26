@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { authCandidate, startResearch } from '@/app/lib/proposals/server'
+import { parseLinks } from '@/app/lib/proposals/files'
 
 /* POST { input?, full? } — researches this one speaker again (optionally with corrected name / designation / organisation / country / LinkedIn). Replaces the card, so the page asks first. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -11,7 +12,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (b.full) { const { data: cur } = await supabaseAdmin.from('speaker_proposal_candidates').select('research').eq('id', id).maybeSingle(); if (cur?.research) await supabaseAdmin.from('speaker_proposal_candidates').update({ research: { ...(cur.research as Record<string, unknown>), pipeline: null } }).eq('id', id) }
   if (b.input) {
     const old = a.candidate.input as Record<string, unknown>, s = (v: unknown) => (typeof v === 'string' ? v.trim().slice(0, 200) : '')
-    const next = { ...old, name: s(b.input.name) || old.name, designation: s(b.input.designation) || null, company: s(b.input.company) || null, country: s(b.input.country) || null, linkedin: s(b.input.linkedin) || null, website: s(b.input.website) || null, extra: typeof b.input.extra === 'string' ? b.input.extra.trim().slice(0, 12000) || null : null }
+    const next = { ...old, name: s(b.input.name) || old.name, designation: s(b.input.designation) || null, company: s(b.input.company) || null, country: s(b.input.country) || null, linkedin: s(b.input.linkedin) || null, website: s(b.input.website) || null, extra: typeof b.input.extra === 'string' ? b.input.extra.trim().slice(0, 12000) || null : null, links: typeof b.input.links === 'string' ? parseLinks(b.input.links).urls.join('\n') || null : old.links ?? null }
     await supabaseAdmin.from('speaker_proposal_candidates').update({ input: next }).eq('id', id)
   }
   return NextResponse.json(await startResearch(a.candidate.batch_id as string, [id], a.session.sid))

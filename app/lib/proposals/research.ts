@@ -10,7 +10,8 @@ import { fetchBranding, fetchPageText, imageSearch, videoSearch, webSearch, type
    Pass 3 (Gemini Flash): checks the pass-1 bio sentence by sentence against the sources and drops anything the sources don't support.
    The comparison is done in code: facts that don't agree are flagged for a human, never averaged. Links and image URLs only ever come from real search results (the models pick by index). */
 
-export type ProposalInput = { name: string; designation: string | null; company: string | null; country: string | null; linkedin: string | null; track: string | null; website?: string | null; extra?: string | null }
+import type { ProposalFile } from './files'
+export type ProposalInput = { name: string; designation: string | null; company: string | null; country: string | null; linkedin: string | null; track: string | null; website?: string | null; extra?: string | null; links?: string | null; files?: ProposalFile[] | null }
 export type CardVideo = { url: string; title: string; channel: string | null; date: string | null; duration: string | null; thumbnail: string | null; checked: 'watched' | 'named' | null; evidence: string | null }
 export type Candidate = { url: string; page_url: string | null; title: string }
 export type Agreement = 'match' | 'differs' | 'unknown'

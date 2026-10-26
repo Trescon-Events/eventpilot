@@ -2,17 +2,15 @@
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
-import ExtraCcField from '@/app/components/ExtraCcField'
 import CountryPicker, { countryNameOf } from '@/app/components/proposals/CountryPicker'
 import { ClientGallery, type GalleryData, type GalleryItem } from '@/app/components/proposals/ClientGallery'
 import OwnerBar from '@/app/components/proposals/OwnerBar'
-import ReviewEmailComposer from '@/app/components/proposals/ReviewEmailComposer'
-import type { ReviewEmailKind } from '@/app/lib/proposals/review-email'
+import { OPEN_LINK_EMAIL } from '@/app/lib/proposals/open-link'
+import { cleanProfilePaste, imagesInHtml } from '@/app/lib/proposals/paste'
 import { Badge, Button, Input, Textarea } from '@/app/components/ui'
 import { notify } from '@/app/lib/ui/notify'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
-import { parseExtraCc } from '@/app/lib/email/extra-cc'
 import { countryCode, flagPath } from '@/app/lib/proposals/countries'
 import { asksFor } from '@/app/lib/proposals/needs'
 
@@ -33,7 +31,7 @@ type Internal = {
   bio_removed: string[]; photo_candidates: { url: string; page_url: string | null; title: string }[]; logo_candidates: { url: string; page_url: string | null; title: string }[]; linkedin_note: string | null
 }
 type Progress = { stage: 'search' | 'read' | 'merge' | 'fill' | 'write' | 'verify'; label: string; detail: string | null; done: number | null; total: number | null; at: string }
-type Input = { name: string; designation: string | null; company: string | null; country: string | null; linkedin: string | null; website?: string | null; extra?: string | null; track_text: string }
+type Input = { name: string; designation: string | null; company: string | null; country: string | null; linkedin: string | null; website?: string | null; extra?: string | null; links?: string | null; files?: { id: string; name: string; kind: 'photo' | 'text' | 'ignored'; chars: number; note?: string; url?: string }[]; track_text: string }
 type Candidate = {
   id: string; position: number; raw: { cells: Record<string, string>; extra: string[]; manual?: boolean }; input: Input
   track_id: string | null; status: 'new' | 'queued' | 'researching' | 'researched' | 'error'; research: Internal | null; card: Card; review_state: 'pending' | 'ready' | 'excluded'; producer_notes: string | null; error: string | null; researched_at: string | null; started_at: string | null; progress: Progress | null
@@ -72,7 +70,6 @@ export default function ProposalBatchPage({ params }: { params: Promise<{ id: st
   const [tracks, setTracks] = useState<Track[]>([])
   const [reviewers, setReviewers] = useState<Reviewer[]>([])
   const [sender, setSender] = useState<{ name: string; email: string | null }>({ name: '', email: null })
-  const [coCc, setCoCc] = useState<string[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
   const [step, setStep] = useState<1 | 2 | 3 | null>(null)
@@ -91,7 +88,7 @@ export default function ProposalBatchPage({ params }: { params: Promise<{ id: st
     if (!r.ok) { setLoadError(String(r.d.error ?? 'Could not load this drop.')); return }
     const b = r.d.batch as { id: string; name: string; shared_at?: string | null }
     setBatch(b); setCandidates(r.d.candidates as Candidate[]); setTracks(r.d.tracks as Track[]); setReviewers((r.d.reviewers as Reviewer[]) ?? [])
-    setSender((r.d.sender as { name: string; email: string | null }) ?? { name: '', email: null }); setCoCc(((r.d.co_owners as { email: string | null }[] | undefined) ?? []).map(c => c.email).filter((e): e is string => !!e))
+    setSender((r.d.sender as { name: string; email: string | null }) ?? { name: '', email: null })
     setStep(s => s ?? (b.shared_at ? 3 : 1))
   }, [])
   const load = useCallback(async () => { apply(await fetchBatch()) }, [apply, fetchBatch])
@@ -165,11 +162,11 @@ export default function ProposalBatchPage({ params }: { params: Promise<{ id: st
   const steps: { n: 1 | 2 | 3; label: string; done: boolean; enabled: boolean }[] = [
     { n: 1, label: 'Review speakers', done: allActioned && counts.ready > 0, enabled: true },
     { n: 2, label: 'Preview client view', done: step > 2 || shared, enabled: counts.ready > 0 },
-    { n: 3, label: 'Send to client', done: shared, enabled: counts.ready > 0 },
+    { n: 3, label: 'Client link', done: shared, enabled: counts.ready > 0 },
   ]
   const nextHint = step === 1
     ? (counts.ready === 0 ? 'Mark speakers Ready to continue' : allActioned ? 'All speakers are actioned — next: preview what the client will see' : `${candidates.length - actioned} speaker${candidates.length - actioned === 1 ? '' : 's'} still need a decision (Ready or Exclude)`)
-    : step === 2 ? 'This is exactly what the client will see — next: choose who gets it' : shared ? 'Sent — track the answers below' : 'Add the reviewers and send the links'
+    : step === 2 ? 'This is exactly what the client will see — next: choose who gets it' : shared ? 'Sent — track the answers below' : 'Create the client link and pass it on'
   const primary = step === 1 ? { label: 'Preview client view →', go: 2 as const, highlight: allActioned && counts.ready > 0, disabled: counts.ready === 0 }
     : step === 2 ? { label: 'Continue to send →', go: 3 as const, highlight: true, disabled: false } : null
 
@@ -236,7 +233,7 @@ export default function ProposalBatchPage({ params }: { params: Promise<{ id: st
           <ClientGallery data={previewData} preview />
         </>)}
 
-        {step === 3 && <SendStep batchId={batchId} eventId={eventId} eventName={eventName ?? 'the event'} batchName={batch.name} coCc={coCc} shared={!!batch.shared_at} reviewers={reviewers} sender={sender} ready={counts.ready} approved={counts.approved} rejected={counts.rejected} canEdit={canEdit} onChanged={load} />}
+        {step === 3 && <SendStep batchId={batchId} shared={!!batch.shared_at} reviewers={reviewers} ready={counts.ready} approved={counts.approved} rejected={counts.rejected} canEdit={canEdit} onChanged={load} />}
       </div>
     </div>
   )
@@ -423,11 +420,14 @@ function CandidateRow({ cand, track, tracks, canEdit, ahead, onChanged }: { cand
   const [again, setAgain] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [newVideo, setNewVideo] = useState('')
+  const [fileStatus, setFileStatus] = useState<string | null>(null)
+  const filePick = useRef<HTMLInputElement>(null)
+  const [paste, setPaste] = useState<{ chars: number; removed: string | null; removedChars: number; images: { url: string; alt: string }[] } | null>(null)
   const [assetUrl, setAssetUrl] = useState('')
   const photoFile = useRef<HTMLInputElement>(null)
   const dropRef = useRef<HTMLDivElement>(null)
   const logoFile = useRef<HTMLInputElement>(null)
-  const [inp, setInp] = useState({ name: cand.input.name, designation: cand.input.designation ?? '', company: cand.input.company ?? '', website: cand.input.website ?? cand.card.website_url ?? '', country: countryCode(cand.input.country), linkedin: cand.input.linkedin ?? '', extra: cand.input.extra ?? '' })
+  const [inp, setInp] = useState({ name: cand.input.name, designation: cand.input.designation ?? '', company: cand.input.company ?? '', website: cand.input.website ?? cand.card.website_url ?? '', country: countryCode(cand.input.country), linkedin: cand.input.linkedin ?? '', extra: cand.input.extra ?? '', links: cand.input.links ?? '' })
   const r = cand.research
   const card = cand.card
   const dim = cand.review_state === 'excluded'
@@ -458,8 +458,9 @@ function CandidateRow({ cand, track, tracks, canEdit, ahead, onChanged }: { cand
     if (ok) setDraft(prev => ({ ...prev, [kind === 'logo' ? 'logo_url' : 'photo_url']: null }))
   }
   async function research(full = false) {
-    if (cand.status === 'researched' && !window.confirm(full ? 'Start over? This searches the web again and replaces the card and any edits you made to it.' : 'Research this speaker again? It re-uses the pages already read, adds what you dropped, and replaces the card and any edits you made to it.')) return
+    // No browser pop-up (they can be blocked and then the button looks dead); "Undo last re-run" is the safety net for a replaced card.
     setBusy('research')
+    notify(full ? 'Starting over — searching the web again for this speaker…' : 'Research started — this card will show its progress. It reads what you dropped and looks for anything still missing.')
     const x = await call(`/api/events/speaker-proposals/candidates/${cand.id}/research`, 'POST', { full, input: { ...inp, country: inp.country ? countryNameOf(inp.country) : '' } })
     setBusy(null)
     if (!x.ok) { notify(String(x.data.error ?? 'Could not start.'), 'error'); return }
@@ -487,20 +488,49 @@ function CandidateRow({ cand, track, tracks, canEdit, ahead, onChanged }: { cand
     await onChanged()
   }
 
+  /** Paste into the LinkedIn box: pictures go to the reader as before; text is tidied (other people's sections of a copied page are cut) and added, and the strip below shows what was taken. */
+  function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const files = [...e.clipboardData.files]
+    if (files.length) { e.preventDefault(); void dropFiles(files); return }
+    const text = e.clipboardData.getData('text/plain'), html = e.clipboardData.getData('text/html')
+    if (!text.trim()) return
+    e.preventDefault()
+    const c = cleanProfilePaste(text)
+    const el = e.currentTarget, start = el.selectionStart ?? inp.extra.length, end = el.selectionEnd ?? inp.extra.length
+    const next = `${inp.extra.slice(0, start)}${c.text}${inp.extra.slice(end)}`.slice(0, 12000)
+    setInp(p => ({ ...p, extra: next }))
+    setPaste({ chars: c.text.length, removed: c.removedSection, removedChars: c.removedChars, images: html ? imagesInHtml(html) : [] })
+    if (next !== (cand.input.extra ?? '')) void patch({ extra: next }, 'extra')
+  }
+
   async function dropFiles(files: FileList | File[]) {
-    const imgs = [...files].filter(f => f.type.startsWith('image/'))
-    if (!imgs.length) { notify('Only images can be dropped here. Paste text straight into the box.', 'error'); return }
+    const list = [...files]; if (!list.length) return
+    const room = Math.max(0, 10 - (cand.input.files?.length ?? 0))
+    if (!room) { notify('That speaker already has 10 files. Remove one first.', 'error'); return }
     setBusy('drop')
-    for (const f of imgs.slice(0, 3)) {
+    let n = 0
+    for (const f of list.slice(0, room)) {
+      n++; setFileStatus(`Reading file ${n} of ${Math.min(list.length, room)}: ${f.name || 'pasted image'}…`)
       const form = new FormData(); form.set('file', f)
       const res = await fetch(`/api/events/speaker-proposals/candidates/${cand.id}/drop`, { method: 'POST', body: form })
       const d = await res.json().catch(() => ({}))
-      if (!res.ok) { notify(d.error ?? 'Could not read that image.', 'error'); continue }
-      if (d.kind === 'portrait') notify('Photo added. It is now this speaker’s photo.')
-      else if (d.kind === 'document') { setInp(p => ({ ...p, extra: d.extra })); notify('Read the text in that image and added it to the box. Press Research again to use it.') }
-      else notify(d.note ?? 'That does not look like a photo of the speaker or a page of text.', 'error')
+      if (!res.ok) notify(d.error ?? `Could not read ${f.name || 'that file'}.`, 'error')
     }
-    setBusy(null); await onChanged()
+    if (list.length > room) notify(`Only the first ${room} were taken — 10 files is the limit per speaker.`, 'error')
+    setFileStatus(null); setBusy(null); await onChanged()
+  }
+  async function removeFile(id: string) {
+    setBusy('drop'); await call(`/api/events/speaker-proposals/candidates/${cand.id}/drop?file_id=${id}`, 'DELETE'); setBusy(null); await onChanged()
+  }
+  async function saveLinks() {
+    if (inp.links === (cand.input.links ?? '')) return
+    setBusy('links')
+    const x = await call(`/api/events/speaker-proposals/candidates/${cand.id}`, 'PATCH', { links: inp.links })
+    setBusy(null)
+    if (!x.ok) { notify(String(x.data.error ?? 'Could not save the links.'), 'error'); return }
+    const bad = (x.data.ignored_links as string[] | undefined) ?? []
+    if (bad.length) notify(`${bad.length} line${bad.length === 1 ? ' is' : 's are'} not a web address and ${bad.length === 1 ? 'was' : 'were'} left out.`, 'error')
+    await onChanged()
   }
 
   const statusBadge = cand.status === 'new' ? <Badge color="grey">Not researched</Badge> : cand.status === 'queued' ? <Badge color="grey">Waiting in line</Badge> : cand.status === 'researching' ? <Badge color="amber">{cand.progress ? `${cand.progress.label}…` : 'Researching…'}</Badge> : cand.status === 'error' ? <Badge color="red">Failed</Badge>
@@ -508,6 +538,15 @@ function CandidateRow({ cand, track, tracks, canEdit, ahead, onChanged }: { cand
   const chipColor = (a: Agreement) => (a === 'match' ? 'var(--teal-mid)' : a === 'differs' ? 'var(--red)' : 'var(--ink4)')
   const flag = flagPath(card.nationality_iso2)
   const asks = asksFor(cand)
+  const boxLabel: React.CSSProperties = { fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }
+  const boxHelp: React.CSSProperties = { fontSize: '12px', color: 'var(--ink4)', lineHeight: 1.45, margin: '2px 0 4px' }
+  const surname = (cand.input.name.split(/\s+/).filter(w => w.replace(/[^\p{L}]/gu, '').length >= 3).pop() ?? '').toLowerCase()
+  const linkedinWarning = inp.extra.length > 150 && surname && !inp.extra.toLowerCase().includes(surname) ? `This text never mentions “${surname}” — check it is ${cand.input.name}’s profile and not someone else’s.`
+    : inp.extra.length > 600 && !/(experience|education|skills|connections|followers|linkedin|about)/i.test(inp.extra) ? 'This does not look like a LinkedIn profile. For any other website, paste its link in the Links box instead.' : null
+  const linkLines = inp.links.split(/\r?\n/).map(t => t.trim()).filter(Boolean).map(t => {
+    const ok = /^https?:\/\/\S+\.\S+/i.test(t) || /^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(t)
+    return { text: t, ok: ok && !/linkedin\.com/i.test(t), note: !ok ? 'not a web address, will be left out' : /linkedin\.com/i.test(t) ? 'LinkedIn cannot be opened by the system — paste the profile text in box 1' : null }
+  })
 
   return (
     <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)', border: `1px solid ${inProgress ? 'var(--teal)' : 'var(--border)'}`, borderRadius: '14px', overflow: 'hidden', background: 'var(--card)', opacity: dim ? 0.55 : 1 }}>
@@ -601,7 +640,7 @@ function CandidateRow({ cand, track, tracks, canEdit, ahead, onChanged }: { cand
           <div style={{ marginBottom: '10px', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--amber)', background: 'var(--card)' }}>
             <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>To finish this card</div>
             <ul style={{ margin: 0, paddingLeft: '18px', listStyle: 'disc', fontSize: '13px', color: 'var(--ink2)', lineHeight: 1.5 }}>{asks.map(a => <li key={a.key} style={{ marginBottom: '3px' }}><strong>{a.text}</strong> {a.hint}</li>)}</ul>
-            <div style={{ marginTop: '8px' }}><Button variant="ghost" onClick={() => { dropRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); dropRef.current?.querySelector('textarea')?.focus() }}>Go to “Drop more info”</Button></div>
+            <div style={{ marginTop: '8px' }}><Button variant="ghost" onClick={() => { dropRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); dropRef.current?.querySelector('textarea')?.focus() }}>Add info on the card</Button></div>
           </div>
         )}
         {cand.status === 'new' && !again && <div style={{ fontSize: '13.5px', color: 'var(--ink2)', lineHeight: 1.5 }}>Not researched yet. The card shows what you entered. Press <strong>Start research</strong> to find the profile, bio, videos, photo and logo — or mark it Ready as it is.</div>}
@@ -621,23 +660,83 @@ function CandidateRow({ cand, track, tracks, canEdit, ahead, onChanged }: { cand
           <div style={section}>Producer notes</div>
           <Textarea value={notes} rows={2} onChange={e => setNotes(e.target.value)} onBlur={() => { if (notes !== (cand.producer_notes ?? '')) void patch({ producer_notes: notes }, 'notes') }} placeholder="Only visible to the team" />
 
-          <div style={section}>Drop more info <span style={{ textTransform: 'none', fontWeight: 600 }}>— the research reads this</span></div>
-          <div ref={dropRef}><Textarea rows={5} value={inp.extra} disabled={inProgress}
-            onChange={e => setInp({ ...inp, extra: e.target.value })}
-            onBlur={() => { if (inp.extra !== (cand.input.extra ?? '')) void patch({ extra: inp.extra }, 'extra') }}
-            onPaste={e => { const files = [...e.clipboardData.files]; if (files.length) { e.preventDefault(); void dropFiles(files) } }}
-            onDrop={e => { e.preventDefault(); void dropFiles(e.dataTransfer.files) }} onDragOver={e => e.preventDefault()}
-            placeholder="Paste or drop anything here, no formatting needed: text copied from their LinkedIn page, a bio, notes, links to pages or videos, or an image (a photo of them, or a screenshot of a page)." /></div>
-          <div style={{ fontSize: '12px', color: 'var(--ink4)', lineHeight: 1.45, marginTop: '4px' }}>{busy === 'drop' ? 'Reading the image…' : 'Links are opened and read. A pasted photo of the speaker becomes their photo; a screenshot of text is read and added here. Then press the button below.'}</div>
+          <div style={section}>Give the research more to work with <span style={{ textTransform: 'none', fontWeight: 600 }}>— it reads all three boxes</span></div>
+          <div ref={dropRef} style={{ display: 'grid', gap: '12px' }}>
+            <div>
+              <div style={boxLabel}>1 · LinkedIn profile</div>
+              <div style={boxHelp}>Open their LinkedIn profile, press Ctrl+A then Ctrl+C, and paste it here. Only the speaker’s own profile is kept; suggested people and the page footer are left out.</div>
+              <Textarea rows={4} value={inp.extra} disabled={inProgress}
+                onChange={e => setInp({ ...inp, extra: e.target.value })}
+                onBlur={() => { if (inp.extra !== (cand.input.extra ?? '')) void patch({ extra: inp.extra }, 'extra') }}
+                onPaste={handlePaste}
+                placeholder="Paste the LinkedIn profile text here" />
+              {linkedinWarning && <div style={{ fontSize: '12.5px', color: 'var(--amber-text, var(--ink2))', border: '1px solid var(--amber, var(--border))', borderRadius: '8px', padding: '6px 10px', marginTop: '6px' }}>{linkedinWarning}</div>}
+              {paste && (
+                <div style={{ marginTop: '6px', padding: '8px 10px', border: '1px solid var(--teal)', borderRadius: '8px', background: 'var(--card)', fontSize: '12.5px', color: 'var(--ink2)', lineHeight: 1.5 }}>
+                  <div style={{ fontWeight: 800, color: 'var(--teal-mid)' }}>✓ Pasted {paste.chars.toLocaleString('en-GB')} characters of text{paste.images.length ? ` and ${paste.images.length} picture${paste.images.length === 1 ? '' : 's'}` : ''}</div>
+                  {paste.removed && <div>Left out “{paste.removed}” and everything after it ({paste.removedChars.toLocaleString('en-GB')} characters) — that part lists other people, so the research ignores it.</div>}
+                  {paste.images.length > 0 && <>
+                    <div style={{ marginTop: '4px', color: 'var(--ink3)' }}>Pictures that came with the paste. Use one only if it is the speaker — a profile page also carries other people’s pictures. (LinkedIn often blocks these; if they do not show, drop the headshot in the Files box.)</div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' }}>
+                      {paste.images.map(im => (
+                        <div key={im.url} style={{ width: '84px', textAlign: 'center' }}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={im.url} alt={im.alt || 'Pasted picture'} referrerPolicy="no-referrer" style={{ width: '84px', height: '84px', objectFit: 'cover', borderRadius: '8px', border: '1px solid var(--border)' }} />
+                          <button disabled={!!busy} onClick={() => void setAsset('photo', im.url)} style={{ marginTop: '3px', border: 'none', background: 'none', color: 'var(--teal)', cursor: 'pointer', fontSize: '12px', fontFamily: 'inherit' }}>Use as photo</button>
+                        </div>
+                      ))}
+                    </div>
+                  </>}
+                  <button onClick={() => setPaste(null)} style={{ marginTop: '4px', border: 'none', background: 'none', color: 'var(--ink4)', cursor: 'pointer', fontSize: '12px', fontFamily: 'inherit' }}>Dismiss</button>
+                </div>
+              )}
+              {inp.extra.trim() && <div style={boxHelp}>{inp.extra.length.toLocaleString('en-GB')} characters in this box.</div>}
+            </div>
+
+            <div>
+              <div style={boxLabel}>2 · Links</div>
+              <div style={boxHelp}>Any other website: an article, their company page, a conference page, a video. One link per line — paste the link, not the page. The research opens and reads each one.</div>
+              <Textarea rows={3} value={inp.links} disabled={inProgress}
+                onChange={e => setInp({ ...inp, links: e.target.value })}
+                onBlur={() => void saveLinks()}
+                placeholder={'https://…\nhttps://…'} />
+              {linkLines.length > 0 && (
+                <div style={{ display: 'grid', gap: '2px', marginTop: '4px', fontSize: '12.5px' }}>
+                  {linkLines.map((l, i) => <div key={i} style={{ color: l.ok ? 'var(--teal-mid)' : 'var(--red)', overflowWrap: 'anywhere' }}>{l.ok ? '✓' : '✕'} {l.text}{l.note ? <span style={{ color: 'var(--ink3)' }}> — {l.note}</span> : null}</div>)}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <div style={boxLabel}>3 · Files</div>
+              <div style={boxHelp}>As many as you like (up to 10): a headshot, a screenshot, a PDF, a Word or PowerPoint file, a bio. A headshot becomes their photo; everything else is read for the research.</div>
+              <div onDrop={e => { e.preventDefault(); void dropFiles(e.dataTransfer.files) }} onDragOver={e => e.preventDefault()}
+                style={{ border: '1.5px dashed var(--border)', borderRadius: '10px', padding: '12px', textAlign: 'center', fontSize: '13px', color: 'var(--ink3)' }}>
+                {fileStatus ?? 'Drop files here, paste an image, or'} {!fileStatus && <Button variant="ghost" disabled={inProgress || !!busy} onClick={() => filePick.current?.click()}>Choose files</Button>}
+                <input ref={filePick} type="file" multiple accept="image/jpeg,image/png,image/webp,.pdf,.docx,.pptx,.txt,.md" style={{ display: 'none' }} onChange={e => { const f = e.target.files; if (f?.length) void dropFiles(f); e.target.value = '' }} />
+              </div>
+              {(cand.input.files ?? []).length > 0 && (
+                <div style={{ display: 'grid', gap: '3px', marginTop: '6px', fontSize: '12.5px' }}>
+                  {(cand.input.files ?? []).map(f => (
+                    <div key={f.id} style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', color: f.kind === 'ignored' ? 'var(--ink3)' : 'var(--ink2)' }}>
+                      <span style={{ fontWeight: 700, overflowWrap: 'anywhere' }}>{f.name}</span>
+                      <span style={{ color: f.kind === 'ignored' ? 'var(--red)' : 'var(--teal-mid)' }}>{f.kind === 'photo' ? '✓ used as the speaker’s photo' : f.kind === 'text' ? `✓ read — ${f.chars.toLocaleString('en-GB')} characters` : `✕ not used — ${f.note ?? 'nothing usable in it'}`}</span>
+                      <button disabled={!!busy || inProgress} onClick={() => void removeFile(f.id)} style={{ border: 'none', background: 'none', color: 'var(--ink4)', cursor: 'pointer', fontSize: '12px', fontFamily: 'inherit' }}>Remove</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
           <div style={{ marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-            {!again && <Button variant="teal" disabled={inProgress || !!busy} onClick={() => void research()}>{cand.status === 'researched' ? 'Research again' : cand.status === 'error' ? 'Try again' : 'Start research'}</Button>}
+            {!again && <Button variant="teal" disabled={inProgress || !!busy} onClick={() => void research()}>{busy === 'research' ? 'Starting…' : cand.status === 'researched' ? 'Research again' : cand.status === 'error' ? 'Try again' : 'Start research'}</Button>}
             {!again && r?.previous && <Button variant="ghost" disabled={inProgress || !!busy} title="Put the card and findings back to how they were before the last re-run." onClick={() => void undoRerun()}>Undo last re-run</Button>}
             {!again && <Button variant="ghost" disabled={inProgress || !!busy} onClick={() => setAgain(true)}>Edit details</Button>}
             {!again && <button onClick={() => void removeSpeaker()} disabled={inProgress} style={{ border: 'none', background: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: '12.5px', fontFamily: 'inherit' }}>Remove from drop</button>}
           </div>
           {again && (
             <div style={{ display: 'grid', gap: '6px', marginTop: '8px' }}>
-              <div style={{ fontSize: '12.5px', color: 'var(--ink3)', lineHeight: 1.5 }}>Correct anything the sheet got wrong. Whatever is in the “Drop more info” box above is used too.</div>
+              <div style={{ fontSize: '12.5px', color: 'var(--ink3)', lineHeight: 1.5 }}>Correct anything the sheet got wrong. Whatever is in the LinkedIn, Links and Files boxes above is used too.</div>
               <Input value={inp.name} onChange={e => setInp({ ...inp, name: e.target.value })} placeholder="Name" /><Input value={inp.designation} onChange={e => setInp({ ...inp, designation: e.target.value })} placeholder="Job title" />
               <Input value={inp.company} onChange={e => setInp({ ...inp, company: e.target.value })} placeholder="Company / organisation" /><Input value={inp.website} onChange={e => setInp({ ...inp, website: e.target.value })} placeholder="Company website" />
               <CountryPicker value={inp.country} onChange={c => setInp({ ...inp, country: c })} placeholder="Nationality — type to search" />
@@ -651,116 +750,55 @@ function CandidateRow({ cand, track, tracks, canEdit, ahead, onChanged }: { cand
   )
 }
 
-/* ── step 3: send to the client, then track ──────────────────────────────── */
-function SendStep({ batchId, eventId, eventName, batchName, coCc, shared, reviewers, sender, ready, approved, rejected, canEdit, onChanged }: { batchId: string; eventId: string; eventName: string; batchName: string; coCc: string[]; shared: boolean; reviewers: Reviewer[]; sender: { name: string; email: string | null }; ready: number; approved: number; rejected: number; canEdit: boolean; onChanged: () => Promise<void> }) {
-  const blank = { name: '', email: '' }
-  const [rows, setRows] = useState<{ name: string; email: string }[]>([{ ...blank }])
-  const [saved, setSaved] = useState<{ id: string; name: string; email: string }[]>([])
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      const r = await fetch(`/api/events/speaker-proposals/setup?event_id=${eventId}`).then(x => (x.ok ? x.json() : null)).catch(() => null)
-      if (!cancelled && r) setSaved((r as { approvers: { id: string; name: string; email: string }[] }).approvers)
-    })()
-    return () => { cancelled = true }
-  }, [eventId, reviewers.length])
-  const picked = (email: string) => reviewers.some(r => r.email.toLowerCase() === email.toLowerCase())
-  const [message, setMessage] = useState('')
-  const [ccText, setCcText] = useState('')
-  const [busy, setBusy] = useState<string | null>(null)
-  const [adding, setAdding] = useState(false)
-  const extra = parseExtraCc(ccText)
-  // Every email to the client is previewed first: wording editable, greeting / button / sign-off locked.
-  const [compose, setCompose] = useState<{ kind: ReviewEmailKind; body: Record<string, unknown>; label: string; names: string[]; message: string | null; done?: () => void } | null>(null)
-  const ccShown = [...coCc, ...('error' in extra ? [] : extra.emails)]
+/* ── step 3: the client link, then track ─────────────────────────────────── */
+// WPS cannot be reached by email: the drop gets ONE open link, the producer passes it on themselves, and nobody on the client side is identified.
+function SendStep({ batchId, shared, reviewers, ready, approved, rejected, canEdit, onChanged }: { batchId: string; shared: boolean; reviewers: Reviewer[]; ready: number; approved: number; rejected: number; canEdit: boolean; onChanged: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false)
   const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : null)
-
-  async function send(body: Record<string, unknown>, label: string) {
-    if ('error' in extra) { notify(extra.error, 'error'); return false }
-    setBusy(label)
-    const x = await call(`/api/events/speaker-proposals/batches/${batchId}/share`, 'POST', { ...body, extra_cc: extra.emails })
-    setBusy(null)
-    if (!x.ok) { notify(String(x.data.error ?? 'That did not work.'), 'error'); return false }
-    const results = (x.data.results as { email: string; sent: boolean }[] | undefined) ?? []
-    const failed = results.filter(r => !r.sent)
-    if (failed.length) notify(`${results.length - failed.length} of ${results.length} emails sent. Not delivered: ${failed.map(f => f.email).join(', ')}. You can still copy each link below and send it yourself.`, 'error')
-    else notify(results.length ? `Sent to ${results.length} reviewer${results.length === 1 ? '' : 's'}.` : 'Done.')
-    await onChanged(); return true
+  const [copied, setCopied] = useState<string | null>(null)
+  async function copy(link: string, id: string) {
+    try { await navigator.clipboard.writeText(link) } catch {
+      const t = document.createElement('textarea'); t.value = link; document.body.appendChild(t); t.select(); try { document.execCommand('copy') } catch { /* the field next to the button can still be copied by hand */ } t.remove()
+    }
+    setCopied(id); notify('Link copied to clipboard — paste it into your chat with the client.')
+    setTimeout(() => setCopied(c => (c === id ? null : c)), 2500)
   }
-  const field: React.CSSProperties = { flex: 1, minWidth: '180px' }
+  const open = reviewers.find(r => r.email === OPEN_LINK_EMAIL)
+  const older = reviewers.filter(r => r.email !== OPEN_LINK_EMAIL) // drops shared by email before the open link existed keep working
+  async function create() {
+    setBusy(true)
+    const x = await call(`/api/events/speaker-proposals/batches/${batchId}/share`, 'POST', { action: 'open_link' })
+    setBusy(false)
+    if (!x.ok) { notify(String(x.data.error ?? 'That did not work.'), 'error'); return }
+    await onChanged()
+    if (typeof x.data.link === 'string') await copy(x.data.link, 'new')
+  }
+  const row = (r: Reviewer, label: string) => (
+    <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: '10px 14px', flexWrap: 'wrap', fontSize: '13.5px', color: 'var(--ink2)' }}>
+      <span style={{ fontWeight: 700 }}>{label}</span>
+      <input readOnly value={r.link} onFocus={e => e.currentTarget.select()} aria-label="Client link" style={{ flex: 1, minWidth: '260px', fontSize: '13px', padding: '6px 8px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink2)' }} />
+      <span style={{ color: r.last_opened_at ? 'var(--teal)' : 'var(--ink4)', fontSize: '12.5px' }}>{r.last_opened_at ? `Opened ${when(r.last_opened_at)}` : 'Not opened yet'}</span>
+      <Button variant={copied === r.id || copied === 'new' ? 'teal' : 'lime'} onClick={() => void copy(r.link, r.id)}>{copied === r.id || copied === 'new' ? '✓ Link copied' : 'Copy link'}</Button>
+      {canEdit && <Button variant="red" disabled={busy} onClick={async () => {
+        if (!window.confirm('Stop sharing? This link stops working; decisions already made stay.')) return
+        setBusy(true); await call(`/api/events/speaker-proposals/batches/${batchId}/share`, 'POST', { action: 'remove', reviewer_id: r.id }); setBusy(false); await onChanged()
+      }}>Stop sharing</Button>}
+    </div>
+  )
   return (
     <div style={{ maxWidth: '980px' }}>
       <div style={{ padding: '16px 18px', border: '1px solid var(--border-light)', borderRadius: '12px', background: 'var(--card)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--ink)' }}>Send to the client</div>
-          {shared ? <Badge color="teal">Sent</Badge> : <Badge color="grey">Not sent yet</Badge>}
-          <span style={{ fontSize: '13.5px', color: 'var(--ink3)', flex: 1 }}>{shared ? `${approved} approved · ${rejected} rejected · ${Math.max(ready - approved - rejected, 0)} awaiting. Reviewers see only speakers marked Ready, so more can be added on the same links.` : `${ready} Ready speaker${ready === 1 ? '' : 's'} will be shared. Each reviewer gets a private link; a decision from any one of them settles that speaker.`}</span>
-          {shared && canEdit && <Button variant="ghost" disabled={!!busy} onClick={() => setCompose({ kind: 'update', body: { resend: true }, label: 'update', names: reviewers.map(r => r.name), message: null })}>Email everyone again</Button>}
+          <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--ink)' }}>Client link</div>
+          {shared ? <Badge color="teal">Shared</Badge> : <Badge color="grey">Not shared yet</Badge>}
+          <span style={{ fontSize: '13.5px', color: 'var(--ink3)', flex: 1 }}>{shared ? `${approved} approved · ${rejected} rejected · ${Math.max(ready - approved - rejected, 0)} awaiting. The client sees only speakers marked Ready, so more can be added on the same link.` : `${ready} Ready speaker${ready === 1 ? '' : 's'} will be shared. No email is sent: you get one open link to pass on yourself.`}</span>
         </div>
-
-        <div style={{ fontSize: '13.5px', color: 'var(--ink2)', marginTop: '10px' }}>{sender.email ? <>Sent from the drop owner’s Outlook: <strong>{sender.name}</strong> &lt;{sender.email}&gt;, in one email thread per reviewer. Co-owners are copied on every email.</> : <>This drop has no owner with an Outlook mailbox, so emails go from the Trescon system sender. Make yourself the owner (bar at the top) to send from your own Outlook.</>}</div>
-
-        {!shared && canEdit && (
-          <div style={{ marginTop: '14px', display: 'grid', gap: '8px' }}>
-            <div style={section}>Approvers for this drop (up to 6)</div>
-            {saved.length === 0 && <div style={{ fontSize: '13.5px', color: 'var(--ink3)' }}>No saved approvers yet — add one below, or on the Speaker Proposals page.</div>}
-            {saved.map(p => (
-              <label key={p.id} style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '14px', color: 'var(--ink2)' }}>
-                <input type="checkbox" checked={picked(p.email)} disabled={!!busy} onChange={async e => {
-                  if (e.target.checked) await send({ action: 'select', approver_id: p.id }, 'pick')
-                  else { const r = reviewers.find(x => x.email.toLowerCase() === p.email.toLowerCase()); if (r) await send({ action: 'remove', reviewer_id: r.id }, 'pick') }
-                }} />
-                {p.name} <span style={{ color: 'var(--ink3)' }}>{p.email}</span>
-              </label>
-            ))}
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <div style={field}><Input value={rows[0].name} onChange={e => setRows([{ ...rows[0], name: e.target.value }])} placeholder="New approver name" /></div>
-              <div style={field}><Input value={rows[0].email} onChange={e => setRows([{ ...rows[0], email: e.target.value }])} placeholder="email@example.com" /></div>
-              <Button variant="ghost" disabled={!!busy || !rows[0].name.trim() || !rows[0].email.trim()} onClick={async () => {
-                setBusy('new')
-                const x = await call('/api/events/speaker-proposals/approvers', 'POST', { event_id: eventId, name: rows[0].name, email: rows[0].email })
-                if (!x.ok) { setBusy(null); notify(String(x.data.error ?? 'Could not add them.'), 'error'); return }
-                await send({ action: 'select', approver_id: String(x.data.id) }, 'pick'); setRows([{ ...blank }])
-              }}>+ Add &amp; select</Button>
-            </div>
-            <ExtraCcField value={ccText} onChange={setCcText} />
-            <div><div style={section}>Optional note</div><Textarea value={message} rows={2} onChange={e => setMessage(e.target.value)} placeholder="Included in the email and at the top of the page" /></div>
-            <div><Button variant="lime" disabled={!!busy || ready === 0 || 'error' in extra || reviewers.length === 0} onClick={() => setCompose({ kind: 'new', body: { message }, label: 'send', names: reviewers.map(r => r.name), message: message.trim() || null })}>{busy === 'send' ? 'Sending…' : 'Preview & send'}</Button></div>
-          </div>
-        )}
-
-        {shared && (
-          <div style={{ marginTop: '14px', display: 'grid', gap: '8px' }}>
-            {reviewers.map(r => (
-              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: '10px 14px', flexWrap: 'wrap', fontSize: '13.5px', color: 'var(--ink2)' }}>
-                <span style={{ fontWeight: 700 }}>{r.name}</span><span style={{ color: 'var(--ink3)' }}>{r.email}</span>
-                <span style={{ color: r.last_opened_at ? 'var(--teal)' : 'var(--ink4)', fontSize: '12.5px' }}>{r.last_opened_at ? `Opened ${when(r.last_opened_at)}` : 'Not opened yet'}{r.notified_at ? '' : ' · email not delivered'}{r.reminder_count ? ` · ${r.reminder_count} reminder${r.reminder_count === 1 ? '' : 's'}` : ''}</span>
-                <span style={{ flex: 1 }} />
-                <Button variant="ghost" onClick={() => { void navigator.clipboard.writeText(r.link); notify('Link copied.') }}>Copy link</Button>
-                {canEdit && <Button variant="ghost" disabled={!!busy} onClick={() => setCompose({ kind: 'reminder', body: { action: 'remind', reviewer_id: r.id }, label: 'remind', names: [r.name], message: null })}>Remind</Button>}
-                {canEdit && <Button variant="red" disabled={!!busy} onClick={() => { if (window.confirm(`Remove ${r.name}? Their link stops working; decisions they made stay.`)) void send({ action: 'remove', reviewer_id: r.id }, 'remove') }}>Remove</Button>}
-              </div>
-            ))}
-            {canEdit && <ExtraCcField value={ccText} onChange={setCcText} />}
-            {canEdit && (adding ? (
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                <div style={field}><Input value={rows[0].name} onChange={e => setRows([{ ...rows[0], name: e.target.value }])} placeholder="Reviewer name" /></div>
-                <div style={field}><Input value={rows[0].email} onChange={e => setRows([{ ...rows[0], email: e.target.value }])} placeholder="email@example.com" /></div>
-                <Button variant="lime" disabled={!!busy} onClick={() => setCompose({ kind: 'new', body: { reviewers: [rows[0]] }, label: 'add', names: [rows[0].name], message: null, done: () => { setAdding(false); setRows([{ ...blank }]) } })}>Preview &amp; send link</Button>
-                <Button variant="ghost" onClick={() => setAdding(false)}>Cancel</Button>
-              </div>
-            ) : <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-              <Button variant="ghost" disabled={reviewers.length >= 6} onClick={() => { setRows([{ ...blank }]); setAdding(true) }}>+ Add a reviewer</Button>
-              {saved.some(p => !picked(p.email)) && <select aria-label="Add a saved approver" value="" disabled={!!busy || reviewers.length >= 6} onChange={e => { const p = saved.find(x => x.id === e.target.value); if (p) setCompose({ kind: 'new', body: { reviewers: [{ name: p.name, email: p.email }] }, label: 'add', names: [p.name], message: null }) }} style={{ fontSize: '13px', padding: '6px 8px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink2)' }}><option value="">Add a saved approver…</option>{saved.filter(p => !picked(p.email)).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>}
-            </div>)}
-          </div>
-        )}
+        <div style={{ fontSize: '13.5px', color: 'var(--ink2)', marginTop: '10px' }}>Anyone who has the link can approve, reject or comment, and nobody is asked who they are. The first decision on a speaker is final unless it is changed from the same link.</div>
+        <div style={{ marginTop: '14px', display: 'grid', gap: '8px' }}>
+          {open ? row(open, 'Client link') : canEdit ? <div><Button variant="lime" disabled={busy || ready === 0} onClick={() => void create()}>{busy ? 'Creating…' : 'Create client link'}</Button></div> : <div style={{ fontSize: '13.5px', color: 'var(--ink3)' }}>No link has been created yet.</div>}
+          {older.map(r => row(r, r.name))}
+        </div>
       </div>
-      {compose && (
-        <ReviewEmailComposer kind={compose.kind} eventName={eventName} batchName={batchName} count={ready} message={compose.message} recipients={compose.names} senderName={sender.name || 'Trescon Events'} senderEmail={sender.email} cc={ccShown} sending={!!busy}
-          onCancel={() => setCompose(null)}
-          onSend={async middle => { const c = compose; if (await send({ ...c.body, body_html: middle }, c.label)) { setCompose(null); c.done?.() } }} />
-      )}
     </div>
   )
 }

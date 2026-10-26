@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader'
 import { Button } from '@/app/components/ui'
-import ApproverList, { type Approver } from '@/app/components/proposals/ApproverList'
 import CreateDropModal, { type Producer } from '@/app/components/proposals/CreateDropModal'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
 
@@ -17,14 +16,10 @@ export default function SpeakerProposalsPage({ params }: { params: Promise<{ id:
   const router = useRouter()
   const [batches, setBatches] = useState<BatchRow[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [setup, setSetup] = useState<{ team: Producer[]; me: string | null; approvers: Approver[] } | null>(null)
+  const [setup, setSetup] = useState<{ team: Producer[]; me: string | null } | null>(null)
   const [perms, setPerms] = useState<Set<string>>(new Set())
   const [creating, setCreating] = useState(false)
   const canEdit = permissionSetSatisfies(perms, 'sae.stakeholders.edit')
-  const loadSetup = async () => {
-    const r = await fetch(`/api/events/speaker-proposals/setup?event_id=${eventId}`)
-    if (r.ok) setSetup(await r.json())
-  }
 
   useEffect(() => {
     let cancelled = false
@@ -45,10 +40,9 @@ export default function SpeakerProposalsPage({ params }: { params: Promise<{ id:
   if (loadError) return <div style={{ padding: '32px', color: 'var(--red)' }}>{loadError}</div>
   return (
     <div>
-      <PageHeader eyebrow="Stakeholder Hub" title="Speaker Proposals" description="A drop is a batch of proposed speakers. Add speakers, let the system research each one, review the cards, preview what the client sees, then send it for approval." backHref={`/admin/events/${eventId}/stakeholders`} backLabel="Stakeholder Hub" />
+      <PageHeader eyebrow="Stakeholder Hub" title="Speaker Proposals" description="A drop is a batch of proposed speakers. Add speakers, let the system research each one, review the cards, preview what the client sees, then share one link with the client for approval." backHref={`/admin/events/${eventId}/stakeholders`} backLabel="Stakeholder Hub" />
       <div style={{ padding: '20px 32px 60px', maxWidth: '980px' }}>
         {canEdit && <div style={{ marginBottom: '24px' }}><Button variant="teal" onClick={() => setCreating(true)} disabled={!setup}>Create drop</Button></div>}
-        {setup && <ApproverList eventId={eventId} approvers={setup.approvers} canEdit={canEdit} onChanged={loadSetup} />}
 
         <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '10px' }}>Drops</div>
         {!batches ? <div style={{ color: 'var(--ink3)' }}>Loading…</div> : batches.length === 0 ? <div style={{ color: 'var(--ink3)', fontSize: '14px' }}>No drops yet.</div> : (
@@ -63,7 +57,7 @@ export default function SpeakerProposalsPage({ params }: { params: Promise<{ id:
           </div>
         )}
       </div>
-      {creating && setup && <CreateDropModal eventId={eventId} team={setup.team} me={setup.me} approvers={setup.approvers} onClose={() => setCreating(false)} onCreated={id => router.push(`/admin/events/${eventId}/stakeholders/speaker-proposals/${id}`)} />}
+      {creating && setup && <CreateDropModal eventId={eventId} team={setup.team} me={setup.me} onClose={() => setCreating(false)} onCreated={id => router.push(`/admin/events/${eventId}/stakeholders/speaker-proposals/${id}`)} />}
     </div>
   )
 }

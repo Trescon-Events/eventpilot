@@ -21,8 +21,8 @@ export function asksFor(c: NeedsCandidate): Ask[] {
   if (org) out.push({ key: 'confirm', text: 'The organisation found differs from the sheet.', hint: 'Check it is the right person, and correct the organisation above if the sheet was wrong.' })
   else if (name) out.push({ key: 'confirm', text: 'The name found is spelled differently from the sheet.', hint: 'Confirm it is the same person, and correct the name above if needed.' })
   else if (c.research?.status === 'needs_review' && concerns.some(x => /could not confirm who this is|disagrees on the|snippets only|only one independent source/i.test(x))) out.push({ key: 'confirm', text: 'The research is not certain about this person.', hint: 'Open the findings on the right, confirm the title and organisation, or drop their LinkedIn text in the box for a firmer match.' })
-  if (c.research?.status !== 'not_found' && wordCount(c.card.bio) < 40) out.push({ key: 'bio', text: 'No usable bio yet.', hint: 'Paste their LinkedIn “About” text or any bio into “Drop more info” and research again — or write the bio above.' })
-  if (!c.card.photo_url) out.push({ key: 'photo', text: 'No photo.', hint: 'Drop or paste a portrait into “Drop more info”, or use Upload photo.' })
+  if (c.research?.status !== 'not_found' && wordCount(c.card.bio) < 40) out.push({ key: 'bio', text: 'No usable bio yet.', hint: 'Paste their LinkedIn “About” text or any bio into the LinkedIn box (or drop a bio file in the Files box) and research again — or write the bio above.' })
+  if (!c.card.photo_url) out.push({ key: 'photo', text: 'No photo.', hint: 'Drop or paste a portrait into the Files box on their card, or use Upload photo.' })
   if (!c.card.nationality_iso2) out.push({ key: 'country', text: 'No country, so no flag.', hint: 'Pick the nationality above.' })
   if (!c.card.logo_url && c.research?.status !== 'not_found') out.push({ key: 'logo', text: 'No organisation logo.', hint: 'Add the organisation’s website above, or upload a logo.' })
   return out

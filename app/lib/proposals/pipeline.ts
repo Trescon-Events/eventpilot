@@ -9,6 +9,9 @@ import { fetchBranding, imageSearch, type ImageHit, type VideoHit, type WebHit }
 import { canFetch, domainOf, fetchPageRich } from './pages'
 import { readSource, type SourceReport } from './readers'
 import { countryCode } from './countries'
+import { cleanProfilePaste } from './paste'
+import { filesBlock, parseLinks } from './files'
+import { createHash } from 'node:crypto'
 import { sameName, snippetHypothesis, type LaneA } from './lanes'
 
 /* Speaker Proposals — the research pipeline (v2). Fixed stages run by plain code, each stage using the tool that is best at it:
@@ -25,6 +28,8 @@ export type PipelineState = {
   identity: { name: string; designation: string | null; company: string | null }
   reports: SourceReport[]; web: { title: string; link: string; snippet: string }[]; images: ImageHit[]; videos: VideoHit[]; rounds: number; read_urls: string[]; pages_read: number
   /** v3: how the snippet check (lane A) compared with the pages */
+  /** fingerprint of the producer's pasted info this run used — when it changes, a re-run goes looking for more instead of only re-checking */
+  extra_key?: string
   lane?: { agreement: LaneAgreement; identified: boolean; full_name: string | null; organization: string | null; thin: boolean }
 }
 export type PipelineResult = ResearchResult & { pipeline: PipelineState }
@@ -267,10 +272,18 @@ export async function researchCandidate(input: ProposalInput, prior?: PipelineSt
   if (normalizeUrl(input.website)) ctx0.orgDomains.push(domainOf(normalizeUrl(input.website)!))
 
   // what the producer told us: free text + links they dropped (read as trusted pages)
-  const extraText = (input.extra ?? '').trim().slice(0, 12000)
-  const producerUrls = uniqBy([...(extraText.match(/https?:\/\/[^\s)>\]"']+/g) ?? []), ...(normalizeUrl(input.website) ? [normalizeUrl(input.website)!] : [])].map(u => ({ u })), x => urlKey(x.u)).map(x => x.u).filter(u => !/linkedin\.com/i.test(u)).slice(0, 4)
-  const producerBlock = extraText ? `PRODUCER-PROVIDED INFORMATION (our producer vouches for who this person is; treat as a source for identity and facts; may include text pasted from their LinkedIn profile):\n${extraText}\n\n` : ''
-  const producerSupplied = extraText.length > 80
+  const extraText = cleanProfilePaste(input.extra ?? '').text.slice(0, 12000) // the LinkedIn box: other people's sections of a copied page (More profiles for you …) never reach the research
+  const docsText = filesBlock(input.files)                                    // the Files box: words from PDFs, Word, slides, screenshots
+  const linkUrls = parseLinks(input.links).urls                               // the Links box: pages we open and read as trusted
+  const extraKey = createHash('md5').update(`${extraText}\u0000${docsText}\u0000${linkUrls.join(' ')}`).digest('hex').slice(0, 16)
+  const hasProducerInfo = !!(extraText || docsText || linkUrls.length)
+  const digMore = hasProducerInfo && (prior?.extra_key ?? '') !== extraKey    // new info was dropped since the last run: go and look for what it points to, even on a re-run
+  const producerUrls = uniqBy([...linkUrls, ...(extraText.match(/https?:\/\/[^\s)>\]"']+/g) ?? []), ...(normalizeUrl(input.website) ? [normalizeUrl(input.website)!] : [])].map(u => ({ u })), x => urlKey(x.u)).map(x => x.u).filter(u => !/linkedin\.com/i.test(u)).slice(0, 8)
+  const producerBlock = [
+    extraText ? `PRODUCER-PROVIDED INFORMATION (text our producer copied from the speaker's LinkedIn profile; the producer vouches it is ${clean(input.name)}. Treat as a source for identity and facts. It is about ${clean(input.name)} ONLY — if it also lists other people (suggested profiles, colleagues, commenters, ads), ignore those completely and never take a title, employer or fact from them):\n${extraText}` : '',
+    docsText ? `PRODUCER-PROVIDED DOCUMENTS (files our producer attached for ${clean(input.name)}: bios, decks, press material, screenshots. Treat as sources; a document may mention other people, take facts only about ${clean(input.name)}):\n${docsText}` : '',
+  ].filter(Boolean).join('\n\n') + (extraText || docsText ? '\n\n' : '')
+  const producerSupplied = extraText.length + docsText.length > 80
 
   let web: PipelineState['web'] = reuse ? prior!.web : [], images: ImageHit[] = reuse ? prior!.images : [], videos: VideoHit[] = reuse ? prior!.videos : []
   const reports: SourceReport[] = reuse ? [...prior!.reports] : []
@@ -297,8 +310,8 @@ export async function researchCandidate(input: ProposalInput, prior?: PipelineSt
   say('merge', 'Comparing what the pages say', `${reports.filter(r => r.about === 'yes').length} confirm it is them`)
   const lanePromise = opts.v3 && !reuse ? snippetHypothesis(input, web) : null // v3: the snippet check runs alongside the page comparison
   let consol = await consolidate(input, reports, linkedinHits(), producerBlock)
-  for (let round = 0; !reuse && round < 2; round++) {
-    const gaps = findGaps(reports, candidatePhotos(reports, images, surname, strictFirst), consol, producerSupplied)
+  for (let round = 0; (!reuse || digMore) && round < 2; round++) {
+    const gaps = findGaps(reports, candidatePhotos(reports, images, surname, strictFirst), consol, producerSupplied && !digMore) // new info dropped: still look for a fuller bio and more sources
     if (!gaps.length || (gaps.length === 1 && gaps[0] === 'site')) break
     const q = gapQueries(input, consol, gaps)
     if (!q.web.length && !q.image.length) break
@@ -321,7 +334,7 @@ export async function researchCandidate(input: ProposalInput, prior?: PipelineSt
     identified: false, confidence: c?.confidence ?? 0, full_name: c?.full_name ?? null, title: c?.title ?? null, organization: c?.organization ?? null, org_website: c?.org_website ?? null, nationality: null, nationality_iso2: null,
     linkedin_url: null, linkedin_note: c?.linkedin_note ?? null, bio: null, bio_words: 0, bio_removed: [], videos: [], photo_candidates: [], logo_candidates: [], sources: [],
     verification: { pass2_identified: null, title: 'unknown', organization: 'unknown', nationality: 'unknown', linkedin: 'unknown', pass2: null }, status: 'not_found',
-    concerns: [why, ...(c?.concerns ?? [])], pipeline: { identity: { name: input.name, designation: input.designation, company: input.company }, reports: reports.filter(r => r.about !== 'no'), web, images, videos, rounds, read_urls: [...already], pages_read: pagesRead },
+    concerns: [why, ...(c?.concerns ?? [])], pipeline: { identity: { name: input.name, designation: input.designation, company: input.company }, reports: reports.filter(r => r.about !== 'no'), web, images, videos, rounds, read_urls: [...already], pages_read: pagesRead, extra_key: extraKey },
   })
   if (!consol) throw new Error('The research model returned something unreadable.')
   let linkedinPick = consol.linkedin_index !== null ? linkedinHits()[Number(String(consol.linkedin_index).replace(/\D/g, ''))] : undefined
@@ -454,7 +467,7 @@ ${evidence.slice(0, 14000)}`
     nationality: consol.nationality, nationality_iso2: iso1 ? iso1.toLowerCase() : null, linkedin_url: linkedinUrl, linkedin_note: consol.linkedin_note,
     bio, bio_words: bioWordsOut, bio_removed: removed, videos: cardVideos, photo_candidates: photos, logo_candidates: logos, sources, verification,
     status: agree && consol.confidence >= 0.7 && bioWordsOut >= 40 ? 'verified' : 'needs_review', concerns: [...new Set(concerns)],
-    pipeline: { identity: { name: input.name, designation: input.designation, company: input.company }, reports: reports.filter(r => r.about !== 'no'), web, images, videos, rounds, read_urls: [...already], pages_read: pagesRead, ...(opts.v3 ? { lane: { agreement: laneAgree, identified: !!lane?.identified, full_name: lane?.full_name ?? null, organization: lane?.organization ?? null, thin: thinOnly } } : {}) },
+    pipeline: { identity: { name: input.name, designation: input.designation, company: input.company }, reports: reports.filter(r => r.about !== 'no'), web, images, videos, rounds, read_urls: [...already], pages_read: pagesRead, extra_key: extraKey, ...(opts.v3 ? { lane: { agreement: laneAgree, identified: !!lane?.identified, full_name: lane?.full_name ?? null, organization: lane?.organization ?? null, thin: thinOnly } } : {}) },
   }
 }
 

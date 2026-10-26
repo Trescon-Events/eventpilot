@@ -4,6 +4,7 @@ import { authCandidate } from '@/app/lib/proposals/server'
 import { countryCode } from '@/app/lib/proposals/countries'
 import { deletePublicAssetByUrl } from '@/app/lib/events/storage'
 import { normalizeUrl } from '@/app/lib/proposals/research'
+import { parseLinks } from '@/app/lib/proposals/files'
 
 /* PATCH { card?, review_state?, producer_notes?, track_id? } — the producer's edits. The card is validated and trimmed here; internal findings are never touched. */
 const text = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null)
@@ -31,11 +32,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   if (b.review_state !== undefined) { if (!['pending', 'ready', 'excluded'].includes(b.review_state)) return NextResponse.json({ error: 'Bad state.' }, { status: 400 }); patch.review_state = b.review_state }
   if ((b as { extra?: string | null }).extra !== undefined) { const ex = (b as { extra?: string | null }).extra; patch.input = { ...(a.candidate.input as Record<string, unknown>), extra: typeof ex === 'string' && ex.trim() ? ex.trim().slice(0, 12000) : null } }
+  const links = (b as { links?: string | null }).links
+  let ignoredLinks: string[] = []
+  if (links !== undefined) {
+    const p = parseLinks(typeof links === 'string' ? links : ''); ignoredLinks = p.bad
+    patch.input = { ...((patch.input as Record<string, unknown> | undefined) ?? (a.candidate.input as Record<string, unknown>)), links: p.urls.length ? p.urls.join('\n') : null }
+  }
   if (b.producer_notes !== undefined) patch.producer_notes = text(b.producer_notes, 2000)
   if (b.track_id !== undefined) patch.track_id = b.track_id || null
   const { error } = await supabaseAdmin.from('speaker_proposal_candidates').update(patch).eq('id', id)
   if (error) return NextResponse.json({ error: 'Could not save.' }, { status: 500 })
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, ignored_links: ignoredLinks })
 }
 
 /** Removes a speaker from the drop (e.g. one added by mistake). Their stored photo/logo go too. */

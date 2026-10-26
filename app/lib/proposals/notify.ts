@@ -41,7 +41,7 @@ function emailBody(a: { first: string; batchName: string; eventName: string; lin
     ? `<p>The research for <strong>${esc(a.batchName)}</strong> (${esc(a.eventName)}) has finished. ${a.s.clear} speaker${a.s.clear === 1 ? ' is' : 's are'} ready for you to check and mark Ready; <strong>${a.s.waiting.length}</strong> need${a.s.waiting.length === 1 ? 's' : ''} your input first:</p>`
     : `<p>A reminder: <strong>${a.s.waiting.length}</strong> speaker${a.s.waiting.length === 1 ? ' is' : 's are'} still waiting on you in <strong>${esc(a.batchName)}</strong> (${esc(a.eventName)}):</p>`
   return `<p>Hi ${esc(a.first)},</p>${intro}<ul style="padding-left:18px;">${rows}</ul>${more}
-<p>The quickest fix is usually to paste the person’s LinkedIn text, a bio or a photo into <strong>Drop more info</strong> on their card — it is read straight away.</p>
+<p>The quickest fix is usually to paste the person’s LinkedIn text, add a link, or drop a bio or photo file into the boxes on their card — it is read straight away.</p>
 <p><a href="${a.link}" style="display:inline-block;background:#00A5A3;color:#ffffff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:700;">Open the drop &rarr;</a></p>`
 }
 /* eslint-enable no-restricted-syntax */

@@ -3668,3 +3668,55 @@ Plus 19 historical admin comments backfilled retroactively for previously-resolv
 - Every client email (send links, email everyone again, remind, add a reviewer) opens `ReviewEmailComposer` first: From/To/Cc/Subject shown, greeting + "Review the speakers" button + sign-off LOCKED, the wording between them editable in place. Pure builder `app/lib/proposals/review-email.ts` (`defaultMiddle`, `sanitizeMiddle`, `reviewEmailHtml`) is shared by the preview and the server; the share route takes `body_html`, sanitises it (simple formatting + http/mailto links only) and uses it for every reviewer in that send, each with their own greeting and private link.
 
 
+
+## Stage Screens (Stakeholder Hub) — built 2026-10-25, NOT pushed; migration run 2026-10-25, API flow tested
+Transparent PNG per agenda session (topic + speaker cards, moderator tagged) for the AV team's Watchout layer. Link: Stakeholder Hub → Speaker tools → **Stage Screens** (`/admin/events/:id/stakeholders/screens`).
+- Migration `supabase/event_screens_migration.sql` has been run (Madhu, by hand — the classifier blocks it from Claude). Tested end to end on a BSS fireside session via the API (generate, edit, changed-flag, link, public list, download, bad token, auth); test rows and files removed.
+- `app/lib/screens/geometry.ts` (pure: layout by format/head-count, rows of ≤6, fingerprint, file names; tested), `data.ts` (reads agenda + speakers + look, works out state new/ready/changed), `render.ts` (@napi-rs/canvas + sharp; same text planner as badges; photos placed at 1024 px, never enlarged), `service.ts` (access, generate + store, AV links).
+- Do NOT name a file `layout.ts` under `app/` — Next treats it as a route layout (that is why it is `geometry.ts`).
+- "Changed" comes from a fingerprint of everything visible (the agenda has no history for speaker assignments). Per-session text edits live in `event_screen_sessions.overrides`; speaker records are never touched.
+- Look: font defaults to the font on the event's speaker templates (BSS: Joost), background defaults to the website-photo background; both overridable on the page.
+- AV page `/public/screens/[token]` + `/api/public/screens/[token]` (+ `/file/[sessionId]` download with stable name). Refreshes every 60 s, flags NEW (<1 h) and "agenda changed — update coming".
+- Photo ceiling: stored cut-outs are 1024×1024; BSS originals range 300–4240 px. Low-res speakers are flagged per session.
+- Not yet done: API/page tested end-to-end (needs the migration), AV-side Watchout trial, DFS look, per-stage canvas profile (decided: later), alerts to AV on change.
+- **Panel toggle (White bg / Dark bg), 2026-10-25:** `supabase/event_screens_panel_migration.sql` adds `event_screen_settings.panel`. Switching it (PUT `panel`) resets text + accent colours to that panel's defaults (`PANEL_DEFAULTS` in `data.ts`: light = navy/blue, dark = white/light blue); the colour pickers still override. Previews sit on the panel colour; sessions that are not drawn yet or are out of date show a live preview from `/api/events/screens/preview` (drawn on the fly, 1200 px, nothing stored). The exported PNG is always transparent. `loadLook` uses `select('*')` so the page works before this migration is run. Migration must be run by hand (classifier blocks it).
+- **Look now lives in SAE Admin Console → "Stage Speaker Pic" tab (2026-10-25)** (`app/components/screens/StageSpeakerPicSettings.tsx`, `?tab=stage` opens it): panel (White/Dark bg), **Head size** (100–180%, `head_scale`, zoom around each speaker's saved head position via `zoomCrop` in `geometry.ts`; falls back to a typical head point when a speaker has no head box; softens photos because the cleaned cut-outs are 1024 px), font, text/accent colours, card background, and a live preview with a sample-session picker. Writes need `sae.admin.access` (`requireScreens(..., 'look')`); producers on the Stage Screens page only see a read-only summary + link. Migration `supabase/event_screens_head_migration.sql` adds `head_scale` — run by hand; `loadLook` uses `select('*')` so nothing breaks before it runs.
+
+### Stage Screens — adjustable card sizes (design 1: photo + details separate)
+- Sizes (photo width/height, gap, margin, max per row, name/line/topic text sizes, least topic width) are per event in Admin Console → Stage Speaker Pic → Card size; stored in `event_screen_settings.dims` (jsonb; `card_style` column too). Pure rules + limits in `app/lib/screens/geometry.ts` (`Dims`, `DEFAULT_DIMS`, `clampDims`); defaults reproduce the old fixed layout exactly. Dims are part of the fingerprint, so a size change marks drawn screens "Changed".
+- Cut-outs are never enlarged to fill a bigger frame (bottom-centred, background fills the rest); head-size zoom works on any frame.
+- Migrations: `supabase/event_screens_head_migration.sql` + `supabase/event_screens_dimensions_migration.sql` (both RUN 2026-10-26).
+- NEXT: design 2 "details inside the card" (layer stack like announcement creatives; `card_style = 'card'`; API currently only accepts 'separate'). Reference card: 1024×1536 (2:3), layers = background, photo slot with head target, gradient, name/title/company/country text.
+
+### Badge batches — template changes (2026-10-26)
+- A batch keeps its own copy of the template (`badge_batches.template_snapshot`). New: `app/lib/badges/template-drift.ts` (pure, tested) compares only what affects the badge (canvas, print size/bleed/back PDF, drawn layers; not preview links or reference images) and decides `auto` vs `ask`.
+- Render (`.../batches/[id]/render`): a batch with no approved badges, no client-approval round, no print file and no dispatch takes the current template by itself and redraws (`template_updated: true`). Otherwise it keeps its copy.
+- Batch GET returns `template: { changed, auto }`; the batch page shows a banner (auto → "render uses the latest design"; ask → "Update template clears approvals"). The print file (`/pdf`) and send-to-client are blocked with a 409 while the template has changed (reopen → Update template → approve again).
+- Cause found for a "company was shrunk to fit" flag on DFS: the batch snapshot had the company box at 90 px, the template had since been made 122 px.
+- Live-tested the auto path on a DFS test batch (flag cleared). The "ask"/block path is covered by unit tests only (a live test needed changing a batch's approvals and was not run).
+
+### Stage Screens — Save/Apply model and Admin Console access areas (2026-10-26)
+- Admin Console › Stage Speaker Pic now edits an unsaved draft: **Save changes** persists (PUT), **Discard** reverts, and the preview only redraws on **Apply changes to preview** (new `POST /api/events/screens/preview` takes the draft look; nothing stored). The background upload only stores the file; the link is saved with Save. Client-safe sizes/defaults live in `app/lib/screens/dims.ts` (geometry.ts re-exports them).
+- Access: new keys `sae.admin.variants`, `sae.admin.stage_screens`, `sae.admin.access_control` (areas of the console; `sae.admin.access` still = all) and `sae.screens.view` / `sae.screens.manage` (Stage Screens without Hub speaker editing). `app/lib/access/admin-console.ts` (pure, tested) decides which console tabs a person sees; `admin-console-gate.ts` gates the four template-write routes (variants, placeholder, upload, upload-pdf), which had NO per-event check before. Layouts (admin, creative-templates, stakeholders) accept the new keys. Marketing role = `sae.stakeholders.view` + `sae.screens.manage` + `sae.admin.stage_screens` (or `sae.screens.view` alone to just see/download).
+- Not tested live: a non-admin login with only the new keys (needs a role + assignment in the shared DB); covered by unit tests of the matching rules.
+
+## Speaker Proposals — open client link (2026-10-26, local, not pushed)
+WPS cannot be emailed, so step 3 is now "Client link": one open link per drop, no email, nobody identified.
+- `share` route: `{action:'open_link'}` creates (or returns) the drop's single link; stored as a reviewer row named "Client" with placeholder email `open-link@client.invalid` (`app/lib/proposals/open-link.ts`). No migration.
+- Public page/API are unchanged (same gallery, first decision settles, changeable from the same link); the API returns `open_link:true` so the page drops "reviewing as …".
+- Producer UI: `SendStep` rewritten (Create client link, Copy link, Opened time, Stop sharing). Approvers list, approver picking in Create drop, and the email composer were removed from the UI; the approvers table/routes and the email code in `review.ts` stay (older drops shared by email still show their links).
+- Tested live against a temp drop (create, repeat gives same link, public GET, approve then change to reject, cleanup).
+
+## Speaker Proposals — paste + re-run fixes (2026-10-26, local, not pushed)
+- `app/lib/proposals/paste.ts` (+test): `cleanProfilePaste` cuts LinkedIn's "More profiles for you / People also viewed / ads / footer" and button noise; `imagesInHtml` lists real pictures in copied HTML. Used by the Drop more info paste handler and, again, by `pipeline.ts` (so older pastes are cleaned too).
+- `pipeline.ts`: state keeps `extra_key`; when the pasted info changed since the last run (`digMore`) a re-run does up to 2 gap-search rounds (bio/photo/sources) instead of only re-checking. The producer block tells the model to ignore other people listed in the paste.
+- Producer page: the Research / Research again click no longer uses a browser pop-up (could be blocked, looked dead); toast + "Starting…". Paste shows a "✓ Pasted N characters / pictures" strip, what was left out, and pictures with "Use as photo".
+- Checked: engine run on Abhi Bajpai (no save): dug 1 round, decoy people not used, status verified. Not clicked through in a browser.
+
+## Speaker Proposals — three input boxes (2026-10-26, local, not pushed)
+"Drop more info" is now three boxes on the speaker card: **LinkedIn** (`input.extra`, cleaned by `paste.ts`, surname + "does not look like LinkedIn" warnings), **Links** (`input.links`, one per line, `parseLinks` in `files.ts`, read as trusted pages, max 8), **Files** (`input.files[]`: image → photo / screenshot text / ignored; PDF, .docx, .pptx, .txt/.md → text; max 10, 12 MB each).
+- `app/lib/proposals/files.ts` (+test): docx/pptx text via fflate (no new dependency), `filesBlock`, `parseLinks`.
+- `drop` route: POST any file / DELETE `?file_id=`; each file records what it gave. Batch GET strips file text from the page payload.
+- `pipeline.ts`: producer block = LinkedIn text + documents; `extra_key` covers all three, so any new info makes a re-run dig (up to 2 gap rounds).
+- The "Add speaker" form still has its single "paste anything" box (unchanged); its text lands in the LinkedIn box after adding.
+- Checked: API (docx, txt, bad types, links, remove, payload) on a temp drop; engine run on Abhi Bajpai with a file + link (no save): read the link, dug, decoy from the file ignored. Not clicked through in a browser.
