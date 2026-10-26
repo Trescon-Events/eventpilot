@@ -225,7 +225,8 @@ export async function pushAgendaToKonfhub(eventId: string, opts: { dryRun?: bool
     for (const [trackId, desired] of tagMode ? [] : placedIn) {
       const date = [...khTrackFor.entries()].find(([, v]) => v === trackId)?.[0].split('|')[1]
       const current = (date ? khTracksByDate.get(date) ?? [] : []).find(t => t.track_id === trackId)?.track_sessions.map(x => x.session_id) ?? []
-      const next = [...current.filter(id => !managedKhIds.has(id) || desired.has(id)), ...[...desired].filter(id => !current.includes(id))]
+      // A single-session push only knows about that one session: it may add it to its stage, but must never drop the other EventPilot sessions already in the track.
+      const next = [...(opts.onlySessionId ? current : current.filter(id => !managedKhIds.has(id) || desired.has(id))), ...[...desired].filter(id => !current.includes(id))]
       if (!sameSet(current, next)) {
         try { await setKonfhubTrackSessions(khEvent, trackId, token, next) }
         catch (e) { add({ session_id: trackId, title: `Track ${trackId}`, action: 'error', reason: `Could not update track membership: ${e instanceof Error ? e.message : 'failed'}` }) }

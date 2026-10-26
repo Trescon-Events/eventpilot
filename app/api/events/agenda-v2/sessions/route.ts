@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
-import { colourToKonfhubHex } from '@/app/lib/agenda/colours'
 import { pushAgendaToKonfhub } from '@/app/lib/agenda/konfhub-push'
 import { getKonfhubToken, fetchKonfhubSessionsFull, deleteKonfhubSession, KonfhubApiError } from '@/app/lib/konfhub-agenda'
 import { actorOf } from '@/app/lib/content/doc-audit'
-import { requireAgendaAccess, getEventTimezone, resolveSessionTime, trackBelongsToEvent, roomStageInEvent, pushSessionToKonfhub } from '@/app/lib/agenda/access'
+import { requireAgendaAccess, getEventTimezone, resolveSessionTime, trackBelongsToEvent, roomStageInEvent } from '@/app/lib/agenda/access'
 
 type SessionFields = {
   title?: string
@@ -153,28 +152,14 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (existing.konfhub_session_id) {
-    // Tag-mode events (stage/format/theme are KonfHub tags): an edit goes through the same single-session push as the bulk push, so stage, theme and
-    // format changes reach KonfHub too, the description is sent as HTML, and a session edited in KonfHub since the last sync is not overwritten.
-    const { data: site } = await supabaseAdmin.from('event_websites').select('*').eq('event_id', body.event_id).maybeSingle()
-    if ((site as { agenda_stage_mode?: string } | null)?.agenda_stage_mode === 'tag') {
-      try {
-        const report = await pushAgendaToKonfhub(body.event_id, { onlySessionId: data.id })
-        const bad = report.items.find(i => i.action === 'error')
-        if (bad) return NextResponse.json({ ...data, konfhub_push_error: bad.reason, konfhub_push_status: 409 }, { status: 207 })
-      } catch (e) { return NextResponse.json({ ...data, konfhub_push_error: e instanceof Error ? e.message : 'Saved locally, but the push to KonfHub failed', konfhub_push_status: 502 }, { status: 207 }) }
-      return NextResponse.json(data)
-    }
-    const pushFields: Record<string, unknown> = {}
-    if (body.title !== undefined) pushFields.session_title = data.title
-    if (body.description !== undefined) pushFields.session_description = data.description ?? undefined
-    if (body.start_timestamp !== undefined && data.start_timestamp) pushFields.start_timestamp = data.start_timestamp
-    if (body.end_timestamp !== undefined && data.end_timestamp) pushFields.end_timestamp = data.end_timestamp
-    if (body.location !== undefined && data.location) pushFields.session_location = data.location
-    if (body.colour !== undefined && colourToKonfhubHex(data.colour)) pushFields.session_colour = colourToKonfhubHex(data.colour)
-    if (Object.keys(pushFields).length > 0) {
-      const failed = await pushSessionToKonfhub(body.event_id, data.id, existing.konfhub_session_id, pushFields)
-      if (failed) return NextResponse.json({ ...data, konfhub_push_error: failed.message, konfhub_push_status: failed.status }, { status: 207 })
-    }
+    // An edit goes through the same single-session push as the bulk push (tag mode and track mode alike), so stage, theme and format changes reach
+    // KonfHub too, the description is sent as HTML, and a session edited in KonfHub since the last sync is not overwritten.
+    try {
+      const report = await pushAgendaToKonfhub(body.event_id, { onlySessionId: data.id })
+      const bad = report.items.find(i => i.action === 'error')
+      if (bad) return NextResponse.json({ ...data, konfhub_push_error: bad.reason, konfhub_push_status: 409 }, { status: 207 })
+    } catch (e) { return NextResponse.json({ ...data, konfhub_push_error: e instanceof Error ? e.message : 'Saved locally, but the push to KonfHub failed', konfhub_push_status: 502 }, { status: 207 }) }
+    return NextResponse.json(data)
   }
 
   return NextResponse.json(data)
