@@ -778,6 +778,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   const speakerTools = [
     { href: 'status-board', label: 'Status Board' },
     { href: 'speaker-order', label: 'Speaker Order' },
+    { href: 'screens', label: 'Stage Screens' },
     ...(mementosEnabled ? [{ href: 'mementos', label: 'Mementos' }] : []),
     { href: 'guest-invites', label: 'Guest Invites' },
     ...(prMediaEnabled ? [{ href: 'media-interviews', label: 'Media Interviews' }] : []),
@@ -815,7 +816,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
             {/* Secondary/smaller — branding-team-only tool, not a daily
                 producer destination like Queue (2026-08-18 SAE-into-Hub
                 merge, per Madhu). */}
-            {can('sae.admin.access') && (
+            {(can('sae.admin.access') || can('sae.admin.variants') || can('sae.admin.stage_screens') || can('sae.admin.access_control')) && (
               <Link href={`/admin/events/${eventId}/creative-templates/admin`} style={{ fontSize: '13px', color: 'var(--ink3)', textDecoration: 'none' }}>
                 Admin Console →
               </Link>

@@ -23,7 +23,8 @@ export default async function StakeholderHubLayout(
   const session = await getServerSession()
   if (!session) redirect('/login')
 
-  const ok = !!session.adm || await hasEventPermission(session.sid, eventId, 'sae.stakeholders.view')
+  // sae.screens.view lets an on-site marketing manager reach Stage Screens without being able to edit speaker records.
+  const ok = !!session.adm || (await Promise.all(['sae.stakeholders.view', 'sae.screens.view', 'sae.screens.manage'].map(k => hasEventPermission(session.sid, eventId, k)))).some(Boolean)
   if (!ok) redirect('/no-access?tool=sae-stakeholders')
 
   return <>{children}</>

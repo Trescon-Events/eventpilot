@@ -11,7 +11,7 @@ import { fetchBranding, fetchPageText, imageSearch, videoSearch, webSearch, type
    The comparison is done in code: facts that don't agree are flagged for a human, never averaged. Links and image URLs only ever come from real search results (the models pick by index). */
 
 import type { ProposalFile } from './files'
-export type ProposalInput = { name: string; designation: string | null; company: string | null; country: string | null; linkedin: string | null; track: string | null; website?: string | null; extra?: string | null; links?: string | null; files?: ProposalFile[] | null }
+export type ProposalInput = { name: string; designation: string | null; company: string | null; country: string | null; linkedin: string | null; track: string | null; website?: string | null; extra?: string | null; extra_html?: string | null; links?: string | null; files?: ProposalFile[] | null }
 export type CardVideo = { url: string; title: string; channel: string | null; date: string | null; duration: string | null; thumbnail: string | null; checked: 'watched' | 'named' | null; evidence: string | null }
 export type Candidate = { url: string; page_url: string | null; title: string }
 export type Agreement = 'match' | 'differs' | 'unknown'

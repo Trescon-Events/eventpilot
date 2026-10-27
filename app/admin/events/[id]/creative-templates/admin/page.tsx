@@ -8,6 +8,8 @@ import { CSS } from '@dnd-kit/utilities'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Badge, Input, Select, ProcessingOverlay, Toast, type ToastType } from '@/app/components/ui'
 import AccessTab from '@/app/components/AccessTab'
+import StageSpeakerPicSettings from '@/app/components/screens/StageSpeakerPicSettings'
+import { consoleTabsFor, CONSOLE_TAB_LABEL, type ConsoleTab } from '@/app/lib/access/admin-console'
 import type { Layer, ImageLayer, PhotoSlotLayer, TextLayer, Variant, CreativeTemplateConfig, TextLayerDiagnostics, PlaceholderProfile, GlobalPlaceholderDefault } from '@/app/lib/announcements/composite'
 import { withTextLayerDefaults } from '@/app/lib/announcements/text-layer-defaults'
 import { CLEANING_CYCLE_CANVAS_SIZE } from '@/app/lib/media/cleaning-cycle-constants'
@@ -128,7 +130,19 @@ function normalizeVariantTextLayers(variant: Variant): Variant {
 
 export default function CreativeTemplatesAdminPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = use(params)
-  const [consoleTab, setConsoleTab] = useState<'variants' | 'access'>('variants')
+  const [consoleTab, setConsoleTab] = useState<ConsoleTab>(() => (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tab') === 'stage' ? 'stage' : 'variants'))
+
+  // Which areas of the console this person may use (Variants / Stage Speaker Pic / Access Control) — see app/lib/access/admin-console.ts.
+  const [allowedTabs, setAllowedTabs] = useState<ConsoleTab[] | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const d = await fetch(`/api/events/access/me?event_id=${eventId}`).then(r => r.json()).catch(() => ({ permissions: [] }))
+      if (!cancelled) setAllowedTabs(consoleTabsFor(new Set<string>(d.permissions ?? [])))
+    })()
+    return () => { cancelled = true }
+  }, [eventId])
+  const activeTab: ConsoleTab = allowedTabs && !allowedTabs.includes(consoleTab) ? (allowedTabs[0] ?? consoleTab) : consoleTab
 
   const [loading, setLoading] = useState(true)
   const [speakerVariants, setSpeakerVariants] = useState<Variant[]>([])
@@ -718,7 +732,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
         eyebrow="Event Workspace · Admin Console"
         title="Stakeholder Announcement Engine"
         description="Branding-team console — build and edit creative variants (layer stacks), and manage who has access to this tool."
-        actions={consoleTab === 'variants' ? (
+        actions={activeTab === 'variants' && allowedTabs ? (
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <Button variant="ghost" onClick={undo} disabled={undoCount === 0} title="Undo (Cmd/Ctrl+Z)">↶ Undo</Button>
             <Button variant="ghost" onClick={redo} disabled={redoCount === 0} title="Redo (Cmd/Ctrl+Shift+Z)">↷ Redo</Button>
@@ -728,20 +742,24 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
 
       <div style={{ padding: '24px 32px' }}>
         <div style={{ display: 'flex', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden', width: 'fit-content', marginBottom: '20px' }}>
-          {([['variants', 'Variants'], ['access', 'Access Control']] as const).map(([key, label]) => (
+          {(allowedTabs ?? []).map(key => (
             <button key={key} onClick={() => setConsoleTab(key)}
               style={{
                 padding: '7px 18px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '12.5px', fontWeight: 700,
-                background: consoleTab === key ? 'var(--card)' : 'transparent',
-                color: consoleTab === key ? 'var(--ink)' : 'var(--ink3)',
+                background: activeTab === key ? 'var(--card)' : 'transparent',
+                color: activeTab === key ? 'var(--ink)' : 'var(--ink3)',
               }}>
-              {label}
+              {CONSOLE_TAB_LABEL[key]}
             </button>
           ))}
         </div>
 
-        {consoleTab === 'access' ? (
+        {!allowedTabs ? (
+          <div style={{ color: 'var(--ink3)' }}>Loading…</div>
+        ) : activeTab === 'access' ? (
           <AccessTab moduleKey="sae" moduleLabel="Stakeholder Announcement Engine" />
+        ) : activeTab === 'stage' ? (
+          <StageSpeakerPicSettings eventId={eventId} />
         ) : (
           <>
             <Toast message={msg} type={msgType} onClose={() => setMsg(null)} />

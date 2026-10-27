@@ -6,7 +6,7 @@ import CountryPicker, { countryNameOf } from '@/app/components/proposals/Country
 import { ClientGallery, type GalleryData, type GalleryItem } from '@/app/components/proposals/ClientGallery'
 import OwnerBar from '@/app/components/proposals/OwnerBar'
 import { OPEN_LINK_EMAIL } from '@/app/lib/proposals/open-link'
-import { cleanProfilePaste, imagesInHtml } from '@/app/lib/proposals/paste'
+import { cleanProfilePaste, richPaste } from '@/app/lib/proposals/paste'
 import { Badge, Button, Input, Textarea } from '@/app/components/ui'
 import { notify } from '@/app/lib/ui/notify'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
@@ -31,7 +31,7 @@ type Internal = {
   bio_removed: string[]; photo_candidates: { url: string; page_url: string | null; title: string }[]; logo_candidates: { url: string; page_url: string | null; title: string }[]; linkedin_note: string | null
 }
 type Progress = { stage: 'search' | 'read' | 'merge' | 'fill' | 'write' | 'verify'; label: string; detail: string | null; done: number | null; total: number | null; at: string }
-type Input = { name: string; designation: string | null; company: string | null; country: string | null; linkedin: string | null; website?: string | null; extra?: string | null; links?: string | null; files?: { id: string; name: string; kind: 'photo' | 'text' | 'ignored'; chars: number; note?: string; url?: string }[]; track_text: string }
+type Input = { name: string; designation: string | null; company: string | null; country: string | null; linkedin: string | null; website?: string | null; extra?: string | null; extra_html?: string | null; links?: string | null; files?: { id: string; name: string; kind: 'photo' | 'text' | 'ignored'; chars: number; note?: string; url?: string }[]; track_text: string }
 type Candidate = {
   id: string; position: number; raw: { cells: Record<string, string>; extra: string[]; manual?: boolean }; input: Input
   track_id: string | null; status: 'new' | 'queued' | 'researching' | 'researched' | 'error'; research: Internal | null; card: Card; review_state: 'pending' | 'ready' | 'excluded'; producer_notes: string | null; error: string | null; researched_at: string | null; started_at: string | null; progress: Progress | null
@@ -422,7 +422,9 @@ function CandidateRow({ cand, track, tracks, canEdit, ahead, onChanged }: { cand
   const [newVideo, setNewVideo] = useState('')
   const [fileStatus, setFileStatus] = useState<string | null>(null)
   const filePick = useRef<HTMLInputElement>(null)
-  const [paste, setPaste] = useState<{ chars: number; removed: string | null; removedChars: number; images: { url: string; alt: string }[] } | null>(null)
+  const [paste, setPaste] = useState<{ chars: number; removed: string | null; removedChars: number; leftOut: number; picture: string | null; pictureSure: boolean } | null>(null)
+  const richRef = useRef<HTMLDivElement>(null)
+  const richReady = useRef(false)
   const [assetUrl, setAssetUrl] = useState('')
   const photoFile = useRef<HTMLInputElement>(null)
   const dropRef = useRef<HTMLDivElement>(null)
@@ -441,16 +443,31 @@ function CandidateRow({ cand, track, tracks, canEdit, ahead, onChanged }: { cand
     if (!x.ok) { notify(String(x.data.error ?? 'Could not save.'), 'error'); return false }
     await onChanged(); return true
   }
-  async function setAsset(kind: 'photo' | 'logo', url?: string, file?: File) {
+  async function setAsset(kind: 'photo' | 'logo', url?: string, file?: File, quiet = false): Promise<boolean> {
     setBusy(kind)
     let res: Response
     if (file) { const f = new FormData(); f.set('kind', kind); f.set('file', file); res = await fetch(`/api/events/speaker-proposals/candidates/${cand.id}/asset`, { method: 'POST', body: f }) }
     else res = await fetch(`/api/events/speaker-proposals/candidates/${cand.id}/asset`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, url }) })
     const d = await res.json().catch(() => ({}))
     setBusy(null)
-    if (!res.ok) { notify(d.error ?? 'Could not set that.', 'error'); return }
+    if (!res.ok) { if (!quiet) notify(d.error ?? 'Could not set that.', 'error'); return false }
     setDraft(prev => ({ ...prev, [kind === 'logo' ? 'logo_url' : 'photo_url']: d.url })); setAssetUrl('')
-    await onChanged()
+    await onChanged(); return true
+  }
+  /** A picture that came with a LinkedIn paste: your browser can already show it, but LinkedIn refuses downloads from our server. So the browser fetches it and uploads the file; if LinkedIn blocks that too, say how to get it in. */
+  async function pickPastedPhoto(url: string) {
+    setBusy('photo')
+    try {
+      const r = await fetch(url, { referrerPolicy: 'no-referrer' })
+      const blob = await r.blob()
+      if (r.ok && blob.type.startsWith('image/')) {
+        const ext = blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : 'jpg'
+        if (await setAsset('photo', undefined, new File([blob], `pasted.${ext}`, { type: blob.type }), true)) { notify('Photo added. It is now this speaker’s photo.'); return }
+      }
+    } catch { /* blocked by the site — fall through */ }
+    setBusy(null)
+    if (await setAsset('photo', url, undefined, true)) { notify('Photo added. It is now this speaker’s photo.'); return }
+    notify('LinkedIn does not let this picture be copied over. Right-click it on LinkedIn → Save image, then drop the file in the Files box.', 'error')
   }
   async function removeAsset(kind: 'photo' | 'logo') {
     if (!window.confirm(`Remove this ${kind}? You can add another one afterwards.`)) return
@@ -488,19 +505,36 @@ function CandidateRow({ cand, track, tracks, canEdit, ahead, onChanged }: { cand
     await onChanged()
   }
 
-  /** Paste into the LinkedIn box: pictures go to the reader as before; text is tidied (other people's sections of a copied page are cut) and added, and the strip below shows what was taken. */
-  function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+  /** The LinkedIn box is a rich box (like Word): what is copied lands as it looks — text, headings, lists and the speaker's own picture. Everything that is not the speaker (the rail of other people, the viewer's photo, logos, post images) is left out. */
+  function readRich() {
+    const el = richRef.current; if (!el) return { text: '', html: '' }
+    return { text: el.innerText.replace(/\u00a0/g, ' ').trim().slice(0, 12000), html: el.innerHTML }
+  }
+  function saveRich() {
+    const { text, html } = readRich()
+    setInp(p => ({ ...p, extra: text }))
+    if (text !== (cand.input.extra ?? '')) void patch({ extra: text, extra_html: html }, 'extra')
+  }
+  function handleRichPaste(e: React.ClipboardEvent<HTMLDivElement>) {
     const files = [...e.clipboardData.files]
     if (files.length) { e.preventDefault(); void dropFiles(files); return }
-    const text = e.clipboardData.getData('text/plain'), html = e.clipboardData.getData('text/html')
-    if (!text.trim()) return
+    const html = e.clipboardData.getData('text/html'), text = e.clipboardData.getData('text/plain')
+    if (!html && !text.trim()) return
     e.preventDefault()
+    if (html) {
+      const r = richPaste(html, cand.input.name)
+      if (r.text.trim()) {
+        document.execCommand('insertHTML', false, r.html)
+        const picture = r.speakerPictures[0] ?? r.maybePictures[0] ?? null
+        setPaste({ chars: r.text.length, removed: r.removedSection, removedChars: r.removedChars, leftOut: r.leftOutPictures, picture, pictureSure: r.speakerPictures.length > 0 })
+        if (picture && r.speakerPictures.length > 0 && !card.photo_url) void pickPastedPhoto(picture) // their own profile photo, named as them, and the card has none yet
+        saveRich(); return
+      }
+    }
     const c = cleanProfilePaste(text)
-    const el = e.currentTarget, start = el.selectionStart ?? inp.extra.length, end = el.selectionEnd ?? inp.extra.length
-    const next = `${inp.extra.slice(0, start)}${c.text}${inp.extra.slice(end)}`.slice(0, 12000)
-    setInp(p => ({ ...p, extra: next }))
-    setPaste({ chars: c.text.length, removed: c.removedSection, removedChars: c.removedChars, images: html ? imagesInHtml(html) : [] })
-    if (next !== (cand.input.extra ?? '')) void patch({ extra: next }, 'extra')
+    document.execCommand('insertText', false, c.text)
+    setPaste({ chars: c.text.length, removed: c.removedSection, removedChars: c.removedChars, leftOut: 0, picture: null, pictureSure: false })
+    saveRich()
   }
 
   async function dropFiles(files: FileList | File[]) {
@@ -664,29 +698,24 @@ function CandidateRow({ cand, track, tracks, canEdit, ahead, onChanged }: { cand
           <div ref={dropRef} style={{ display: 'grid', gap: '12px' }}>
             <div>
               <div style={boxLabel}>1 · LinkedIn profile</div>
-              <div style={boxHelp}>Open their LinkedIn profile, press Ctrl+A then Ctrl+C, and paste it here. Only the speaker’s own profile is kept; suggested people and the page footer are left out.</div>
-              <Textarea rows={4} value={inp.extra} disabled={inProgress}
-                onChange={e => setInp({ ...inp, extra: e.target.value })}
-                onBlur={() => { if (inp.extra !== (cand.input.extra ?? '')) void patch({ extra: inp.extra }, 'extra') }}
-                onPaste={handlePaste}
-                placeholder="Paste the LinkedIn profile text here" />
+              <div style={boxHelp}>Open their LinkedIn profile, press Ctrl+A then Ctrl+C, and paste it here, just like pasting into Word. Only the speaker’s own profile and picture are kept; suggested people, logos and your own photo are left out.</div>
+              <div ref={el => {
+                richRef.current = el
+                if (el && !richReady.current) { richReady.current = true; el.innerHTML = cand.input.extra_html ? richPaste(cand.input.extra_html, cand.input.name).html : (cand.input.extra ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>') }
+              }}
+                contentEditable={!inProgress} suppressContentEditableWarning role="textbox" aria-label="LinkedIn profile text" data-placeholder="Paste the LinkedIn profile here"
+                onPaste={handleRichPaste} onInput={() => setInp(p => ({ ...p, extra: readRich().text }))} onBlur={saveRich}
+                style={{ minHeight: '110px', maxHeight: '320px', overflowY: 'auto', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13.5px', lineHeight: 1.5, outline: 'none', opacity: inProgress ? 0.6 : 1 }} className="sp-rich" />
+              <style>{'.sp-rich:empty:before{content:attr(data-placeholder);color:var(--ink4)}.sp-rich img{max-width:110px;max-height:110px;border-radius:8px;display:block;margin:6px 0;border:1px solid var(--border)}.sp-rich h1,.sp-rich h2,.sp-rich h3{font-size:14px;font-weight:800;margin:8px 0 2px}.sp-rich ul,.sp-rich ol{padding-left:20px;list-style:revert}.sp-rich a{color:var(--teal)}'}</style>
               {linkedinWarning && <div style={{ fontSize: '12.5px', color: 'var(--amber-text, var(--ink2))', border: '1px solid var(--amber, var(--border))', borderRadius: '8px', padding: '6px 10px', marginTop: '6px' }}>{linkedinWarning}</div>}
               {paste && (
                 <div style={{ marginTop: '6px', padding: '8px 10px', border: '1px solid var(--teal)', borderRadius: '8px', background: 'var(--card)', fontSize: '12.5px', color: 'var(--ink2)', lineHeight: 1.5 }}>
-                  <div style={{ fontWeight: 800, color: 'var(--teal-mid)' }}>✓ Pasted {paste.chars.toLocaleString('en-GB')} characters of text{paste.images.length ? ` and ${paste.images.length} picture${paste.images.length === 1 ? '' : 's'}` : ''}</div>
-                  {paste.removed && <div>Left out “{paste.removed}” and everything after it ({paste.removedChars.toLocaleString('en-GB')} characters) — that part lists other people, so the research ignores it.</div>}
-                  {paste.images.length > 0 && <>
-                    <div style={{ marginTop: '4px', color: 'var(--ink3)' }}>Pictures that came with the paste. Use one only if it is the speaker — a profile page also carries other people’s pictures. (LinkedIn often blocks these; if they do not show, drop the headshot in the Files box.)</div>
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' }}>
-                      {paste.images.map(im => (
-                        <div key={im.url} style={{ width: '84px', textAlign: 'center' }}>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={im.url} alt={im.alt || 'Pasted picture'} referrerPolicy="no-referrer" style={{ width: '84px', height: '84px', objectFit: 'cover', borderRadius: '8px', border: '1px solid var(--border)' }} />
-                          <button disabled={!!busy} onClick={() => void setAsset('photo', im.url)} style={{ marginTop: '3px', border: 'none', background: 'none', color: 'var(--teal)', cursor: 'pointer', fontSize: '12px', fontFamily: 'inherit' }}>Use as photo</button>
-                        </div>
-                      ))}
-                    </div>
-                  </>}
+                  <div style={{ fontWeight: 800, color: 'var(--teal-mid)' }}>✓ Pasted {paste.chars.toLocaleString('en-GB')} characters{paste.picture ? ' and the speaker’s picture' : ''}</div>
+                  {paste.removed && <div>Left out “{paste.removed}” and everything after it ({paste.removedChars.toLocaleString('en-GB')} characters) — that part lists other people.</div>}
+                  {paste.leftOut > 0 && <div>Left out {paste.leftOut} other picture{paste.leftOut === 1 ? '' : 's'} (logos, posts, other people, the logged-in person’s own photo).</div>}
+                  {paste.picture && !paste.pictureSure && <div style={{ color: 'var(--ink3)' }}>The picture in the box is a profile photo that does not say whose it is — it could be the logged-in person’s. Check before using it.</div>}
+                  {paste.picture && !card.photo_url && !paste.pictureSure && <button disabled={!!busy} onClick={() => void pickPastedPhoto(paste.picture!)} style={{ marginTop: '3px', border: 'none', background: 'none', color: 'var(--teal)', cursor: 'pointer', fontSize: '12.5px', fontFamily: 'inherit' }}>Use that picture as the photo</button>}
+                  {paste.picture && card.photo_url && <div style={{ color: 'var(--ink3)' }}>This speaker already has a photo, so it was not replaced. Use “Upload photo” above to change it.</div>}
                   <button onClick={() => setPaste(null)} style={{ marginTop: '4px', border: 'none', background: 'none', color: 'var(--ink4)', cursor: 'pointer', fontSize: '12px', fontFamily: 'inherit' }}>Dismiss</button>
                 </div>
               )}

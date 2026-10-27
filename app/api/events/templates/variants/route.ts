@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireConsoleArea } from '@/app/lib/access/admin-console-gate'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import type { Variant, CreativeTemplateConfig } from '@/app/lib/announcements/composite'
 
@@ -20,6 +21,7 @@ export async function PUT(req: NextRequest) {
   if (!body?.event_id || !body.stakeholder_type || !Array.isArray(body.variants)) {
     return NextResponse.json({ error: 'event_id, stakeholder_type, variants[] required' }, { status: 400 })
   }
+  const gate = await requireConsoleArea(req, body.event_id, 'variants'); if ('error' in gate) return gate.error
   if (body.stakeholder_type !== 'speaker' && body.stakeholder_type !== 'partner') {
     return NextResponse.json({ error: "stakeholder_type must be 'speaker' or 'partner'" }, { status: 400 })
   }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireConsoleArea } from '@/app/lib/access/admin-console-gate'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { inspectPdf, renderPdfPagePng } from '@/app/lib/media/pdf-render'
 
@@ -26,6 +27,7 @@ export async function POST(req: NextRequest) {
   const expectH = Number(form.get('expect_height_mm')) || null
 
   if (!file || !eventId || !templateType) return NextResponse.json({ error: 'file, event_id, template_type required' }, { status: 400 })
+  { const gate = await requireConsoleArea(req, eventId, 'variants'); if ('error' in gate) return gate.error }
   if (templateType !== 'speaker' && templateType !== 'partner') return NextResponse.json({ error: "template_type must be 'speaker' or 'partner'" }, { status: 400 })
   if (file.size > MAX_SIZE) return NextResponse.json({ error: 'File too large (max 25 MB)' }, { status: 413 })
 

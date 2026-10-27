@@ -28,7 +28,8 @@ export default async function CreativeTemplatesLayout({ children, params }: { ch
   if (!session) redirect('/login')
   const { id: eventId } = await params
 
-  const ok = !!session.adm || await hasEventPermission(session.sid, eventId, 'sae.stakeholders.view')
+  // Hub viewers, plus anyone who may open an Admin Console area (e.g. on-site marketing managers who only have Stage Speaker Pic).
+  const ok = !!session.adm || (await Promise.all(['sae.stakeholders.view', 'sae.admin.access', 'sae.admin.variants', 'sae.admin.stage_screens', 'sae.admin.access_control'].map(k => hasEventPermission(session.sid, eventId, k)))).some(Boolean)
   if (!ok) redirect('/no-access?tool=sae')
 
   return <>{children}</>

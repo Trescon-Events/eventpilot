@@ -100,7 +100,16 @@ export const ACCESS_REGISTRY: AccessModule[] = [
       // through the older, global 2-tier module_access table's 'admin'
       // tier (app/lib/access/module-access.ts). See
       // app/admin/events/[id]/creative-templates/admin/layout.tsx.
-      { key: 'sae.admin.access',           label: 'Open the Creative Templates Admin Console (layer/variant editing)', enforced: true },
+      { key: 'sae.admin.access',           label: 'Admin Console — everything (all areas below)', enforced: true },
+      // The console split into areas (2026-10-26) so one team can be given just its own part: the on-site marketing managers
+      // only need Stage Speaker Pic. 'sae.admin.access' above still means all of them, so existing roles are unchanged.
+      { key: 'sae.admin.variants',         label: 'Admin Console › Variants — build and edit creative variants (layer stacks)', enforced: true },
+      { key: 'sae.admin.stage_screens',    label: 'Admin Console › Stage Speaker Pic — how the stage-screen graphics look (panel, fonts, sizes, background)', enforced: true },
+      { key: 'sae.admin.access_control',   label: 'Admin Console › Access Control — who has access to this tool', enforced: true },
+      // Stage Screens (Stakeholder Hub): the per-session graphics for the LED stage screens and the AV download links.
+      // Separate from sae.stakeholders.* so an on-site marketing manager can run the screens without being able to edit speaker records.
+      { key: 'sae.screens.view',           label: 'Stage Screens — view the screens and AV links', enforced: true },
+      { key: 'sae.screens.manage',         label: 'Stage Screens — generate screens, edit text for a session, manage AV links', enforced: true },
       // PR Content Studio (2026-09-17) — press release research-chat +
       // generate + versioned drafts. Mirrors the sae.announcements.* split:
       // .generate covers research + drafting, .approve gates moving a draft

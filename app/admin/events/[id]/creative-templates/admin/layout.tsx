@@ -22,8 +22,8 @@ export default async function CreativeTemplatesAdminLayout({ children, params }:
   if (!session) redirect('/login')
   const { id: eventId } = await params
 
-  const isPlatformAdmin = !!session.adm
-  const ok = isPlatformAdmin || (await hasEventPermission(session.sid, eventId, 'sae.admin.access'))
+  // Any area of the console opens it (the tabs inside then show only the areas this person may use — see consoleTabsFor).
+  const ok = !!session.adm || (await Promise.all(['sae.admin.access', 'sae.admin.variants', 'sae.admin.stage_screens', 'sae.admin.access_control'].map(k => hasEventPermission(session.sid, eventId, k)))).some(Boolean)
   if (!ok) redirect('/no-access?tool=sae-admin')
 
   return <>{children}</>

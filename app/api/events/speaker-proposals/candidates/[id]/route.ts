@@ -31,7 +31,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     for (const k of ['photo_url', 'logo_url'] as const) if (old[k] && next[k] !== old[k]) await deletePublicAssetByUrl(old[k] as string).catch(() => {})
   }
   if (b.review_state !== undefined) { if (!['pending', 'ready', 'excluded'].includes(b.review_state)) return NextResponse.json({ error: 'Bad state.' }, { status: 400 }); patch.review_state = b.review_state }
-  if ((b as { extra?: string | null }).extra !== undefined) { const ex = (b as { extra?: string | null }).extra; patch.input = { ...(a.candidate.input as Record<string, unknown>), extra: typeof ex === 'string' && ex.trim() ? ex.trim().slice(0, 12000) : null } }
+  if ((b as { extra?: string | null }).extra !== undefined) { const ex = (b as { extra?: string | null }).extra; const html = (b as { extra_html?: string | null }).extra_html; patch.input = { ...(a.candidate.input as Record<string, unknown>), extra: typeof ex === 'string' && ex.trim() ? ex.trim().slice(0, 12000) : null, extra_html: typeof ex === 'string' && ex.trim() && typeof html === 'string' && html.trim() ? html.slice(0, 60000) : null } } // extra_html is only what the rich box shows; it is cleaned again before it is ever displayed
   const links = (b as { links?: string | null }).links
   let ignoredLinks: string[] = []
   if (links !== undefined) {

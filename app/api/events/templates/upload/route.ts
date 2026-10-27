@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireConsoleArea } from '@/app/lib/access/admin-console-gate'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 
 /* POST /api/events/templates/upload
@@ -23,6 +24,7 @@ export async function POST(req: NextRequest) {
   if (!file || !eventId || !templateType) {
     return NextResponse.json({ error: 'file, event_id, template_type required' }, { status: 400 })
   }
+  const gate = await requireConsoleArea(req, eventId, 'variants'); if ('error' in gate) return gate.error
   if (templateType !== 'speaker' && templateType !== 'partner') {
     return NextResponse.json({ error: "template_type must be 'speaker' or 'partner'" }, { status: 400 })
   }
