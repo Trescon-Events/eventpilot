@@ -3755,3 +3755,9 @@ WPS cannot be emailed, so step 3 is now "Client link": one open link per drop, n
 - **Access removal**: Durga Charan (dc@tresconglobal.com and reachcharan@gmail.com) was removed from the system on 28 Oct 2026. This was done in the wake of the recent Railway.com global outage, as part of tightening up all our loose ends and rotating all our env vars.
 - **Leavers lose all access**: the daily Staff Portal sync (`app/lib/staff-portal/run-sync.ts`) now, for anyone marked inactive, also resets job level to staff and roles to standard, clears tool grants and toolkit access, and deletes module grants and sessions (not just `access_enabled`). It skips the Super Admin and vendor accounts.
 - **DB**: `supabase/alert_recipients.sql` was run in production by Madhu on 28 Oct 2026.
+
+## Badge client approval: status, note, skip (28 Oct 2026)
+- Batch header now says "Approved for print" only when the print file is allowed; while with the client it shows "Pending client approval" (`badges/[batchId]/page.tsx`).
+- Client's Approve box has an optional note (`badge_approval_rounds.client_note`, `supabase/badge_client_note_migration.sql`); shown to the producer and in the notification. A note counts as "approved with comments".
+- Per-batch "Client approval not required" checkbox (`badge_batches.client_approval_waived_at/_by`, `supabase/badge_client_waiver_migration.sql`, actions `waive`/`unwaive` in the client-approval route, `waiverHolds` in `client-approval.ts`). Void if the batch is re-approved after it was recorded.
+- Both migrations were run in production by Madhu on 28 Oct 2026.

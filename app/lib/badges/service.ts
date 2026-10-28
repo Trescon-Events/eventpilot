@@ -18,7 +18,7 @@ import { templateChanged, templatePolicy } from '@/app/lib/badges/template-drift
 export type BadgeBatchRow = {
   id: string; event_id: string; variant_id: string; name: string; status: 'draft' | 'review' | 'approved'
   template_snapshot: Variant; pdf_versions: Array<{ key: string; generated_at: string; generated_by: string | null; badges: number }>
-  created_by: string | null; approved_by: string | null; created_at: string; updated_at: string; approved_at: string | null
+  created_by: string | null; approved_by: string | null; created_at: string; updated_at: string; approved_at: string | null; client_approval_waived_at?: string | null; client_approval_waived_by?: string | null
 }
 
 export const PREVIEW_SCALE = 0.6

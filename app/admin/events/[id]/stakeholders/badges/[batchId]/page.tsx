@@ -21,8 +21,8 @@ type Dispatch = { id: string; status: 'requested' | 'sent' | 'downloaded' | 'pri
 const DISPATCH_LABEL: Record<Dispatch['status'], string> = { requested: 'Sent to Ops — waiting for review', sent: 'Sent to the printer', downloaded: 'Downloaded by the printer', printed: 'Printed', revoked: 'Revoked by Ops' }
 type Job = { id: string; kind: 'render' | 'pdf'; status: 'processing' | 'done' | 'error'; progress_done: number; progress_total: number; error_message: string | null }
 type Filter = 'all' | 'flagged' | 'unapproved' | 'removed'
-type CaRound = { id: string; status: 'pending' | 'approved' | 'approved_with_comments' | 'withdrawn'; sent_at: string; resolved_at: string | null; resolved_by_name: string | null; rejected_count: number; comment_count: number; badges: number }
-type CaSummary = { required: boolean; contacts: number; round: CaRound | null }
+type CaRound = { id: string; status: 'pending' | 'approved' | 'approved_with_comments' | 'withdrawn'; sent_at: string; resolved_at: string | null; resolved_by_name: string | null; rejected_count: number; comment_count: number; badges: number; client_note?: string | null }
+type CaSummary = { required: boolean; waived?: boolean; contacts: number; round: CaRound | null }
 type CaRecipient = { id: string; name: string; email: string; notified_at: string | null; reminder_count: number; last_reminder_at: string | null; last_opened_at: string | null }
 
 const FLAG_COLOR: Record<BadgeFlag['code'], string> = {
@@ -171,7 +171,8 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
   const roundPending = round?.status === 'pending'
   const roundSeenFinal = !!round && !!batch?.approved_at && new Date(batch.approved_at) <= new Date(round.sent_at)
   const roundApproved = !!round && (round.status === 'approved' || round.status === 'approved_with_comments') && roundSeenFinal
-  const printUnlocked = locked && (!caRequired || roundApproved)
+  const waived = !!ca?.waived
+  const printUnlocked = locked && (!caRequired || roundApproved || waived)
   const clientRejected = items.filter(i => i.client_rejected)
   const clientComments = items.filter(i => (i.client_comment ?? '').trim())
   async function caAction(action: string, extra?: Record<string, unknown>, label?: string) {
@@ -195,7 +196,7 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
     <div>
       <PageHeader
         eyebrow="Speaker badges" title={batch.name}
-        description={<>{batch.template_name}{batch.print ? ` · artwork ${batch.print.width_mm} × ${batch.print.height_mm} mm, bleed ${batch.print.bleed_mm} mm` : ''} · <Badge color={locked ? 'teal' : batch.status === 'review' ? 'amber' : 'grey'}>{locked ? 'Approved for print' : batch.status === 'review' ? 'In review' : 'Draft'}</Badge></>}
+        description={<>{batch.template_name}{batch.print ? ` · artwork ${batch.print.width_mm} × ${batch.print.height_mm} mm, bleed ${batch.print.bleed_mm} mm` : ''} · <Badge color={printUnlocked ? 'teal' : locked || batch.status === 'review' ? 'amber' : 'grey'}>{printUnlocked ? 'Approved for print' : locked ? (roundPending ? 'Pending client approval' : 'Approved internally — not yet client-approved') : batch.status === 'review' ? 'In review' : 'Draft'}</Badge></>}
         backHref={`/admin/events/${eventId}/stakeholders/badges`} backLabel="All batches"
       />
       <div style={{ padding: '20px 32px 60px' }}>
@@ -245,7 +246,8 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
               <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Client approval</div>
               {roundPending && <Badge color="amber">With the client</Badge>}
               {roundApproved && <Badge color="teal">{round!.status === 'approved_with_comments' ? 'Approved with comments' : 'Approved'}</Badge>}
-              {!round && <Badge color="grey">Not sent yet</Badge>}
+              {waived && <Badge color="teal">Client approval skipped</Badge>}
+              {!round && !waived && <Badge color="grey">Not sent yet</Badge>}
               {round && !roundPending && !roundApproved && <Badge color="grey">Changed since the client saw it</Badge>}
               <span style={{ fontSize: '13.5px', color: 'var(--ink3)', flex: 1 }}>
                 {!round || (!roundPending && !roundApproved) ? 'Send the approved artwork to the client. Any one of their approvers can approve, comment or reject a speaker; the print file is built afterwards.' : ''}
@@ -254,6 +256,12 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
               </span>
               {!roundPending && <Button variant={roundApproved ? 'ghost' : 'lime'} disabled={!!busy || !!activeJob} onClick={() => setSendClientOpen(true)}>{round ? 'Send to the client again' : 'Send to client for approval'}</Button>}
             </div>
+            {!roundPending && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', fontSize: '13.5px', color: 'var(--ink2)', cursor: busy ? 'default' : 'pointer' }}>
+                <input type="checkbox" checked={waived} disabled={!!busy || !!activeJob} onChange={e => void caAction(e.target.checked ? 'waive' : 'unwaive', undefined, e.target.checked ? 'Client approval skipped for this batch' : 'Client approval required again')} />
+                Client approval not required for this batch — skip it and go straight to the print file
+              </label>
+            )}
             {roundPending && (
               <div style={{ marginTop: '12px', display: 'grid', gap: '6px' }}>
                 {caRecipients.map(r => (
@@ -265,6 +273,12 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
                   </div>
                 ))}
                 <div style={{ marginTop: '6px' }}><Button variant="red" disabled={!!busy} onClick={() => { if (window.confirm('Withdraw this from the client? Their links stop working, and you can edit the batch again.')) void caAction('withdraw', undefined, 'Withdrawn') }}>Withdraw</Button></div>
+              </div>
+            )}
+            {roundApproved && round!.client_note && (
+              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-light)', fontSize: '13.5px', color: 'var(--ink2)' }}>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Client’s note</div>
+                “{round!.client_note}”
               </div>
             )}
             {roundApproved && (clientRejected.length > 0 || clientComments.length > 0) && (

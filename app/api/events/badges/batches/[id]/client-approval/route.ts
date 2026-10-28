@@ -84,6 +84,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ ok: true, results })
   }
 
+  if (body?.action === 'waive' || body?.action === 'unwaive') {
+    if (body.action === 'waive') {
+      if (batch.status !== 'approved') return NextResponse.json({ error: 'Approve the batch first.' }, { status: 409 })
+      if (await pendingRound(id)) return NextResponse.json({ error: 'This batch is with the client. Withdraw it first.' }, { status: 409 })
+    }
+    const sender = await senderFor(auth.session.sid)
+    await supabaseAdmin.from('badge_batches').update(body.action === 'waive' ? { client_approval_waived_at: new Date().toISOString(), client_approval_waived_by: sender.name } : { client_approval_waived_at: null, client_approval_waived_by: null }).eq('id', id)
+    await logOpsAccess({ eventId: batch.event_id, actorType: 'staff', actorId: staffId, action: body.action === 'waive' ? 'badge_client_approval_waived' : 'badge_client_approval_unwaived', targetType: 'badge_batch', targetId: id, meta: {}, ip: clientIp(req) })
+    return NextResponse.json({ ok: true })
+  }
+
   if (body?.action === 'withdraw') {
     const round = await pendingRound(id)
     if (!round) return NextResponse.json({ error: 'There is no round waiting for the client.' }, { status: 409 })

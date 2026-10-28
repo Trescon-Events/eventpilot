@@ -4,7 +4,7 @@ import type { CreativeTemplateConfig } from '@/app/lib/announcements/composite'
 import { deleteObject } from '@/app/lib/kb/storage'
 import { deletePublicAssetByUrl } from '@/app/lib/events/storage'
 import { knownStaffId, loadBatch, loadItems, requireBadgePermission, sweepDeadJobs, templateStatus } from '@/app/lib/badges/service'
-import { loadApprovalConfig, latestRound, pendingRound } from '@/app/lib/badges/client-approval'
+import { loadApprovalConfig, latestRound, pendingRound, waiverHolds } from '@/app/lib/badges/client-approval'
 
 /* GET    .../batches/[id]  -> batch + items + latest jobs (the review page's one data call)
    PATCH  .../batches/[id]  { name? } | { action: 'approve' | 'reopen' | 'refresh_speakers' | 'update_template' }
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const tpl = await templateStatus(batch)
   const { template_snapshot, ...rest } = batch
   return NextResponse.json({
-    client_approval: { required: cfg.required, contacts: cfg.contacts.length, round: round ? { id: round.id, status: round.status, sent_at: round.sent_at, resolved_at: round.resolved_at, resolved_by_name: round.resolved_by_name, rejected_count: round.rejected_count, comment_count: round.comment_count, badges: round.badges } : null },
+    client_approval: { required: cfg.required, waived: waiverHolds(batch), contacts: cfg.contacts.length, round: round ? { id: round.id, status: round.status, sent_at: round.sent_at, resolved_at: round.resolved_at, resolved_by_name: round.resolved_by_name, rejected_count: round.rejected_count, comment_count: round.comment_count, badges: round.badges, client_note: round.client_note ?? null } : null },
     template: { changed: tpl.changed, auto: tpl.changed && tpl.policy === 'auto' },
     batch: { ...rest, print: template_snapshot.print, template_name: template_snapshot.name, canvas_width: template_snapshot.canvas_width, canvas_height: template_snapshot.canvas_height },
     items, jobs: jobs ?? [], dispatches: dispatches ?? [],

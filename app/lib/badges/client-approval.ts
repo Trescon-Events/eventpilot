@@ -8,7 +8,7 @@ export type RoundStatus = 'pending' | 'approved' | 'approved_with_comments' | 'w
 export type RoundRow = {
   id: string; batch_id: string; status: RoundStatus; message: string | null; badges: number
   sent_by: string | null; sent_by_name: string | null; sent_by_email: string | null; sent_at: string
-  resolved_at: string | null; resolved_by_name: string | null; resolved_by_email: string | null; rejected_count: number; comment_count: number
+  resolved_at: string | null; resolved_by_name: string | null; resolved_by_email: string | null; rejected_count: number; comment_count: number; client_note?: string | null
 }
 export type RecipientRow = { id: string; round_id: string; name: string; email: string; token: string; token_expires_at: string; notified_at: string | null; reminder_count: number; last_reminder_at: string | null; last_opened_at: string | null }
 
@@ -52,15 +52,21 @@ export async function pendingRound(batchId: string): Promise<RoundRow | null> {
 }
 
 /** The client's decision on the whole batch: "with comments" as soon as any badge carries a comment. A rejection on its own doesn't change the wording — it is counted separately. */
-export function approvalOutcome(decisions: { comment: string | null; rejected: boolean }[]): 'approved' | 'approved_with_comments' {
-  return decisions.some(d => (d.comment ?? '').trim().length > 0) ? 'approved_with_comments' : 'approved'
+export function approvalOutcome(decisions: { comment: string | null; rejected: boolean }[], note?: string | null): 'approved' | 'approved_with_comments' {
+  return (note ?? '').trim().length > 0 || decisions.some(d => (d.comment ?? '').trim().length > 0) ? 'approved_with_comments' : 'approved'
+}
+
+/** A producer's "client approval not required" override holds only while the batch is unchanged since it was recorded (re-approving after edits voids it). */
+export function waiverHolds(batch: { approved_at: string | null; client_approval_waived_at?: string | null }): boolean {
+  return !!batch.client_approval_waived_at && !!batch.approved_at && new Date(batch.approved_at) <= new Date(batch.client_approval_waived_at)
 }
 
 /** The gate for building a print file / handing over to Ops: when this event needs client approval, the batch's latest round must be approved AND the
     client must have seen the batch as it stands (it was approved internally before the round was sent — re-approving after changes needs a new round). */
-export async function clientApprovalGate(eventId: string, batch: { id: string; approved_at: string | null }): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function clientApprovalGate(eventId: string, batch: { id: string; approved_at: string | null; client_approval_waived_at?: string | null }): Promise<{ ok: true } | { ok: false; error: string }> {
   const cfg = await loadApprovalConfig(eventId)
   if (!cfg.required) return { ok: true }
+  if (waiverHolds(batch)) return { ok: true }
   const round = await latestRound(batch.id)
   if (!round) return { ok: false, error: 'This event needs the client’s approval first. Send the batch to the client for approval.' }
   if (round.status === 'pending') return { ok: false, error: 'The batch is with the client for approval. Wait for their response, or withdraw it.' }
@@ -126,12 +132,12 @@ export async function sendApprovalEmail(a: { eventId?: string; to: string; recip
 
 /** Tell the producer who sent the round (email + bell) that the client acted. Never throws. */
 /* eslint-disable no-restricted-syntax -- email HTML needs literal colours */
-export async function notifyProducerOfOutcome(round: RoundRow, ctx: { eventId: string; eventName: string; batchName: string; batchId: string }, outcome: { by: string; status: 'approved' | 'approved_with_comments'; rejected: number; comments: number }): Promise<void> {
+export async function notifyProducerOfOutcome(round: RoundRow, ctx: { eventId: string; eventName: string; batchName: string; batchId: string }, outcome: { by: string; status: 'approved' | 'approved_with_comments'; rejected: number; comments: number; note?: string | null }): Promise<void> {
   try {
     const path = producerBatchPath(ctx.eventId, ctx.batchId)
     const what = outcome.status === 'approved_with_comments' ? 'approved with comments' : 'approved'
     const extra = [outcome.rejected ? `${outcome.rejected} speaker${outcome.rejected === 1 ? '' : 's'} rejected (left out of the print file)` : '', outcome.comments ? `${outcome.comments} comment${outcome.comments === 1 ? '' : 's'}` : ''].filter(Boolean).join(', ')
-    const message = `${outcome.by} has ${what} the speaker badges "${ctx.batchName}" for ${ctx.eventName}.${extra ? ` ${extra}.` : ''} Open the batch to see the details and continue to the print file.`
+    const message = `${outcome.by} has ${what} the speaker badges "${ctx.batchName}" for ${ctx.eventName}.${extra ? ` ${extra}.` : ''} ${outcome.note ? ` Their note: “${outcome.note}”.` : ''} Open the batch to see the details and continue to the print file.`
     if (round.sent_by_email) {
       const { html } = renderEmailTemplate({ subject: '', body_html: `<p>${message}</p><p><a href="${siteUrl()}${path}" style="display:inline-block;background:#00A5A3;color:#ffffff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:700;">Open the batch &rarr;</a></p>`, header_image_url: null, header_alt_text: null } as Parameters<typeof renderEmailTemplate>[0], {})
       await sendSystemMail({ to: round.sent_by_email, subject: `Client ${what} the speaker badges — ${ctx.eventName}`, html })

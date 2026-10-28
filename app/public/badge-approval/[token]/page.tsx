@@ -62,6 +62,7 @@ export default function BadgeApprovalPage({ params }: { params: Promise<{ token:
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [confirm, setConfirm] = useState(false)
+  const [note, setNote] = useState('')   // optional overall note sent with the approval
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [zoom, setZoom] = useState<number | null>(null)
@@ -108,7 +109,7 @@ export default function BadgeApprovalPage({ params }: { params: Promise<{ token:
   async function submit() {
     setBusy(true); setNotice(null)
     for (const i of items.filter(dirty)) { if (!(await saveComment(i))) { setBusy(false); setConfirm(false); return } }
-    const r = await post({ action: 'submit' })
+    const r = await post({ action: 'submit', note: note.trim() || null })
     setBusy(false); setConfirm(false)
     if (!r.ok) { setNotice(String(r.data.error ?? 'Could not submit.')); return }
     await load(); window.scrollTo({ top: 0 })
@@ -216,15 +217,17 @@ export default function BadgeApprovalPage({ params }: { params: Promise<{ token:
       {confirm && (
         <div className="ba-modal" onClick={() => !busy && setConfirm(false)}>
           <div className="ba-box" onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: '17px', fontWeight: 900, marginBottom: '8px' }}>{withComments ? 'Approve with comments?' : 'Approve these badges?'}</div>
+            <div style={{ fontSize: '17px', fontWeight: 900, marginBottom: '8px' }}>{withComments || note.trim() ? 'Approve with comments?' : 'Approve these badges?'}</div>
             <div style={{ fontSize: '13.5px', color: 'var(--ink2)', lineHeight: 1.6, marginBottom: '16px' }}>
               {items.length - rejectedCount} badge{items.length - rejectedCount === 1 ? '' : 's'} will go to print.
               {rejectedCount > 0 && <> <strong>{rejectedCount} rejected speaker{rejectedCount === 1 ? '' : 's'} will not be printed.</strong></>}
               {withComments && <> Your comments go to the team with your approval.</>} Your colleagues will see that you responded.
             </div>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--ink2)', marginBottom: '6px' }}>Add a note for the team (optional)</label>
+            <textarea value={note} onChange={e => setNote(e.target.value.slice(0, 2000))} disabled={busy} rows={3} placeholder="e.g. Thank you, all good to print." style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '14px', fontFamily: 'inherit', resize: 'vertical', marginBottom: '16px' }} />
             <div className="ba-row" style={{ justifyContent: 'flex-end' }}>
               <button className="ba-btn ghost" onClick={() => setConfirm(false)} disabled={busy}>Keep reviewing</button>
-              <button className="ba-btn" onClick={() => void submit()} disabled={busy}>{busy ? 'Sending…' : withComments ? 'Yes, approved with comments' : 'Yes, approved'}</button>
+              <button className="ba-btn" onClick={() => void submit()} disabled={busy}>{busy ? 'Sending…' : withComments || note.trim() ? 'Yes, approved with comments' : 'Yes, approved'}</button>
             </div>
           </div>
         </div>

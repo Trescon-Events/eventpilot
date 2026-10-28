@@ -45,7 +45,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     event_name: eventName, batch_name: batch.name, sent_by_name: round.sent_by_name, sent_at: round.sent_at, message: round.message, recipient_name: rec.name,
     canvas: { width: snap?.canvas_width ?? 1, height: snap?.canvas_height ?? 1 },
     status: round.status,
-    resolved: pending ? null : { by_name: round.resolved_by_name, at: round.resolved_at, status: round.status, rejected_count: round.rejected_count, comment_count: round.comment_count, is_me: !!round.resolved_by_email && round.resolved_by_email.toLowerCase() === String(rec.email).toLowerCase() },
+    resolved: pending ? null : { by_name: round.resolved_by_name, at: round.resolved_at, status: round.status, rejected_count: round.rejected_count, comment_count: round.comment_count, note: round.client_note ?? null, is_me: !!round.resolved_by_email && round.resolved_by_email.toLowerCase() === String(rec.email).toLowerCase() },
     items: items.map(i => ({ id: i.id, name: i.name, title: i.title, company: i.company, preview_url: i.preview_url, comment: byItem.get(i.id as string)?.comment ?? null, rejected: !!byItem.get(i.id as string)?.rejected })),
   }, { headers: { 'Cache-Control': 'no-store' } })
 }
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   if (round.status !== 'pending') return NextResponse.json({ error: `${round.resolved_by_name ?? 'A colleague'} has already responded to this request.`, already_actioned: true }, { status: 409 })
   if (new Date(rec.token_expires_at as string) < new Date()) return NextResponse.json({ error: 'This link has expired. Please ask the sender for a new one.' }, { status: 410 })
 
-  const body = await req.json().catch(() => null) as { action?: string; item_id?: string; comment?: string | null; rejected?: boolean } | null
+  const body = await req.json().catch(() => null) as { action?: string; item_id?: string; comment?: string | null; rejected?: boolean; note?: string | null } | null
 
   if (body?.action === 'save') {
     if (!body.item_id || !UUID.test(body.item_id)) return NextResponse.json({ error: 'item_id required.' }, { status: 400 })
@@ -76,12 +76,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   if (body?.action === 'submit') {
     const { data: mine } = await supabaseAdmin.from('badge_approval_decisions').select('item_id, comment, rejected').eq('recipient_id', rec.id)
     const decisions = (mine ?? []) as { item_id: string; comment: string | null; rejected: boolean }[]
-    const outcome = approvalOutcome(decisions)
+    const note = ((body.note ?? '') as string).trim().slice(0, 2000) || null
+    const outcome = approvalOutcome(decisions, note)
     const rejected = decisions.filter(d => d.rejected)
     const commented = decisions.filter(d => (d.comment ?? '').trim())
     // Conditional update: only one person can settle the round.
     const { data: won } = await supabaseAdmin.from('badge_approval_rounds')
-      .update({ status: outcome, resolved_at: new Date().toISOString(), resolved_by_name: rec.name, resolved_by_email: rec.email, rejected_count: rejected.length, comment_count: commented.length })
+      .update({ status: outcome, resolved_at: new Date().toISOString(), resolved_by_name: rec.name, resolved_by_email: rec.email, rejected_count: rejected.length, comment_count: commented.length, client_note: note })
       .eq('id', round.id).eq('status', 'pending').select('id')
     if (!won?.length) {
       const { data: now } = await supabaseAdmin.from('badge_approval_rounds').select('resolved_by_name').eq('id', round.id).single()
@@ -90,7 +91,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     // Their decisions become the batch's: rejected badges leave the print file, comments sit on the badge for the producer.
     for (const d of rejected) await supabaseAdmin.from('badge_batch_items').update({ removed: true, client_rejected: true, approved: false, client_comment: (d.comment ?? '').trim() || null }).eq('id', d.item_id).eq('batch_id', batch.id)
     for (const d of commented.filter(c => !c.rejected)) await supabaseAdmin.from('badge_batch_items').update({ client_comment: d.comment!.trim() }).eq('id', d.item_id).eq('batch_id', batch.id)
-    await notifyProducerOfOutcome({ ...round, status: outcome } as RoundRow, { eventId: batch.event_id as string, eventName, batchName: batch.name as string, batchId: batch.id as string }, { by: rec.name as string, status: outcome, rejected: rejected.length, comments: commented.length })
+    await notifyProducerOfOutcome({ ...round, status: outcome } as RoundRow, { eventId: batch.event_id as string, eventName, batchName: batch.name as string, batchId: batch.id as string }, { by: rec.name as string, status: outcome, rejected: rejected.length, comments: commented.length, note })
     return NextResponse.json({ ok: true, status: outcome, rejected: rejected.length, comments: commented.length })
   }
   return NextResponse.json({ error: 'Unknown action.' }, { status: 400 })
