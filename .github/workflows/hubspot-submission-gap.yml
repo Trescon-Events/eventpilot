@@ -1,0 +1,22 @@
+name: HubSpot submission gap check
+
+# Fires /api/cron/hubspot-submission-gap every 15 minutes: compares each connected HubSpot form's submissions with the rows EventPilot received and alerts when one has
+# been missing for 30+ minutes (or a HubSpot workflow lost its re-enrollment trigger). Read-only toward HubSpot.
+# Uses the Railway direct URL for the same reason as hubspot-crm-pull-sync.yml (Cloudflare challenges GitHub Actions IPs on the proxied domain).
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  gap-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Call HubSpot submission gap endpoint
+        run: |
+          curl --fail-with-body --silent --show-error \
+            -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://eventpilot-production-90c6.up.railway.app/api/cron/hubspot-submission-gap"

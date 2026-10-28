@@ -11,7 +11,7 @@
 https://eventpilot.tresconglobal.com
 
 ## LOCAL PATH
-/Users/durgacharan1978/taos-discovery — port 3003
+/Users/madhu/EventPilot — port 3000
 
 ---
 
@@ -30,10 +30,10 @@ That is it. Git push = live. No Vercel. No wrangler commands. No manual deploy s
 
 | Layer        | Account                                                        | Login                       |
 |--------------|----------------------------------------------------------------|-----------------------------|
-| Code         | GitHub: Trescon-Events/eventpilot                              | dc@tresconglobal.com        |
+| Code         | GitHub: Trescon-Events/eventpilot                              | md@tresconglobal.com        |
 | Hosting      | Railway: Trescon's Projects / eventpilot                       | webadmin@tresconglobal.com  |
-| Domain + DNS | Cloudflare: Trescon account                                    | dc@tresconglobal.com        |
-| Database     | Supabase: yuyxfxoevztugtfgduks                                 | dc@tresconglobal.com        |
+| Domain + DNS | Cloudflare: Trescon account                                    | md@tresconglobal.com        |
+| Database     | Supabase: yuyxfxoevztugtfgduks                                 | md@tresconglobal.com        |
 | Email        | Resend: noreply@eventpilot.tresconglobal.com                   | see .env.local              |
 | SSO          | Microsoft Azure Entra ID                                       | managed by Madhu            |
 
@@ -50,15 +50,19 @@ Railway internal URL: eventpilot-production-90c6.up.railway.app
 ---
 
 ## KEY VALUES
-- Super admin email: reachcharan@gmail.com
+- Super admin email: md@tresconglobal.com (fixed in code, `app/lib/access/super-admin.ts`; Madhu is the sole Super Admin)
 - **No passwords, codes or secrets are kept in this file.** Real values live in `.env.local` (local) and Railway variables (production). On 26 Sep 2026 the following were removed because they were dead and must never sit in a checked-in file: a stale super-admin password, the retired shared "admin code" (it no longer works anywhere — routes now require a real signed session), a staff default password, and the hardcoded cron-secret literal (also retired; only the env `CRON_SECRET` is accepted).
-- Local port: 3003
+- Local port: 3000
+
+---
+
+## ACCESS REMOVAL NOTE
+Durga Charan (dc@tresconglobal.com and reachcharan@gmail.com) was removed from the system on 28 Oct 2026. This was done in the wake of the recent Railway.com global outage, as part of tightening up all our loose ends and rotating all our env vars.
 
 ---
 
 ## COLLEAGUES
-- Madhu (Madhukar Dudda) — md@tresconglobal.com — Bangalore — co-builder
-- Durga (Charan) — dc@tresconglobal.com — Dubai — product owner
+- Madhu (Madhukar Dudda) — md@tresconglobal.com — Bangalore — sole admin and builder
 
 ---
 
@@ -66,12 +70,11 @@ Railway internal URL: eventpilot-production-90c6.up.railway.app
 
 1. Vercel is gone — deleted 18 Jun 2026. Never create or reference a Vercel project for this app.
 2. Never run vercel deploy or wrangler deploy commands
-3. Never touch Cloudflare Worker routing without explicit instruction — Madhu's sign-off is sufficient (confirmed 14 Sep 2026); it no longer requires Durga specifically
+3. Never touch Cloudflare Worker routing without explicit instruction — Madhu's sign-off is sufficient (confirmed 14 Sep 2026)
 4. Never change environment variables in Railway without explicit instruction
 5. Never add default passwords or hardcoded credentials to code without asking first
 6. Never deploy to production without user saying so explicitly in that message
 7. Only do exactly what is asked — nothing extra
 
-Note (14 Sep 2026): Madhu's sign-off is sufficient authorization project-wide going forward — rules above are no longer gated on Durga specifically unless a rule says otherwise.
+Note (14 Sep 2026): Madhu's sign-off is sufficient authorization project-wide going forward — no rule above needs anyone else's approval.
 
-Note (18 Sep 2026): the old rule requiring Durga to be informed before every action has been removed at Madhu's request — no informing-Durga step is required anymore.

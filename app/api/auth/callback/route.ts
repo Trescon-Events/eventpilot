@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { sessionCookieOptions } from '@/app/lib/access/session-cookie'
 import { isAdminRoleSet } from '@/app/lib/access/access-roles'
 import { encodeSession } from '@/app/lib/access/session'
+import { isSuperAdminEmail } from '@/app/lib/access/super-admin'
 
 /*
   GET /api/auth/callback
@@ -124,7 +125,10 @@ export async function GET(req: NextRequest) {
 
   // ── Build session (same format as password login) ─────────────────────────
   const jobLevel    = staff.job_level ?? 'staff'
-  const accessRoles = (staff.access_roles ?? ['standard']) as string[]
+  // Only the fixed Super Admin email ever carries super_admin; anyone else's stored value is ignored. He is always an admin too.
+  const superAdmin  = isSuperAdminEmail(email)
+  const storedRoles = ((staff.access_roles ?? ['standard']) as string[]).filter(r => r !== 'super_admin')
+  const accessRoles = superAdmin ? [...new Set([...storedRoles, 'admin', 'super_admin'])] : storedRoles
   const isAdmin     = isAdminRoleSet(accessRoles)
 
   const sessionPayload = encodeSession({

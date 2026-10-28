@@ -12,6 +12,7 @@ import { VALID_ACCESS_ROLES } from '@/app/lib/access/access-roles'
 import PageHeader from '@/app/components/PageHeader'
 import { Toast } from '@/app/components/ui'
 import AiLearningTab from './ai-learning/AiLearningTab'
+import SuperAdminPanel from '@/app/components/admin/SuperAdminPanel'
 import MemberFilterRow from './ai-learning/MemberFilterRow'
 
 // Colors here are literal (not CSS vars) on purpose — several are reused
@@ -206,7 +207,7 @@ function AdminPageInner() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(() => typeof window !== 'undefined' && (sessionStorage.getItem('tai_admin_staff_id') === 'super-admin' || sessionStorage.getItem('tai_is_super_admin') === '1'))
   const [members, setMembers] = useState<Member[]>([])
   const [tasks, setTasks]     = useState<TaskProfile[]>([])
-  type AdminTab = 'overview' | 'people' | 'ai-learning' | 'events' | 'commercial' | 'review' | 'toolkit' | 'security' | 'finance' | 'hr' | 'branding'
+  type AdminTab = 'overview' | 'people' | 'ai-learning' | 'events' | 'commercial' | 'review' | 'toolkit' | 'security' | 'finance' | 'hr' | 'branding' | 'super-admin'
   type AiLearningSub = 'readiness' | 'analytics' | 'course-generator'
   const [tab, setTab]         = useState<AdminTab>(() => {
     if (typeof window === 'undefined') return 'overview'
@@ -853,6 +854,7 @@ function AdminPageInner() {
             events:       '#12C9BD',
             review:       '#F1667A',
             security:     '#6285EA',
+            'super-admin': '#F5B94D',
             toolkit:      '#0EA79D',
             finance:      '#5AA9F2',
             hr:           '#A78BFA',
@@ -886,6 +888,7 @@ function AdminPageInner() {
                 ['branding',     'Brand & Content'],
                 ...(isSuperAdmin ? [['review', 'Review Queue']] : []),
                 ...(isSuperAdmin ? [['security', 'Security']] : []),
+                ...(isSuperAdmin ? [['super-admin', 'Super Admin']] : []),
               ] as [typeof tab, string][]).map(([t, label]) => {
                 const accent  = TAB_ACCENT[t] ?? '#12C9BD'
                 const active  = tab === t
@@ -2106,6 +2109,8 @@ function AdminPageInner() {
         )}
 
         {/* ── Security Tab (super admin only) ── */}
+        {tab === 'super-admin' && isSuperAdmin && <SuperAdminPanel />}
+
         {tab === 'security' && isSuperAdmin && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
@@ -2655,7 +2660,7 @@ function AdminPageInner() {
       {/* ── Access Roles Modal ── */}
       {rolesOpen && rolesStaff && (() => {
         const off = OFFICES.find(o => o.id === rolesStaff.office_id)
-        const ALL_ROLES = VALID_ACCESS_ROLES
+        const ALL_ROLES = VALID_ACCESS_ROLES.filter(r => r !== 'super_admin' && (r !== 'admin' || isSuperAdmin))   // super_admin belongs to one fixed email; System Admin is the Super Admin's to give
         const toggle = (r: string) => {
           if (r === 'standard') return // always present, can't untick directly
           setRolesEdit(prev =>

@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
-import { getEventRoles } from '@/app/lib/konfhub/roles'
+import { getEventRoles, resolvePrimaryRole } from '@/app/lib/konfhub/roles'
 import { normalizeTimezone, utcToZonedLocal } from '@/app/lib/events/timezones'
 import type { TextLayerFont } from '@/app/lib/announcements/composite'
 import { PANEL_DEFAULTS, type Panel } from './dims'
@@ -74,7 +74,7 @@ export async function loadScreenSessions(eventId: string, only?: { sessionIds?: 
   ])
   const speakerIds = [...new Set((links ?? []).map(l => l.speaker_id))]
   const { data: people } = speakerIds.length
-    ? await supabaseAdmin.from('event_speakers').select('id, name, public_name, role, company, country, photo_processed_url, photo_url, photo_head_box, photo_low_resolution').eq('event_id', eventId).eq('active', true).in('id', speakerIds)
+    ? await supabaseAdmin.from('event_speakers').select('id, name, public_name, role, company, country, photo_processed_url, photo_url, photo_head_box, photo_low_resolution, konfhub_primary_role_tag_id').eq('event_id', eventId).eq('active', true).in('id', speakerIds)
     : { data: [] as Record<string, unknown>[] }
   const person = new Map((people ?? []).map(p => [p.id as string, p]))
   const stageName = new Map((tracks ?? []).map(t => [t.id, t.name as string]))
@@ -87,7 +87,9 @@ export async function loadScreenSessions(eventId: string, only?: { sessionIds?: 
     // One card per person even when they hold two roles in the session; the moderator role wins.
     const byPerson = new Map<string, { moderator: boolean; order: number }>()
     for (const l of rows) {
-      const mod = isModeratorRole(l.role_tag_id ? roleLabel.get(l.role_tag_id) : null)
+      // An empty role on the session means "from their record": the speaker's main role (the Agenda editor and the KonfHub push read it the same way).
+      const tag = l.role_tag_id || resolvePrimaryRole(person.get(l.speaker_id)?.konfhub_primary_role_tag_id as string | null | undefined, roles)?.tag_id
+      const mod = isModeratorRole(tag ? roleLabel.get(tag) : null)
       const prev = byPerson.get(l.speaker_id)
       byPerson.set(l.speaker_id, { moderator: (prev?.moderator ?? false) || mod, order: Math.min(prev?.order ?? 1e9, l.order_index ?? 0) })
     }

@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { HubSpotFieldMapping } from '@/app/lib/hubspot/types'
-import { SubmittedValue } from '@/app/lib/forms/types'
-import { fetchCommunicationConsentStatuses, LEGAL_CONSENT_FIELD_PREFIX } from '@/app/lib/hubspot/client'
+import { addConsentValues, applyMapping, logWebhookError } from '@/app/lib/hubspot/submission-ingest'
 
 /* POST /api/public/hubspot/submissions — the HubSpot Workflow webhook
    receiver. Public (under the /api/public prefix middleware.ts already
@@ -87,7 +86,10 @@ export async function POST(req: NextRequest) {
     .eq('hubspot_form_id', hubspot_form_id)
     .maybeSingle()
 
-  if (!connection) return NextResponse.json({ error: 'No event is connected to this HubSpot form.' }, { status: 404 })
+  if (!connection) {
+    await logWebhookError(hubspot_form_id, 'no_connection', 'A submission arrived for a form no event is connected to.')
+    return NextResponse.json({ error: 'No event is connected to this HubSpot form.' }, { status: 404 })
+  }
 
   // Dedupe: HubSpot Workflow webhook retries send the identical payload.
   // No reliable HubSpot-native submission ID is exposed as a Workflow
@@ -106,68 +108,9 @@ export async function POST(req: NextRequest) {
 
   const mapping = (connection.field_mapping ?? []) as HubSpotFieldMapping[]
 
-  // Legal-consent checkboxes (see client.ts's LEGAL_CONSENT_FIELD_PREFIX
-  // doc comment) never arrive in `properties` — HubSpot tracks them as a
-  // subscription record, not a contact property. For any field mapped this
-  // way, fetch live consent status by email (the only key that endpoint
-  // takes) and inject it into `properties` under the same synthetic field
-  // name, so the mapping loop below needs no special case for it — every
-  // target type already just reads properties[m.hubspot_field_name].
-  const consentFieldNames = mapping.map(m => m.hubspot_field_name).filter(n => n.startsWith(LEGAL_CONSENT_FIELD_PREFIX))
-  if (consentFieldNames.length > 0 && properties.email) {
-    const statuses = await fetchCommunicationConsentStatuses(properties.email)
-    for (const fieldName of consentFieldNames) {
-      const subscriptionTypeId = fieldName.slice(LEGAL_CONSENT_FIELD_PREFIX.length)
-      if (statuses.has(subscriptionTypeId)) properties[fieldName] = statuses.get(subscriptionTypeId) ? 'true' : 'false'
-    }
-  }
-
-  const submittedData: Record<string, SubmittedValue> = {}
-  const fileUrls: Record<string, string> = {}
-  for (const m of mapping) {
-    const value = properties[m.hubspot_field_name]
-    if (value === undefined || value === null || value === '') continue
-    switch (m.target.type) {
-      case 'concept':
-        submittedData[m.target.key] = value
-        break
-      case 'asset':
-        fileUrls[m.target.role] = value
-        break
-      case 'sensitive_document':
-        // Reuses the same fileUrls bucket as 'asset' (HubSpot's submitted
-        // value for a file-upload field is a URL either way) — the speaker
-        // from-submission route is what tells 'passport'/'national_id'
-        // apart from 'photo'/'company_logo' and routes each into its own
-        // pipeline (private sensitive-document bucket vs. the public asset
-        // bucket + PhotoRoom).
-        fileUrls[m.target.document_type] = value
-        break
-      case 'custom':
-        submittedData[m.hubspot_field_name] = value
-        break
-      case 'crm_property':
-        // Synthetic key, read back by app/lib/crm/upsert.ts's
-        // extractCrmPropertyValue() in the from-submission routes, which
-        // now (2026-09-19) also persists it into the CRM contact/company's
-        // property_values via applyCrmPropertyValues().
-        //
-        // ALSO written under the property_key's plain name (like a
-        // 'concept' mapping would) — a single "CRM property" choice on the
-        // mapping page should satisfy both this event's own record AND the
-        // cross-event CRM, not force a pick between them (Madhu, 2026-09-19:
-        // "keep it simple"). Where property_key matches an existing
-        // SPEAKER_KEY_MAP alias (company, country, salutation) this
-        // promotes straight into the real event_speakers column, same as
-        // 'concept' would; where it doesn't (industry_sector, twitter,
-        // phone_number) it still lands in custom_fields, available to
-        // anything that reads it directly (e.g. the KonfHub Registration
-        // push's customFields.phone_number).
-        submittedData[`crm__${m.target.entity_type}__${m.target.property_key}`] = value
-        submittedData[m.target.property_key] = value
-        break
-    }
-  }
+  // Consent checkboxes are looked up live; a failed lookup is logged and never loses the submission.
+  await addConsentValues(hubspot_form_id, mapping, properties)
+  const { submittedData, fileUrls } = applyMapping(mapping, properties)
 
   const { error } = await supabaseAdmin
     .from('stakeholder_form_submissions')
@@ -180,7 +123,10 @@ export async function POST(req: NextRequest) {
       hubspot_submission_key: hash,
     })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    await logWebhookError(hubspot_form_id, 'insert', error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
   return NextResponse.json({ success: true })
 }

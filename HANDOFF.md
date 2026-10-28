@@ -3726,3 +3726,32 @@ WPS cannot be emailed, so step 3 is now "Client link": one open link per drop, n
 - **Stage Screens + Save/Apply preview + Admin Console access areas** released with this push (migrations `supabase/event_screens_*.sql` were already applied).
 - **DFWS agenda "missing session" was KonfHub ordering, not a sync failure**: the dashboard list sorts by `session_order`, and the session created later (order 12) sat at the bottom. The push sets `session_order` only on create, never on update. A reorder done on KonfHub makes every session read "Changed in KonfHub"; a forced push with nothing differing clears it (done for DFWS).
 - **DFS speaker registration on KonfHub (read-only study, nothing changed)**: no Speaker ticket, `konfhub_speaker_ticket` and the field map are empty, registration timezone is hard-coded to Kuala Lumpur, duplicate check covers the speaker ticket only. Plan and open decisions are in the chat; nothing built.
+
+## HubSpot speaker-form sync: lost repeat submissions, fix + monitoring (27 Oct 2026, Madhu + Claude)
+
+**What was wrong.** The HubSpot workflow that sends a form submission to EventPilot (`/api/public/hubspot/submissions`) only fires again for the same person if the form-submission filter is ALSO listed under `reEnrollmentTriggersFilterBranches`. The DFS (workflow 1888198147) and AI InfraNext (1887322774) workflows had `shouldReEnroll: true` but an empty trigger list (revision 1, never hand-edited), so a second submission by the same contact never reached EventPilot. First-time submissions (77/80 since 22 Sep) were fine; repeats were not (2/12). Five other form workflows had the trigger.
+
+**Done live (HubSpot, not in git):** re-enrollment trigger added to both workflows (revision 2, still enabled, same single webhook action). Not yet proven end to end: the form has captcha, so API test submissions are refused; Madhu to submit the DFS form twice from a browser with a test email and confirm both rows arrive, then delete the test rows/contact.
+
+**Built (needs push):**
+- `supabase/hubspot_submission_health.sql` (already applied to production): `hubspot_form_sync_health` (per form: go-live `since`, counts, gap list, dismissed ids, workflow status, last alert) and `hubspot_webhook_errors`.
+- `app/lib/hubspot/submission-ingest.ts`: mapping + consent lookup shared by the webhook and "Bring in". A failed consent lookup no longer loses the submission; webhook failures (no connection, insert error, consent) are logged to `hubspot_webhook_errors`.
+- `app/lib/hubspot/submission-gap.ts`: compares HubSpot's submissions (Forms API, `HUBSPOT_API_KEY`) with EventPilot rows by email + count, forward-only from `since`; `fillGap` builds rows from what the submitter entered (key `conv:<conversionId>`, safe to repeat); `dismissGap`; `runGapCheck` alerts (bell + email to md@) once a submission has been missing 30+ minutes, or the workflow lost its trigger/was switched off.
+- `app/api/cron/hubspot-submission-gap` + `.github/workflows/hubspot-submission-gap.yml` (every 15 min, needs `CRON_SECRET` which already exists).
+- `crm-client.ts`: `checkFormWorkflow` and `repairFormWorkflowReEnrollment`.
+- `app/components/hubspot/SyncHealthCard.tsx` on the Connect HubSpot Form page: counts, last received, missing submissions with Bring in / Ignore / Bring in all, "Fix re-enrollment in HubSpot" button (confirmation, manual only).
+
+**Known limits.** A submission HubSpot is holding in its spam tab shows as a gap until released (the card says to check there first). Matching is by email count, so with three submissions by one person and one missing, the newest is listed as the missing one even if an older one was the lost one; the content brought in is still a real submission. Only submissions after each form's `since` (27 Oct 2026 ~16:40 UTC) are monitored; earlier losses (Naresh 08:39, Karan 14:16, Herman, Rene, Cordant etc.) are deliberately not backfilled.
+
+**Also unpushed from earlier today:** Stage Screens moderator fix in `app/lib/screens/data.ts` (empty session role now resolves to the speaker's main role, so MODERATOR shows on the artwork; press Regenerate on affected sessions after deploy).
+
+## Super Admin, System Admins and alert recipients (28 Oct 2026, Madhu + Claude) — NOT PUSHED
+- **Super Admin is fixed in code**: `app/lib/access/super-admin.ts` (`SUPER_ADMIN_EMAIL = md@tresconglobal.com`, Microsoft SSO only). The SSO callback gives `super_admin` + `admin` only to that email and drops a stored `super_admin` from anyone else.
+- **Security fix**: `PATCH /api/staff-roles` used to check nothing (any signed-in person could make anyone, themselves included, admin). It now needs an admin session; only the Super Admin may give/remove `admin`; `super_admin` can never be given; the Super Admin's own roles can't be changed. The People-tab roles modal hides `super_admin` and shows `admin` only to the Super Admin.
+- **Staff Portal sync** (`run-sync.ts`) no longer grants or removes admin roles: its `admin`/`super_admin` are ignored and what EventPilot already holds is kept.
+- **Admin > Super Admin tab** (`SuperAdminPanel.tsx`, APIs `/api/super-admin/staff` and `/api/super-admin/alerts`, all re-checked server-side): appoint/remove System Admins and set their other platform roles; per alert type choose recipients, with email and in-app bell each switchable.
+- **Alert types** are a registry (`app/lib/alerts/types.ts`); raise one with `sendAlert(type, …)` (`app/lib/alerts/send.ts`). A type with no recipients goes to the Super Admin. The HubSpot gap check now uses this instead of a hardcoded address.
+- **Migration to run before use**: `supabase/alert_recipients.sql` (table `alert_recipients`). Until it exists the alert lookup errors out, so run it before the push.
+- **Access removal**: Durga Charan (dc@tresconglobal.com and reachcharan@gmail.com) was removed from the system on 28 Oct 2026. This was done in the wake of the recent Railway.com global outage, as part of tightening up all our loose ends and rotating all our env vars.
+- **Leavers lose all access**: the daily Staff Portal sync (`app/lib/staff-portal/run-sync.ts`) now, for anyone marked inactive, also resets job level to staff and roles to standard, clears tool grants and toolkit access, and deletes module grants and sessions (not just `access_enabled`). It skips the Super Admin and vendor accounts.
+- **DB**: `supabase/alert_recipients.sql` was run in production by Madhu on 28 Oct 2026.

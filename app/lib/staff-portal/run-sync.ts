@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { fetchAllStaffPortal } from './client'
 import { applyRoleAccessMapping } from '@/app/lib/hrms/apply-role-access-map'
 import { sanitizeAccessRoles } from '@/app/lib/access/access-roles'
+import { isSuperAdminEmail } from '@/app/lib/access/super-admin'
 import type {
   StaffPortalUmbrella, StaffPortalEvent, StaffPortalStaff, StaffPortalRole,
   StaffPortalAssignment, StaffPortalAllocation, StaffPortalTimesheet, StaffPortalLeaveBalance,
@@ -63,6 +64,14 @@ function deriveJobLevel(designation: string | null, existingLevel?: string): str
   ) return 'team_lead'
 
   return 'staff'
+}
+
+/** Synced roles minus any admin role, plus whatever admin role the person already holds in EventPilot (`super_admin` is never kept: it belongs to one fixed email, see super-admin.ts). */
+function withKeptAdminRoles(synced: string[], current: string[] | null | undefined): string[] {
+  const ordinary = synced.filter(r => r !== 'admin' && r !== 'super_admin')
+  const kept = (current ?? []).includes('admin') ? ['admin'] : []
+  const all = [...ordinary, ...kept]
+  return all.length ? all : ['standard']
 }
 
 export async function runStaffPortalSync() {
@@ -139,7 +148,7 @@ export async function runStaffPortalSync() {
   const rolesByUser: Record<string, string[]> = {}
   for (const r of roles) (rolesByUser[r.user_id] ??= []).push(r.role)
 
-  const { data: existingStaff } = await supabaseAdmin.from('staff_members').select('email, profile_complete, job_level, account_type')
+  const { data: existingStaff } = await supabaseAdmin.from('staff_members').select('email, profile_complete, job_level, account_type, access_roles')
   const existingMap = Object.fromEntries((existingStaff ?? []).map(s => [s.email.toLowerCase(), s]))
 
   // External vendors (e.g. a former employee converted to a vendor) are managed in
@@ -185,7 +194,8 @@ export async function runStaffPortalSync() {
       // Semantics never confirmed — see migration comment. Captured raw,
       // not wired into the existing timesheet_exempted column.
       timesheet_self_entry:     p.timesheet_self_entry ?? null,
-      access_roles:             sanitizeAccessRoles(rolesByUser[p.id]),
+      // Staff Portal can never grant or remove System Admin status (the Super Admin does that in EventPilot): its admin roles are ignored, and what is already set here is kept.
+      access_roles:             withKeptAdminRoles(sanitizeAccessRoles(rolesByUser[p.id]), existingMap[email]?.access_roles as string[] | null | undefined),
       data_source:              'staff_portal',
       last_synced_at:           new Date().toISOString(),
     }
@@ -198,6 +208,21 @@ export async function runStaffPortalSync() {
   const { error: staffErr } = await supabaseAdmin.from('staff_members')
     .upsert(staffRows, { onConflict: 'email', ignoreDuplicates: false })
   if (staffErr) throw new Error(`Staff upsert failed: ${staffErr.message}`)
+
+  // ── Leavers: everyone Staff Portal marks inactive loses ALL access here, not just the login switch ──
+  // (the Super Admin is never touched by this; a mistaken inactive flag must not lock the owner out)
+  const leaverEmails = staffPortalStaff
+    .filter(p => p.is_active === false && p.email && !isSuperAdminEmail(p.email) && existingMap[p.email.trim().toLowerCase()]?.account_type !== 'vendor')
+    .map(p => p.email.trim().toLowerCase())
+  if (leaverEmails.length) {
+    const { data: leavers } = await supabaseAdmin.from('staff_members').select('id').in('email', leaverEmails)
+    const ids = (leavers ?? []).map(l => l.id as string)
+    if (ids.length) {
+      await supabaseAdmin.from('staff_members').update({ job_level: 'staff', access_roles: ['standard'], access_enabled: false, tool_grants: {}, toolkit_access: false }).in('id', ids)
+      await supabaseAdmin.from('module_access').delete().in('staff_id', ids)
+      await supabaseAdmin.from('active_sessions').delete().in('staff_id', ids)
+    }
+  }
 
   // ── Resolve manager links ───────────────────────────────────────────────
   // Vendors are left out so their old assignments/timesheets/leave never re-link to them.

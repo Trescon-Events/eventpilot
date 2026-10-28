@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from 'react'
 import { useSearchParams } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader'
+import SyncHealthCard from '@/app/components/hubspot/SyncHealthCard'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
 import { Button, Card, Input, Select, SearchableSelect, Toast } from '@/app/components/ui'
 import { FormType, FORM_TYPES, FORM_TITLES, PROPERTY_TITLES, FieldSchema } from '@/app/lib/forms/types'
@@ -440,6 +441,8 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
                 )}
               </div>
             </Card>
+
+            <SyncHealthCard eventId={eventId} formType={formType} canManage={canManage} />
 
             <div style={{ marginTop: '16px', display: 'grid', gap: '8px' }}>
               {(connection.cached_fields ?? []).map((f: HubSpotFormField) => {

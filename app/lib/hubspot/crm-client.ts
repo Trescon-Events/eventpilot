@@ -281,3 +281,39 @@ export async function createFormSubmissionWebhookWorkflow(formId: string, workfl
   const data = (await res.json()) as { id: string; name: string }
   return { id: data.id, name: data.name }
 }
+
+// ---- Workflow health ---------------------------------------------------------------------------------------------------------------------------------------
+// `shouldReEnroll: true` alone is not enough: a contact who submits the form a SECOND time only re-fires the workflow when the form-submission filter is also
+// listed under `reEnrollmentTriggersFilterBranches`. Found missing on two live workflows on 27 Oct 2026 (every repeat submission silently never reached EventPilot).
+type FlowShape = {
+  isEnabled?: boolean
+  enrollmentCriteria?: { shouldReEnroll?: boolean; listFilterBranch?: { filterBranches?: unknown[] }; reEnrollmentTriggersFilterBranches?: unknown[] }
+  actions?: { type?: string; webhookUrl?: string }[]
+}
+
+export type WorkflowHealth = { ok: boolean; enabled: boolean; reEnroll: boolean; trigger: boolean; webhook: boolean; problem: string | null }
+
+export async function checkFormWorkflow(workflowId: string, formId: string): Promise<WorkflowHealth> {
+  const f = (await (await hubspotFetch(`/automation/v4/flows/${workflowId}`)).json()) as FlowShape
+  const ec = f.enrollmentCriteria
+  const enabled = !!f.isEnabled, reEnroll = !!ec?.shouldReEnroll, trigger = (ec?.reEnrollmentTriggersFilterBranches?.length ?? 0) > 0
+  const webhook = (f.actions ?? []).some(a => a.type === 'WEBHOOK' && a.webhookUrl?.includes(`hubspot_form_id=${formId}`))
+  const problem = !enabled ? 'The workflow is switched off in HubSpot.'
+    : !webhook ? 'The workflow no longer sends the webhook to EventPilot for this form.'
+    : !reEnroll || !trigger ? 'The workflow does not re-enroll people who submit the form again, so repeat submissions never reach EventPilot.'
+    : null
+  return { ok: !problem, enabled, reEnroll, trigger, webhook, problem }
+}
+
+/** Puts the re-enrollment trigger back (same form-submission filter the workflow already enrols on). Touches nothing else; returns false when there was nothing to fix. */
+export async function repairFormWorkflowReEnrollment(workflowId: string): Promise<boolean> {
+  const f = (await (await hubspotFetch(`/automation/v4/flows/${workflowId}`)).json()) as FlowShape & Record<string, unknown>
+  const ec = f.enrollmentCriteria
+  const branch = ec?.listFilterBranch?.filterBranches?.[0]
+  if (!ec || !branch) throw new Error('The workflow has no form-submission trigger to copy; fix it in HubSpot.')
+  if (ec.shouldReEnroll && (ec.reEnrollmentTriggersFilterBranches?.length ?? 0) > 0) return false
+  ec.shouldReEnroll = true
+  ec.reEnrollmentTriggersFilterBranches = [JSON.parse(JSON.stringify(branch))]
+  await hubspotFetch(`/automation/v4/flows/${workflowId}`, { method: 'PUT', body: JSON.stringify(f) })
+  return true
+}
