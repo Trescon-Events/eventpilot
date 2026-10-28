@@ -854,7 +854,7 @@ function AdminPageInner() {
             events:       '#12C9BD',
             review:       '#F1667A',
             security:     '#6285EA',
-            'super-admin': '#F5B94D',
+            'super-admin': 'var(--amber)',
             toolkit:      '#0EA79D',
             finance:      '#5AA9F2',
             hr:           '#A78BFA',

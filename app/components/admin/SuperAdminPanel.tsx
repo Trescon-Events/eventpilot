@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button, Card } from '@/app/components/ui'
 
 /* Admin > Super Admin (visible and usable only to the fixed Super Admin; every call below is re-checked on the server).
@@ -23,12 +23,6 @@ export default function SuperAdminPanel() {
   const [pickAdmin, setPickAdmin] = useState('')
   const [pickRecipient, setPickRecipient] = useState<Record<string, string>>({})
 
-  const load = useCallback(async () => {
-    const [s, a] = await Promise.all([fetch('/api/super-admin/staff'), fetch('/api/super-admin/alerts')])
-    const sd = await s.json().catch(() => ({})), ad = await a.json().catch(() => ({}))
-    if (!s.ok || !a.ok) { setMsg({ text: sd.error ?? ad.error ?? 'Could not load.', error: true }); return }
-    setStaff(sd.staff); setKinds(ad.types)
-  }, [])
   useEffect(() => { let live = true; Promise.all([fetch('/api/super-admin/staff'), fetch('/api/super-admin/alerts')]).then(async ([s, a]) => { const sd = await s.json().catch(() => ({})), ad = await a.json().catch(() => ({})); if (!live) return; if (!s.ok || !a.ok) setMsg({ text: sd.error ?? ad.error ?? 'Could not load.', error: true }); else { setStaff(sd.staff); setKinds(ad.types) } }); return () => { live = false } }, [])
 
   async function saveRoles(p: Staff, roles: string[]) {
