@@ -3761,3 +3761,11 @@ WPS cannot be emailed, so step 3 is now "Client link": one open link per drop, n
 - Client's Approve box has an optional note (`badge_approval_rounds.client_note`, `supabase/badge_client_note_migration.sql`); shown to the producer and in the notification. A note counts as "approved with comments".
 - Per-batch "Client approval not required" checkbox (`badge_batches.client_approval_waived_at/_by`, `supabase/badge_client_waiver_migration.sql`, actions `waive`/`unwaive` in the client-approval route, `waiverHolds` in `client-approval.ts`). Void if the batch is re-approved after it was recorded.
 - Both migrations were run in production by Madhu on 28 Oct 2026.
+
+## Logistics module — Arrival & Travel (28 Oct 2026) — NOT PUSHED
+Speakers give flight/arrival/departure details through a private mobile link so DET (Dubai Dept of Economy and Tourism) can arrange airport reception. Per-event switch.
+- **DB (not yet run):** `supabase/arrival_travel_migration.sql` — `event_travel_settings` (enabled, deadline, DET contact + live-link token), `speaker_travel` (one row per speaker, token, arrival/departure fields, who filled it), `speaker_travel_log`.
+- **Producer page:** `/admin/events/[id]/stakeholders/logistics` (menu item "Logistics"; more sections for partners/sponsors planned; internal names stay `travel`): switch on/off, deadline, DET contact, Excel download, email live link to DET, speaker table (UAE hidden by default, status filters), editable email (`{{link}}` = personal link). Sends via `sendSpeakerEmail` so it goes as the speaker's producer with Additional Contacts on Cc.
+- **Speaker page:** `/public/travel/[token]` (+ `/api/public/travel/[token]`): mobile form, "who is filling this in", "no airport reception needed" tick, anyone with the link can view/edit; every save logged + producer notified.
+- **DET page:** `/public/travel-det/[token]`: live read-only table, refreshes every 30 s.
+- Code: `app/lib/travel/travel.ts`, `app/api/events/stakeholders/travel/route.ts`.

@@ -898,6 +898,12 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
               )}
             </>
           )}
+          {can('sae.stakeholders.edit') && (
+            <Link href={`/admin/events/${eventId}/stakeholders/logistics`}
+              style={{ display: 'block', padding: '9px 12px', borderRadius: '8px', textDecoration: 'none', fontFamily: 'inherit', fontSize: '15px', fontWeight: 700, color: 'var(--ink3)' }}>
+              Logistics
+            </Link>
+          )}
           <button onClick={() => setActiveTab(INVITES_KEY)}
             style={{
               display: 'flex', alignItems: 'center', gap: '8px',
