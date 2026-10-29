@@ -15,7 +15,7 @@ export type TravelRow = {
   dep_flight: string | null; dep_class: TravelClass | null; dep_date: string | null; dep_time: string | null
   phone: string | null; submitted_by: string | null; submitted_at: string | null; updated_at: string; invited_at: string | null
 }
-export type TravelSettings = { event_id: string; enabled: boolean; deadline: string | null; det_name: string | null; det_email: string | null; det_token: string | null; det_sent_at: string | null }
+export type TravelSettings = { event_id: string; enabled: boolean; deadline: string | null; det_name: string | null; det_email: string | null; det_token: string | null; det_sent_at: string | null; notify_staff_ids: string[] }
 
 export const newToken = () => crypto.randomBytes(24).toString('hex')
 export const travelLink = (token: string) => `${siteUrl()}/public/travel/${token}`
@@ -26,7 +26,7 @@ export const isUaeCountry = (c: string | null | undefined) => /^(uae|ae|u\.a\.e\
 
 export async function loadSettings(eventId: string): Promise<TravelSettings> {
   const { data } = await supabaseAdmin.from('event_travel_settings').select('*').eq('event_id', eventId).maybeSingle()
-  return (data as TravelSettings | null) ?? { event_id: eventId, enabled: false, deadline: null, det_name: null, det_email: null, det_token: null, det_sent_at: null }
+  return (data as TravelSettings | null) ?? { event_id: eventId, enabled: false, deadline: null, det_name: null, det_email: null, det_token: null, det_sent_at: null, notify_staff_ids: [] }
 }
 
 /** The travel row for a speaker, created (with its private token) on first use. */
@@ -76,5 +76,7 @@ export function validateTravel(i: TravelInput): { ok: true; by: string; values: 
   }
   return { ok: true, by, values }
 }
+
+export const DEFAULT_DET_NOTE = (eventName: string) => `This is the live list of speaker arrival and departure details for ${eventName}, for airport reception. It updates by itself as each speaker submits, so you can keep this one link and check it any time. Some speakers are still to respond.`
 
 export const DEFAULT_EMAIL_BODY = (eventName: string, deadlineText: string | null) => `<p>We are looking forward to welcoming you to Dubai for ${eventName}. The Dubai Department of Economy and Tourism (DET) is arranging airport reception for our speakers, and we need your travel details to set it up.</p><p>It takes about a minute and works on your phone:</p><p><strong>{{link}}</strong></p><p>You will be asked for your flight number, travel class, arrival date and time, your departure flight if you know it, and a mobile or WhatsApp number we can reach you on at the airport. Your assistant can fill it in for you using the same link, and if your plans change you can update it there at any time.</p><p>Could you complete it${deadlineText ? ` by ${deadlineText}` : ' as soon as you can'}? If you do not need airport reception, just tick that option on the same page and submit.</p>`

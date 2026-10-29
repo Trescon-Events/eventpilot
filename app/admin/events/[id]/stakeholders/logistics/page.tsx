@@ -2,7 +2,7 @@
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
-import { Badge, Button, Card, Input, Textarea } from '@/app/components/ui'
+import { Badge, Button, Card, Input, Select, Textarea } from '@/app/components/ui'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import { notify } from '@/app/lib/ui/notify'
 
@@ -15,7 +15,7 @@ type Row = {
   speaker_id: string; name: string; company: string | null; country: string | null; producer: string | null; email_state: 'own' | 'contact' | 'none'; is_uae: boolean; status: Status; link: string | null
   travel: { arr_flight: string | null; arr_date: string | null; arr_time: string | null; dep_date: string | null; submitted_by: string | null; updated_at: string } | null
 }
-type Settings = { enabled: boolean; deadline: string | null; det_name: string | null; det_email: string | null; det_link: string | null; det_sent_at: string | null }
+type Settings = { notify_staff_ids?: string[]; enabled: boolean; deadline: string | null; det_name: string | null; det_email: string | null; det_link: string | null; det_sent_at: string | null }
 type Filter = 'all' | Status
 
 const STATUS = {
@@ -40,6 +40,9 @@ export default function TravelPage({ params }: { params: Promise<{ id: string }>
   const [deadline, setDeadline] = useState('')
   const [detName, setDetName] = useState('')
   const [detEmail, setDetEmail] = useState('')
+  const [detNote, setDetNote] = useState('')
+  const [notifyIds, setNotifyIds] = useState<string[]>([])
+  const [staff, setStaff] = useState<{ id: string; name: string }[]>([])
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [hideUae, setHideUae] = useState(true)
   const [filter, setFilter] = useState<Filter>('all')
@@ -58,6 +61,7 @@ export default function TravelPage({ params }: { params: Promise<{ id: string }>
       if (!r.ok) { setLoadError(d.error ?? 'Could not load this page.'); return }
       setSettings(d.settings); setRows(d.rows); setCanEdit(!!d.can_edit); setDefaultBody(d.default_body)
       setDeadline(d.settings.deadline ?? ''); setDetName(d.settings.det_name ?? ''); setDetEmail(d.settings.det_email ?? '')
+      setNotifyIds(d.settings.notify_staff_ids ?? []); setStaff(d.staff ?? []); setDetNote(n => n || d.default_det_note || '')
       setBody(b => (bodyTouched.current ? b : toText(d.default_body)))
     }).catch(() => live && setLoadError('Could not load this page.'))
     fetch(`/api/events?id=${eventId}`).then(r => r.json()).then(ed => { const ev = Array.isArray(ed) ? ed[0] : ed; if (live) setEventName(ev?.public_name || ev?.name || null) }).catch(() => undefined)
@@ -103,13 +107,15 @@ export default function TravelPage({ params }: { params: Promise<{ id: string }>
     setPicked(new Set()); reload()
   }
 
-  async function emailDet() {
+  async function sendDet() {
     setBusy('det')
-    const r = await fetch('/api/events/stakeholders/travel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, action: 'send_det' }) })
+    const save = await fetch('/api/events/stakeholders/travel', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, det_name: detName, det_email: detEmail }) })
+    if (!save.ok) { const d = await save.json().catch(() => ({})); setBusy(null); notify(d.error ?? 'Could not save the DET contact.', 'error'); return }
+    const r = await fetch('/api/events/stakeholders/travel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, action: 'send_det', message: detNote }) })
     const d = await r.json().catch(() => ({}))
     setBusy(null)
     if (!r.ok) { notify(d.error ?? 'Could not send.', 'error'); return }
-    notify('Link emailed to the DET contact.'); reload()
+    notify('Sent to the DET contact.'); reload()
   }
 
   async function copy(text: string, what: string) { try { await navigator.clipboard.writeText(text); notify(`${what} copied.`) } catch { notify('Could not copy.', 'error') } }
@@ -138,18 +144,55 @@ export default function TravelPage({ params }: { params: Promise<{ id: string }>
           <>
             <Card padded>
               <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '12px' }}>Setup</div>
+              <div style={{ maxWidth: '260px' }}><label style={label}>Deadline for speakers</label><Input type="date" value={deadline} disabled={!canEdit} onChange={e => setDeadline(e.target.value)} /></div>
+              <div style={{ marginTop: '16px' }}>
+                <label style={label}>Who is notified when a speaker submits or changes their details</label>
+                <p style={{ margin: '0 0 8px', fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6 }}>Each speaker’s own producer is always notified in EventPilot. People you add here are notified in EventPilot and by email, for every speaker on this event.</p>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                  {notifyIds.length === 0 && <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>Nobody added yet.</span>}
+                  {notifyIds.map(id => (
+                    <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 12px', borderRadius: '20px', border: '1.5px solid var(--border)', fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>
+                      {staff.find(x => x.id === id)?.name ?? 'Someone'}
+                      {canEdit && <button onClick={() => setNotifyIds(n => n.filter(x => x !== id))} aria-label="Remove" style={{ border: 'none', background: 'none', color: 'var(--ink3)', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: 0 }}>×</button>}
+                    </span>
+                  ))}
+                </div>
+                {canEdit && (
+                  <Select value="" onChange={e => { const v = e.target.value; if (v) setNotifyIds(n => (n.includes(v) ? n : [...n, v])) }} style={{ maxWidth: '320px' }}>
+                    <option value="">Add a person…</option>
+                    {staff.filter(x => !notifyIds.includes(x.id)).map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+                  </Select>
+                )}
+              </div>
+              {canEdit && <div style={{ marginTop: '14px' }}><Button variant="lime" disabled={busy === 'settings'} onClick={() => void saveSettings({ deadline: deadline || null, notify_staff_ids: notifyIds }, 'Saved.')}>Save</Button></div>}
+            </Card>
+
+            <Card padded>
+              <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Share with DET</div>
+              <p style={{ margin: '0 0 12px', fontSize: '13.5px', color: 'var(--ink3)', lineHeight: 1.6 }}>Sends the DET contact a short note with a link to a live, read-only page of all the arrival and departure details. It updates by itself as speakers submit, so you only need to send it once. You can also download the same details as Excel at any time.</p>
               <div style={{ display: 'grid', gap: '12px', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-                <div><label style={label}>Deadline for speakers</label><Input type="date" value={deadline} disabled={!canEdit} onChange={e => setDeadline(e.target.value)} /></div>
                 <div><label style={label}>DET contact name</label><Input value={detName} disabled={!canEdit} onChange={e => setDetName(e.target.value)} placeholder="Name" /></div>
                 <div><label style={label}>DET contact email</label><Input type="email" value={detEmail} disabled={!canEdit} onChange={e => setDetEmail(e.target.value)} placeholder="name@det.gov.ae" /></div>
               </div>
+              {canEdit && (
+                <div style={{ marginTop: '14px', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden', background: 'var(--surface)' }}>
+                  <div style={{ padding: '12px 16px', background: 'var(--surface2)', borderBottom: '1px solid var(--border-light)', fontSize: '14.5px', color: 'var(--ink2)' }}>
+                    <span style={{ fontSize: '11.5px', fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--ink4)', marginRight: '10px' }}>Added automatically</span>
+                    Dear {detName.trim() || '[DET contact]'},
+                  </div>
+                  <Textarea rows={5} value={detNote} onChange={e => setDetNote(e.target.value)} aria-label="Note to the DET contact" style={{ display: 'block', width: '100%', boxSizing: 'border-box', border: 'none', borderRadius: 0, padding: '14px 16px', fontSize: '15px', lineHeight: 1.7, background: 'var(--card)', resize: 'vertical' }} />
+                  <div style={{ padding: '12px 16px', background: 'var(--surface2)', borderTop: '1px solid var(--border-light)', fontSize: '14.5px', color: 'var(--ink2)', lineHeight: 1.6 }}>
+                    <span style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: '6px' }}>Added automatically</span>
+                    A button linking to the live speaker arrivals page<br />Kind regards, Trescon Events
+                  </div>
+                </div>
+              )}
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '14px' }}>
-                {canEdit && <Button variant="lime" disabled={busy === 'settings'} onClick={() => void saveSettings({ deadline: deadline || null, det_name: detName, det_email: detEmail }, 'Saved.')}>Save</Button>}
-                <Button variant="ghost" href={`/api/events/stakeholders/travel?event_id=${eventId}&format=xlsx`}>Download Excel for DET</Button>
-                {canEdit && <Button variant="ghost" disabled={busy === 'det' || !settings.det_email} title={settings.det_email ? '' : 'Save the DET contact first'} onClick={() => void emailDet()}>{settings.det_sent_at ? 'Email the DET link again' : 'Email the live link to DET'}</Button>}
-                {settings.det_link && <Button variant="ghost" onClick={() => void copy(settings.det_link!, 'DET link')}>Copy DET link</Button>}
+                {canEdit && <Button variant="lime" disabled={!!busy || !detEmail.trim()} onClick={() => void sendDet()}>{busy === 'det' ? 'Sending…' : settings.det_sent_at ? 'Send to DET again' : 'Send to DET'}</Button>}
+                {settings.det_link && <Button variant="ghost" onClick={() => void copy(settings.det_link!, 'DET link')}>Copy live link</Button>}
+                <Button variant="ghost" href={`/api/events/stakeholders/travel?event_id=${eventId}&format=xlsx`}>Download Excel</Button>
               </div>
-              {settings.det_sent_at && <p style={{ margin: '10px 0 0', fontSize: '13px', color: 'var(--ink3)' }}>Last emailed to the DET contact {new Date(settings.det_sent_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}. The link shows the details live, read-only.</p>}
+              {settings.det_sent_at && <p style={{ margin: '10px 0 0', fontSize: '13px', color: 'var(--ink3)' }}>Last sent to the DET contact {new Date(settings.det_sent_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}. The link stays live; there is no need to send it again when more speakers submit.</p>}
             </Card>
 
             <Card padded>

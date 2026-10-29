@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { notifyStaff } from '@/app/lib/notify'
+import { sendSystemMail } from '@/app/lib/email/system-mail'
+import { siteUrl } from '@/app/lib/badges/client-approval'
 import { loadSettings, validateTravel, type TravelRow } from '@/app/lib/travel/travel'
 
 /* The speaker's (or their assistant's) side of Arrival & Travel — public (under /api/public), reachable only with the speaker's private token.
@@ -61,10 +63,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
   if (first || changed.length) {
     const name = ((sp.public_name as string) || (sp.name as string) || 'A speaker').trim()
-    if (sp.producer_staff_id) await notifyStaff([sp.producer_staff_id as string], {
-      type: 'travel_details', title: first ? `${name} shared travel details` : `${name} changed travel details`, body: `${v.by} — ${summary.toLowerCase()} (${eventName}).`,
-      link: `/admin/events/${row.event_id}/stakeholders/logistics`, eventId: row.event_id,
-    })
+    // The speaker's own producer plus everyone chosen by name in the module's setup (bell for all; email for the chosen people).
+    const chosen = ctx.settings.notify_staff_ids ?? []
+    const title = first ? `${name} shared travel details` : `${name} changed travel details`
+    const text = `${v.by} — ${summary.toLowerCase()} (${eventName}).`
+    const link = `/admin/events/${row.event_id}/stakeholders/logistics`
+    await notifyStaff([...(sp.producer_staff_id ? [sp.producer_staff_id as string] : []), ...chosen], { type: 'travel_details', title, body: text, link, eventId: row.event_id })
+    if (chosen.length) {
+      const { data: people } = await supabaseAdmin.from('staff_members').select('email').in('id', chosen)
+      const to = (people ?? []).map(p => p.email as string).filter(Boolean)
+      // Email HTML needs literal colours (mail clients cannot read CSS variables).
+      /* eslint-disable no-restricted-syntax */
+      if (to.length) await sendSystemMail({ to, subject: title, html: `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6;color:#1A2530;max-width:560px"><p><strong>${title}</strong></p><p>${text}</p><p><a href="${siteUrl()}${link}" style="color:#00807E;font-weight:bold">Open Logistics</a></p></div>` }).catch(e => console.error('[travel] notify email failed:', e instanceof Error ? e.message : e))
+      /* eslint-enable no-restricted-syntax */
+    }
   }
   return NextResponse.json({ ok: true })
 }

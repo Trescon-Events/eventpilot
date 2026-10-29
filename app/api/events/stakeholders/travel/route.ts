@@ -6,7 +6,7 @@ import { checkEmailCompliance, htmlToPlainText } from '@/app/lib/guest-invites/t
 import { cleanBodyHtml, hasContent } from '@/app/lib/speaker-emails/render'
 import { loadSpeakerList, sendSpeakerEmail, type SendOne } from '@/app/lib/speaker-emails/server'
 import { sendSystemMail } from '@/app/lib/email/system-mail'
-import { CLASS_LABEL, DEFAULT_EMAIL_BODY, detLink, ensureTravelRow, isUaeCountry, loadSettings, newToken, travelLink, type TravelRow } from '@/app/lib/travel/travel'
+import { CLASS_LABEL, DEFAULT_DET_NOTE, DEFAULT_EMAIL_BODY, detLink, ensureTravelRow, isUaeCountry, loadSettings, newToken, travelLink, type TravelRow } from '@/app/lib/travel/travel'
 
 /* Arrival & Travel — producer side.
    GET  ?event_id=            settings, the default email, and every speaker with their travel status (+ ?format=xlsx for the formatted Excel for DET)
@@ -72,12 +72,14 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     settings: { ...settings, det_link: settings.det_token ? detLink(settings.det_token) : null, det_token: undefined },
     default_body: DEFAULT_EMAIL_BODY(await eventNameOf(eventId), fmtDeadline(settings.deadline)),
+    default_det_note: DEFAULT_DET_NOTE(await eventNameOf(eventId)),
+    staff: canEdit ? ((await supabaseAdmin.from('staff_members').select('id, name').eq('access_enabled', true).order('name')).data ?? []) : [],
     rows, can_edit: canEdit,
   })
 }
 
 export async function PUT(req: NextRequest) {
-  const b = await req.json().catch(() => null) as { event_id?: string; enabled?: boolean; deadline?: string | null; det_name?: string | null; det_email?: string | null } | null
+  const b = await req.json().catch(() => null) as { event_id?: string; enabled?: boolean; deadline?: string | null; det_name?: string | null; det_email?: string | null; notify_staff_ids?: string[] } | null
   if (!b?.event_id) return NextResponse.json({ error: 'event_id is required' }, { status: 400 })
   const denied = await requireGuestInviteAccess(req, b.event_id, 'edit'); if (denied) return denied
   const cur = await loadSettings(b.event_id)
@@ -93,14 +95,19 @@ export async function PUT(req: NextRequest) {
     if (e && !EMAIL.test(e)) return NextResponse.json({ error: 'That is not a valid email address.' }, { status: 400 })
     next.det_email = e || null
   }
+  if (b.notify_staff_ids !== undefined) {
+    const ids = [...new Set((Array.isArray(b.notify_staff_ids) ? b.notify_staff_ids : []).filter(x => typeof x === 'string'))].slice(0, 30)
+    const { data: found } = ids.length ? await supabaseAdmin.from('staff_members').select('id').in('id', ids) : { data: [] as { id: string }[] }
+    next.notify_staff_ids = (found ?? []).map(f => f.id as string)
+  }
   if (!next.det_token) next.det_token = newToken()
-  const { error } = await supabaseAdmin.from('event_travel_settings').upsert({ event_id: b.event_id, enabled: next.enabled, deadline: next.deadline, det_name: next.det_name, det_email: next.det_email, det_token: next.det_token, det_sent_at: next.det_sent_at, updated_at: new Date().toISOString() }, { onConflict: 'event_id' })
+  const { error } = await supabaseAdmin.from('event_travel_settings').upsert({ event_id: b.event_id, enabled: next.enabled, deadline: next.deadline, det_name: next.det_name, det_email: next.det_email, det_token: next.det_token, det_sent_at: next.det_sent_at, notify_staff_ids: next.notify_staff_ids, updated_at: new Date().toISOString() }, { onConflict: 'event_id' })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }
 
 export async function POST(req: NextRequest) {
-  const b = await req.json().catch(() => null) as { event_id?: string; action?: string; speaker_ids?: string[]; body_html?: string; batch_id?: string } | null
+  const b = await req.json().catch(() => null) as { event_id?: string; action?: string; speaker_ids?: string[]; body_html?: string; batch_id?: string; message?: string } | null
   if (!b?.event_id) return NextResponse.json({ error: 'event_id is required' }, { status: 400 })
   const denied = await requireGuestInviteAccess(req, b.event_id, 'edit'); if (denied) return denied
   const session = getSession(req)
@@ -111,9 +118,12 @@ export async function POST(req: NextRequest) {
     if (!settings.det_email || !settings.det_token) return NextResponse.json({ error: 'Add the DET contact’s name and email first.' }, { status: 422 })
     const name = await eventNameOf(b.event_id)
     const link = detLink(settings.det_token)
+    const note = (b.message ?? '').trim().slice(0, 1500) || DEFAULT_DET_NOTE(name)
+    const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const paras = note.split(/\n{2,}/).map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('')
     // Email HTML needs literal colours (mail clients cannot read CSS variables).
     /* eslint-disable no-restricted-syntax */
-    const html = `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6;color:#1A2530;max-width:560px"><p>Dear ${settings.det_name ?? 'colleague'},</p><p>This is the live list of speaker arrival and departure details for <strong>${name}</strong>. It updates by itself as each speaker submits, so you can keep this one link.</p><p><a href="${link}" style="color:#00807E;font-weight:bold">Open the speaker arrivals</a></p><p>Kind regards,<br>Trescon Events</p></div>`
+    const html = `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6;color:#1A2530;max-width:560px"><p>Dear ${esc(settings.det_name ?? 'colleague')},</p>${paras}<p><a href="${link}" style="color:#00807E;font-weight:bold">Open the speaker arrivals</a></p><p>Kind regards,<br>Trescon Events</p></div>`
     /* eslint-enable no-restricted-syntax */
     try { await sendSystemMail({ to: settings.det_email, subject: `Speaker arrivals — ${name}`, html }) } catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : 'Could not send the email.' }, { status: 502 }) }
     await supabaseAdmin.from('event_travel_settings').update({ det_sent_at: new Date().toISOString() }).eq('event_id', b.event_id)

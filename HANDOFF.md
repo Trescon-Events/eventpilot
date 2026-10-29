@@ -3769,3 +3769,4 @@ Speakers give flight/arrival/departure details through a private mobile link so 
 - **Speaker page:** `/public/travel/[token]` (+ `/api/public/travel/[token]`): mobile form, "who is filling this in", "no airport reception needed" tick, anyone with the link can view/edit; every save logged + producer notified.
 - **DET page:** `/public/travel-det/[token]`: live read-only table, refreshes every 30 s.
 - Code: `app/lib/travel/travel.ts`, `app/api/events/stakeholders/travel/route.ts`.
+- **Logistics update (29 Oct 2026, NOT PUSHED):** "Who is notified" picker in Setup (`event_travel_settings.notify_staff_ids`, `supabase/arrival_travel_notify_migration.sql` — run by hand): chosen people get the bell + an email for every speaker's submission/change, on top of the speaker's own producer (bell). New "Share with DET" card: DET name/email, editable note, Send (saves contact first), Copy live link, Excel; the DET page stays live (30 s refresh).
