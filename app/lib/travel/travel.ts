@@ -15,7 +15,7 @@ export type TravelRow = {
   dep_flight: string | null; dep_class: TravelClass | null; dep_date: string | null; dep_time: string | null
   phone: string | null; submitted_by: string | null; submitted_at: string | null; updated_at: string; invited_at: string | null
 }
-export type TravelSettings = { event_id: string; enabled: boolean; deadline: string | null; det_name: string | null; det_email: string | null; det_token: string | null; det_sent_at: string | null; notify_staff_ids: string[] }
+export type TravelSettings = { event_id: string; enabled: boolean; deadline: string | null; det_name: string | null; det_email: string | null; det_token: string | null; det_sent_at: string | null; notify_staff_ids: string[]; owner_staff_id: string | null }
 
 export const newToken = () => crypto.randomBytes(24).toString('hex')
 export const travelLink = (token: string) => `${siteUrl()}/public/travel/${token}`
@@ -26,7 +26,7 @@ export const isUaeCountry = (c: string | null | undefined) => /^(uae|ae|u\.a\.e\
 
 export async function loadSettings(eventId: string): Promise<TravelSettings> {
   const { data } = await supabaseAdmin.from('event_travel_settings').select('*').eq('event_id', eventId).maybeSingle()
-  return (data as TravelSettings | null) ?? { event_id: eventId, enabled: false, deadline: null, det_name: null, det_email: null, det_token: null, det_sent_at: null, notify_staff_ids: [] }
+  return (data as TravelSettings | null) ?? { event_id: eventId, enabled: false, deadline: null, det_name: null, det_email: null, det_token: null, det_sent_at: null, notify_staff_ids: [], owner_staff_id: null }
 }
 
 /** The travel row for a speaker, created (with its private token) on first use. */

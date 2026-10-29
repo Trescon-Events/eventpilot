@@ -63,18 +63,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
   if (first || changed.length) {
     const name = ((sp.public_name as string) || (sp.name as string) || 'A speaker').trim()
-    // The speaker's own producer plus everyone chosen by name in the module's setup (bell for all; email for the chosen people).
-    const chosen = ctx.settings.notify_staff_ids ?? []
+    // The speaker's own producer (bell) and the module's owner (bell + email) are told.
+    const owner = ctx.settings.owner_staff_id ?? null
     const title = first ? `${name} shared travel details` : `${name} changed travel details`
     const text = `${v.by} — ${summary.toLowerCase()} (${eventName}).`
     const link = `/admin/events/${row.event_id}/stakeholders/logistics`
-    await notifyStaff([...(sp.producer_staff_id ? [sp.producer_staff_id as string] : []), ...chosen], { type: 'travel_details', title, body: text, link, eventId: row.event_id })
-    if (chosen.length) {
-      const { data: people } = await supabaseAdmin.from('staff_members').select('email').in('id', chosen)
-      const to = (people ?? []).map(p => p.email as string).filter(Boolean)
+    await notifyStaff([...(sp.producer_staff_id ? [sp.producer_staff_id as string] : []), ...(owner ? [owner] : [])], { type: 'travel_details', title, body: text, link, eventId: row.event_id })
+    if (owner) {
+      const { data: person } = await supabaseAdmin.from('staff_members').select('email').eq('id', owner).maybeSingle()
       // Email HTML needs literal colours (mail clients cannot read CSS variables).
       /* eslint-disable no-restricted-syntax */
-      if (to.length) await sendSystemMail({ to, subject: title, html: `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6;color:#1A2530;max-width:560px"><p><strong>${title}</strong></p><p>${text}</p><p><a href="${siteUrl()}${link}" style="color:#00807E;font-weight:bold">Open Logistics</a></p></div>` }).catch(e => console.error('[travel] notify email failed:', e instanceof Error ? e.message : e))
+      if (person?.email) await sendSystemMail({ to: person.email as string, subject: title, html: `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6;color:#1A2530;max-width:560px"><p><strong>${title}</strong></p><p>${text}</p><p><a href="${siteUrl()}${link}" style="color:#00807E;font-weight:bold">Open Logistics</a></p></div>` }).catch(e => console.error('[travel] notify email failed:', e instanceof Error ? e.message : e))
       /* eslint-enable no-restricted-syntax */
     }
   }

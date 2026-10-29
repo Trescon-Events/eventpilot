@@ -5,7 +5,7 @@ import { requireGuestInviteAccess } from '@/app/lib/guest-invites/access'
 import { checkEmailCompliance, htmlToPlainText } from '@/app/lib/guest-invites/template'
 import { cleanBodyHtml, hasContent } from '@/app/lib/speaker-emails/render'
 import { loadSpeakerList, sendSpeakerEmail, type SendOne } from '@/app/lib/speaker-emails/server'
-import { sendSystemMail } from '@/app/lib/email/system-mail'
+import { sendKeyedThreadMail } from '@/app/lib/email/keyed-thread'
 import { CLASS_LABEL, DEFAULT_DET_NOTE, DEFAULT_EMAIL_BODY, detLink, ensureTravelRow, isUaeCountry, loadSettings, newToken, travelLink, type TravelRow } from '@/app/lib/travel/travel'
 
 /* Arrival & Travel — producer side.
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const b = await req.json().catch(() => null) as { event_id?: string; enabled?: boolean; deadline?: string | null; det_name?: string | null; det_email?: string | null; notify_staff_ids?: string[] } | null
+  const b = await req.json().catch(() => null) as { event_id?: string; enabled?: boolean; deadline?: string | null; det_name?: string | null; det_email?: string | null; owner_staff_id?: string | null } | null
   if (!b?.event_id) return NextResponse.json({ error: 'event_id is required' }, { status: 400 })
   const denied = await requireGuestInviteAccess(req, b.event_id, 'edit'); if (denied) return denied
   const cur = await loadSettings(b.event_id)
@@ -95,13 +95,15 @@ export async function PUT(req: NextRequest) {
     if (e && !EMAIL.test(e)) return NextResponse.json({ error: 'That is not a valid email address.' }, { status: 400 })
     next.det_email = e || null
   }
-  if (b.notify_staff_ids !== undefined) {
-    const ids = [...new Set((Array.isArray(b.notify_staff_ids) ? b.notify_staff_ids : []).filter(x => typeof x === 'string'))].slice(0, 30)
-    const { data: found } = ids.length ? await supabaseAdmin.from('staff_members').select('id').in('id', ids) : { data: [] as { id: string }[] }
-    next.notify_staff_ids = (found ?? []).map(f => f.id as string)
+  if (b.owner_staff_id !== undefined) {
+    if (b.owner_staff_id) {
+      const { data: o } = await supabaseAdmin.from('staff_members').select('id, email, access_enabled').eq('id', b.owner_staff_id).maybeSingle()
+      if (!o || !o.email || o.access_enabled === false) return NextResponse.json({ error: 'That person cannot be the owner (no active account with an email address).' }, { status: 400 })
+    }
+    next.owner_staff_id = b.owner_staff_id || null
   }
   if (!next.det_token) next.det_token = newToken()
-  const { error } = await supabaseAdmin.from('event_travel_settings').upsert({ event_id: b.event_id, enabled: next.enabled, deadline: next.deadline, det_name: next.det_name, det_email: next.det_email, det_token: next.det_token, det_sent_at: next.det_sent_at, notify_staff_ids: next.notify_staff_ids, updated_at: new Date().toISOString() }, { onConflict: 'event_id' })
+  const { error } = await supabaseAdmin.from('event_travel_settings').upsert({ event_id: b.event_id, enabled: next.enabled, deadline: next.deadline, det_name: next.det_name, det_email: next.det_email, det_token: next.det_token, det_sent_at: next.det_sent_at, owner_staff_id: next.owner_staff_id, updated_at: new Date().toISOString() }, { onConflict: 'event_id' })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }
@@ -116,16 +118,21 @@ export async function POST(req: NextRequest) {
 
   if (b.action === 'send_det') {
     if (!settings.det_email || !settings.det_token) return NextResponse.json({ error: 'Add the DET contact’s name and email first.' }, { status: 422 })
+    if (!settings.owner_staff_id) return NextResponse.json({ error: 'Choose the module owner first. The email to DET is sent from the owner’s own address.' }, { status: 422 })
+    const { data: owner } = await supabaseAdmin.from('staff_members').select('name, email, role').eq('id', settings.owner_staff_id).maybeSingle()
+    if (!owner?.email) return NextResponse.json({ error: 'The owner has no email address on file.' }, { status: 422 })
     const name = await eventNameOf(b.event_id)
     const link = detLink(settings.det_token)
     const note = (b.message ?? '').trim().slice(0, 1500) || DEFAULT_DET_NOTE(name)
     const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     const paras = note.split(/\n{2,}/).map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('')
+    const sign = [esc(owner.name as string), owner.role ? esc(owner.role as string) : '', 'Trescon', esc(owner.email as string)].filter(Boolean).join('<br>')
     // Email HTML needs literal colours (mail clients cannot read CSS variables).
     /* eslint-disable no-restricted-syntax */
-    const html = `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6;color:#1A2530;max-width:560px"><p>Dear ${esc(settings.det_name ?? 'colleague')},</p>${paras}<p><a href="${link}" style="color:#00807E;font-weight:bold">Open the speaker arrivals</a></p><p>Kind regards,<br>Trescon Events</p></div>`
+    const html = `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6;color:#1A2530;max-width:560px"><p>Dear ${esc(settings.det_name ?? 'colleague')},</p>${paras}<p><a href="${link}" style="color:#00807E;font-weight:bold">Open the speaker arrivals</a></p><p>Kind regards,<br><strong>${sign}</strong></p></div>`
     /* eslint-enable no-restricted-syntax */
-    try { await sendSystemMail({ to: settings.det_email, subject: `Speaker arrivals — ${name}`, html }) } catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : 'Could not send the email.' }, { status: 502 }) }
+    // Sent from the owner's own mailbox, in one Outlook thread per DET contact, so DET knows who to reply to and a resend stays in the same conversation.
+    try { await sendKeyedThreadMail(b.event_id, `travel-det:${settings.det_email.toLowerCase()}`, { senderEmail: owner.email as string, senderName: owner.name as string, to: settings.det_email, subject: `Speaker arrivals — ${name}`, html }) } catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : 'Could not send the email.' }, { status: 502 }) }
     await supabaseAdmin.from('event_travel_settings').update({ det_sent_at: new Date().toISOString() }).eq('event_id', b.event_id)
     return NextResponse.json({ ok: true })
   }
