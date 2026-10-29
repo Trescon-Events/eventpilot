@@ -66,6 +66,7 @@ export async function copyVariantToEvent(opts: {
     ...l,
     id: idMap.get(l.id)!,
     ...(l.type === 'text' && l.snap_below_layer_id ? { snap_below_layer_id: idMap.get(l.snap_below_layer_id) } : {}),
+    ...(l.type === 'text' && l.snap_above_layer_id ? { snap_above_layer_id: idMap.get(l.snap_above_layer_id) } : {}),
   }))
   const result: Variant = { ...copied, id: randomUUID(), name: `${variant.name || 'Untitled Variant'} (from ${sourceEventName})`, layers }
 

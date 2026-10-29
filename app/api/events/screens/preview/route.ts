@@ -30,7 +30,10 @@ export async function POST(req: NextRequest) {
   const l = b.look ?? {}
   const draft: LookDraft = {
     panel: l.panel === 'dark' ? 'dark' : 'light',
-    card_style: 'separate',
+    card_style: l.card_style === 'card' ? 'card' : 'separate',
+    use_website_photo: l.use_website_photo === true,
+    card_variant_id: typeof l.card_variant_id === 'string' && UUID.test(l.card_variant_id) ? l.card_variant_id : null,
+    type_styles: l.type_styles,
     dims: l.dims, head_scale: l.head_scale,
     font_id: typeof l.font_id === 'string' && UUID.test(l.font_id) ? l.font_id : null,
     background_url: typeof l.background_url === 'string' && /^https:\/\//.test(l.background_url) ? l.background_url : null,

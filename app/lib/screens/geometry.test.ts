@@ -102,3 +102,20 @@ test('head zoom works on a portrait frame', () => {
   assert.equal(Math.round(0.3 * z.enlargedH - z.top), Math.round(0.3 * 1200))
   assert.ok(z.left >= 0 && z.left <= 400 && z.top >= 0 && z.top <= 600)
 })
+
+/* eslint-disable no-restricted-syntax -- test colours */
+test('text styles: unknown elements and bad values are dropped, sizes forced into range', async () => {
+  const { clampTypeStyles } = await import('./geometry')
+  assert.deepEqual(clampTypeStyles(undefined), {})
+  const t = clampTypeStyles({ name: { weight: 700, size: 9999, color: '#ff0000', upper: false, fontId: 'nope' }, title: { weight: 550, color: 'red' }, bogus: { size: 40 }, country: { size: 5 } })
+  assert.deepEqual(t, { name: { weight: 700, size: 320, color: '#ff0000', upper: false }, country: { size: 20 } })
+})
+
+test('card-mode defaults: moderator tag follows the card width, sizes come from the layout dims', async () => {
+  const { typeDefaults } = await import('./geometry')
+  const ctx = { cardMode: true, dims: DEFAULT_DIMS, frameW: 2048, textColor: '#111111', accentColor: '#222222' }
+  assert.equal(typeDefaults('moderator', ctx).size, 128)
+  assert.equal(typeDefaults('topic', ctx).color, '#222222')
+  assert.equal(typeDefaults('name', ctx).upper, true)
+  assert.equal(typeDefaults('title', ctx).upper, false)
+})

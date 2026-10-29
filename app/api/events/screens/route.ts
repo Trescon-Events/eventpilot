@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { PANEL_DEFAULTS, loadScreenSessions, loadLook } from '@/app/lib/screens/data'
 import { MAX_PER_CALL, brief, generateScreens, requireScreens } from '@/app/lib/screens/service'
-import { clampDims, clampHeadScale, type Overrides } from '@/app/lib/screens/geometry'
+import { clampTypeStyles, clampDims, clampHeadScale, type Overrides } from '@/app/lib/screens/geometry'
 
 /* Stage Screens (Stakeholder Hub)
    GET   ?event_id            sessions with speakers (state: new / ready / changed), the look, fonts, stages, AV links
@@ -18,16 +18,19 @@ export async function GET(req: NextRequest) {
   const eventId = req.nextUrl.searchParams.get('event_id') ?? ''
   if (!UUID.test(eventId)) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
   const a = await requireScreens(req, eventId, 'view'); if ('error' in a) return a.error
-  const [{ sessions, look, timezone }, { data: fonts }, { data: tracks }, { data: links }, settings] = await Promise.all([
+  const [{ sessions, look, timezone }, { data: fonts }, { data: tracks }, { data: links }, settings, { data: ev }] = await Promise.all([
     loadScreenSessions(eventId),
     supabaseAdmin.from('brand_fonts').select('id, family_name').order('family_name'),
     supabaseAdmin.from('event_agenda_tracks').select('id, name').eq('event_id', eventId).order('order_index'),
     supabaseAdmin.from('event_screen_links').select('id, track_id, label, token, created_at, revoked_at').eq('event_id', eventId).is('revoked_at', null).order('created_at'),
     loadLook(eventId),
+    supabaseAdmin.from('events').select('creative_template_config').eq('id', eventId).maybeSingle(),
   ])
+  const stageCards = ((ev?.creative_template_config as { speaker?: { variants?: { id: string; name: string; category?: string; canvas_width: number; canvas_height: number }[] } } | null)?.speaker?.variants ?? [])
+    .filter(v => v.category === 'stage_screen').map(v => ({ id: v.id, name: v.name || 'Stage screen card', width: v.canvas_width, height: v.canvas_height }))
   return NextResponse.json({
-    timezone, sessions: sessions.map(brief), fonts: fonts ?? [], stages: tracks ?? [], links: links ?? [],
-    look: { panel: settings.panel, card_style: settings.cardStyle, dims: settings.dims, head_scale: settings.headScale, font_id: settings.fontId, font_name: look.font?.family_name ?? null, background_url: look.backgroundUrl, text_color: look.textColor, accent_color: look.accentColor },
+    timezone, card_variants: stageCards, website_variant: look.websiteVariant ? { name: look.websiteVariant.name || 'Website photo', width: look.websiteVariant.canvas_width, height: look.websiteVariant.canvas_height } : null, sessions: sessions.map(brief), fonts: fonts ?? [], stages: tracks ?? [], links: links ?? [],
+    look: { panel: settings.panel, card_style: settings.cardStyle, card_variant_id: settings.cardVariantId, use_website_photo: settings.useWebsitePhoto, type_styles: settings.typeStyles, dims: settings.dims, head_scale: settings.headScale, font_id: settings.fontId, font_name: look.font?.family_name ?? null, background_url: look.backgroundUrl, text_color: look.textColor, accent_color: look.accentColor },
   })
 }
 
@@ -67,7 +70,10 @@ export async function PUT(req: NextRequest) {
   const a = await requireScreens(req, b.event_id, 'look'); if ('error' in a) return a.error
   const row: Record<string, unknown> = { event_id: b.event_id, updated_at: new Date().toISOString() }
   if (b.panel === 'light' || b.panel === 'dark') { row.panel = b.panel; row.text_color = PANEL_DEFAULTS[b.panel as 'light' | 'dark'].text; row.accent_color = PANEL_DEFAULTS[b.panel as 'light' | 'dark'].accent }
-  if (b.card_style === 'separate') row.card_style = b.card_style   // 'card' (details inside the card) is accepted here once that design is built
+  if (b.card_style === 'separate' || b.card_style === 'card') row.card_style = b.card_style
+  if (typeof b.use_website_photo === 'boolean') row.use_website_photo = b.use_website_photo   // photos drawn with the event's Website Photo template
+  if ('card_variant_id' in b) row.card_variant_id = typeof b.card_variant_id === 'string' && UUID.test(b.card_variant_id) ? b.card_variant_id : null   // which Stage Screen Card template (a variant id in the event's template config)
+  if (b.type_styles && typeof b.type_styles === 'object') row.type_styles = clampTypeStyles(b.type_styles)   // per-element font, weight, size, colour, capitals
   if (b.dims && typeof b.dims === 'object') {   // partial update: merged over what is saved, every value forced into its allowed range
     const cur = await loadLook(b.event_id)
     const sent = Object.fromEntries(Object.entries(b.dims as Record<string, unknown>).filter(([, v]) => typeof v === 'number' && isFinite(v)))   // junk is ignored, it never overwrites a saved size

@@ -5,9 +5,9 @@ import { hasEventPermission } from '@/app/lib/access/event-access'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 import sharp from 'sharp'
-import { compositeExtraLayersOnto, type CreativeTemplateConfig, type ImageLayer, type PhotoSlotLayer, type ResolvedAssets } from '@/app/lib/announcements/composite'
-import { alignAndCropPhoto, type HeadBox } from '@/app/lib/media/face-alignment'
-import { compositeOnBackground } from '@/app/lib/media/composite-on-background'
+import type { CreativeTemplateConfig, ImageLayer, PhotoSlotLayer } from '@/app/lib/announcements/composite'
+import type { HeadBox } from '@/app/lib/media/face-alignment'
+import { renderWebsitePhoto } from '@/app/lib/media/website-photo-render'
 
 /* POST /api/events/stakeholders/speakers/website-photo/generate
    Body: { event_id, speaker_id }
@@ -88,39 +88,18 @@ export async function POST(req: NextRequest) {
   if (!cutoutBuffer) return NextResponse.json({ error: "Could not fetch this speaker's cleaned photo" }, { status: 502 })
   if (!backgroundBuffer) return NextResponse.json({ error: 'Could not fetch the background image' }, { status: 502 })
 
-  const target = { ...photoLayer.alignment, box: { x: 0, y: 0, width: variant.canvas_width, height: variant.canvas_height } }
-
   try {
-    const { buffer: cropped, padding } = await alignAndCropPhoto(cutoutBuffer, target, headBox)
-    const PADDING_WARNING_THRESHOLD_PX = 3
-    const cropWarning = Math.max(padding.left, padding.top, padding.right, padding.bottom) > PADDING_WARNING_THRESHOLD_PX ? padding : null
-    // PNG here (no `format` — see compositeOnBackground's default), not the
-    // final webp yet: any extra layers below (2026-09-22) still need to
-    // composite on top losslessly first; the real webp encode moved to the
-    // very end, after that.
-    let composedBuffer = await compositeOnBackground(cropped, backgroundBuffer, { canvasWidth: variant.canvas_width, canvasHeight: variant.canvas_height })
-
-    // Any layers beyond the required Image + speaker-photo Photo/Logo Slot
-    // pair — see compositeExtraLayersOnto's own comment in composite.ts.
-    const extraLayers = variant.layers.filter(l => l.id !== photoLayer.id && l.id !== backgroundLayer.id)
-    if (extraLayers.length > 0) {
-      const extraSources = new Set(extraLayers.filter((l): l is PhotoSlotLayer => l.type === 'photo_slot').map(l => l.source))
-      const assetEntries = await Promise.all(Array.from(extraSources).map(async (source): Promise<[PhotoSlotLayer['source'], ResolvedAssets[PhotoSlotLayer['source']]] | null> => {
-        if (source === 'speaker_photo') return [source, { buffer: cropped, url: cleanPhotoUrl, head_box: headBox }]
-        const url = source === 'speaker_logo' ? (speaker.company_logo_url as string | null) : null // partner_logo: N/A, this route is speaker-only
-        if (!url) return null
-        const buffer = await fetchAssetBuffer(url)
-        return buffer ? [source, { buffer, url, is_svg: url.toLowerCase().endsWith('.svg') }] : null
-      }))
-      const assets: ResolvedAssets = Object.fromEntries(assetEntries.filter((e): e is [PhotoSlotLayer['source'], NonNullable<ResolvedAssets[PhotoSlotLayer['source']]>] => e !== null))
-      const texts = {
-        name: (speaker.name as string | null) ?? undefined,
-        title: (speaker.role as string | null) ?? undefined,
-        company: (speaker.company as string | null) ?? undefined,
-        country: (speaker.country as string | null) ?? undefined,
-      }
-      composedBuffer = await compositeExtraLayersOnto(composedBuffer, extraLayers, variant, assets, texts)
+    const speakerTexts = {
+      name: (speaker.name as string | null) ?? undefined,
+      title: (speaker.role as string | null) ?? undefined,
+      company: (speaker.company as string | null) ?? undefined,
+      country: (speaker.country as string | null) ?? undefined,
     }
+    // PNG here, not the final webp yet — see renderWebsitePhoto; the real webp encode happens at the very end.
+    const { buffer: composedBuffer, cropWarning } = await renderWebsitePhoto({
+      variant, parts: { photoLayer, backgroundLayer }, cutout: cutoutBuffer, cleanPhotoUrl, headBox, backgroundBuffer,
+      texts: speakerTexts, companyLogoUrl: speaker.company_logo_url as string | null,
+    })
 
     // WebP output (2026-09-12, per Madhu) — this is the file KonfHub
     // publishes straight to the public event website; a lossless PNG here

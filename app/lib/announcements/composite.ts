@@ -129,6 +129,11 @@ export type TextLayer = {
   // pass; supports chains (A -> B -> C) via memoized recursion, with cycle
   // protection.
   snap_below_layer_id?: string
+  // "Stack above" (bottom-up stacking, stage-screen cards) — id of another TEXT layer whose TOP edge this layer sits above, with `snap_gap`
+  // between them. The layer at the bottom of such a stack (no snap_above) is anchored by the bottom edge of its own box, so the last line
+  // always ends on the same line and longer text grows UPWARD. A referenced layer with no text (e.g. no country) collapses: no gap is added.
+  // Mutually exclusive with snap_below_layer_id (picking one clears the other in the editor); if both are set, snap_below wins.
+  snap_above_layer_id?: string
   // Fixed pixel gap applied below the referenced layer's ACTUAL bottom edge
   // (2026-08-02) — only meaningful when snap_below_layer_id is set.
   // Deliberately a flat px value, not derived from wherever the two boxes
@@ -228,7 +233,7 @@ export type Variant = {
   // generate route both read as an already-clean input. That version uses
   // two annotated reference images plus a mandatory second manual confirm,
   // which is what the earlier abandoned attempt lacked.
-  category?: 'promo' | 'self_promo' | 'website_photo' | 'badge' | 'memento'
+  category?: 'promo' | 'self_promo' | 'website_photo' | 'badge' | 'memento' | 'stage_screen'
   // 'memento' (2026-10-22) — the speaker's photo cut-out for a physical memento, handed to the memento vendor (see
   // app/lib/mementos/render.ts). ONE layer: a Photo/Logo Slot (source: speaker photo) with `alignment` traced from an uploaded
   // reference exactly like Website Photo — but NO background and NO other layers; the output is a transparent PNG of exactly
@@ -238,6 +243,10 @@ export type Variant = {
   // and app/lib/badges/*). Layers composite exactly like any other variant for the on-screen preview; the
   // print PDF is built separately from `print` below, with vector layer art, outlined vector text and the
   // common back as the last page. Never offered in the announcement pickers (they filter by exact category).
+  // 'stage_screen' (2026-10-29) — the speaker card on the Stage Screens graphic for the AV team (see app/lib/screens/render.ts): a transparent
+  // canvas (default 1024x1536) of branding layers, the speaker photo slot and text layers (name, title, company, country), composited like any
+  // Promo variant. Text layers stack bottom-up (snap_above_layer_id). Session title and the MODERATOR tag are NOT on the card — they are set
+  // under Admin Console > Stage Speaker Pic. Never offered in announcement/badge pickers (they filter by exact category).
   print?: BadgePrintSpec
 }
 
@@ -620,6 +629,25 @@ export async function resolveTextLayerYPositions(
   const resolvedY = new Map<string, number>()
   const inProgress = new Set<string>()
 
+  // Bottom-up stacking: top edge of a layer in a "stack above" chain; a layer without text collapses (top = bottom edge, no gap).
+  const bottomUpTop = new Map<string, { top: number; empty: boolean }>()
+  async function resolveUp(id: string, seen: Set<string>): Promise<{ top: number; empty: boolean }> {
+    const hit = bottomUpTop.get(id)
+    if (hit) return hit
+    const layer = textLayers.get(id)!
+    const below = layer.snap_above_layer_id ? textLayers.get(layer.snap_above_layer_id) : undefined
+    let edge = layer.y + layer.height   // anchor: the bottom of its own box
+    if (below && !seen.has(below.id)) {
+      const b = await resolveUp(below.id, new Set(seen).add(id))
+      edge = b.empty ? b.top : b.top - (layer.snap_gap ?? 20)
+    }
+    const value = resolveTextValue(layer, texts)
+    const h = value ? await measureTextLayerHeight(layer, value, variant.canvas_width, variant.canvas_height) : 0
+    const out = { top: edge - h, empty: !value }
+    bottomUpTop.set(id, out)
+    return out
+  }
+
   async function resolve(id: string): Promise<number> {
     const cached = resolvedY.get(id)
     if (cached !== undefined) return cached
@@ -638,6 +666,8 @@ export async function resolveTextLayerYPositions(
       const aboveValue = resolveTextValue(above, texts)
       const aboveHeight = aboveValue ? await measureTextLayerHeight(above, aboveValue, variant.canvas_width, variant.canvas_height) : 0
       y = aboveY + aboveHeight + (layer.snap_gap ?? 20)
+    } else if (layer.snap_above_layer_id || [...textLayers.values()].some(l => l.snap_above_layer_id === layer.id)) {
+      y = (await resolveUp(id, new Set())).top
     }
 
     resolvedY.set(id, y)

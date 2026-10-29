@@ -91,7 +91,7 @@ function newLayer(type: Layer['type'], activeType: StakeholderKind, canvasWidth:
     // the frame with it, unlike a Promo variant's photo slot, which is
     // typically a smaller inset within a larger poster (400x400 stays the
     // sensible default there).
-    const full = category === 'website_photo' || category === 'badge' || category === 'memento'
+    const full = category === 'website_photo' || category === 'badge' || category === 'memento' || category === 'stage_screen'
     return { id, type: 'photo_slot', source: activeType === 'speaker' ? 'speaker_photo' : 'partner_logo', x: 0, y: 0, width: full ? canvasWidth : 400, height: full ? canvasHeight : 400 }
   }
   const field: TextLayer['field'] = activeType === 'speaker' ? 'name' : 'custom'
@@ -108,6 +108,42 @@ function newLayer(type: Layer['type'], activeType: StakeholderKind, canvasWidth:
     : undefined
   const font_weight: TextLayer['font_weight'] = fontSuggestion?.weight ?? 'normal'
   return { id, type: 'text', field, value: activeType === 'partner' ? 'LEAD SPONSOR' : undefined, x: 40, y: 40, width, height, max_lines: maxLines, font_size: fontSize, font_color: '#FFFFFF', font_family, font_weight, align: 'left' }
+}
+
+// The "New Variant" picker: seven kinds grouped into three short lists (a long single column no longer fitted on screen).
+type PickerItem = readonly [string, string, string]
+const variantPickerGroups = (activeType: StakeholderKind): { title: string; items: PickerItem[] }[] => [
+  { title: 'Social creatives', items: [
+    ['promo', 'Promo', 'Org’s own channel-publish flow'],
+    ['self_promo', 'Self Promo', 'Emailed to the speaker for them to post'],
+  ] },
+  { title: 'Website and screens', items: [
+    ['website_photo', 'Website Photo', `Square speaker card photo, ${CLEANING_CYCLE_CANVAS_SIZE}x${CLEANING_CYCLE_CANVAS_SIZE}`],
+    ...(activeType === 'speaker' ? [['stage_screen', 'Stage Screen Card', 'Speaker card for the stage-screen graphic: layers from branding, photo, name / title / company stacked bottom-up'] as PickerItem] : []),
+  ] },
+  { title: 'Print and keepsakes', items: [
+    ['badge', 'Speaker Badge (print)', 'PVC card — you set the size next; vector layers uploaded as PDFs'],
+    ['memento', 'Speaker Memento (photo cut-out)', 'Transparent PNG of the speaker for the memento vendor — you set the size, then upload a reference layer'],
+    ['memento_print', 'Speaker Memento (print)', 'Printable vector PDF: a background layer uploaded as PDF + the speaker photo — you set the page size next (6 × 9 in, no bleed)'],
+  ] },
+]
+
+// A new Stage Screen card: the speaker photo slot over the whole canvas, then name, job title and company stacked bottom-up from 90 px above the bottom edge
+// (company anchors the stack; title stacks above company, name above title). Branding adds image layers (background, gradient, top design), moves the
+// photo, restyles each text layer and may add a Country layer (see the on-page hint). Canvas defaults to 1024 x 1536 and is editable.
+function stageScreenStarter(): Variant {
+  const W = 1024, H = 1536, SIDE = 70, BOTTOM = 90
+  const photo = newLayer('photo_slot', 'speaker', W, H, null, 'stage_screen')
+  const text = (field: TextLayer['field'], size: number, weight: number, maxLines: number, upper: boolean): TextLayer => {
+    const t = newLayer('text', 'speaker', W, H) as TextLayer
+    // eslint-disable-next-line no-restricted-syntax -- default text colour of a new template layer (baked into the exported PNG), like newLayer()
+    return { ...t, field, x: SIDE, width: W - SIDE * 2, max_lines: maxLines, font_size: size, height: Math.round(maxLines * size * 1.25), font_weight: weight, align: 'center', uppercase: upper, font_color: '#FFFFFF', allow_shrink: true }
+  }
+  const company = text('company', 50, 600, 2, false), title = text('title', 50, 400, 2, false), name = text('name', 76, 700, 3, true)
+  company.y = H - BOTTOM - company.height
+  title.snap_above_layer_id = company.id; title.snap_gap = 14; title.y = company.y - 14 - title.height
+  name.snap_above_layer_id = title.id; name.snap_gap = 30; name.y = title.y - 30 - name.height
+  return { id: crypto.randomUUID(), name: 'Stage screen card', category: 'stage_screen', canvas_width: W, canvas_height: H, layers: [photo, name, title, company] }
 }
 
 // Fills in width/height/max_lines for any text layer saved before Phase C
@@ -427,14 +463,15 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   // wrong canvas size (1080x1350) by mistake, only caught once a layer
   // inside it was already wrong too. Gating on the choice up front means
   // canvas dimensions are correct from the variant's very first layer.
-  function addVariant(category: 'promo' | 'self_promo' | 'website_photo' | 'badge' | 'memento', badgeSpec?: { width_mm: number; height_mm: number; bleed_mm: number }) {
+  function addVariant(category: 'promo' | 'self_promo' | 'website_photo' | 'badge' | 'memento' | 'stage_screen', badgeSpec?: { width_mm: number; height_mm: number; bleed_mm: number }) {
     pushUndo()
     const size = category === 'website_photo' ? CLEANING_CYCLE_CANVAS_SIZE : null
     // Badge (2026-10-02): page = trim + bleed, entered in the setup step; canvas = that page at ~300 ppi.
     const badge = category === 'badge' && !!badgeSpec
     const mementoPrint = category === 'memento' && !!badgeSpec
     const grid = badge || mementoPrint ? badgeGrid(badgeSpec!) : null
-    const variant: Variant = {
+    const stage = category === 'stage_screen'
+    const variant: Variant = stage ? stageScreenStarter() : {
       id: crypto.randomUUID(), name: badge ? 'Speaker badge' : mementoPrint ? 'Speaker memento (print)' : category === 'memento' ? 'Speaker memento' : 'Untitled Variant', category,
       canvas_width: grid ? grid.w : category === 'memento' ? 1024 : size ?? 1080, canvas_height: grid ? grid.h : category === 'memento' ? 1024 : size ?? 1350, layers: category === 'memento' ? [newLayer('photo_slot', activeType, grid ? grid.w : 1024, grid ? grid.h : 1024, null, 'memento')] : [],
       ...(badge || mementoPrint ? { print: { ...badgeSpec! } } : {}),
@@ -526,6 +563,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
       ...l,
       id: idMap.get(l.id)!,
       ...(l.type === 'text' && l.snap_below_layer_id ? { snap_below_layer_id: idMap.get(l.snap_below_layer_id) } : {}),
+      ...(l.type === 'text' && l.snap_above_layer_id ? { snap_above_layer_id: idMap.get(l.snap_above_layer_id) } : {}),
     }))
     const duplicate: Variant = { ...variant, id: crypto.randomUUID(), name: `${variant.name || 'Untitled Variant'} copy`, layers }
     mutate(vs => {
@@ -828,7 +866,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       {/* Wraps instead of a fixed 4-column grid so the name box is never squeezed off-screen on narrow windows. */}
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', marginBottom: '14px' }}>
                         <Input value={activeVariant.name} onChange={e => updateActiveVariant({ name: e.target.value })} placeholder="Variant name" style={{ flex: '1 1 260px', minWidth: 0 }} />
-                        {activeVariant.category !== 'badge' && activeVariant.category !== 'memento' && (
+                        {activeVariant.category !== 'badge' && activeVariant.category !== 'memento' && activeVariant.category !== 'stage_screen' && (
                         <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                           Use
                           <Select
@@ -879,6 +917,11 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                         <div style={{ marginBottom: '14px', fontSize: '11px', color: 'var(--ink3)', lineHeight: 1.5 }}>
                           <strong>Memento</strong> — one <strong>Photo/Logo Slot</strong> layer (source: speaker photo), nothing else. Set W/H to this event&apos;s memento artwork size, size the slot, then click
                           <em> Upload Reference Layer (auto-position)</em> with the memento design (or any image) — the head size and position are traced from it. The output is a transparent PNG of exactly W×H with the speaker&apos;s head fixed to that marker; no background, no text, no enlargement of the source photo.
+                        </div>
+                      )}
+                      {activeVariant.category === 'stage_screen' && (
+                        <div style={{ marginBottom: '14px', fontSize: '12.5px', color: 'var(--ink2)', lineHeight: 1.6 }}>
+                          <strong>Stage screen card</strong> — one speaker card on the stage-screen graphic (the AV team&apos;s file). Add <strong>Image layers</strong> for the background, the gradient and the top design (put the gradient above the Photo/Logo Slot, under the text), move the <strong>Photo/Logo Slot</strong> and use <em>Upload Reference Layer (auto-position)</em> to fix the head size and position, and style each <strong>Text layer</strong> (font, size, weight, colour, capitals). Text is stacked <strong>bottom-up</strong>: the company line stays on its fixed line and title and name rise above it, so a long title never runs off the card. To show country, add a Text layer with field <em>country</em>, put its box at the very bottom, and set <em>Stack above</em> on the company layer to it. Session title and the MODERATOR tag are set under <em>Stage Speaker Pic</em>. Then pick this card there.
                         </div>
                       )}
                       {activeVariant.category === 'website_photo' && (
@@ -1103,36 +1146,34 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
         )
       })()}
       {newVariantPickerOpen && !badgeSetup && (
-        <div style={{ position: 'fixed', inset: 0, background: 'color-mix(in srgb, black 60%, transparent)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={() => setNewVariantPickerOpen(false)}>
-          <div onClick={e => e.stopPropagation()} style={{ width: '360px', maxWidth: '100%', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '22px' }}>
-            <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>New Variant — Use</div>
-            <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginBottom: '16px' }}>
-              Picked up front so the canvas size is correct from the start — a Website Photo variant always starts at {CLEANING_CYCLE_CANVAS_SIZE}x{CLEANING_CYCLE_CANVAS_SIZE}, Promo/Self Promo at 1080x1350.
-            </div>
-            <div style={{ display: 'grid', gap: '8px' }}>
-              {([
-                ['promo', 'Promo', 'Org’s own channel-publish flow'],
-                ['self_promo', 'Self Promo', 'Emailed to the speaker for them to post'],
-                ['website_photo', 'Website Photo', `Square speaker card photo, ${CLEANING_CYCLE_CANVAS_SIZE}x${CLEANING_CYCLE_CANVAS_SIZE}`],
-                ['memento', 'Speaker Memento (photo cut-out)', 'Transparent PNG of the speaker for the memento vendor — you set the size, then upload a reference layer'],
-                ['memento_print', 'Speaker Memento (print)', 'Printable vector PDF: a background layer uploaded as PDF + the speaker photo — you set the page size next (6 × 9 in, no bleed)'],
-                ['badge', 'Speaker Badge (print)', 'PVC card — you set the size next; vector layers uploaded as PDFs'],
-              ] as const).map(([value, label, hint]) => (
-                <button key={value} onClick={() => value === 'badge' ? setBadgeSetup({ kind: 'badge', trim_w: String(BADGE_DEFAULT.trim_w), trim_h: String(BADGE_DEFAULT.trim_h), bleed: String(BADGE_DEFAULT.bleed) }) : value === 'memento_print' ? setBadgeSetup({ kind: 'memento', trim_w: String(MEMENTO_DEFAULT.trim_w), trim_h: String(MEMENTO_DEFAULT.trim_h), bleed: String(MEMENTO_DEFAULT.bleed) }) : addVariant(value)} style={{
-                  display: 'block', width: '100%', padding: '11px 14px', borderRadius: '10px',
-                  border: '1.5px solid var(--border)', background: 'var(--surface)', cursor: 'pointer',
-                  fontFamily: 'inherit', textAlign: 'left',
-                }}>
-                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>{label}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '2px' }}>{hint}</div>
-                </button>
-              ))}
-            </div>
-            <div style={{ marginTop: '14px' }}>
-              <Button variant="ghost" onClick={() => setNewVariantPickerOpen(false)}>Cancel</Button>
+          <div style={{ position: 'fixed', inset: 0, background: 'color-mix(in srgb, black 60%, transparent)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={() => setNewVariantPickerOpen(false)}>
+            <div onClick={e => e.stopPropagation()} role="dialog" aria-label="New variant" style={{ width: '760px', maxWidth: '100%', maxHeight: 'calc(100vh - 40px)', display: 'flex', flexDirection: 'column', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '20px 22px 12px', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>New variant — what is it for?</div>
+                  <div style={{ fontSize: '12px', color: 'var(--ink3)', lineHeight: 1.5 }}>
+                    Picked up front so the canvas size is right from the start — Website Photo starts at {CLEANING_CYCLE_CANVAS_SIZE}x{CLEANING_CYCLE_CANVAS_SIZE}, Promo / Self Promo at 1080x1350, Stage Screen Card at 1024x1536. You can change a size later.
+                  </div>
+                </div>
+                <Button variant="ghost" onClick={() => setNewVariantPickerOpen(false)}>Cancel</Button>
+              </div>
+              <div style={{ overflowY: 'auto', padding: '16px 22px 22px', display: 'grid', gap: '18px' }}>
+                {variantPickerGroups(activeType).map(g => (
+                  <div key={g.title}>
+                    <div style={{ fontSize: '11.5px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>{g.title}</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px' }}>
+                      {g.items.map(([value, label, hint]) => (
+                        <button key={value} onClick={() => value === 'badge' ? setBadgeSetup({ kind: 'badge', trim_w: String(BADGE_DEFAULT.trim_w), trim_h: String(BADGE_DEFAULT.trim_h), bleed: String(BADGE_DEFAULT.bleed) }) : value === 'memento_print' ? setBadgeSetup({ kind: 'memento', trim_w: String(MEMENTO_DEFAULT.trim_w), trim_h: String(MEMENTO_DEFAULT.trim_h), bleed: String(MEMENTO_DEFAULT.bleed) }) : addVariant(value as 'promo' | 'self_promo' | 'website_photo' | 'memento' | 'stage_screen')} style={{ display: 'block', width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1.5px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+                          <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>{label}</div>
+                          <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginTop: '3px', lineHeight: 1.45 }}>{hint}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
       )}
       {newVariantPickerOpen && badgeSetup && (() => {
         const tw = Number(badgeSetup.trim_w), th = Number(badgeSetup.trim_h), bl = Number(badgeSetup.bleed)
@@ -2194,7 +2235,7 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
             // reference samples, which have essentially zero extra space
             // between the lead/emphasis/trail lines.
             const defaultGap = layer.field.startsWith('headline_') ? 2 : 20
-            onChange({ snap_below_layer_id: id, ...(id && layer.snap_gap === undefined ? { snap_gap: defaultGap } : {}) })
+            onChange({ snap_below_layer_id: id, ...(id ? { snap_above_layer_id: undefined } : {}), ...(id && layer.snap_gap === undefined ? { snap_gap: defaultGap } : {}) })
           }}
           style={{ width: '100%', marginTop: '3px' }}
         >
@@ -2202,7 +2243,23 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
           {snapCandidates.map(l => <option key={l.id} value={l.id}>{layerSummary(l)}</option>)}
         </Select>
       </label>
-      {layer.snap_below_layer_id && (
+      {/* "Stack above" — bottom-up stacking for stage-screen cards (see composite.ts TextLayer.snap_above_layer_id): this layer's bottom edge sits the gap above
+          the TOP of the layer picked, so the lowest line stays put and longer text grows upward. */}
+      <label style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--ink3)', display: 'block' }}>
+        Stack above (bottom-up — sits above that layer; the lowest layer stays put and longer text grows upward)
+        <Select
+          value={layer.snap_above_layer_id ?? ''}
+          onChange={e => {
+            const id = e.target.value || undefined
+            onChange({ snap_above_layer_id: id, ...(id ? { snap_below_layer_id: undefined } : {}), ...(id && layer.snap_gap === undefined ? { snap_gap: 20 } : {}) })
+          }}
+          style={{ width: '100%', marginTop: '3px' }}
+        >
+          <option value="">None</option>
+          {snapCandidates.map(l => <option key={l.id} value={l.id}>{layerSummary(l)}</option>)}
+        </Select>
+      </label>
+      {(layer.snap_below_layer_id || layer.snap_above_layer_id) && (
         <NumField label="Gap (px)" value={layer.snap_gap ?? 20} onChange={snap_gap => onChange({ snap_gap: Math.max(0, snap_gap) })} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />
       )}
       <label style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--ink3)', display: 'block' }}>
