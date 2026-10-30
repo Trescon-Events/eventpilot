@@ -5,6 +5,7 @@ import { hasEventPermission } from '@/app/lib/access/event-access'
 import { getEventRoles } from '@/app/lib/konfhub/roles'
 import { normalizeTimezone } from '@/app/lib/events/timezones'
 import { fetchKonfhubEventDays, getKonfhubToken } from '@/app/lib/konfhub-agenda'
+import { syncNewFilterTags } from '@/app/lib/agenda/tag-sync'
 
 /* GET /api/events/agenda-v2?event_id=X
 
@@ -37,6 +38,7 @@ export async function GET(req: NextRequest) {
   const { data: rooms } = trackIds.length
     ? await supabaseAdmin.from('event_agenda_rooms').select('*').in('track_id', trackIds).order('order_index')
     : { data: [] }
+  await syncNewFilterTags(eventId)   // tags added to a mapped KonfHub filter since the mapping was set
   const { data: tagMapRows } = await supabaseAdmin.from('event_konfhub_tag_map').select('kind, label, tag_id').eq('event_id', eventId)
 
   const sessionIds = (sessions ?? []).map(s => s.id)

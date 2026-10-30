@@ -1,3 +1,4 @@
+import { syncNewFilterTags } from '@/app/lib/agenda/tag-sync'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { fetchKonfhubTags } from '@/app/lib/konfhub-speakers'
 import { getKonfhubToken, fetchKonfhubTracksForDate, fetchKonfhubSessionsFull, createKonfhubTrack, createKonfhubSession, updateKonfhubSession, setKonfhubTrackSessions, KonfhubApiError, type KonfhubTrack, type KonfhubTrackSession } from '@/app/lib/konfhub-agenda'
@@ -72,6 +73,7 @@ export async function pushAgendaToKonfhub(eventId: string, opts: { dryRun?: bool
   const dayStart = (event?.agenda_day_start as string | null)?.slice(0, 5) ?? '08:00'
   const dayEnd = (event?.agenda_day_end as string | null)?.slice(0, 5) ?? '17:00'
 
+  await syncNewFilterTags(eventId)   // pick up tags added to a mapped KonfHub filter since the mapping was set
   const [{ data: tracks }, { data: sessionsRaw }, { data: tagRows }] = await Promise.all([
     supabaseAdmin.from('event_agenda_tracks').select('id, name, order_index, konfhub_track_title').eq('event_id', eventId),
     supabaseAdmin.from('event_agenda_sessions').select('id, track_id, room_id, title, description, session_type, content_type, start_timestamp, end_timestamp, colour, order_index, konfhub_session_id, status, konfhub_last_synced_updated_at').eq('event_id', eventId),
