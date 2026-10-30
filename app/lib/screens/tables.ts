@@ -1,6 +1,8 @@
 /* Table Screens (Phase 1) — the small portrait screens on the tables beside each speaker's seat. Pure helpers: reading the table numbers the stage manager calls out,
    working out which table shows which seat, and naming the files the technician uploads to his app. No database, no drawing. */
 
+import type { TextLayer, Variant } from '@/app/lib/announcements/composite'
+
 export const DEFAULT_TABLE_COUNT = 6
 export const MAX_TABLES = 20
 
@@ -25,6 +27,21 @@ export function parseTableOrder(input: string, seats: number, tableCount: number
   if (nums.length < seats) out.warnings.push(`${seats - nums.length === 1 ? `Seat ${seats}` : `Seats ${nums.length + 1} to ${seats}`} ${seats - nums.length === 1 ? 'has' : 'have'} no table yet.`)
   if (nums.length > seats) out.warnings.push(`${nums.length - seats} more table${nums.length - seats === 1 ? '' : 's'} than seats: ${nums.slice(seats).map(n => `Table ${n}`).join(', ')} will show the standby screen.`)
   return out
+}
+
+/** A Table Screen template that has no layer "shown for moderators" would draw a moderator exactly like everyone else. For a moderator, add a default MODERATOR tag above the name in the name
+    layer's own font and colour (half its size), so the tag never silently goes missing. A template that makes its own moderator layer is left exactly as it is. */
+export function withModeratorFallback(variant: Variant, moderator: boolean): Variant {
+  if (!moderator || variant.table_standby || variant.layers.some(l => l.show_for === 'moderator')) return variant
+  const name = variant.layers.find((l): l is TextLayer => l.type === 'text' && l.field === 'name' && l.show_for !== 'speaker')
+  if (!name) return variant
+  const size = Math.max(24, Math.round(name.font_size * 0.5)), gap = 28, height = Math.round(size * 1.25)
+  const tag: TextLayer = {
+    id: 'auto-moderator-tag', type: 'text', field: 'custom', value: 'Moderator', uppercase: true,
+    x: name.x, width: name.width, height, y: Math.max(0, name.y - gap - height), max_lines: 1, font_size: size, font_color: name.font_color, font_weight: 600,
+    align: name.align, font_family: name.font_family, allow_shrink: true, snap_above_layer_id: name.id, snap_gap: gap,
+  }
+  return { ...variant, layers: [...variant.layers, tag] }
 }
 
 export type Seat = { seat: number; table: number | null; name: string; moderator: boolean }

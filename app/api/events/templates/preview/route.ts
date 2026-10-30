@@ -2,6 +2,7 @@ import { composeMementoLayers } from '@/app/lib/mementos/render'
 import { toMonochrome } from '@/app/lib/media/monochrome'
 import { NextRequest, NextResponse } from 'next/server'
 import sharp from 'sharp'
+import { withModeratorFallback } from '@/app/lib/screens/tables'
 import { compositeAnnouncement, compositeExtraLayersOnto, analyzeTextLayers, layersForRole, type Variant, type ImageLayer, type PhotoSlotLayer } from '@/app/lib/announcements/composite'
 import { resolvePreviewInputs } from '@/app/lib/announcements/preview-inputs'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
@@ -82,7 +83,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'variant, stakeholder_type required' }, { status: 400 })
   }
 
-  if (body.variant.category === 'table_screen') body.variant = layersForRole(body.variant, body.preview_role === 'moderator')
+  if (body.variant.category === 'table_screen') body.variant = layersForRole(withModeratorFallback(body.variant, body.preview_role === 'moderator'), body.preview_role === 'moderator')   // same as the real cards, including the default Moderator tag when the template has none
 
   const { assets, texts } = await resolvePreviewInputs({ stakeholder_type: body.stakeholder_type, variant: body.variant, speaker_id: body.speaker_id, partner_id: body.partner_id, event_id: body.event_id })
 

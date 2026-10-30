@@ -626,6 +626,21 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     setExpandedLayerId(layer.id)
   }
 
+  // Table Screen cards: one click adds the MODERATOR tag — a text layer shown for moderators only, in the name layer's font and colour, stacked above the name. Restyle it like any layer.
+  function addModeratorTag() {
+    if (!activeVariant) return
+    pushUndo()
+    const name = activeVariant.layers.find((l): l is TextLayer => l.type === 'text' && l.field === 'name')
+    const t = newLayer('text', activeType, activeVariant.canvas_width, activeVariant.canvas_height) as TextLayer
+    const size = name ? Math.max(24, Math.round(name.font_size * 0.5)) : 44, height = Math.round(size * 1.25), gap = 28
+    const tag: TextLayer = {
+      ...t, field: 'custom', value: 'Moderator', uppercase: true, show_for: 'moderator', max_lines: 1, font_size: size, height, font_weight: 600, allow_shrink: true,
+      ...(name ? { x: name.x, width: name.width, align: name.align, font_color: name.font_color, font_family: name.font_family, y: Math.max(0, name.y - gap - height), snap_above_layer_id: name.id, snap_gap: gap } : { align: 'center' as const }),
+    }
+    updateActiveVariant({ layers: [...activeVariant.layers, tag] })
+    setExpandedLayerId(tag.id)
+  }
+
   function updateLayer(layerId: string, patch: Partial<Layer>) {
     if (!activeVariant) return
     updateActiveVariant({
@@ -961,7 +976,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                           {activeVariant.table_standby ? (<>
                             <strong>Table screen — standby</strong> — what every table screen shows between sessions. Add <strong>Image layers</strong> for the common background and the event logo (1080×1920, or change W/H to the screens&apos; size). There is no person on it. The technician downloads it as <em>Standby.png</em>.
                           </>) : (<>
-                            <strong>Table screen card</strong> — the small screen beside each speaker&apos;s seat. Add <strong>Image layers</strong> for the common background and the logo (move them below the text), then style the <strong>name</strong> text layer (font, size, weight, colour, capitals). The name sits on a fixed bottom line and a long name grows upward. The <strong>Moderator</strong> tag is a text layer set to <em>Shown for: Moderator only</em>, stacked above the name; open any layer and use <em>Shown for</em> to limit it to the moderator or to the other speakers, so one template carries both. Use <em>Preview as</em> to check each. Make a separate <em>Table Screen — standby</em> template for between sessions. The technician picks these under Stage Screens › Table Screens.
+                            <strong>Table screen card</strong> — the small screen beside each speaker&apos;s seat. Add <strong>Image layers</strong> for the common background and the logo (move them below the text), then style the <strong>name</strong> text layer (font, size, weight, colour, capitals). The name sits on a fixed bottom line and a long name grows upward. The <strong>Moderator</strong> tag is a text layer set to <em>Shown for: Moderator only</em>, stacked above the name; open any layer and use <em>Shown for</em> to limit it to the moderator or to the other speakers, so one template carries both. If you add no Moderator layer, a default MODERATOR tag (half the name&apos;s size, same font and colour) is drawn above the name for moderators; <strong>+ Moderator Tag</strong> adds that layer so you can restyle it. Use <em>Preview as</em> to check each. Make a separate <em>Table Screen — standby</em> template for between sessions. The technician picks these under Stage Screens › Table Screens.
                           </>)}
                         </div>
                       )}
@@ -1014,6 +1029,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                         <Button variant="ghost" title="Static art, identical on every announcement — backgrounds, decorative overlays, branding blocks. Not this speaker/partner's own photo or logo." onClick={() => addLayer('image')} disabled={activeVariant.category === 'memento' && !activeVariant.print}>+ Image Layer</Button>
                         <Button variant="ghost" title="A slot that fills in with each real speaker/partner's own photo or logo at generation time. Not static art." onClick={() => addLayer('photo_slot')} disabled={!!activeVariant.common || activeVariant.category === 'table_screen'}>+ Photo/Logo Slot</Button>
                         <Button variant="ghost" title="A field of text (name, title, company, a static caption, etc.) rendered live at generation time." onClick={() => addLayer('text')} disabled={activeVariant.category === 'memento' || !!activeVariant.common}>+ Text Layer</Button>
+                        {activeVariant.category === 'table_screen' && !activeVariant.table_standby && <Button variant="ghost" title="Adds a text layer that only moderators get — the MODERATOR tag above the name." onClick={addModeratorTag}>+ Moderator Tag</Button>}
                         <Button variant="ghost" title="A mockup to place text and photos against. Shown in Generate Preview only — never in real announcements, website photos or print." onClick={addPreviewLayer}>+ Preview Layer</Button>
                         <Button variant="ghost" title="Copies this variant with all its layers intact — into this event, or into another event (e.g. the same badge for a sister event)." onClick={() => openCopyDialog(activeVariant.id)}>Copy this</Button>
                         <Button variant="red" onClick={() => deleteVariant(activeVariant.id)}>Delete Variant</Button>

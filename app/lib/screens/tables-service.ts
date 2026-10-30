@@ -4,7 +4,7 @@ import { Zip, ZipPassThrough } from 'fflate'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { compositeAnnouncement, layersForRole, type Variant } from '@/app/lib/announcements/composite'
 import { loadScreenSessions } from './data'
-import { DEFAULT_TABLE_COUNT, MAX_TABLES, standbyFileName, tableFileName, tablesZipName } from './tables'
+import { DEFAULT_TABLE_COUNT, MAX_TABLES, standbyFileName, tableFileName, tablesZipName, withModeratorFallback } from './tables'
 
 /* Table Screens (Phase 1) — what the console shows and downloads. The Table Screen templates are built by the branding team in the template editor (Admin Console › Variants ›
    New Variant › Table Screen); a session's speakers come from the same place as Stage Screens (agenda + speaker records + the producers' per-session name edits), so a correction made there
@@ -40,7 +40,7 @@ export async function tablesPayload(eventId: string, trackId: string | null) {
 
 /** One card as a PNG at the template's own size (or scaled down for previews). A standby variant has no person on it. */
 export async function drawTableCard(variant: Variant, person: { name: string; moderator: boolean } | null, scale = 1): Promise<Buffer> {
-  const v = layersForRole(variant, !!person?.moderator)
+  const v = layersForRole(withModeratorFallback(variant, !!person?.moderator), !!person?.moderator)
   const full = await compositeAnnouncement(v, {}, { name: person?.name ?? '' }, { showReferenceLayers: false })
   if (scale >= 1) return full
   return sharp(full).resize(Math.max(40, Math.round(variant.canvas_width * scale))).png().toBuffer()

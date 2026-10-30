@@ -40,3 +40,28 @@ test('file names lead with the table, mark the moderator, and are safe', () => {
   assert.equal(standbyFileName(), 'Standby.png'); assert.equal(standbyFileName(5), 'Table5_Standby.png')
   assert.equal(tablesZipName({ date: '2026-11-02', startHM: '10:30', topic: 'What innovation can drive the next economic revolution?' }), 'Tables_2026-11-02_1030_What-innovation-can-drive-the-next-e.zip')
 })
+
+// withModeratorFallback
+import { withModeratorFallback } from './tables'
+import type { Variant, TextLayer } from '@/app/lib/announcements/composite'
+// eslint-disable-next-line no-restricted-syntax -- a test fixture's text colour, not UI
+const txt = (o: Partial<TextLayer>): TextLayer => ({ id: 'n', type: 'text', field: 'name', x: 80, y: 800, width: 900, height: 300, max_lines: 3, font_size: 84, font_color: '#FFFFFF', align: 'center', ...o })
+const tv = (layers: Variant['layers'], extra: Partial<Variant> = {}): Variant => ({ id: 'v', name: 'T', category: 'table_screen', canvas_width: 1080, canvas_height: 1920, layers, ...extra })
+test('a moderator on a template with no moderator layer gets a default tag above the name, in the name font', () => {
+  const v = tv([txt({ font_family: { family_name: 'Poppins', regular_url: 'u' } })])
+  const r = withModeratorFallback(v, true)
+  assert.equal(r.layers.length, 2)
+  const tag = r.layers[1] as TextLayer
+  assert.equal(tag.value, 'Moderator'); assert.equal(tag.uppercase, true); assert.equal(tag.snap_above_layer_id, 'n'); assert.equal(tag.font_size, 42); assert.equal(tag.font_family?.family_name, 'Poppins')
+  assert.equal(tag.show_for, undefined)   // it is drawn for this moderator only because the fallback ran for a moderator
+})
+test('no fallback for other speakers, for a template that has its own moderator layer, for standby, or with no name layer', () => {
+  const own = tv([txt({}), txt({ id: 't', field: 'custom', value: 'Moderator', show_for: 'moderator' })])
+  assert.equal(withModeratorFallback(own, true), own)
+  const plain = tv([txt({})])
+  assert.equal(withModeratorFallback(plain, false), plain)
+  const sb = tv([txt({})], { table_standby: true })
+  assert.equal(withModeratorFallback(sb, true), sb)
+  const noName = tv([txt({ field: 'custom', value: 'x' })])
+  assert.equal(withModeratorFallback(noName, true), noName)
+})
