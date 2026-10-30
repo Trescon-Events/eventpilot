@@ -3,6 +3,7 @@
 import { editedSincePdf } from '@/app/lib/badges/edited'
 import type { PrintedChange } from '@/app/lib/badges/record-fields'
 import { looksLikeSkip } from '@/app/lib/badges/skip-intent'
+import Link from 'next/link'
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader'
@@ -50,6 +51,8 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
   const [sendClientOpen, setSendClientOpen] = useState(false)
   const [filter, setFilter] = useState<Filter>('all')
   const [adjusting, setAdjusting] = useState<BadgeItemRow | null>(null)
+  const [movedBatches, setMovedBatches] = useState<Record<string, string>>({})   // batch id -> name, for badges moved out of this one
+  const [moving, setMoving] = useState<BadgeItemRow | null>(null)
   const [refreshing, setRefreshing] = useState<{ item: BadgeItemRow; changes: PrintedChange[] } | null>(null)   // "Refresh from record": what would change, awaiting a yes
   const [afterApproval, setAfterApproval] = useState(false)   // the open edit is on an already-approved batch: it redraws this badge and keeps the batch approved
   const [busy, setBusy] = useState<string | null>(null)
@@ -67,7 +70,7 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
     ])
     const data = await res.json().catch(() => ({}))
     if (!res.ok) { setLoadError(data.error ?? 'Could not load this batch.'); return }
-    setBatch(data.batch); setItems(data.items); setJobs(data.jobs); setDispatches(data.dispatches ?? [])
+    setBatch(data.batch); setItems(data.items); setMovedBatches(data.moved_batches ?? {}); setJobs(data.jobs); setDispatches(data.dispatches ?? [])
     setCa(data.client_approval ?? null); setTpl(data.template ?? null)
     if (data.client_approval?.required) {
       const caRes = await fetch(`/api/events/badges/batches/${batchId}/client-approval`)
@@ -206,6 +209,7 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
   const printUnlocked = locked && (!caRequired || roundApproved || waived)
   const clientRejected = items.filter(i => i.client_rejected)
   const editedAfterPdf = editedSincePdf(items, batch?.pdf_versions ?? [])   // changed after the newest print file was made
+  const canMove = (i: BadgeItemRow) => canManage && !roundPending && !i.removed && !common && !!(i.speaker_id || i.vip_id)   // a badge needing another template goes to a batch with that template
   const canEditAfter = (i: BadgeItemRow) => canManage && locked && !roundPending && !i.removed && !common
   const clientComments = items.filter(i => (i.client_comment ?? '').trim())
   const skipAsks = items.filter(i => !i.removed && looksLikeSkip(i.client_comment))   // comments that read like "don't print this one" but were not rejected
@@ -359,6 +363,7 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
                         {looksLikeSkip(i.client_comment) && !i.removed && <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--amber)', border: '1px solid var(--amber)', borderRadius: '10px', padding: '1px 8px' }}>Looks like a request to skip</span>}
                         {canEditAfter(i) && <Button variant={looksLikeSkip(i.client_comment) ? 'ghost' : 'teal'} disabled={!!busy} onClick={() => void refreshFromRecord(i)}>Refresh from record</Button>}
                         {canEditAfter(i) && <Button variant="ghost" onClick={() => openEdit(i, true)}>Edit this badge only</Button>}
+                        {canMove(i) && <Button variant="ghost" onClick={() => setMoving(i)}>Move to another batch</Button>}
                         {canManage && !i.removed && !roundPending && <Button variant={looksLikeSkip(i.client_comment) ? 'teal' : 'ghost'} onClick={() => void leaveOut(i, true)}>Leave out of print</Button>}
                       </div>
                     ))}
@@ -433,15 +438,17 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
                   {item.edited_after_approval_at && <span title={`Changed after the batch was approved (${new Date(item.edited_after_approval_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })})`} style={{ fontSize: '12px', fontWeight: 700, color: 'var(--amber)', border: '1px solid var(--amber)', borderRadius: '10px', padding: '1px 8px' }}>Edited after approval</span>}
                   {Object.keys(item.overrides).length > 0 && <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', border: '1px solid var(--border)', borderRadius: '10px', padding: '1px 8px' }}>Adjusted</span>}
                 </div>
+                {item.moved_to_batch_id && <div style={{ fontSize: '12.5px', fontWeight: 800, color: 'var(--ink2)', marginBottom: '6px' }}>Moved to <Link href={`/admin/events/${eventId}/stakeholders/badges/${item.moved_to_batch_id}`} style={{ color: 'var(--teal-mid)' }}>{movedBatches[item.moved_to_batch_id] ?? 'another batch'}</Link></div>}
                 {item.client_rejected && <div style={{ fontSize: '12.5px', fontWeight: 800, color: 'var(--red)', marginBottom: '6px' }}>Left out of print at the client’s request</div>}
                 {(item.client_comment ?? '').trim() && !item.client_rejected && <div style={{ fontSize: '12.5px', color: 'var(--ink2)', background: 'var(--surface)', borderRadius: '8px', padding: '6px 8px', marginBottom: '8px', lineHeight: 1.4 }}>Client: “{item.client_comment}”{looksLikeSkip(item.client_comment) && !item.removed && <strong style={{ color: 'var(--amber)' }}> — looks like a request to skip</strong>}</div>}
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   {item.removed ? (<>
-                    {canManage && !locked && !item.client_rejected && <Button variant="ghost" onClick={() => void patchItem(item, { removed: false })}>Restore</Button>}
-                    {canManage && (item.client_comment ?? '').trim() && (locked || item.client_rejected) && !roundPending && <Button variant="ghost" onClick={() => void leaveOut(item, false)}>Put back</Button>}
+                    {canManage && !locked && !item.client_rejected && !item.moved_to_batch_id && <Button variant="ghost" onClick={() => void patchItem(item, { removed: false })}>Restore</Button>}
+                    {canManage && !item.moved_to_batch_id && (item.client_comment ?? '').trim() && (locked || item.client_rejected) && !roundPending && <Button variant="ghost" onClick={() => void leaveOut(item, false)}>Put back</Button>}
                   </>) : (<>
                     {canEditAfter(item) && <Button variant={(item.client_comment ?? '').trim() && !looksLikeSkip(item.client_comment) ? 'teal' : 'ghost'} disabled={!!busy} onClick={() => void refreshFromRecord(item)}>Refresh from record</Button>}
                     {canEditAfter(item) && <Button variant="ghost" onClick={() => openEdit(item, true)}>Edit this badge only</Button>}
+                    {canMove(item) && <Button variant="ghost" onClick={() => setMoving(item)}>Move to another batch</Button>}
                     {canManage && (item.client_comment ?? '').trim() && !roundPending && <Button variant={looksLikeSkip(item.client_comment) ? 'teal' : 'ghost'} onClick={() => void leaveOut(item, true)}>Leave out of print</Button>}
                     {canManage && !locked && <Button variant={item.approved ? 'ghost' : 'lime'} disabled={item.preview_stale || !item.preview_url} onClick={() => void patchItem(item, { approved: !item.approved })}>{item.approved ? 'Approved ✓' : 'Approve'}</Button>}
                     {canManage && !locked && !common && <Button variant="ghost" onClick={() => openEdit(item, false)}>Adjust</Button>}
@@ -469,6 +476,10 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
             return u
           }} canvas={{ w: batch.canvas_width, h: batch.canvas_height }} />
       )}
+      {moving && <MoveModal item={moving} batchId={batchId} onClose={() => setMoving(null)} onMoved={async t => {
+        setMoving(null); await load()
+        say(`${moving.name ?? 'The badge'} moved to “${t.name}”${t.created ? ' (new batch)' : ''}. Open it to draw and approve the badge there.`)
+      }} />}
       {refreshing && modalShell(
         <>
           <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)', marginBottom: '10px' }}>Refresh from record — {refreshing.item.name}</div>
@@ -624,6 +635,83 @@ function AdjustModal({ item, onClose, onApply, canvas, afterApproval }: { item: 
         <Button variant="lime" disabled={working} onClick={() => void apply(build())}>{working ? 'Rendering…' : afterApproval ? 'Apply & regenerate' : 'Apply & preview'}</Button>
       </div>
     </>, onClose, 640)
+}
+
+function MoveModal({ item, batchId, onClose, onMoved }: { item: BadgeItemRow; batchId: string; onClose: () => void; onMoved: (t: { id: string; name: string; created: boolean }) => Promise<void> }) {
+  type Targets = { targets: { id: string; name: string; status: string; template_name: string }[]; templates: { id: string; name: string; current: boolean }[] }
+  const [data, setData] = useState<Targets | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [mode, setMode] = useState<'existing' | 'new'>('existing')
+  const [targetId, setTargetId] = useState('')
+  const [name, setName] = useState('')
+  const [variantId, setVariantId] = useState('')
+  const [working, setWorking] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const r = await fetch(`/api/events/badges/batches/${batchId}/items/${item.id}/move`)
+      const d = await r.json().catch(() => ({}))
+      if (cancelled) return
+      if (!r.ok) { setError(d.error ?? 'Could not load the batches.'); return }
+      setData(d as Targets)
+      if (!(d as Targets).targets.length) setMode('new')
+    })()
+    return () => { cancelled = true }
+  }, [batchId, item.id])
+  const other = data?.templates.filter(t => !t.current) ?? []
+  const valid = mode === 'existing' ? !!targetId : !!name.trim() && !!variantId
+  async function move() {
+    setWorking(true); setError(null)
+    const r = await fetch(`/api/events/badges/batches/${batchId}/items/${item.id}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mode === 'existing' ? { target_batch_id: targetId } : { new_batch: { name: name.trim(), variant_id: variantId } }) })
+    const d = await r.json().catch(() => ({}))
+    setWorking(false)
+    if (!r.ok) { setError(d.error ?? 'Could not move the badge.'); return }
+    await onMoved(d.target)
+  }
+  const field = { display: 'block', width: '100%', boxSizing: 'border-box', marginTop: '4px', padding: '9px 11px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink)', fontSize: '14px', fontFamily: 'inherit' } as const
+  return modalShell(
+    <>
+      <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)', marginBottom: '10px' }}>Move to another batch — {item.name}</div>
+      {(item.client_comment ?? '').trim() && <div style={{ fontSize: '13.5px', color: 'var(--ink2)', background: 'var(--surface)', borderRadius: '8px', padding: '8px 10px', marginBottom: '10px' }}><strong>Client comment:</strong> “{item.client_comment}”</div>}
+      <div style={{ fontSize: '13.5px', color: 'var(--ink2)', lineHeight: 1.5, marginBottom: '12px' }}>A batch has one template, so a badge that needs a different one goes to a batch with that template. It leaves this batch&apos;s print file; everything else here — the other badges, the approval, the print file — stays as it is.</div>
+      {!data && !error && <div style={{ color: 'var(--ink3)' }}>Loading…</div>}
+      {data && (
+        <div style={{ display: 'grid', gap: '12px' }}>
+          <label style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', fontSize: '14px', opacity: data.targets.length ? 1 : 0.5 }}>
+            <input type="radio" checked={mode === 'existing'} disabled={!data.targets.length} onChange={() => setMode('existing')} style={{ marginTop: '3px' }} />
+            <span style={{ flex: 1 }}>An existing batch{!data.targets.length && ' — none is open (a batch must be a draft or in review, not with the client, and not already hold this person)'}
+              {mode === 'existing' && data.targets.length > 0 && (
+                <select value={targetId} onChange={e => setTargetId(e.target.value)} style={field}>
+                  <option value="">Choose a batch…</option>
+                  {data.targets.map(t => <option key={t.id} value={t.id}>{t.name} — {t.template_name || 'template'} ({t.status === 'draft' ? 'draft' : 'in review'})</option>)}
+                </select>
+              )}
+            </span>
+          </label>
+          <label style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', fontSize: '14px' }}>
+            <input type="radio" checked={mode === 'new'} onChange={() => setMode('new')} style={{ marginTop: '3px' }} />
+            <span style={{ flex: 1 }}>A new batch with another template
+              {mode === 'new' && (
+                <>
+                  <input value={name} onChange={e => setName(e.target.value)} placeholder="Batch name, for example DIFC VIP — second design" style={field} />
+                  <select value={variantId} onChange={e => setVariantId(e.target.value)} style={field}>
+                    <option value="">Template…</option>
+                    {other.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    {data.templates.filter(t => t.current).map(t => <option key={t.id} value={t.id}>{t.name} (this batch&apos;s template)</option>)}
+                  </select>
+                </>
+              )}
+            </span>
+          </label>
+          <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.5 }}>In the other batch the badge starts <strong>not approved</strong> and has to be drawn with that template and approved there — and sent to the client there, if this event needs client approval. Any manual text changes on this badge come with it.</div>
+        </div>
+      )}
+      {error && <div style={{ marginTop: '10px', color: 'var(--red)', fontWeight: 700, fontSize: '14px' }}>{error}</div>}
+      <div style={{ marginTop: '16px', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button variant="lime" disabled={!data || !valid || working} onClick={() => void move()}>{working ? 'Moving…' : 'Move badge'}</Button>
+      </div>
+    </>, onClose, 560)
 }
 
 function DeleteModal({ name, onClose, onConfirm }: { name: string; onClose: () => void; onConfirm: () => Promise<void> }) {

@@ -84,6 +84,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { data: current } = await supabaseAdmin.from('badge_batch_items').select('*').eq('id', itemId).eq('batch_id', id).maybeSingle()
   if (!current) return NextResponse.json({ error: 'Badge not found.' }, { status: 404 })
+  if ((current as BadgeItemRow).moved_to_batch_id && (body.removed === false || body.restore_left_out === true)) return NextResponse.json({ error: 'This badge was moved to another batch. Open that batch to work on it.' }, { status: 409 })
 
   if (leaveOut) {
     if (!(((current as BadgeItemRow).client_comment ?? '').trim())) return NextResponse.json({ error: 'This badge has no client comment to act on.' }, { status: 409 })

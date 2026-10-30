@@ -28,11 +28,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const round = await latestRound(id)
   const tpl = await templateStatus(batch)
   const { template_snapshot, ...rest } = batch
+  // Badges moved out of this batch: where each went (shown as "Moved to …" with a link).
+  const movedIds = [...new Set(items.map(i => i.moved_to_batch_id).filter((x): x is string => !!x))]
+  const { data: movedRows } = movedIds.length ? await supabaseAdmin.from('badge_batches').select('id, name').in('id', movedIds) : { data: [] as { id: string; name: string }[] }
+  const moved_batches = Object.fromEntries((movedRows ?? []).map(r => [r.id as string, r.name as string]))
   return NextResponse.json({
     client_approval: { required: cfg.required, waived: waiverHolds(batch), contacts: cfg.contacts.length, round: round ? { id: round.id, status: round.status, sent_at: round.sent_at, resolved_at: round.resolved_at, resolved_by_name: round.resolved_by_name, rejected_count: round.rejected_count, comment_count: round.comment_count, badges: round.badges, client_note: round.client_note ?? null } : null },
     template: { changed: tpl.changed, auto: tpl.changed && tpl.policy === 'auto' },
     batch: { ...rest, print: template_snapshot.print, template_name: template_snapshot.name, canvas_width: template_snapshot.canvas_width, canvas_height: template_snapshot.canvas_height },
-    items, jobs: jobs ?? [], dispatches: dispatches ?? [],
+    items, moved_batches, jobs: jobs ?? [], dispatches: dispatches ?? [],
   })
 }
 

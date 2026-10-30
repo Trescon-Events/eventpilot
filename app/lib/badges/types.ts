@@ -35,6 +35,8 @@ export type BadgeItemRow = {
   client_comment?: string | null
   // Set when this badge's text was changed on an already-approved batch ("Edit & regenerate"): the print file made before this time does not have the change.
   edited_after_approval_at?: string | null
+  // Set when this badge was moved to another batch (it is removed = true here); the id of the batch it went to.
+  moved_to_batch_id?: string | null
 }
 
 export const CONFIRMED_STATUSES = ['New Confirmed', 'Reconfirmed', 'Confirmed'] as const

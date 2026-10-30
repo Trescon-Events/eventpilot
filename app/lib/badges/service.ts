@@ -7,7 +7,7 @@ import sharp from 'sharp'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession, type TcsSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
-import { compositeAnnouncement, type Variant } from '@/app/lib/announcements/composite'
+import { compositeAnnouncement, type CreativeTemplateConfig, type Variant } from '@/app/lib/announcements/composite'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { putObject } from '@/app/lib/kb/storage'
 import { computeFlags, resolveItemInputs } from '@/app/lib/badges/batch-inputs'
@@ -74,6 +74,13 @@ export async function knownStaffId(sid: string | null | undefined): Promise<stri
   if (!sid) return null
   const { data } = await supabaseAdmin.from('staff_members').select('id').eq('id', sid).maybeSingle()
   return (data?.id as string | undefined) ?? null
+}
+
+/** Badge templates with a print size. `common` picks the Common Badge ones (no person on them); the person-based flows never offer those. */
+export async function badgeVariants(eventId: string, common = false): Promise<Variant[]> {
+  const { data } = await supabaseAdmin.from('events').select('creative_template_config').eq('id', eventId).single()
+  const config = data?.creative_template_config as CreativeTemplateConfig | null
+  return (config?.speaker?.variants ?? []).filter(v => v.category === 'badge' && !!v.print && !!v.common === common)
 }
 
 export async function loadBatch(batchId: string): Promise<BadgeBatchRow | null> {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
-import type { CreativeTemplateConfig, Variant } from '@/app/lib/announcements/composite'
-import { knownStaffId, requireBadgePermission } from '@/app/lib/badges/service'
+import type { Variant } from '@/app/lib/announcements/composite'
+import { badgeVariants, knownStaffId, requireBadgePermission } from '@/app/lib/badges/service'
 import { speakerBadgeStatus } from '@/app/lib/badges/status'
 import { CONFIRMED_STATUSES } from '@/app/lib/badges/types'
 import { parseQuantity } from '@/app/lib/badges/common'
@@ -16,13 +16,6 @@ import { parseQuantity } from '@/app/lib/badges/common'
 
 const VIP_COLUMNS = 'id, name, job_title, company, country, photo_processed_url, photo_head_box'
 const SPEAKER_COLUMNS = 'id, public_name, name, role, company, country, photo_processed_url, photo_head_box, confirmation_status'
-
-/** Badge templates with a print size. `common` picks the Common Badge ones (no person on them); the person-based flows never offer those. */
-async function badgeVariants(eventId: string, common = false): Promise<Variant[]> {
-  const { data } = await supabaseAdmin.from('events').select('creative_template_config').eq('id', eventId).single()
-  const config = data?.creative_template_config as CreativeTemplateConfig | null
-  return (config?.speaker?.variants ?? []).filter(v => v.category === 'badge' && !!v.print && !!v.common === common)
-}
 
 export async function GET(req: NextRequest) {
   const eventId = req.nextUrl.searchParams.get('event_id')
