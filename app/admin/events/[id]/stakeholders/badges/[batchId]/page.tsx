@@ -1,6 +1,7 @@
 'use client'
 
 import { editedSincePdf } from '@/app/lib/badges/edited'
+import type { PrintedChange } from '@/app/lib/badges/record-fields'
 import { looksLikeSkip } from '@/app/lib/badges/skip-intent'
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -49,6 +50,7 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
   const [sendClientOpen, setSendClientOpen] = useState(false)
   const [filter, setFilter] = useState<Filter>('all')
   const [adjusting, setAdjusting] = useState<BadgeItemRow | null>(null)
+  const [refreshing, setRefreshing] = useState<{ item: BadgeItemRow; changes: PrintedChange[] } | null>(null)   // "Refresh from record": what would change, awaiting a yes
   const [afterApproval, setAfterApproval] = useState(false)   // the open edit is on an already-approved batch: it redraws this badge and keeps the batch approved
   const [busy, setBusy] = useState<string | null>(null)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
@@ -132,6 +134,23 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
   async function leaveOut(item: BadgeItemRow, out: boolean) {
     const u = await patchItem(item, out ? { leave_out: true } : { restore_left_out: true })
     if (u) say(out ? `${item.name ?? 'The badge'} is left out of the print file.` : `${item.name ?? 'The badge'} is back in the print file.`)
+  }
+  /** Approved batch: look up what the person's current record says and show what would change on the badge before doing it. */
+  async function refreshFromRecord(item: BadgeItemRow) {
+    setBusy(`rec-${item.id}`)
+    const r = await api(`/api/events/badges/batches/${batchId}/items/${item.id}`, 'PATCH', { refresh_from_record: true, dry_run: true })
+    setBusy(null)
+    if (!r.ok) { say(String(r.data.error ?? 'Could not read the record.'), 'error'); return }
+    const changes = (r.data.changes as PrintedChange[]) ?? []
+    if (!changes.length) { say(`${item.name ?? 'The badge'} already matches its record — nothing to refresh. Fix the name in the VIP list or speaker record first.`); return }
+    setRefreshing({ item, changes })
+  }
+  async function confirmRefresh() {
+    if (!refreshing) return
+    setBusy(`rec-${refreshing.item.id}`)
+    const u = await patchItem(refreshing.item, { refresh_from_record: true })
+    setBusy(null)
+    if (u) { say(`${refreshing.item.name ?? 'The badge'} is redrawn from its record and still approved. Generate the print file again to include it.`); setRefreshing(null) }
   }
   function openEdit(item: BadgeItemRow, after: boolean) { setAfterApproval(after); setAdjusting(item) }
   async function leaveOutAll(list: BadgeItemRow[]) { for (const i of list) await leaveOut(i, true) }
@@ -338,11 +357,12 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
                       <div key={i.id} style={{ fontSize: '13.5px', color: 'var(--ink2)', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', padding: '3px 0' }}>
                         <span><strong>{i.name}</strong> — “{i.client_comment}”</span>
                         {looksLikeSkip(i.client_comment) && !i.removed && <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--amber)', border: '1px solid var(--amber)', borderRadius: '10px', padding: '1px 8px' }}>Looks like a request to skip</span>}
-                        {canEditAfter(i) && <Button variant={looksLikeSkip(i.client_comment) ? 'ghost' : 'teal'} onClick={() => openEdit(i, true)}>Edit &amp; regenerate</Button>}
+                        {canEditAfter(i) && <Button variant={looksLikeSkip(i.client_comment) ? 'ghost' : 'teal'} disabled={!!busy} onClick={() => void refreshFromRecord(i)}>Refresh from record</Button>}
+                        {canEditAfter(i) && <Button variant="ghost" onClick={() => openEdit(i, true)}>Edit this badge only</Button>}
                         {canManage && !i.removed && !roundPending && <Button variant={looksLikeSkip(i.client_comment) ? 'teal' : 'ghost'} onClick={() => void leaveOut(i, true)}>Leave out of print</Button>}
                       </div>
                     ))}
-                    <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '6px' }}>“Leave out of print” drops a badge the client doesn’t want — no reopening, nothing goes back to the client. To change a badge instead (fix a name or a title as the client asked), use “Edit &amp; regenerate”: the badge is redrawn in place and stays approved, so nothing goes back to the client; then generate the print file again.</div>
+                    <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '6px' }}>“Leave out of print” drops a badge the client doesn’t want — no reopening, nothing goes back to the client. To change a badge instead (fix a name or a title as the client asked), correct it in the VIP list or speaker record, then press “Refresh from record”: the badge is redrawn in place and stays approved, so nothing goes back to the client; then generate the print file again. “Edit this badge only” changes just this badge and leaves the record alone.</div>
                   </div>
                 )}
               </div>
@@ -420,7 +440,8 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
                     {canManage && !locked && !item.client_rejected && <Button variant="ghost" onClick={() => void patchItem(item, { removed: false })}>Restore</Button>}
                     {canManage && (item.client_comment ?? '').trim() && (locked || item.client_rejected) && !roundPending && <Button variant="ghost" onClick={() => void leaveOut(item, false)}>Put back</Button>}
                   </>) : (<>
-                    {canEditAfter(item) && <Button variant={(item.client_comment ?? '').trim() && !looksLikeSkip(item.client_comment) ? 'teal' : 'ghost'} onClick={() => openEdit(item, true)}>Edit &amp; regenerate</Button>}
+                    {canEditAfter(item) && <Button variant={(item.client_comment ?? '').trim() && !looksLikeSkip(item.client_comment) ? 'teal' : 'ghost'} disabled={!!busy} onClick={() => void refreshFromRecord(item)}>Refresh from record</Button>}
+                    {canEditAfter(item) && <Button variant="ghost" onClick={() => openEdit(item, true)}>Edit this badge only</Button>}
                     {canManage && (item.client_comment ?? '').trim() && !roundPending && <Button variant={looksLikeSkip(item.client_comment) ? 'teal' : 'ghost'} onClick={() => void leaveOut(item, true)}>Leave out of print</Button>}
                     {canManage && !locked && <Button variant={item.approved ? 'ghost' : 'lime'} disabled={item.preview_stale || !item.preview_url} onClick={() => void patchItem(item, { approved: !item.approved })}>{item.approved ? 'Approved ✓' : 'Approve'}</Button>}
                     {canManage && !locked && !common && <Button variant="ghost" onClick={() => openEdit(item, false)}>Adjust</Button>}
@@ -448,6 +469,25 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
             return u
           }} canvas={{ w: batch.canvas_width, h: batch.canvas_height }} />
       )}
+      {refreshing && modalShell(
+        <>
+          <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)', marginBottom: '10px' }}>Refresh from record — {refreshing.item.name}</div>
+          {(refreshing.item.client_comment ?? '').trim() && <div style={{ fontSize: '13.5px', color: 'var(--ink2)', background: 'var(--surface)', borderRadius: '8px', padding: '8px 10px', marginBottom: '10px' }}><strong>Client comment:</strong> “{refreshing.item.client_comment}”</div>}
+          <div style={{ fontSize: '13.5px', color: 'var(--ink2)', marginBottom: '8px' }}>The record now says this. These parts of the badge will change:</div>
+          <div style={{ display: 'grid', gap: '6px', marginBottom: '12px' }}>
+            {refreshing.changes.map(c => (
+              <div key={c.field} style={{ fontSize: '14px', color: 'var(--ink)', padding: '8px 10px', border: '1px solid var(--border-light)', borderRadius: '8px', lineHeight: 1.45 }}>
+                <strong style={{ textTransform: 'capitalize' }}>{c.field === 'title' ? 'Job title' : c.field}</strong><br />
+                <span style={{ color: 'var(--ink3)', textDecoration: 'line-through' }}>{c.from || '(empty)'}</span> &rarr; <strong>{c.to || '(empty)'}</strong>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.5 }}>Only this badge is redrawn. It stays approved and nothing goes back to the client. Manual text changes on this badge are replaced by the record. Generate the print file again afterwards.</div>
+          <div style={{ marginTop: '16px', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <Button variant="ghost" onClick={() => setRefreshing(null)}>Cancel</Button>
+            <Button variant="lime" disabled={!!busy} onClick={() => void confirmRefresh()}>{busy ? 'Redrawing…' : 'Refresh & regenerate'}</Button>
+          </div>
+        </>, () => setRefreshing(null), 560)}
       {deleting && <DeleteModal name={batch.name} onClose={() => setDeleting(false)} onConfirm={async () => {
         const r = await api(`/api/events/badges/batches/${batchId}`, 'DELETE', { confirm: 'DELETE' })
         if (!r.ok) { say(String(r.data.error ?? 'Could not delete.'), 'error'); return }
@@ -548,11 +588,11 @@ function AdjustModal({ item, onClose, onApply, canvas, afterApproval }: { item: 
   )
   return modalShell(
     <>
-      <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)', marginBottom: '12px' }}>{afterApproval ? 'Edit & regenerate' : 'Adjust badge'} — {item.name}</div>
+      <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)', marginBottom: '12px' }}>{afterApproval ? 'Edit this badge only' : 'Adjust badge'} — {item.name}</div>
       {afterApproval && (
         <div style={{ marginBottom: '12px', padding: '10px 12px', borderRadius: '8px', background: 'var(--surface)', border: '1px solid var(--amber)', fontSize: '13px', color: 'var(--ink2)', lineHeight: 1.5 }}>
           {(item.client_comment ?? '').trim() && <div style={{ marginBottom: '6px' }}><strong>Client comment:</strong> “{item.client_comment}”</div>}
-          The batch is approved. This redraws <strong>this badge only</strong> and it stays approved; nothing goes back to the client. Check the new picture, then generate the print file again so it carries the change.
+          The batch is approved. This changes <strong>this badge only</strong> (the VIP list or speaker record is not touched — to fix the name at the source, close this and use Refresh from record). It is redrawn and stays approved; nothing goes back to the client. Check the new picture, then generate the print file again so it carries the change.
         </div>
       )}
       <div style={{ display: 'flex', gap: '18px', flexWrap: 'wrap' }}>
