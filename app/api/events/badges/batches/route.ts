@@ -4,20 +4,24 @@ import type { CreativeTemplateConfig, Variant } from '@/app/lib/announcements/co
 import { knownStaffId, requireBadgePermission } from '@/app/lib/badges/service'
 import { speakerBadgeStatus } from '@/app/lib/badges/status'
 import { CONFIRMED_STATUSES } from '@/app/lib/badges/types'
+import { parseQuantity } from '@/app/lib/badges/common'
 
 /* GET  /api/events/badges/batches?event_id=            -> the event's batches with counts
    GET  /api/events/badges/batches?event_id=&candidates=1 -> badge templates + speakers to choose from
    GET  /api/events/badges/batches?event_id=&candidates=1&source=vips -> the same, but the people are the event's VIPs
+   GET  /api/events/badges/batches?event_id=&candidates=1&source=common -> only the Common Badge templates (one artwork, no names)
+   POST /api/events/badges/batches { event_id, variant_id, name, quantity } -> a Common Badges batch: a Common Badge template printed `quantity` times (one item = the design)
    POST /api/events/badges/batches { event_id, variant_id, name, speaker_ids[] | vip_ids[] } -> creates a batch (template + person
         fields frozen at this moment — see supabase/badge_batches_migration.sql). A photo is never required; a name is. */
 
 const VIP_COLUMNS = 'id, name, job_title, company, country, photo_processed_url, photo_head_box'
 const SPEAKER_COLUMNS = 'id, public_name, name, role, company, country, photo_processed_url, photo_head_box, confirmation_status'
 
-async function badgeVariants(eventId: string): Promise<Variant[]> {
+/** Badge templates with a print size. `common` picks the Common Badge ones (no person on them); the person-based flows never offer those. */
+async function badgeVariants(eventId: string, common = false): Promise<Variant[]> {
   const { data } = await supabaseAdmin.from('events').select('creative_template_config').eq('id', eventId).single()
   const config = data?.creative_template_config as CreativeTemplateConfig | null
-  return (config?.speaker?.variants ?? []).filter(v => v.category === 'badge' && !!v.print)
+  return (config?.speaker?.variants ?? []).filter(v => v.category === 'badge' && !!v.print && !!v.common === common)
 }
 
 export async function GET(req: NextRequest) {
@@ -25,6 +29,11 @@ export async function GET(req: NextRequest) {
   if (!eventId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
   const auth = await requireBadgePermission(req, eventId, 'sae.badges.view')
   if ('error' in auth) return auth.error
+
+  if (req.nextUrl.searchParams.get('candidates') && req.nextUrl.searchParams.get('source') === 'common') {
+    const variants = await badgeVariants(eventId, true)
+    return NextResponse.json({ variants: variants.map(v => ({ id: v.id, name: v.name, print: v.print })) })
+  }
 
   if (req.nextUrl.searchParams.get('candidates') && req.nextUrl.searchParams.get('source') === 'vips') {
     const [variants, { data: vips }, badgeStatus] = await Promise.all([
@@ -72,7 +81,7 @@ export async function GET(req: NextRequest) {
   }
 
   const { data: batches } = await supabaseAdmin.from('badge_batches')
-    .select('id, name, status, variant_id, created_at, approved_at, pdf_versions, template_snapshot').eq('event_id', eventId).order('created_at', { ascending: false })
+    .select('id, name, status, variant_id, created_at, approved_at, pdf_versions, template_snapshot, quantity').eq('event_id', eventId).order('created_at', { ascending: false })
   const ids = (batches ?? []).map(b => b.id as string)
   const { data: items } = ids.length
     ? await supabaseAdmin.from('badge_batch_items').select('batch_id, approved, removed, flags').in('batch_id', ids)
@@ -83,14 +92,15 @@ export async function GET(req: NextRequest) {
       const snapshot = b.template_snapshot as Variant
       return {
         id: b.id, name: b.name, status: b.status, created_at: b.created_at, approved_at: b.approved_at, pdf_count: (b.pdf_versions as unknown[] | null)?.length ?? 0,
-        template_name: snapshot?.name ?? '', badges: mine.length, approved: mine.filter(i => i.approved).length, flagged: mine.filter(i => (i.flags ?? []).length > 0).length,
+        template_name: snapshot?.name ?? '', quantity: (b.quantity as number | null) ?? null, badges: (b.quantity as number | null) ?? mine.length, approved: mine.filter(i => i.approved).length, flagged: mine.filter(i => (i.flags ?? []).length > 0).length,
       }
     }),
   })
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => null) as { event_id?: string; variant_id?: string; name?: string; speaker_ids?: string[]; vip_ids?: string[] } | null
+  const body = await req.json().catch(() => null) as { event_id?: string; variant_id?: string; name?: string; speaker_ids?: string[]; vip_ids?: string[]; quantity?: unknown } | null
+  if (body && body.quantity !== undefined) return createCommonBatch(req, body)
   const fromVips = Array.isArray(body?.vip_ids)
   const personIds = (fromVips ? body?.vip_ids : body?.speaker_ids) ?? []
   if (!body?.event_id || !body.variant_id || !body.name?.trim() || !Array.isArray(personIds) || personIds.length === 0) {
@@ -135,4 +145,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: itemsErr.message }, { status: 500 })
   }
   return NextResponse.json({ id: batch.id, badges: rows.length })
+}
+
+/** Common Badges: a Common Badge template + a quantity. One item (the design) is made; the print file repeats it `quantity` times. */
+async function createCommonBatch(req: NextRequest, body: { event_id?: string; variant_id?: string; name?: string; quantity?: unknown }) {
+  const quantity = parseQuantity(body.quantity)
+  if (!body.event_id || !body.variant_id || !body.name?.trim()) return NextResponse.json({ error: 'event_id, variant_id, name and quantity are required.' }, { status: 400 })
+  if (!quantity) return NextResponse.json({ error: 'Quantity must be a whole number from 1 to 5000.' }, { status: 400 })
+  const auth = await requireBadgePermission(req, body.event_id, 'sae.badges.manage')
+  if ('error' in auth) return auth.error
+  const variant = (await badgeVariants(body.event_id, true)).find(v => v.id === body.variant_id)
+  if (!variant) return NextResponse.json({ error: 'That Common Badge template was not found (or has no print size).' }, { status: 404 })
+  const { data: batch, error } = await supabaseAdmin.from('badge_batches')
+    .insert({ event_id: body.event_id, variant_id: variant.id, name: body.name.trim(), template_snapshot: variant, quantity, created_by: await knownStaffId(auth.session.sid) })
+    .select('id').single()
+  if (error || !batch) return NextResponse.json({ error: error?.message ?? 'Could not create the batch.' }, { status: 500 })
+  const { error: itemErr } = await supabaseAdmin.from('badge_batch_items').insert({ batch_id: batch.id, position: 0, name: variant.name || 'Common badge' })
+  if (itemErr) { await supabaseAdmin.from('badge_batches').delete().eq('id', batch.id); return NextResponse.json({ error: itemErr.message }, { status: 500 }) }
+  return NextResponse.json({ id: batch.id, quantity })
 }

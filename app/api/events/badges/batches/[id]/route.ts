@@ -1,3 +1,4 @@
+import { parseQuantity } from '@/app/lib/badges/common'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import type { CreativeTemplateConfig } from '@/app/lib/announcements/composite'
@@ -38,7 +39,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params
   const batch = await loadBatch(id)
   if (!batch) return NextResponse.json({ error: 'Batch not found.' }, { status: 404 })
-  const body = await req.json().catch(() => null) as { name?: string; action?: string } | null
+  const body = await req.json().catch(() => null) as { name?: string; action?: string; quantity?: unknown } | null
   if (!body) return NextResponse.json({ error: 'Invalid body.' }, { status: 400 })
   const now = new Date().toISOString()
 
@@ -106,6 +107,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ ok: true })
   }
 
+  if (body.quantity !== undefined) {
+    if (!batch.quantity) return NextResponse.json({ error: 'Only a Common Badges batch has a quantity.' }, { status: 409 })
+    const q = parseQuantity(body.quantity)
+    if (!q) return NextResponse.json({ error: 'Quantity must be a whole number from 1 to 5000.' }, { status: 400 })
+    await supabaseAdmin.from('badge_batches').update({ quantity: q, updated_at: now }).eq('id', id)
+    return NextResponse.json({ ok: true, quantity: q })
+  }
+
   if (typeof body.name === 'string' && body.name.trim()) {
     await supabaseAdmin.from('badge_batches').update({ name: body.name.trim(), updated_at: now }).eq('id', id)
     return NextResponse.json({ ok: true })
@@ -124,6 +133,19 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (await pendingRound(id)) return NextResponse.json({ error: 'This batch is with the client for approval. Withdraw it first.' }, { status: 409 })
   const body = await req.json().catch(() => null) as { confirm?: string } | null
   if (body?.confirm !== 'DELETE') return NextResponse.json({ error: 'Type DELETE to confirm.' }, { status: 400 })
+  // Keep a note for every approval link of this batch, so a client opening one later is told what happened (the rounds and recipients are deleted with the batch).
+  try {
+    const { data: rounds } = await supabaseAdmin.from('badge_approval_rounds').select('id, sent_by_name').eq('batch_id', id)
+    const rids = (rounds ?? []).map(r => r.id as string)
+    if (rids.length) {
+      const [{ data: recs }, { data: ev }] = await Promise.all([
+        supabaseAdmin.from('badge_approval_recipients').select('token, round_id').in('round_id', rids),
+        supabaseAdmin.from('events').select('name, public_name').eq('id', batch.event_id).maybeSingle(),
+      ])
+      const by = new Map((rounds ?? []).map(r => [r.id as string, r.sent_by_name as string | null]))
+      if (recs?.length) await supabaseAdmin.from('badge_approval_closed_links').upsert(recs.map(r => ({ token: r.token as string, batch_name: batch.name, event_name: (ev?.public_name as string | null) || (ev?.name as string | null) || null, sent_by_name: by.get(r.round_id as string) ?? null, reason: 'batch_deleted' })), { onConflict: 'token' })
+    }
+  } catch { /* the note is a courtesy; never block the delete */ }
   const previews = (await loadItems(id)).map(i => i.preview_url).filter((u): u is string => !!u)
   await Promise.all([...(batch.pdf_versions ?? []).map(v => deleteObject(v.key)), ...previews.map(u => deletePublicAssetByUrl(u))])
   const { error } = await supabaseAdmin.from('badge_batches').delete().eq('id', id)

@@ -49,7 +49,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const sender = await senderFor(auth.session.sid)
     const message = body.message?.trim().slice(0, 1000) || null
     const { data: round, error } = await supabaseAdmin.from('badge_approval_rounds').insert({
-      batch_id: id, message, badges: live.length, sent_by: staffId, sent_by_name: sender.name, sent_by_email: sender.email,
+      batch_id: id, message, badges: batch.quantity ?? live.length, sent_by: staffId, sent_by_name: sender.name, sent_by_email: sender.email,
     }).select('*').single()
     if (error || !round) return NextResponse.json({ error: error?.message ?? 'Could not start the approval.' }, { status: 500 })
     const expires = new Date(Date.now() + TOKEN_TTL_MS).toISOString()
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Rows exist before any email goes out, so a failed send still leaves usable links.
     const results: { email: string; sent: boolean }[] = []
     for (const r of recipients as RecipientRow[]) {
-      const sent = await sendApprovalEmail({ eventId: batch.event_id, to: r.email, recipientName: r.name, eventName, batchName: batch.name, badges: live.length, token: r.token, sender, message })
+      const sent = await sendApprovalEmail({ eventId: batch.event_id, to: r.email, recipientName: r.name, eventName, batchName: batch.name, badges: batch.quantity ?? live.length, token: r.token, sender, message })
       if (sent) await supabaseAdmin.from('badge_approval_recipients').update({ notified_at: new Date().toISOString() }).eq('id', r.id)
       results.push({ email: r.email, sent })
     }

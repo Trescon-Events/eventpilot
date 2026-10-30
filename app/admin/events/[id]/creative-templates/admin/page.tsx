@@ -123,6 +123,7 @@ const variantPickerGroups = (activeType: StakeholderKind): { title: string; item
   ] },
   { title: 'Print and keepsakes', items: [
     ['badge', 'Speaker Badge (print)', 'PVC card — you set the size next; vector layers uploaded as PDFs'],
+    ['common_badge', 'Common badge (print)', 'One finished artwork, no names — printed in a quantity (security, protocol, organiser…). You set the size, then upload the one artwork PDF'],
     ['memento', 'Speaker Memento (photo cut-out)', 'Transparent PNG of the speaker for the memento vendor — you set the size, then upload a reference layer'],
     ['memento_print', 'Speaker Memento (print)', 'Printable vector PDF: a background layer uploaded as PDF + the speaker photo — you set the page size next (6 × 9 in, no bleed)'],
   ] },
@@ -186,7 +187,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   const [activeType, setActiveType] = useState<StakeholderKind>('speaker')
   const [activeVariantId, setActiveVariantId] = useState<string | null>(null)
   const [newVariantPickerOpen, setNewVariantPickerOpen] = useState(false)
-  const [badgeSetup, setBadgeSetup] = useState<{ kind: 'badge' | 'memento'; trim_w: string; trim_h: string; bleed: string } | null>(null) // step 2 of New Variant > Speaker Badge / Speaker Memento (print)
+  const [badgeSetup, setBadgeSetup] = useState<{ kind: 'badge' | 'memento'; common?: boolean; trim_w: string; trim_h: string; bleed: string } | null>(null) // step 2 of New Variant > Speaker Badge / Speaker Memento (print)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   // "Copy this" asks where the copy goes: this event (the old behaviour) or another event's template editor.
@@ -463,7 +464,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   // wrong canvas size (1080x1350) by mistake, only caught once a layer
   // inside it was already wrong too. Gating on the choice up front means
   // canvas dimensions are correct from the variant's very first layer.
-  function addVariant(category: 'promo' | 'self_promo' | 'website_photo' | 'badge' | 'memento' | 'stage_screen', badgeSpec?: { width_mm: number; height_mm: number; bleed_mm: number }) {
+  function addVariant(category: 'promo' | 'self_promo' | 'website_photo' | 'badge' | 'memento' | 'stage_screen', badgeSpec?: { width_mm: number; height_mm: number; bleed_mm: number }, common?: boolean) {
     pushUndo()
     const size = category === 'website_photo' ? CLEANING_CYCLE_CANVAS_SIZE : null
     // Badge (2026-10-02): page = trim + bleed, entered in the setup step; canvas = that page at ~300 ppi.
@@ -471,10 +472,12 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     const mementoPrint = category === 'memento' && !!badgeSpec
     const grid = badge || mementoPrint ? badgeGrid(badgeSpec!) : null
     const stage = category === 'stage_screen'
+    const commonBadge = badge && !!common
     const variant: Variant = stage ? stageScreenStarter() : {
-      id: crypto.randomUUID(), name: badge ? 'Speaker badge' : mementoPrint ? 'Speaker memento (print)' : category === 'memento' ? 'Speaker memento' : 'Untitled Variant', category,
-      canvas_width: grid ? grid.w : category === 'memento' ? 1024 : size ?? 1080, canvas_height: grid ? grid.h : category === 'memento' ? 1024 : size ?? 1350, layers: category === 'memento' ? [newLayer('photo_slot', activeType, grid ? grid.w : 1024, grid ? grid.h : 1024, null, 'memento')] : [],
+      id: crypto.randomUUID(), name: commonBadge ? 'Common badge' : badge ? 'Speaker badge' : mementoPrint ? 'Speaker memento (print)' : category === 'memento' ? 'Speaker memento' : 'Untitled Variant', category,
+      canvas_width: grid ? grid.w : category === 'memento' ? 1024 : size ?? 1080, canvas_height: grid ? grid.h : category === 'memento' ? 1024 : size ?? 1350, layers: category === 'memento' ? [newLayer('photo_slot', activeType, grid ? grid.w : 1024, grid ? grid.h : 1024, null, 'memento')] : commonBadge ? [newLayer('image', activeType, grid!.w, grid!.h)] : [],
       ...(badge || mementoPrint ? { print: { ...badgeSpec! } } : {}),
+      ...(commonBadge ? { common: true } : {}),
     }
     mutate(vs => [...vs, variant])
     setActiveVariantId(variant.id)
@@ -902,6 +905,11 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                         </label>
                         </>)}
                       </div>
+                      {activeVariant.category === 'badge' && activeVariant.common && (
+                        <div style={{ marginBottom: '14px', fontSize: '12.5px', color: 'var(--ink2)', lineHeight: 1.6 }}>
+                          <strong>Common badge</strong> — one finished artwork with no name or photo on it. Upload the artwork on the <strong>Image layer</strong> below (a vector PDF at the page size above) and name this template (for example “VIP Security”). In the badge printing module it appears under <strong>Common Badges</strong>: whoever prints picks this template and types a quantity — nobody is selected.
+                        </div>
+                      )}
                       {activeVariant.category === 'badge' && activeVariant.print && (
                         <BadgeSettings variant={activeVariant} eventId={eventId} activeType={activeType} onChange={print => updateActiveVariant({ print })} onResize={resizeBadge} />
                       )}
@@ -971,8 +979,8 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
 
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                         <Button variant="ghost" title="Static art, identical on every announcement — backgrounds, decorative overlays, branding blocks. Not this speaker/partner's own photo or logo." onClick={() => addLayer('image')} disabled={activeVariant.category === 'memento' && !activeVariant.print}>+ Image Layer</Button>
-                        <Button variant="ghost" title="A slot that fills in with each real speaker/partner's own photo or logo at generation time. Not static art." onClick={() => addLayer('photo_slot')}>+ Photo/Logo Slot</Button>
-                        <Button variant="ghost" title="A field of text (name, title, company, a static caption, etc.) rendered live at generation time." onClick={() => addLayer('text')} disabled={activeVariant.category === 'memento'}>+ Text Layer</Button>
+                        <Button variant="ghost" title="A slot that fills in with each real speaker/partner's own photo or logo at generation time. Not static art." onClick={() => addLayer('photo_slot')} disabled={!!activeVariant.common}>+ Photo/Logo Slot</Button>
+                        <Button variant="ghost" title="A field of text (name, title, company, a static caption, etc.) rendered live at generation time." onClick={() => addLayer('text')} disabled={activeVariant.category === 'memento' || !!activeVariant.common}>+ Text Layer</Button>
                         <Button variant="ghost" title="A mockup to place text and photos against. Shown in Generate Preview only — never in real announcements, website photos or print." onClick={addPreviewLayer}>+ Preview Layer</Button>
                         <Button variant="ghost" title="Copies this variant with all its layers intact — into this event, or into another event (e.g. the same badge for a sister event)." onClick={() => openCopyDialog(activeVariant.id)}>Copy this</Button>
                         <Button variant="red" onClick={() => deleteVariant(activeVariant.id)}>Delete Variant</Button>
@@ -1163,7 +1171,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                     <div style={{ fontSize: '11.5px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>{g.title}</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px' }}>
                       {g.items.map(([value, label, hint]) => (
-                        <button key={value} onClick={() => value === 'badge' ? setBadgeSetup({ kind: 'badge', trim_w: String(BADGE_DEFAULT.trim_w), trim_h: String(BADGE_DEFAULT.trim_h), bleed: String(BADGE_DEFAULT.bleed) }) : value === 'memento_print' ? setBadgeSetup({ kind: 'memento', trim_w: String(MEMENTO_DEFAULT.trim_w), trim_h: String(MEMENTO_DEFAULT.trim_h), bleed: String(MEMENTO_DEFAULT.bleed) }) : addVariant(value as 'promo' | 'self_promo' | 'website_photo' | 'memento' | 'stage_screen')} style={{ display: 'block', width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1.5px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+                        <button key={value} onClick={() => value === 'common_badge' ? setBadgeSetup({ kind: 'badge', common: true, trim_w: String(BADGE_DEFAULT.trim_w), trim_h: String(BADGE_DEFAULT.trim_h), bleed: String(BADGE_DEFAULT.bleed) }) : value === 'badge' ? setBadgeSetup({ kind: 'badge', trim_w: String(BADGE_DEFAULT.trim_w), trim_h: String(BADGE_DEFAULT.trim_h), bleed: String(BADGE_DEFAULT.bleed) }) : value === 'memento_print' ? setBadgeSetup({ kind: 'memento', trim_w: String(MEMENTO_DEFAULT.trim_w), trim_h: String(MEMENTO_DEFAULT.trim_h), bleed: String(MEMENTO_DEFAULT.bleed) }) : addVariant(value as 'promo' | 'self_promo' | 'website_photo' | 'memento' | 'stage_screen')} style={{ display: 'block', width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1.5px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
                           <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>{label}</div>
                           <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginTop: '3px', lineHeight: 1.45 }}>{hint}</div>
                         </button>
@@ -1189,7 +1197,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'color-mix(in srgb, black 60%, transparent)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={() => setBadgeSetup(null)}>
             <div onClick={e => e.stopPropagation()} style={{ width: '400px', maxWidth: '100%', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '22px' }}>
-              <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>{badgeSetup.kind === 'memento' ? 'Speaker Memento (print) — size' : 'Speaker Badge — size'}</div>
+              <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>{badgeSetup.kind === 'memento' ? 'Speaker Memento (print) — size' : badgeSetup.common ? 'Common badge — size' : 'Speaker Badge — size'}</div>
               <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginBottom: '16px', lineHeight: 1.5 }}>
                 Set the print size first. Uploads must match it, and it can&apos;t be changed later.
               </div>
@@ -1207,7 +1215,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
               </div>
               <div style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
                 <Button variant="ghost" onClick={() => setBadgeSetup(null)}>Back</Button>
-                <Button variant="teal" disabled={!page} onClick={() => page && addVariant(badgeSetup.kind, page)}>Next — open template maker</Button>
+                <Button variant="teal" disabled={!page} onClick={() => page && addVariant(badgeSetup.kind, page, badgeSetup.common)}>Next — open template maker</Button>
               </div>
             </div>
           </div>

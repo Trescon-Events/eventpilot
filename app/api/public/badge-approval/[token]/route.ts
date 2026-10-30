@@ -17,16 +17,25 @@ async function load(token: string) {
   if (!rec) return null
   const { data: round } = await supabaseAdmin.from('badge_approval_rounds').select('*').eq('id', rec.round_id).maybeSingle()
   if (!round) return null
-  const { data: batch } = await supabaseAdmin.from('badge_batches').select('id, name, event_id, template_snapshot').eq('id', round.batch_id).maybeSingle()
+  const { data: batch } = await supabaseAdmin.from('badge_batches').select('id, name, event_id, template_snapshot, quantity').eq('id', round.batch_id).maybeSingle()
   if (!batch) return null
   const { data: ev } = await supabaseAdmin.from('events').select('name, public_name').eq('id', batch.event_id).maybeSingle()
   return { rec, round: round as RoundRow, batch, eventName: ((ev?.public_name as string | null) || (ev?.name as string | null) || 'the event') }
 }
 
+/** What to tell someone whose link no longer leads anywhere. A batch that was deleted leaves a note (see the batch DELETE), so the message can say what happened. */
+async function missingLinkMessage(token: string): Promise<string> {
+  const generic = 'This approval link is no longer active. The badges it belonged to may have been replaced or removed, or the link was copied incompletely. Please ask the sender for the current link.'
+  if (!/^[0-9a-f]{32,128}$/i.test(token)) return generic
+  const { data } = await supabaseAdmin.from('badge_approval_closed_links').select('batch_name, event_name, sent_by_name').eq('token', token).maybeSingle()
+  if (!data) return generic
+  return `This approval request is no longer active: the badges “${data.batch_name ?? ''}”${data.event_name ? ` for ${data.event_name}` : ''} were replaced or removed by ${data.sent_by_name ?? 'the sender'}. Nothing more is needed from you on this link — a new link will be sent if your approval is still required.`
+}
+
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
   const ctx = await load(token)
-  if (!ctx) return NextResponse.json({ error: 'This link is not valid.' }, { status: 404 })
+  if (!ctx) return NextResponse.json({ error: await missingLinkMessage(token) }, { status: 404 })
   const { rec, round, batch, eventName } = ctx
   if (round.status === 'withdrawn') return NextResponse.json({ error: 'This approval request was withdrawn by the sender. They will send a new link if needed.' }, { status: 410 })
   if (round.status === 'pending' && new Date(rec.token_expires_at as string) < new Date()) return NextResponse.json({ error: 'This link has expired. Please ask the sender for a new one.' }, { status: 410 })
@@ -42,7 +51,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   const byItem = new Map((decisions ?? []).map(d => [d.item_id as string, d]))
   const snap = batch.template_snapshot as { canvas_width?: number; canvas_height?: number } | null
   return NextResponse.json({
-    event_name: eventName, batch_name: batch.name, sent_by_name: round.sent_by_name, sent_at: round.sent_at, message: round.message, recipient_name: rec.name,
+    event_name: eventName, batch_name: batch.name, quantity: (batch.quantity as number | null) ?? null, sent_by_name: round.sent_by_name, sent_at: round.sent_at, message: round.message, recipient_name: rec.name,
     canvas: { width: snap?.canvas_width ?? 1, height: snap?.canvas_height ?? 1 },
     status: round.status,
     resolved: pending ? null : { by_name: round.resolved_by_name, at: round.resolved_at, status: round.status, rejected_count: round.rejected_count, comment_count: round.comment_count, note: round.client_note ?? null, is_me: !!round.resolved_by_email && round.resolved_by_email.toLowerCase() === String(rec.email).toLowerCase() },
@@ -53,7 +62,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
   const ctx = await load(token)
-  if (!ctx) return NextResponse.json({ error: 'This link is not valid.' }, { status: 404 })
+  if (!ctx) return NextResponse.json({ error: await missingLinkMessage(token) }, { status: 404 })
   const { rec, round, batch, eventName } = ctx
   if (round.status === 'withdrawn') return NextResponse.json({ error: 'This approval request was withdrawn by the sender.' }, { status: 410 })
   if (round.status !== 'pending') return NextResponse.json({ error: `${round.resolved_by_name ?? 'A colleague'} has already responded to this request.`, already_actioned: true }, { status: 409 })

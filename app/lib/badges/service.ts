@@ -18,6 +18,7 @@ import { templateChanged, templatePolicy } from '@/app/lib/badges/template-drift
 export type BadgeBatchRow = {
   id: string; event_id: string; variant_id: string; name: string; status: 'draft' | 'review' | 'approved'
   template_snapshot: Variant; pdf_versions: Array<{ key: string; generated_at: string; generated_by: string | null; badges: number }>
+  quantity?: number | null
   created_by: string | null; approved_by: string | null; created_at: string; updated_at: string; approved_at: string | null; client_approval_waived_at?: string | null; client_approval_waived_by?: string | null
 }
 
@@ -142,18 +143,20 @@ export async function runPdfJob(jobId: string, batchId: string, staffId: string 
     if (!batch) throw new Error('Batch not found.')
     const items = (await loadItems(batchId)).filter(i => !i.removed && i.approved)
     if (items.length === 0) throw new Error('No approved badges in this batch.')
+    // Common Badges: the one approved design, repeated `quantity` times; otherwise one page per approved badge.
+    const pages = batch.quantity ? batch.quantity : items.length
     const { data: ev } = await supabaseAdmin.from('events').select('name').eq('id', batch.event_id).single()
-    await touchJob(jobId, { progress_total: items.length, progress_done: 0 })
+    await touchJob(jobId, { progress_total: pages, progress_done: 0 })
     const pdf = await buildBadgeBatchPdf({
-      variant: batch.template_snapshot, count: items.length, eventName: (ev?.name as string | undefined) ?? 'Event', batchName: batch.name,
-      getItem: async i => { const r = await resolveItemInputs(items[i], batch.template_snapshot); return { variant: r.variant, assets: r.assets, texts: r.texts } },
+      variant: batch.template_snapshot, count: pages, eventName: (ev?.name as string | undefined) ?? 'Event', batchName: batch.name,
+      getItem: async i => { const r = await resolveItemInputs(batch.quantity ? items[0] : items[i], batch.template_snapshot); return { variant: r.variant, assets: r.assets, texts: r.texts } },
       onProgress: (done) => touchJob(jobId, { progress_done: done }),
     })
     const key = `badges/${batch.event_id}/${batch.id}/${Date.now()}.pdf`
     await putObject(key, pdf, 'application/pdf')
-    const versions = [...(batch.pdf_versions ?? []), { key, generated_at: new Date().toISOString(), generated_by: await knownStaffId(staffId), badges: items.length }]
+    const versions = [...(batch.pdf_versions ?? []), { key, generated_at: new Date().toISOString(), generated_by: await knownStaffId(staffId), badges: pages }]
     await supabaseAdmin.from('badge_batches').update({ pdf_versions: versions, updated_at: new Date().toISOString() }).eq('id', batchId)
-    await touchJob(jobId, { status: 'done', completed_at: new Date().toISOString(), result: { key, badges: items.length, bytes: pdf.length } })
+    await touchJob(jobId, { status: 'done', completed_at: new Date().toISOString(), result: { key, badges: pages, bytes: pdf.length } })
   } catch (e) {
     await touchJob(jobId, { status: 'error', completed_at: new Date().toISOString(), error_message: (e instanceof Error ? e.message : 'Could not build the print file.').slice(0, 2000) })
   }

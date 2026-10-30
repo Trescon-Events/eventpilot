@@ -1,5 +1,6 @@
 'use client'
 
+import { looksLikeSkip } from '@/app/lib/badges/skip-intent'
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader'
@@ -13,7 +14,7 @@ import type { BadgeFlag, BadgeItemRow, BadgeOverrides } from '@/app/lib/badges/t
    approve each (or all unflagged / all), approve the batch for print, then build and download the print file. */
 
 type Batch = {
-  id: string; name: string; status: 'draft' | 'review' | 'approved'; template_name: string; canvas_width: number; canvas_height: number
+  id: string; name: string; status: 'draft' | 'review' | 'approved'; quantity?: number | null; template_name: string; canvas_width: number; canvas_height: number
   print?: { width_mm: number; height_mm: number; bleed_mm: number }
   pdf_versions: Array<{ key: string; generated_at: string; badges: number }>; approved_at: string | null
 }
@@ -125,6 +126,12 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
     setItems(prev => prev.map(i => (i.id === updated.id ? updated : i)))
     return updated
   }
+  /** The team acting on a client's comment: out of (or back into) the print file without reopening the batch or going back to the client. */
+  async function leaveOut(item: BadgeItemRow, out: boolean) {
+    const u = await patchItem(item, out ? { leave_out: true } : { restore_left_out: true })
+    if (u) say(out ? `${item.name ?? 'The badge'} is left out of the print file.` : `${item.name ?? 'The badge'} is back in the print file.`)
+  }
+  async function leaveOutAll(list: BadgeItemRow[]) { for (const i of list) await leaveOut(i, true) }
   async function batchAction(action: string, label: string) {
     setBusy(action)
     const r = await api(`/api/events/badges/batches/${batchId}`, 'PATCH', { action })
@@ -164,6 +171,8 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
     filter === 'removed' ? i.removed : !i.removed && (filter === 'all' || (filter === 'flagged' ? i.flags.length > 0 : !i.approved))
   ), [items, filter])
   const locked = batch?.status === 'approved'
+  const common = !!batch?.quantity   // Common Badges: one design printed `quantity` times, no names
+  const [qtyDraft, setQtyDraft] = useState<string | null>(null)
   const canManage = can('sae.badges.manage'), canApprove = can('sae.badges.approve')
   // Client approval (events that need it): the batch goes to the client after the producer's own approval; the print file waits for their answer.
   const caRequired = !!ca?.required
@@ -175,6 +184,7 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
   const printUnlocked = locked && (!caRequired || roundApproved || waived)
   const clientRejected = items.filter(i => i.client_rejected)
   const clientComments = items.filter(i => (i.client_comment ?? '').trim())
+  const skipAsks = items.filter(i => !i.removed && looksLikeSkip(i.client_comment))   // comments that read like "don't print this one" but were not rejected
   async function caAction(action: string, extra?: Record<string, unknown>, label?: string) {
     setBusy(`ca-${action}`)
     const r = await api(`/api/events/badges/batches/${batchId}/client-approval`, 'POST', { action, ...extra })
@@ -195,18 +205,18 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
   return (
     <div>
       <PageHeader
-        eyebrow="Speaker badges" title={batch.name}
+        eyebrow={common ? 'Common Badges' : 'Speaker badges'} title={batch.name}
         description={<>{batch.template_name}{batch.print ? ` · artwork ${batch.print.width_mm} × ${batch.print.height_mm} mm, bleed ${batch.print.bleed_mm} mm` : ''} · <Badge color={printUnlocked ? 'teal' : locked || batch.status === 'review' ? 'amber' : 'grey'}>{printUnlocked ? 'Approved for print' : locked ? (roundPending ? 'Pending client approval' : 'Approved internally — not yet client-approved') : batch.status === 'review' ? 'In review' : 'Draft'}</Badge></>}
         backHref={`/admin/events/${eventId}/stakeholders/badges`} backLabel="All batches"
       />
       <div style={{ padding: '20px 32px 60px' }}>
         {/* summary + actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', marginBottom: '14px' }}>
-          <div style={{ fontSize: '15px', color: 'var(--ink2)' }}><strong>{stats.approved}</strong> of {stats.total} approved{stats.flagged > 0 && <> · <span style={{ color: 'var(--amber)', fontWeight: 700 }}>{stats.flagged} flagged</span></>}{stats.stale > 0 && <> · {stats.stale} not rendered</>}</div>
+          <div style={{ fontSize: '15px', color: 'var(--ink2)' }}>{common ? <><strong>{batch.quantity}</strong> to print · design {stats.approved ? 'approved' : 'not approved yet'}</> : <><strong>{stats.approved}</strong> of {stats.total} approved</>}{stats.flagged > 0 && <> · <span style={{ color: 'var(--amber)', fontWeight: 700 }}>{stats.flagged} flagged</span></>}{stats.stale > 0 && <> · {stats.stale} not rendered</>}</div>
           <div style={{ flex: 1 }} />
           {canManage && !locked && (<>
             <Button variant="ghost" disabled={!!activeJob || !!busy} onClick={() => void startRender(stats.stale === 0)}>{stats.stale > 0 ? `Render ${stats.stale} badge${stats.stale === 1 ? '' : 's'}` : 'Re-render all'}</Button>
-            <Button variant="ghost" disabled={!!activeJob || !!busy} title="Pull the latest name, title, company, country and photo from the speaker records" onClick={() => void batchAction('refresh_speakers', 'refreshed from speaker records')}>Refresh from speakers</Button>
+            {!common && <Button variant="ghost" disabled={!!activeJob || !!busy} title="Pull the latest name, title, company, country and photo from the speaker records" onClick={() => void batchAction('refresh_speakers', 'refreshed from speaker records')}>Refresh from speakers</Button>}
             <Button variant="ghost" disabled={!!activeJob || !!busy} title="Use the template's current design (re-renders every badge)" onClick={() => void batchAction('update_template', 'updated the template')}>Update template</Button>
             <Button variant="ghost" disabled={!!activeJob || !!busy || stats.stale > 0} onClick={() => void approveAllBadges(false)}>Approve all unflagged</Button>
             <Button variant="ghost" disabled={!!activeJob || !!busy || stats.stale > 0} title="Approves every badge, including the flagged ones" onClick={approveAllIncludingFlagged}>Approve all</Button>
@@ -227,6 +237,25 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
             </div>
             {canManage && !locked && tpl.auto && <Button variant="teal" disabled={!!activeJob || !!busy} onClick={() => void startRender(true)}>Render with the latest design</Button>}
             {canManage && !locked && !tpl.auto && <Button variant="teal" disabled={!!activeJob || !!busy} onClick={() => void batchAction('update_template', 'updated the template')}>Update template</Button>}
+          </div>
+        )}
+
+        {common && (
+          <div style={{ marginBottom: '14px', padding: '14px 16px', border: '1px solid var(--border-light)', borderRadius: '10px', background: 'var(--card)', display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Quantity</div>
+            {canManage && !locked ? (
+              <>
+                <Input type="number" min={1} max={5000} value={qtyDraft ?? String(batch.quantity)} onChange={e => setQtyDraft(e.target.value)} style={{ width: '120px' }} />
+                <Button variant="ghost" disabled={qtyDraft === null || Number(qtyDraft) === batch.quantity || !!busy} onClick={() => void (async () => {
+                  setBusy('quantity')
+                  const r = await api(`/api/events/badges/batches/${batchId}`, 'PATCH', { quantity: Number(qtyDraft) })
+                  setBusy(null)
+                  if (!r.ok) { say(String(r.data.error ?? 'Could not change the quantity.'), 'error'); return }
+                  setQtyDraft(null); say(`Quantity set to ${r.data.quantity}.`); await load()
+                })()}>Save quantity</Button>
+              </>
+            ) : <strong style={{ fontSize: '18px' }}>{batch.quantity}</strong>}
+            <span style={{ fontSize: '13px', color: 'var(--ink3)', flex: '1 1 260px' }}>One design, printed {batch.quantity} time{batch.quantity === 1 ? '' : 's'} — no names. Approve the design below, then generate the print file.{locked ? ' Reopen the batch to change the quantity.' : ''}</span>
           </div>
         )}
 
@@ -281,19 +310,33 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
                 “{round!.client_note}”
               </div>
             )}
+            {skipAsks.length > 0 && !roundPending && (
+              <div style={{ marginTop: '12px', padding: '12px 14px', borderRadius: '10px', border: '2px solid var(--amber)', background: 'var(--surface)', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ flex: '1 1 280px', fontSize: '14px', color: 'var(--ink)', lineHeight: 1.5 }}>
+                  <strong>{skipAsks.length} client comment{skipAsks.length === 1 ? '' : 's'} read{skipAsks.length === 1 ? 's' : ''} like “don’t print this one”</strong> but the badge{skipAsks.length === 1 ? ' was' : 's were'} not rejected, so {skipAsks.length === 1 ? 'it is' : 'they are'} still in the print file: {skipAsks.map(i => i.name).join(', ')}.
+                </div>
+                {canManage && <Button variant="teal" onClick={() => void leaveOutAll(skipAsks)}>Leave {skipAsks.length === 1 ? 'it' : `all ${skipAsks.length}`} out of print</Button>}
+              </div>
+            )}
             {roundApproved && (clientRejected.length > 0 || clientComments.length > 0) && (
               <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-light)', display: 'grid', gap: '10px' }}>
                 {clientRejected.length > 0 && (
                   <div>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--red)', marginBottom: '4px' }}>Rejected by the client — left out of the print file ({clientRejected.length})</div>
-                    {clientRejected.map(i => <div key={i.id} style={{ fontSize: '13.5px', color: 'var(--ink2)' }}><strong>{i.name}</strong>{(i.client_comment ?? '').trim() ? ` — “${i.client_comment}”` : ''}</div>)}
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--red)', marginBottom: '4px' }}>Left out of the print file — client rejected, or asked to skip ({clientRejected.length})</div>
+                    {clientRejected.map(i => <div key={i.id} style={{ fontSize: '13.5px', color: 'var(--ink2)', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}><span><strong>{i.name}</strong>{(i.client_comment ?? '').trim() ? ` — “${i.client_comment}”` : ''}</span>{canManage && (i.client_comment ?? '').trim() && !roundPending && <Button variant="ghost" onClick={() => void leaveOut(i, false)}>Put back</Button>}</div>)}
                   </div>
                 )}
                 {clientComments.filter(i => !i.client_rejected).length > 0 && (
                   <div>
                     <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Client comments ({clientComments.filter(i => !i.client_rejected).length})</div>
-                    {clientComments.filter(i => !i.client_rejected).map(i => <div key={i.id} style={{ fontSize: '13.5px', color: 'var(--ink2)' }}><strong>{i.name}</strong> — “{i.client_comment}”</div>)}
-                    <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '6px' }}>To act on a comment, Reopen the batch, change the badge and approve again — then send it to the client once more.</div>
+                    {clientComments.filter(i => !i.client_rejected).map(i => (
+                      <div key={i.id} style={{ fontSize: '13.5px', color: 'var(--ink2)', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', padding: '3px 0' }}>
+                        <span><strong>{i.name}</strong> — “{i.client_comment}”</span>
+                        {looksLikeSkip(i.client_comment) && !i.removed && <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--amber)', border: '1px solid var(--amber)', borderRadius: '10px', padding: '1px 8px' }}>Looks like a request to skip</span>}
+                        {canManage && !i.removed && !roundPending && <Button variant={looksLikeSkip(i.client_comment) ? 'teal' : 'ghost'} onClick={() => void leaveOut(i, true)}>Leave out of print</Button>}
+                      </div>
+                    ))}
+                    <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '6px' }}>“Leave out of print” drops a badge the client doesn’t want — no reopening, nothing goes back to the client. To change a badge instead (a title, a photo), Reopen the batch, edit it and approve again; the client then sees it once more.</div>
                   </div>
                 )}
               </div>
@@ -358,15 +401,17 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
                   {item.flags.map(f => <span key={f.code} title={f.message} style={{ fontSize: '12px', fontWeight: 700, color: FLAG_COLOR[f.code], border: `1px solid ${FLAG_COLOR[f.code]}`, borderRadius: '10px', padding: '1px 8px' }}>{f.message}</span>)}
                   {Object.keys(item.overrides).length > 0 && <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', border: '1px solid var(--border)', borderRadius: '10px', padding: '1px 8px' }}>Adjusted</span>}
                 </div>
-                {item.client_rejected && <div style={{ fontSize: '12.5px', fontWeight: 800, color: 'var(--red)', marginBottom: '6px' }}>Rejected by the client</div>}
-                {(item.client_comment ?? '').trim() && !item.client_rejected && <div style={{ fontSize: '12.5px', color: 'var(--ink2)', background: 'var(--surface)', borderRadius: '8px', padding: '6px 8px', marginBottom: '8px', lineHeight: 1.4 }}>Client: “{item.client_comment}”</div>}
+                {item.client_rejected && <div style={{ fontSize: '12.5px', fontWeight: 800, color: 'var(--red)', marginBottom: '6px' }}>Left out of print at the client’s request</div>}
+                {(item.client_comment ?? '').trim() && !item.client_rejected && <div style={{ fontSize: '12.5px', color: 'var(--ink2)', background: 'var(--surface)', borderRadius: '8px', padding: '6px 8px', marginBottom: '8px', lineHeight: 1.4 }}>Client: “{item.client_comment}”{looksLikeSkip(item.client_comment) && !item.removed && <strong style={{ color: 'var(--amber)' }}> — looks like a request to skip</strong>}</div>}
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {item.removed ? (
-                    canManage && !locked && <Button variant="ghost" onClick={() => void patchItem(item, { removed: false })}>Restore</Button>
-                  ) : (<>
+                  {item.removed ? (<>
+                    {canManage && !locked && !item.client_rejected && <Button variant="ghost" onClick={() => void patchItem(item, { removed: false })}>Restore</Button>}
+                    {canManage && (item.client_comment ?? '').trim() && (locked || item.client_rejected) && !roundPending && <Button variant="ghost" onClick={() => void leaveOut(item, false)}>Put back</Button>}
+                  </>) : (<>
+                    {canManage && (item.client_comment ?? '').trim() && !roundPending && <Button variant={looksLikeSkip(item.client_comment) ? 'teal' : 'ghost'} onClick={() => void leaveOut(item, true)}>Leave out of print</Button>}
                     {canManage && !locked && <Button variant={item.approved ? 'ghost' : 'lime'} disabled={item.preview_stale || !item.preview_url} onClick={() => void patchItem(item, { approved: !item.approved })}>{item.approved ? 'Approved ✓' : 'Approve'}</Button>}
-                    {canManage && !locked && <Button variant="ghost" onClick={() => setAdjusting(item)}>Adjust</Button>}
-                    {canManage && !locked && <Button variant="ghost" onClick={() => void patchItem(item, { removed: true })}>Remove</Button>}
+                    {canManage && !locked && !common && <Button variant="ghost" onClick={() => setAdjusting(item)}>Adjust</Button>}
+                    {canManage && !locked && !common && <Button variant="ghost" onClick={() => void patchItem(item, { removed: true })}>Remove</Button>}
                   </>)}
                 </div>
               </div>

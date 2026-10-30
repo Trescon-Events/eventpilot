@@ -1,6 +1,7 @@
 'use client'
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { looksLikeSkip } from '@/app/lib/badges/skip-intent'
 
 /* Client approval of speaker badges (2026-10-21) — the page a client opens from the email link. No login; the private link in the URL is the key.
    A gallery of every badge (built for 50–100+ at a time, on a phone, a laptop or a large desktop), a comment box and a Reject button under each, and one
@@ -10,6 +11,8 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 type Item = { id: string; name: string | null; title: string | null; company: string | null; preview_url: string | null; comment: string | null; rejected: boolean }
 type Data = {
+  quantity?: number | null
+
   event_name: string; batch_name: string; sent_by_name: string | null; sent_at: string; message: string | null; recipient_name: string
   canvas: { width: number; height: number }; status: 'pending' | 'approved' | 'approved_with_comments'
   resolved: { by_name: string | null; at: string | null; status: string; rejected_count: number; comment_count: number; is_me: boolean } | null
@@ -79,6 +82,9 @@ export default function BadgeApprovalPage({ params }: { params: Promise<{ token:
 
   const pending = data?.status === 'pending'
   const saved = (i: Item) => (i.comment ?? '').trim()
+  const typed = (i: Item) => (drafts[i.id] ?? i.comment ?? '').trim()
+  // comments that read like "no need to print this one" on a badge that is not rejected: the client may not realise Reject is what stops it being printed
+  const skipLike = items.filter(i => !i.rejected && looksLikeSkip(typed(i)))
   const dirty = (i: Item) => drafts[i.id] !== undefined && drafts[i.id].trim() !== saved(i)
   const commentCount = items.filter(i => saved(i)).length
   const rejectedCount = items.filter(i => i.rejected).length
@@ -149,8 +155,8 @@ export default function BadgeApprovalPage({ params }: { params: Promise<{ token:
       <div className="ba-top">
         <div className="ba-row">
           <div>
-            <h1 className="ba-title">{data.event_name} — speaker badges</h1>
-            <div className="ba-sub">{data.batch_name} · {items.length} badge{items.length === 1 ? '' : 's'}{pending ? ` · ${commentCount} comment${commentCount === 1 ? '' : 's'} · ${rejectedCount} rejected` : ''}</div>
+            <h1 className="ba-title">{data.event_name} — badges</h1>
+            <div className="ba-sub">{data.batch_name} · {data.quantity ? `one design, ${data.quantity} to be printed` : `${items.length} badge${items.length === 1 ? '' : 's'}`}{pending ? ` · ${commentCount} comment${commentCount === 1 ? '' : 's'} · ${rejectedCount} rejected` : ''}</div>
           </div>
           <div className="ba-grow" />
           {pending && <button className="ba-btn" onClick={() => setConfirm(true)} disabled={busy}>{withComments ? 'Approved with comments' : 'Approved'}</button>}
@@ -168,14 +174,14 @@ export default function BadgeApprovalPage({ params }: { params: Promise<{ token:
         {notice && <div className="ba-banner" style={{ background: 'var(--red-light)', color: 'var(--red)' }}>{notice}</div>}
         {pending && (
           <div className="ba-banner" style={{ background: 'var(--surface2)', color: 'var(--ink2)' }}>
-            Dear {data.recipient_name.split(' ')[0]}, {data.sent_by_name ?? 'the team'} has sent you these speaker badges for approval. Look through them, add a comment under any badge, or <strong>Reject</strong> a speaker who should not be printed. When you are done, press the button at the top. Only one of you needs to approve; if a colleague already has, you will see their decision instead.
+            Dear {data.recipient_name.split(' ')[0]}, {data.sent_by_name ?? 'the team'} has sent you these badges for approval. Look through them, add a comment under any badge, or <strong>Reject</strong> a badge that should not be printed. When you are done, press the button at the top. Only one of you needs to approve; if a colleague already has, you will see their decision instead.
             {data.message && <div style={{ marginTop: '8px', fontStyle: 'italic' }}>“{data.message}”</div>}
           </div>
         )}
         {r && (
           <div className="ba-banner" style={{ background: 'var(--teal-light)', color: 'var(--teal)' }}>
             <strong>{r.is_me ? 'You' : (r.by_name ?? 'A colleague')} {r.status === 'approved_with_comments' ? 'approved these badges, with comments' : 'approved these badges'}</strong>{r.at ? ` on ${fmt(r.at)}` : ''}.
-            {r.rejected_count > 0 && <> {r.rejected_count} speaker{r.rejected_count === 1 ? ' was' : 's were'} rejected and will not be printed.</>}
+            {r.rejected_count > 0 && <> {r.rejected_count} badge{r.rejected_count === 1 ? ' was' : 's were'} rejected and will not be printed.</>}
             {r.comment_count > 0 && <> {r.comment_count} comment{r.comment_count === 1 ? '' : 's'}.</>}
             {' '}{r.is_me ? 'Thank you — nothing more is needed.' : 'No further action is needed from you; this is what was decided.'}
           </div>
@@ -203,6 +209,12 @@ export default function BadgeApprovalPage({ params }: { params: Promise<{ token:
                       <span className="ba-grow" />
                       <button className="ba-btn red" onClick={() => void toggleReject(i)}>{i.rejected ? 'Undo reject' : 'Reject'}</button>
                     </div>
+                    {!i.rejected && looksLikeSkip(typed(i)) && (
+                      <div style={{ fontSize: '13px', lineHeight: 1.45, border: '2px solid var(--amber)', borderRadius: '8px', padding: '8px 10px', background: 'var(--surface)' }}>
+                        <strong>Should this badge be left out of printing?</strong> A comment alone does not stop it — it will still be printed unless you press <strong>Reject</strong>.
+                        <div style={{ marginTop: '6px' }}><button className="ba-btn red small" onClick={() => void (async () => { if (dirty(i)) await saveComment(i); await toggleReject(i) })()}>Yes, reject this badge</button></div>
+                      </div>
+                    )}
                   </>
                 ) : (
                   saved(i) && <div style={{ fontSize: '13px', background: 'var(--surface)', borderRadius: '8px', padding: '8px 10px', lineHeight: 1.45 }}>“{saved(i)}”</div>
@@ -220,9 +232,15 @@ export default function BadgeApprovalPage({ params }: { params: Promise<{ token:
             <div style={{ fontSize: '17px', fontWeight: 900, marginBottom: '8px' }}>{withComments || note.trim() ? 'Approve with comments?' : 'Approve these badges?'}</div>
             <div style={{ fontSize: '13.5px', color: 'var(--ink2)', lineHeight: 1.6, marginBottom: '16px' }}>
               {items.length - rejectedCount} badge{items.length - rejectedCount === 1 ? '' : 's'} will go to print.
-              {rejectedCount > 0 && <> <strong>{rejectedCount} rejected speaker{rejectedCount === 1 ? '' : 's'} will not be printed.</strong></>}
+              {rejectedCount > 0 && <> <strong>{rejectedCount} rejected badge{rejectedCount === 1 ? '' : 's'} will not be printed.</strong></>}
               {withComments && <> Your comments go to the team with your approval.</>} Your colleagues will see that you responded.
             </div>
+            {skipLike.length > 0 && (
+              <div style={{ border: '2px solid var(--amber)', borderRadius: '10px', padding: '10px 12px', marginBottom: '14px', fontSize: '13.5px', lineHeight: 1.5, background: 'var(--surface)' }}>
+                <strong>{skipLike.length} comment{skipLike.length === 1 ? '' : 's'} say{skipLike.length === 1 ? 's' : ''} a badge is not needed, but {skipLike.length === 1 ? 'it is' : 'they are'} not rejected, so {skipLike.length === 1 ? 'it' : 'they'} will be printed:</strong> {skipLike.map(i => i.name).join(', ')}.
+                <div style={{ marginTop: '8px' }}><button className="ba-btn red small" disabled={busy} onClick={() => void (async () => { for (const i of skipLike) { if (dirty(i)) await saveComment(i); await toggleReject(i) } })()}>Reject {skipLike.length === 1 ? 'this badge' : `these ${skipLike.length} badges`}</button></div>
+              </div>
+            )}
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--ink2)', marginBottom: '6px' }}>Add a note for the team (optional)</label>
             <textarea value={note} onChange={e => setNote(e.target.value.slice(0, 2000))} disabled={busy} rows={3} placeholder="e.g. Thank you, all good to print." style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '14px', fontFamily: 'inherit', resize: 'vertical', marginBottom: '16px' }} />
             <div className="ba-row" style={{ justifyContent: 'flex-end' }}>

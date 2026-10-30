@@ -12,7 +12,7 @@ import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 /* Speaker Badges (2026-10-02) — batches of PVC speaker badges for an event. This page lists them and creates new ones
    from the event's confirmed speakers; the review/approve/print work happens on /badges/[batchId]. */
 
-type BatchRow = { id: string; name: string; status: 'draft' | 'review' | 'approved'; template_name: string; badges: number; approved: number; flagged: number; pdf_count: number; created_at: string }
+type BatchRow = { id: string; name: string; status: 'draft' | 'review' | 'approved'; template_name: string; quantity?: number | null; badges: number; approved: number; flagged: number; pdf_count: number; created_at: string }
 type Has = { name: boolean; title: boolean; company: boolean; country: boolean; photo: boolean }
 type Candidate = { id: string; name: string; title: string | null; company: string | null; country: string | null; has: Has; confirmation_status: string | null; blocked: boolean; pending: Array<'title' | 'company' | 'country'>; badge_status: 'created' | 'sent' | 'printed' | null }
 type TemplateOption = { id: string; name: string; print: { width_mm: number; height_mm: number; bleed_mm: number } }
@@ -27,7 +27,7 @@ export default function BadgesPage({ params }: { params: Promise<{ id: string }>
   const [permissions, setPermissions] = useState<Set<string>>(new Set())
   const [batches, setBatches] = useState<BatchRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [creating, setCreating] = useState<null | 'speakers' | 'vips'>(null)
+  const [creating, setCreating] = useState<null | 'speakers' | 'vips' | 'common'>(null)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   useBreadcrumbLabel(eventId, eventName)
   const can = (key: string) => permissionSetSatisfies(permissions, key)
@@ -52,10 +52,11 @@ export default function BadgesPage({ params }: { params: Promise<{ id: string }>
     <div>
       <PageHeader
         eyebrow="Stakeholder Hub" title="Badges"
-        description="Create a batch from your speakers or VIPs, review every badge, approve, then download one print file for the vendor."
+        description="Create a batch from your speakers or VIPs — or print a quantity of a common badge with no names — review, approve, then download one print file for the vendor."
         backHref={`/admin/events/${eventId}/stakeholders`} backLabel="Stakeholders"
         actions={can('sae.badges.manage') ? (
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <Button variant="ghost" onClick={() => setCreating('common')}>+ Common Badges</Button>
             <Button variant="ghost" onClick={() => setCreating('vips')}>+ New VIP batch</Button>
             <Button variant="lime" onClick={() => setCreating('speakers')}>+ New batch</Button>
           </div>
@@ -78,8 +79,8 @@ export default function BadgesPage({ params }: { params: Promise<{ id: string }>
                     <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>{b.name}</div>
                     <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>{b.template_name} · created {new Date(b.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
                   </div>
-                  <div style={{ fontSize: '14px', color: 'var(--ink2)' }}>{b.badges} badge{b.badges === 1 ? '' : 's'}</div>
-                  <div style={{ fontSize: '14px', color: 'var(--ink2)' }}>{b.approved}/{b.badges} approved</div>
+                  <div style={{ fontSize: '14px', color: 'var(--ink2)' }}>{b.quantity ? `Common × ${b.quantity}` : `${b.badges} badge${b.badges === 1 ? '' : 's'}`}</div>
+                  <div style={{ fontSize: '14px', color: 'var(--ink2)' }}>{b.quantity ? (b.approved ? 'Design approved' : 'Design not approved') : `${b.approved}/${b.badges} approved`}</div>
                   {b.flagged > 0 && <div style={{ fontSize: '14px', color: 'var(--amber)', fontWeight: 700 }}>{b.flagged} flagged</div>}
                   {b.pdf_count > 0 && <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>{b.pdf_count} print file{b.pdf_count === 1 ? '' : 's'}</div>}
                   <Badge color={STATUS_COLOR[b.status]}>{STATUS_LABEL[b.status]}</Badge>
@@ -89,7 +90,12 @@ export default function BadgesPage({ params }: { params: Promise<{ id: string }>
           </div>
         )}
       </div>
-      {creating && (
+      {creating === 'common' && (
+        <CommonBatchModal eventId={eventId} onClose={() => setCreating(null)}
+          onCreated={id => router.push(`/admin/events/${eventId}/stakeholders/badges/${id}?render=1`)}
+          onError={message => setToast({ message, type: 'error' })} />
+      )}
+      {creating && creating !== 'common' && (
         <NewBatchModal eventId={eventId} source={creating} onClose={() => setCreating(null)}
           onCreated={id => router.push(`/admin/events/${eventId}/stakeholders/badges/${id}?render=1`)}
           onError={message => setToast({ message, type: 'error' })} />
@@ -246,6 +252,72 @@ function NewBatchModal({ eventId, source, onClose, onCreated, onError }: { event
           <Button variant="lime" disabled={saving || !name.trim() || picked.size === 0 || !variantId} onClick={() => void create()}>{saving ? 'Creating…' : `Create batch (${picked.size})`}</Button>
         </div>
       </>)}
+    </div>
+  )
+}
+
+
+/** Common Badges: one finished design printed in a quantity — no names. Three things: batch name, template, quantity. */
+function CommonBatchModal({ eventId, onClose, onCreated, onError }: { eventId: string; onClose: () => void; onCreated: (id: string) => void; onError: (m: string) => void }) {
+  const [loading, setLoading] = useState(true)
+  const [templates, setTemplates] = useState<TemplateOption[]>([])
+  const [variantId, setVariantId] = useState('')
+  const [name, setName] = useState('')
+  const [quantity, setQuantity] = useState('10')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const res = await fetch(`/api/events/badges/batches?event_id=${eventId}&candidates=1&source=common`)
+      const data = await res.json().catch(() => ({}))
+      if (cancelled) return
+      if (!res.ok) { onError(data.error ?? 'Could not load the Common Badge templates.'); onClose(); return }
+      setTemplates(data.variants ?? []); setVariantId(data.variants?.[0]?.id ?? ''); setLoading(false)
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once when the modal opens
+  }, [])
+
+  const q = Number(quantity)
+  const validQty = Number.isInteger(q) && q >= 1 && q <= 5000
+  async function create() {
+    setSaving(true)
+    const res = await fetch('/api/events/badges/batches', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, variant_id: variantId, name, quantity: q }) })
+    const data = await res.json().catch(() => ({}))
+    setSaving(false)
+    if (!res.ok) { onError(data.error ?? 'Could not create the batch.'); return }
+    onCreated(data.id)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'var(--overlay-scrim)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '520px', maxWidth: '100%', maxHeight: 'calc(100vh - 40px)', overflow: 'auto', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '22px' }}>
+        <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Common Badges</div>
+        <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.5, marginBottom: '16px' }}>One finished design printed in a quantity — no names (security, protocol, organiser passes…). Pick the template and how many to print.</div>
+        {loading ? <div style={{ color: 'var(--ink3)' }}>Loading…</div> : templates.length === 0 ? (
+          <div style={{ fontSize: '14px', color: 'var(--ink2)', lineHeight: 1.5 }}>This event has no Common Badge template yet. In the template editor (Admin Console → Variants) choose <strong>+ New Variant → Common badge (print)</strong>, upload the artwork and name it — then it appears here.</div>
+        ) : (
+          <div style={{ display: 'grid', gap: '12px' }}>
+            <label style={{ fontSize: '13px', color: 'var(--ink3)' }}>Batch name
+              <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Security passes — Day 1" style={{ marginTop: '4px' }} />
+            </label>
+            <label style={{ fontSize: '13px', color: 'var(--ink3)' }}>Badge template
+              <Select value={variantId} onChange={e => setVariantId(e.target.value)} style={{ marginTop: '4px', width: '100%' }}>
+                {templates.map(t => <option key={t.id} value={t.id}>{t.name} ({t.print.width_mm}×{t.print.height_mm} mm)</option>)}
+              </Select>
+            </label>
+            <label style={{ fontSize: '13px', color: 'var(--ink3)' }}>Quantity
+              <Input type="number" min={1} max={5000} value={quantity} onChange={e => setQuantity(e.target.value)} style={{ marginTop: '4px', width: '140px' }} />
+              {!validQty && <span style={{ display: 'block', fontSize: '12px', color: 'var(--red)', marginTop: '3px' }}>A whole number from 1 to 5000.</span>}
+            </label>
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '18px' }}>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          {templates.length > 0 && <Button variant="lime" disabled={saving || !name.trim() || !validQty || !variantId} onClick={() => void create()}>{saving ? 'Creating…' : `Create batch (${validQty ? q : '…'})`}</Button>}
+        </div>
+      </div>
     </div>
   )
 }

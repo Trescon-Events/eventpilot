@@ -248,6 +248,9 @@ export type Variant = {
   // Promo variant. Text layers stack bottom-up (snap_above_layer_id). Session title and the MODERATOR tag are NOT on the card — they are set
   // under Admin Console > Stage Speaker Pic. Never offered in announcement/badge pickers (they filter by exact category).
   print?: BadgePrintSpec
+  // 'common' (2026-10-30) — a badge variant (category 'badge') that is ONE finished artwork with no person on it: no photo slot, no text (security, protocol, organiser passes…).
+  // It is printed in a quantity ("Common Badges" in the badge printing module: batch name + template + quantity) instead of once per person.
+  common?: boolean
 }
 
 // Physical spec of a badge variant. Page size = trim + bleed on every side (54x85 + 3mm => 60x91 mm).

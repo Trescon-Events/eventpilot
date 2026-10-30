@@ -87,10 +87,10 @@ export function approvalEmailBody(a: { name: string; eventName: string; batchNam
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   const first = esc(a.name.split(' ')[0] || a.name)
   const intro = a.reminder
-    ? `<p>A quick reminder — the speaker badges for <strong>${esc(a.eventName)}</strong> are still waiting for your approval.</p>`
-    : `<p>The speaker badges for <strong>${esc(a.eventName)}</strong> are ready for your approval (${a.badges} badge${a.badges === 1 ? '' : 's'}, “${esc(a.batchName)}”).</p>`
+    ? `<p>A quick reminder — the badges for <strong>${esc(a.eventName)}</strong> are still waiting for your approval.</p>`
+    : `<p>The badges for <strong>${esc(a.eventName)}</strong> are ready for your approval (${a.badges} badge${a.badges === 1 ? '' : 's'}, “${esc(a.batchName)}”).</p>`
   return `<p>Dear ${first},</p>${intro}
-<p>Please open the link below. You will see every badge in a gallery. You can add a comment under any badge, or reject a badge if that speaker should not be printed, and then approve the batch. Only one of you needs to approve; if a colleague has already done so, the page will show you what they decided.</p>
+<p>Please open the link below. You will see every badge in a gallery. You can add a comment under any badge, or reject a badge if it should not be printed, and then approve the batch. Only one of you needs to approve; if a colleague has already done so, the page will show you what they decided.</p>
 ${a.message ? `<p style="padding:10px 14px;background:#F0F4F8;border-radius:8px;">${esc(a.message).replace(/\n/g, '<br/>')}</p>` : ''}
 <p><a href="${a.link}" style="display:inline-block;background:#00A5A3;color:#ffffff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:700;">Review the badges &rarr;</a></p>
 <p>Thank you,<br/>${esc(a.senderName)}</p>`
@@ -117,10 +117,10 @@ export async function senderFor(sid: string | null | undefined): Promise<{ name:
 export async function sendApprovalEmail(a: { eventId?: string; to: string; recipientName: string; eventName: string; batchName: string; badges: number; token: string; sender: { name: string; email: string | null }; message: string | null; reminder?: boolean }): Promise<boolean> {
   const body = approvalEmailBody({ name: a.recipientName, eventName: a.eventName, batchName: a.batchName, badges: a.badges, link: reviewLink(a.token), senderName: a.sender.name, message: a.message, reminder: a.reminder })
   const { html } = renderEmailTemplate({ subject: '', body_html: body, header_image_url: null, header_alt_text: null } as Parameters<typeof renderEmailTemplate>[0], {})
-  const subject = `${a.reminder ? 'Reminder: ' : ''}Speaker badges for your approval — ${a.eventName}`
+  const subject = `${a.reminder ? 'Reminder: ' : ''}Badges at ${a.eventName}`
   try {
-    // From a producer's mailbox: one thread per (event, client) so every badge round and reminder stays in one conversation ("Speaker badges @ <Event>").
-    if (a.sender.email && a.eventId) await sendKeyedThreadMail(a.eventId, `badge-approval:${a.to.trim().toLowerCase()}`, { senderEmail: a.sender.email, senderName: a.sender.name, to: a.to, subject: `Speaker badges @ ${a.eventName}`, html })
+    // From a producer's mailbox: one thread per (event, client) so every badge round and reminder stays in one conversation ("Badges at <Event>").
+    if (a.sender.email && a.eventId) await sendKeyedThreadMail(a.eventId, `badge-approval:${a.to.trim().toLowerCase()}`, { senderEmail: a.sender.email, senderName: a.sender.name, to: a.to, subject: `Badges at ${a.eventName}`, html })
     else if (a.sender.email) await sendGraphMail({ senderEmail: a.sender.email, senderName: a.sender.name, to: a.to, subject, html })
     else await sendSystemMail({ to: a.to, subject, html })
     return true
@@ -136,13 +136,13 @@ export async function notifyProducerOfOutcome(round: RoundRow, ctx: { eventId: s
   try {
     const path = producerBatchPath(ctx.eventId, ctx.batchId)
     const what = outcome.status === 'approved_with_comments' ? 'approved with comments' : 'approved'
-    const extra = [outcome.rejected ? `${outcome.rejected} speaker${outcome.rejected === 1 ? '' : 's'} rejected (left out of the print file)` : '', outcome.comments ? `${outcome.comments} comment${outcome.comments === 1 ? '' : 's'}` : ''].filter(Boolean).join(', ')
-    const message = `${outcome.by} has ${what} the speaker badges "${ctx.batchName}" for ${ctx.eventName}.${extra ? ` ${extra}.` : ''} ${outcome.note ? ` Their note: “${outcome.note}”.` : ''} Open the batch to see the details and continue to the print file.`
+    const extra = [outcome.rejected ? `${outcome.rejected} badge${outcome.rejected === 1 ? '' : 's'} rejected (left out of the print file)` : '', outcome.comments ? `${outcome.comments} comment${outcome.comments === 1 ? '' : 's'}` : ''].filter(Boolean).join(', ')
+    const message = `${outcome.by} has ${what} the badges "${ctx.batchName}" for ${ctx.eventName}.${extra ? ` ${extra}.` : ''} ${outcome.note ? ` Their note: “${outcome.note}”.` : ''} Open the batch to see the details and continue to the print file.`
     if (round.sent_by_email) {
       const { html } = renderEmailTemplate({ subject: '', body_html: `<p>${message}</p><p><a href="${siteUrl()}${path}" style="display:inline-block;background:#00A5A3;color:#ffffff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:700;">Open the batch &rarr;</a></p>`, header_image_url: null, header_alt_text: null } as Parameters<typeof renderEmailTemplate>[0], {})
-      await sendSystemMail({ to: round.sent_by_email, subject: `Client ${what} the speaker badges — ${ctx.eventName}`, html })
+      await sendSystemMail({ to: round.sent_by_email, subject: `Client ${what} the badges — ${ctx.eventName}`, html })
     }
-    if (round.sent_by) await notifyStaff([round.sent_by], { type: `badge_client_${outcome.status}`, title: `Client ${what} the speaker badges — ${ctx.eventName}`, body: message, link: path, eventId: ctx.eventId })
+    if (round.sent_by) await notifyStaff([round.sent_by], { type: `badge_client_${outcome.status}`, title: `Client ${what} the badges — ${ctx.eventName}`, body: message, link: path, eventId: ctx.eventId })
   } catch (e) {
     console.error('[badge-approval] producer notification failed:', e instanceof Error ? e.message : e)
   }

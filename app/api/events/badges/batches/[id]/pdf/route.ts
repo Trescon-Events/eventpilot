@@ -25,7 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (running?.length) return NextResponse.json({ job_id: running[0].id, already_running: true })
 
   const { count } = await supabaseAdmin.from('badge_batch_items').select('id', { count: 'exact', head: true }).eq('batch_id', id).eq('removed', false).eq('approved', true)
-  const jobId = await startJob(id, 'pdf', count ?? 0, auth.session.sid)
+  const jobId = await startJob(id, 'pdf', batch.quantity ?? count ?? 0, auth.session.sid)
   void runPdfJob(jobId, id, auth.session.sid)
   return NextResponse.json({ job_id: jobId })
 }
