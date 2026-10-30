@@ -64,7 +64,7 @@ export default function ScreensForAv({ params }: { params: Promise<{ token: stri
   }, [token])
 
   // polling: every 15 s, every 3 s while something is being redrawn
-  const busy = !!data?.sessions.some(s => s.status === 'updating' || s.preparing)
+  const busy = !!data?.sessions?.some(s => s.status === 'updating' || s.preparing)
   useEffect(() => { pollMs.current = busy ? 3_000 : 15_000 }, [busy])
   useEffect(() => {
     let cancelled = false, timer: ReturnType<typeof setTimeout>
