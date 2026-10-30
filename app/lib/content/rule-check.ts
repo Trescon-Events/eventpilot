@@ -3,7 +3,7 @@ import { validateText, type RuleType, type ValidationRule } from './validate'
 /* Rules screen (2026-10-15, docs/build_suggestions/rules-screen-and-trescon-layer.md Part 3) — checks a rule BEFORE it is saved.
    Pure: no DB. Errors block the save; warnings need the person to acknowledge ("Save anyway"). */
 
-export const RULE_TYPES: RuleType[] = ['forbidden_term', 'forbidden_pattern', 'required_format', 'proximity']
+export const RULE_TYPES: RuleType[] = ['forbidden_term', 'forbidden_pattern', 'required_format', 'proximity', 'canonical_name']
 
 export type RuleDraft = { rule_type: string; pattern: string; severity?: string; message?: string; rule_key?: string }
 export type RuleCheck = { errors: string[]; warnings: string[] }
@@ -48,6 +48,19 @@ export function checkRuleShape(draft: RuleDraft): RuleCheck {
       checkRegex('Pattern a', cfg.a, out)
       checkRegex('Pattern b', cfg.b, out)
       if (typeof cfg.maxDistance !== 'number' || !(cfg.maxDistance > 0)) out.errors.push('"maxDistance" must be a positive number of characters.')
+      break
+    }
+    case 'canonical_name': {
+      let cfg: { canonical?: unknown; loose?: unknown }
+      try { cfg = JSON.parse(pattern) } catch { out.errors.push('A canonical_name pattern is JSON: {"canonical":"Approved Name","loose":"regex that catches any attempt"}.'); break }
+      if (typeof cfg.canonical !== 'string' || !cfg.canonical.trim()) out.errors.push('The approved form ("canonical") is required.')
+      const before = out.errors.length
+      checkRegex('Also catch', cfg.loose, out)
+      if (out.errors.length === before && typeof cfg.canonical === 'string' && cfg.canonical.trim() && typeof cfg.loose === 'string') {
+        // A catch pattern that does not match the approved form could never pass correct text: the rule would flag nothing it should, or miss its own name.
+        if (!new RegExp(cfg.loose).test(cfg.canonical)) out.errors.push('"Also catch" does not match the approved form itself, so the rule could never recognise correct text. It must match the approved name.')
+        else if (cfg.loose.length < 5) out.warnings.push('"Also catch" is very short, so it may flag unrelated words. Make it more specific if you can.')
+      }
       break
     }
   }

@@ -1,74 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
-import { ownerOfRow, ownerColumn, ownerInsertColumns, type ContentOwnerRef } from '@/app/lib/content/owner'
+import { ownerOfRow, ownerInsertColumns } from '@/app/lib/content/owner'
 import { checkRuleDraft } from '@/app/lib/content/rule-check'
 import { canManageRules, fixedTextsForOwner, logRuleChange, parseOwner } from '@/app/lib/content/rule-admin'
-import type { OverrideRow, RuleLevel } from '@/app/lib/content/resolve-validation-rules'
+import { loadRulesView, RULE_COLS as COLS } from '@/app/lib/content/rules-view'
 
 /* Rules screen API (2026-10-15, docs/build_suggestions/rules-screen-and-trescon-layer.md Part 3).
 
    GET   ?owner_type=event|umbrella|org&owner_id=…   — the effective rules for that owner grouped by level, with `inherited`,
                                                        `disabled_by` (an override above switched it off) and what the caller may edit.
    POST  { owner_type, owner_id, rule_key, rule_type, pattern, severity, message, source_clause, origin, acknowledge_warnings? }
-   PATCH ?id=…  { severity?, message?, pattern?, source_clause?, origin?, is_active?, acknowledge_warnings? }
+   PATCH ?id=…  { severity?, message?, pattern?, source_clause?, origin?, is_active?, acknowledge_warnings?, source_doc_edit_id? }
    Every write is recorded in validation_rule_changes (who, when, before, after). Rules are never deleted from here: switching one
    off keeps it (and its audit trail). */
 
-const COLS = 'id, event_id, umbrella_id, org_scope, rule_key, rule_type, pattern, severity, message, source_clause, origin, is_active, review_status, created_at'
-type RuleRecord = { id: string; event_id: string | null; umbrella_id: string | null; org_scope: string | null; rule_key: string; rule_type: string; pattern: string; severity: string; message: string; source_clause: string | null; origin: string; is_active: boolean; review_status: string }
 
-const LEVEL_LABEL: Record<RuleLevel, string> = { org: 'Trescon-wide', umbrella: 'Umbrella', event: 'This event' }
-const LEVEL_ORDER: RuleLevel[] = ['org', 'umbrella', 'event']
 
 export async function GET(req: NextRequest) {
   const session = getSession(req)
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
   const owner = parseOwner(req.nextUrl.searchParams.get('owner_type'), req.nextUrl.searchParams.get('owner_id'))
   if (!owner) return NextResponse.json({ error: 'owner_type and owner_id required.' }, { status: 400 })
-
-  // Which owners' rules apply, most specific first.
-  let umbrellaId: string | null = owner.kind === 'umbrella' ? owner.id : null
-  if (owner.kind === 'event') {
-    const { data: ev } = await supabaseAdmin.from('events').select('umbrella_id').eq('id', owner.id).maybeSingle()
-    if (!ev) return NextResponse.json({ error: 'Event not found.' }, { status: 404 })
-    umbrellaId = ev.umbrella_id
-  }
-  const owners: Array<{ level: RuleLevel; ref: ContentOwnerRef }> = []
-  if (owner.kind === 'event') owners.push({ level: 'event', ref: owner })
-  if (umbrellaId) owners.push({ level: 'umbrella', ref: { kind: 'umbrella', id: umbrellaId } })
-  owners.push({ level: 'org', ref: { kind: 'org', id: 'trescon' } })
-
-  const [ruleSets, overrideSets] = await Promise.all([
-    Promise.all(owners.map(async o => {
-      const { column, value } = ownerColumn(o.ref)
-      const { data, error } = await supabaseAdmin.from('event_validation_rules').select(COLS).eq(column, value).eq('review_status', 'accepted').order('rule_key')
-      if (error) throw new Error(error.message)
-      return (data ?? []) as RuleRecord[]
-    })),
-    Promise.all(owners.filter(o => o.level !== 'org').map(async o => {
-      const { data } = await supabaseAdmin.from('event_rule_overrides').select('*').eq(o.level === 'event' ? 'event_id' : 'umbrella_id', o.ref.id).eq('is_disabled', true)
-      return { level: o.level, rows: (data ?? []) as OverrideRow[] }
-    })),
-  ])
-  const overrideAt = (level: RuleLevel, key: string) => overrideSets.find(s => s.level === level)?.rows.find(o => o.rule_key === key) ?? null
-  const ownerLevel: RuleLevel = owner.kind === 'org' ? 'org' : owner.kind === 'umbrella' ? 'umbrella' : 'event'
-
-  const levels = await Promise.all(owners.map(async (o, i) => {
-    const canEdit = (await canManageRules(req, o.ref)).ok
-    const rules = ruleSets[i].map(r => {
-      // Overrides written at a MORE specific level than this rule's own switch it off.
-      const mine = owners.slice(0, i).map(b => ({ level: b.level, ov: overrideAt(b.level, r.rule_key) })).find(x => x.ov)
-      return {
-        ...r, level: o.level, inherited: o.level !== ownerLevel, disabled_by: mine?.level ?? null,
-        override: mine?.ov ? { id: mine.ov.id, reason: mine.ov.reason, level: mine.level } : null,
-      }
-    })
-    return { level: o.level, label: LEVEL_LABEL[o.level], owner_type: o.ref.kind, owner_id: o.ref.id, can_edit: canEdit, rules }
-  }))
-
-  const can_override = owner.kind === 'org' ? false : (await canManageRules(req, owner)).ok
-  return NextResponse.json({ levels: LEVEL_ORDER.map(l => levels.find(x => x.level === l)).filter(Boolean), can_override, owner_level: ownerLevel })
+  const view = await loadRulesView(req, owner)
+  if (!view) return NextResponse.json({ error: 'Event not found.' }, { status: 404 })
+  return NextResponse.json(view)
 }
 
 export async function POST(req: NextRequest) {
@@ -115,6 +71,8 @@ export async function PATCH(req: NextRequest) {
   const auth = await canManageRules(req, owner)
   if (!auth.ok) return NextResponse.json({ error: 'Not authorized to change this rule.' }, { status: 403 })
 
+  // Set when the change comes from the live-doc edit card, so the rule change and the doc edit can be traced together (kept in the audit entry's `after`).
+  const sourceDocEditId = typeof body.source_doc_edit_id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.source_doc_edit_id) ? body.source_doc_edit_id : null
   const patch: Record<string, unknown> = {}
   if (body.severity === 'error' || body.severity === 'warning') patch.severity = body.severity
   if (typeof body.message === 'string') { if (!body.message.trim()) return NextResponse.json({ error: 'A message is required.' }, { status: 400 }); patch.message = body.message.trim() }
@@ -137,7 +95,7 @@ export async function PATCH(req: NextRequest) {
 
   const onlyToggle = Object.keys(patch).length === 1 && 'is_active' in patch
   const action = onlyToggle ? (patch.is_active ? 'enable' : 'disable') : 'update'
-  try { await logRuleChange({ rule_id: id, rule_key: before.rule_key, owner, action, before, after, changed_by: auth.sid }) }
+  try { await logRuleChange({ rule_id: id, rule_key: before.rule_key, owner, action, before, after: sourceDocEditId ? { ...after, source_doc_edit_id: sourceDocEditId } : after, changed_by: auth.sid }) }
   catch (e) {
     await supabaseAdmin.from('event_validation_rules').update(Object.fromEntries(Object.keys(patch).map(k => [k, (before as Record<string, unknown>)[k]]))).eq('id', id)
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Audit failed.' }, { status: 500 })

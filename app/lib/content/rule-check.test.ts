@@ -33,3 +33,20 @@ test('warns when the rule already matches the fixed lines', () => {
   assert.match(r.warnings[0], /fixed lines/)
   assert.deepEqual(checkRuleDraft({ rule_type: 'forbidden_term', pattern: 'seamless' }, fixed).warnings, [])
 })
+
+test('canonical_name: needs valid JSON, an approved form and a catch pattern that matches it', () => {
+  const ok = JSON.stringify({ canonical: 'Dr. Sharanprakash Rudrappa Patil', loose: 'Sharan\\s?a?\\s?[Pp]rakash' })
+  assert.deepEqual(checkRuleShape({ rule_type: 'canonical_name', pattern: ok }), { errors: [], warnings: [] })
+  assert.match(checkRuleShape({ rule_type: 'canonical_name', pattern: 'nope' }).errors[0], /JSON/)
+  assert.match(checkRuleShape({ rule_type: 'canonical_name', pattern: JSON.stringify({ canonical: '', loose: 'abcdef' }) }).errors[0], /approved form/)
+  assert.match(checkRuleShape({ rule_type: 'canonical_name', pattern: JSON.stringify({ canonical: 'Dr. X Y', loose: '(unclosed' }) }).errors[0], /not a valid regular expression/)
+  assert.match(checkRuleShape({ rule_type: 'canonical_name', pattern: JSON.stringify({ canonical: 'Dr. Sharanprakash', loose: 'Sharanaprakash' }) }).errors[0], /does not match the approved form/)
+})
+test('canonical_name: warns when the catch pattern is shorter than 5 characters', () => {
+  const r = checkRuleShape({ rule_type: 'canonical_name', pattern: JSON.stringify({ canonical: 'Dr. Sharan Patil', loose: 'Shar' }) })
+  assert.deepEqual(r.errors, []); assert.match(r.warnings[0], /very short/)
+})
+test('canonical_name: the draft check does not fire on the event fixed lines unless they mention the name', () => {
+  const d = { rule_type: 'canonical_name', pattern: JSON.stringify({ canonical: 'Dr. Sharanprakash Rudrappa Patil', loose: 'Sharan\\s?a?\\s?[Pp]rakash' }) }
+  assert.deepEqual(checkRuleDraft(d, ['5 Nov 2026, Bengaluru']).warnings, [])
+})

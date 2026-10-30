@@ -35,3 +35,31 @@ test('a warning-severity rule still fires on a proper noun: "Premier League" vs 
   assert.equal(f[0].severity, 'warning')
   assert.equal(f[0].match, 'Premier')
 })
+
+// canonical_name (doc-rule-linkage-and-canonical-names.md, Part B)
+const canon = (): ValidationRule => ({
+  rule_key: 'bss-minister-name', rule_type: 'canonical_name', severity: 'error', source_clause: null, message: 'Use the approved form.',
+  pattern: JSON.stringify({ canonical: 'Dr. Sharanprakash Rudrappa Patil', loose: 'Sharan\\s?a?\\s?[Pp]rakash' }),
+})
+test('canonical_name: the five spec examples', () => {
+  const n = (t: string) => validateText(t, [canon()]).length
+  assert.equal(n('Dr. Sharanprakash Rudrappa Patil will inaugurate'), 0)
+  assert.equal(n('Dr. Sharanaprakash Rudrappa Patil'), 1)           // old spelling
+  assert.equal(n('Shri Sharanprakash Rudrappa Patil'), 1)           // missing "Dr."
+  assert.equal(n('Dr. Shri Sharanprakash Rudrappa Patil'), 1)       // double honorific
+  assert.equal(n("Hon'ble Minister will take part"), 0)             // no name
+})
+test('canonical_name: findings carry the approved form as the fix, and the default message when none is set', () => {
+  const f = validateText('Dr. Sharanaprakash', [{ ...canon(), message: '' }])
+  assert.equal(f[0].suggested_fix, 'Dr. Sharanprakash Rudrappa Patil')
+  assert.equal(f[0].message, 'Use the approved form: "Dr. Sharanprakash Rudrappa Patil".')
+})
+test('canonical_name: a correct mention and a wrong one in the same text flag only the wrong one; canonical is case-sensitive', () => {
+  const f = validateText('Dr. Sharanprakash Rudrappa Patil spoke. Later Sharanaprakash left.', [canon()])
+  assert.equal(f.length, 1); assert.equal(f[0].match, 'Sharanaprakash')
+  assert.equal(validateText('DR. SHARANPRAKASH RUDRAPPA PATIL', [canon()]).length, 0)   // loose is case-sensitive as written and does not match "SHARAN…"
+  assert.equal(validateText('Dr. sharanprakash Rudrappa Patil', [canon()]).length, 0)
+})
+test('canonical_name: a broken pattern flags nothing rather than throwing', () => {
+  assert.deepEqual(validateText('anything', [{ ...canon(), pattern: 'not json' }]), [])
+})

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Button, Card } from '@/app/components/ui'
 import { notify } from '@/app/lib/ui/notify'
+import { readCanonical, writeCanonical, suggestLoose } from '@/app/lib/content/canonical-name'
 
 /* Rules screen (2026-10-15, docs/build_suggestions/rules-screen-and-trescon-layer.md Part 3) — one component, used on the Event Details
    Setup tab, the umbrella Reference Documents page and the Trescon house style page. Shows the EFFECTIVE rules grouped by level
@@ -24,9 +25,24 @@ const TYPE_HELP: Record<string, string> = {
   forbidden_pattern: 'A regular expression that must not match. Case-sensitive as written — use [Ff]intech to allow both cases. No (?i) flags.',
   required_format: 'JSON {"trigger":"regex","allowed":["exact form"]}. If the trigger appears but no allowed form does, it is flagged.',
   proximity: 'JSON {"a":"regex","b":"regex","maxDistance":40}. Flagged when a and b appear within that many characters of each other.',
+  canonical_name: 'Protects one name or title. Type the approved form exactly; "Also catch" is a pattern that finds any attempt at it, right or wrong. Anything it finds that is not the exact approved form is flagged, and the approved form is offered as the fix.',
 }
 const EMPTY: Draft = { rule_key: '', rule_type: 'forbidden_term', pattern: '', severity: 'error', message: '', source_clause: '', origin: 'client' }
 const input = { width: '100%', padding: '6px 8px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '12.5px', background: 'var(--card)', color: 'var(--ink)', boxSizing: 'border-box' } as const
+function CanonicalFields({ pattern, onChange }: { pattern: string; onChange: (pattern: string, canonicalChanged: string | null) => void }) {
+  const c = readCanonical(pattern)
+  // "Also catch" follows the approved form until the person edits it themselves.
+  const [touched, setTouched] = useState(() => !!c.loose && c.loose !== suggestLoose(c.canonical))
+  return (
+    <div style={{ display: 'grid', gap: '6px' }}>
+      <label style={{ fontSize: '11.5px', fontWeight: 800, color: 'var(--ink2)' }}>Approved form</label>
+      <input value={c.canonical} onChange={e => onChange(writeCanonical({ canonical: e.target.value, loose: touched ? c.loose : suggestLoose(e.target.value) }), e.target.value)} placeholder="The name or title exactly as it must be written" style={{ ...input, fontWeight: 700 }} />
+      <label style={{ fontSize: '11.5px', fontWeight: 800, color: 'var(--ink2)' }}>Also catch</label>
+      <input value={c.loose} onChange={e => { setTouched(true); onChange(writeCanonical({ canonical: c.canonical, loose: e.target.value }), null) }} placeholder="Pattern that finds any attempt at the name" style={{ ...input, fontFamily: 'monospace' }} />
+      <div style={{ fontSize: '11.5px', color: 'var(--ink3)' }}>Suggested from the approved form — change it if it catches too much or too little. It must match the approved form itself.</div>
+    </div>
+  )
+}
 const tag = (bg: string, fg: string) => ({ fontSize: '10px', fontWeight: 800, letterSpacing: '0.4px', textTransform: 'uppercase', padding: '1px 6px', borderRadius: '4px', background: bg, color: fg }) as const
 
 export default function RulesPanel({ ownerType, ownerId, title = 'Rules' }: { ownerType: 'event' | 'umbrella' | 'org'; ownerId: string; title?: string }) {
@@ -132,7 +148,9 @@ export default function RulesPanel({ ownerType, ownerId, title = 'Rules' }: { ow
                   {editing === r.id ? (
                     <div style={{ display: 'grid', gap: '6px', marginTop: '8px' }}>
                       <select value={edit.severity ?? r.severity} onChange={e => setEdit({ ...edit, severity: e.target.value as Draft['severity'] })} style={input}><option value="error">error</option><option value="warning">warning</option></select>
-                      <textarea value={edit.pattern ?? r.pattern} onChange={e => setEdit({ ...edit, pattern: e.target.value })} rows={2} style={{ ...input, fontFamily: 'monospace' }} />
+                      {r.rule_type === 'canonical_name'
+                        ? <CanonicalFields pattern={edit.pattern ?? r.pattern} onChange={pattern => setEdit(e => ({ ...e, pattern }))} />
+                        : <textarea value={edit.pattern ?? r.pattern} onChange={e => setEdit({ ...edit, pattern: e.target.value })} rows={2} style={{ ...input, fontFamily: 'monospace' }} />}
                       <input value={edit.message ?? r.message} onChange={e => setEdit({ ...edit, message: e.target.value })} style={input} placeholder="Message" />
                       <input value={edit.source_clause ?? r.source_clause ?? ''} onChange={e => setEdit({ ...edit, source_clause: e.target.value })} style={input} placeholder="Source clause" />
                       <select value={edit.origin ?? r.origin} onChange={e => setEdit({ ...edit, origin: e.target.value as Draft['origin'] })} style={input}><option value="client">Client rule</option><option value="trescon">Trescon rule</option></select>
@@ -144,7 +162,18 @@ export default function RulesPanel({ ownerType, ownerId, title = 'Rules' }: { ow
                     </div>
                   ) : (
                     <>
-                      <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '4px', wordBreak: 'break-word' }}><code style={{ background: 'var(--surface)', padding: '1px 5px', borderRadius: '4px' }}>{r.pattern}</code></div>
+                      {r.rule_type === 'canonical_name' ? (() => {
+                        const c = readCanonical(r.pattern)
+                        return (
+                          <div style={{ marginTop: '4px', wordBreak: 'break-word' }}>
+                            <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '0.4px', textTransform: 'uppercase', color: 'var(--ink3)' }}>Approved form</div>
+                            <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)' }}>{c.canonical}</div>
+                            <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginTop: '2px' }}>Also catches: <code style={{ background: 'var(--surface)', padding: '1px 5px', borderRadius: '4px' }}>{c.loose}</code></div>
+                          </div>
+                        )
+                      })() : (
+                        <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '4px', wordBreak: 'break-word' }}><code style={{ background: 'var(--surface)', padding: '1px 5px', borderRadius: '4px' }}>{r.pattern}</code></div>
+                      )}
                       <div style={{ fontSize: '12.5px', color: 'var(--ink2)', marginTop: '3px' }}>{r.message}{r.source_clause ? <span style={{ color: 'var(--ink3)' }}> — {r.source_clause}</span> : null}</div>
                       {r.override && <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '3px' }}>Switched off ({r.override.level === 'event' ? 'this event' : 'umbrella'}): {r.override.reason}</div>}
                       <div style={{ display: 'flex', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
@@ -181,12 +210,14 @@ export default function RulesPanel({ ownerType, ownerId, title = 'Rules' }: { ow
       {adding && (
         <div style={{ display: 'grid', gap: '8px', padding: '10px', border: '1.5px solid var(--teal-mid)', borderRadius: '8px', marginBottom: '12px' }}>
           <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--ink2)' }}>New rule {ownerType === 'org' ? '(Trescon-wide)' : ownerType === 'umbrella' ? '(umbrella)' : '(this event)'}</div>
-          <select value={draft.rule_type} onChange={e => setDraft({ ...draft, rule_type: e.target.value })} style={input}>
+          <select value={draft.rule_type} onChange={e => setDraft({ ...draft, rule_type: e.target.value, pattern: '' })} style={input}>
             {Object.keys(TYPE_HELP).map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
           </select>
           <div style={{ fontSize: '11.5px', color: 'var(--ink3)' }}>{TYPE_HELP[draft.rule_type]}</div>
           <input value={draft.rule_key} onChange={e => setDraft({ ...draft, rule_key: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })} placeholder="Rule key, for example no-premier" style={input} />
-          <textarea value={draft.pattern} onChange={e => setDraft({ ...draft, pattern: e.target.value })} rows={2} placeholder="Pattern" style={{ ...input, fontFamily: 'monospace' }} />
+          {draft.rule_type === 'canonical_name'
+            ? <CanonicalFields pattern={draft.pattern} onChange={(pattern, canonical) => setDraft(d => ({ ...d, pattern, message: canonical !== null && (!d.message || d.message.startsWith('Use the approved form')) ? (canonical ? `Use the approved form: "${canonical}".` : '') : d.message }))} />
+            : <textarea value={draft.pattern} onChange={e => setDraft({ ...draft, pattern: e.target.value })} rows={2} placeholder="Pattern" style={{ ...input, fontFamily: 'monospace' }} />}
           <select value={draft.severity} onChange={e => setDraft({ ...draft, severity: e.target.value as Draft['severity'] })} style={input}><option value="error">error — blocks sign-off until fixed</option><option value="warning">warning — flagged for the reviewer</option></select>
           <input value={draft.message} onChange={e => setDraft({ ...draft, message: e.target.value })} placeholder="Message the reviewer sees (required)" style={input} />
           <input value={draft.source_clause} onChange={e => setDraft({ ...draft, source_clause: e.target.value })} placeholder='Source clause (required) — for example "DIFC style guide §9" or "Trescon house rule"' style={input} />

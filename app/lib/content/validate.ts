@@ -27,9 +27,14 @@
    - proximity:         a JSON-encoded {a, b, maxDistance} — two regexes;
                          flagged when a match of `a` and a match of `b`
                          occur within `maxDistance` characters of each
-                         other anywhere in the text. */
+                         other anywhere in the text.
+   - canonical_name:    a JSON-encoded {canonical, loose} (doc-rule-linkage-and-canonical-names.md, Part B) — one rule per protected name or
+                         title. `canonical` is the exact approved form (case-sensitive); `loose` is a regex (as written, no inline flags, like
+                         forbidden_pattern) that catches ANY attempt at the name, right or wrong. Every match of `loose` is flagged unless it sits
+                         inside an exact occurrence of `canonical`; the finding's suggested_fix is `canonical`. Changing the spelling means
+                         changing one field, not several regexes. */
 
-export type RuleType = 'forbidden_term' | 'forbidden_pattern' | 'required_format' | 'proximity'
+export type RuleType = 'forbidden_term' | 'forbidden_pattern' | 'required_format' | 'proximity' | 'canonical_name'
 export type Severity = 'error' | 'warning'
 
 export type ValidationRule = {
@@ -117,6 +122,22 @@ function checkProximity(text: string, rule: ValidationRule): ValidationFinding[]
   return out
 }
 
+function checkCanonicalName(text: string, rule: ValidationRule): ValidationFinding[] {
+  let config: { canonical?: unknown; loose?: unknown }
+  try { config = JSON.parse(rule.pattern) } catch { return [] }
+  if (typeof config.canonical !== 'string' || !config.canonical || typeof config.loose !== 'string') return []
+  const canonical = config.canonical
+  const re = safeRegex(config.loose, 'g')
+  if (!re) return []
+  // Where the exact approved form appears: a loose match inside one of these spans is correct.
+  const spans: Array<[number, number]> = []
+  for (let at = text.indexOf(canonical); at !== -1; at = text.indexOf(canonical, at + canonical.length)) spans.push([at, at + canonical.length])
+  const message = rule.message || `Use the approved form: "${canonical}".`
+  return collectMatches(re, text, { ...rule, message })
+    .filter(f => !spans.some(([from, to]) => f.offset >= from && f.offset < to))
+    .map(f => ({ ...f, suggested_fix: canonical }))
+}
+
 export function validateText(text: string, rules: ValidationRule[]): ValidationFinding[] {
   if (!text) return []
   const findings: ValidationFinding[] = []
@@ -126,6 +147,7 @@ export function validateText(text: string, rules: ValidationRule[]): ValidationF
       case 'forbidden_pattern': findings.push(...checkForbiddenPattern(text, rule)); break
       case 'required_format':   findings.push(...checkRequiredFormat(text, rule)); break
       case 'proximity':         findings.push(...checkProximity(text, rule)); break
+      case 'canonical_name':    findings.push(...checkCanonicalName(text, rule)); break
     }
   }
   return findings.sort((a, b) => a.offset - b.offset)

@@ -5,6 +5,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { TRACKED_EVENT_FIELDS, FIELD_LABELS } from '@/app/lib/events/detail-field-log'
+import { affectedRulesForEdit } from '@/app/lib/content/affected-rules'
+import type { AffectedRule } from '@/app/lib/content/edit-diff'
 
 /* POST /api/events/stakeholders/messaging/[id]/propose-edit
    Body (conversational mode): { message: string, history?: { role: 'user'|'assistant', text: string }[], section_id?: string }
@@ -65,6 +67,8 @@ type Proposal = {
   proposed_content: unknown
   rationale: string
   conflict: string | null
+  // LIVE doc, section edit: the rules (event, umbrella, Trescon-wide) that mention text this change removes or replaces. Shown before applying; never changed automatically.
+  affected_rules?: AffectedRule[]
 }
 
 let _gemini: GoogleGenerativeAI | null = null
@@ -90,7 +94,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: doc, error: docErr } = await supabaseAdmin
     .from('event_messaging_docs')
-    .select('id, event_id, status, structured_json')
+    .select('id, event_id, umbrella_id, org_scope, status, structured_json')
     .eq('id', id)
     .single()
   if (docErr || !doc) return NextResponse.json({ error: 'Messaging doc not found' }, { status: 404 })
@@ -243,6 +247,10 @@ Return JSON only, no markdown fences, in this exact shape:
           conflict: p.conflict ?? null,
         }
       })
+
+    if (doc.status === 'live' && !syncMode) {
+      for (const p of proposals) if (p.target_type === 'section') p.affected_rules = await affectedRulesForEdit(req, doc, sectionsByKey.get(p.target_key)?.content, p.proposed_content)
+    }
 
     await logDocAuditById(req, id, 'propose_edit', { message: (message ?? '').slice(0, 1000), section_id: sectionId ?? null, sync: syncMode, proposals: Array.isArray(proposals) ? proposals.length : 0 })
     return NextResponse.json({ reply: parsed.reply, proposals })

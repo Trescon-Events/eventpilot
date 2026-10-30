@@ -6,6 +6,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { logEventFieldChanges } from '@/app/lib/events/detail-field-log'
 import { ownerOfRow } from '@/app/lib/content/owner'
 import { recompileEventAndChildren } from '@/app/lib/content/compile-reference'
+import { affectedRulesForEdit } from '@/app/lib/content/affected-rules'
 
 /* POST /api/events/stakeholders/messaging/[id]/apply-edit
    Body: { target_type: 'section'|'default_field', target_key: string, new_content: unknown, instruction: string, applied_by?: string }
@@ -62,6 +63,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   let beforeExcerpt: string
   let updatedStructuredJson: Record<string, unknown>
   let logSectionId: string
+  let beforeContent: unknown = null   // the section's content before this edit (section edits only), to find the rules that mention what changed
 
   if (targetType === 'section') {
     const sections: Array<Record<string, unknown>> = doc.structured_json?.sections ?? []
@@ -69,6 +71,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (idx === -1) return NextResponse.json({ error: 'Section not found on this document' }, { status: 404 })
 
     beforeExcerpt = excerpt(sections[idx].content)
+    beforeContent = sections[idx].content
     const updatedSections = [...sections]
     updatedSections[idx] = {
       ...updatedSections[idx],
@@ -124,7 +127,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // The content is already saved above — a failure here shouldn't block
   // the edit from taking effect, but it should be visible, not silent.
-  const { error: logErr } = await supabaseAdmin.from('event_messaging_doc_edits').insert({
+  const { data: editRow, error: logErr } = await supabaseAdmin.from('event_messaging_doc_edits').insert({
     event_id:       doc.event_id,
     umbrella_id:    doc.umbrella_id,
     org_scope:      doc.org_scope,
@@ -135,7 +138,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     after_excerpt:  excerpt(newContent),
     applied_by:     appliedBy,
     applied_at:     now,
-  })
+  }).select('id').single()
   if (logErr) console.error('Failed to log messaging doc edit:', logErr)
 
   // Stage 2 (2026-09-10): only a LIVE doc's edit changes the effective
@@ -147,5 +150,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   await logDocAudit(req, { docId: id, action: 'apply_edit', owner: doc, detail: { target_type: targetType, target_key: targetKey, instruction: String(instruction).slice(0, 500) } })
-  return NextResponse.json(updatedDoc)
+  // Live doc, section edit: which rules mention what this edit removed. Recomputed here (the doc may have changed since the proposal). The producer decides what to do with each.
+  const affected_rules = doc.status === 'live' && targetType === 'section' ? await affectedRulesForEdit(req, doc, beforeContent, newContent) : []
+  return NextResponse.json({ ...updatedDoc, affected_rules, doc_edit_id: editRow?.id ?? null })
 }

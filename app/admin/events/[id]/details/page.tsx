@@ -10,6 +10,8 @@ import { FORM_TITLES, FormType } from '@/app/lib/forms/types'
 import { TRACKED_EVENT_FIELDS, FIELD_LABELS, TrackedEventField } from '@/app/lib/events/detail-fields'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import SetupTab from './SetupTab'
+import AffectedRulesCard from '@/app/components/rules/AffectedRulesCard'
+import type { AffectedRule } from '@/app/lib/content/edit-diff'
 import EventDaysCard from '@/app/admin/operations-shared/EventDaysCard'
 import { COMMON_TIMEZONES, normalizeTimezone, timezoneOffsetLabel } from '@/app/lib/events/timezones'
 import { FEATURE_REGISTRY, type FeatureKey, type FeatureGroup } from '@/app/lib/registry/feature-flags'
@@ -98,6 +100,10 @@ export type Proposal = {
   rationale: string
   conflict: string | null
   status: 'pending' | 'approved' | 'discarded'
+  // Live-doc section edits: the validation rules that mention text this change removes (before applying), and the same list once applied (+ the logged edit's id).
+  affected_rules?: AffectedRule[]
+  applied_rules?: AffectedRule[]
+  doc_edit_id?: string | null
 }
 export type ChatMessage = { role: 'user' | 'assistant'; text: string; instruction?: string; proposals?: Proposal[] }
 
@@ -1225,7 +1231,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
             )}
 
             {roleLiveDoc && !roleDraftDoc && (
-              <LiveDocView key={roleLiveDoc.id} doc={roleLiveDoc} canManage={canManage} session={session} onUpdated={loadAll} />
+              <LiveDocView key={roleLiveDoc.id} doc={roleLiveDoc} canManage={canManage} session={session} onUpdated={loadAll} onOpenRules={() => setTab('setup')} />
             )}
           </>
         )}
@@ -1435,11 +1441,12 @@ export function DraftReview({ doc, canManage, canApprove, session, onApproved }:
 // from the old standalone /messaging page. Chat here only ever targets
 // sections (target_type 'section') — default_field changes on a live doc
 // go through Overview's "Sync with Messaging Doc" instead, not ad-hoc chat.
-export function LiveDocView({ doc, canManage, session, onUpdated }: {
+export function LiveDocView({ doc, canManage, session, onUpdated, onOpenRules }: {
   doc: MessagingDoc
   canManage: boolean
   session: { sid: string } | null
   onUpdated: () => void
+  onOpenRules?: () => void
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
@@ -1497,9 +1504,10 @@ export function LiveDocView({ doc, canManage, session, onUpdated }: {
       }),
     })
     if (!res.ok) return
+    const applied = await res.json().catch(() => ({})) as { affected_rules?: AffectedRule[]; doc_edit_id?: string | null }
     onUpdated()
     setMessages(prev => prev.map((mm, i) => i !== msgIndex ? mm : {
-      ...mm, proposals: mm.proposals?.map((p, pi) => pi === propIndex ? { ...p, status: 'approved' } : p),
+      ...mm, proposals: mm.proposals?.map((p, pi) => pi === propIndex ? { ...p, status: 'approved', applied_rules: applied.affected_rules ?? [], doc_edit_id: applied.doc_edit_id ?? null } : p),
     }))
   }
 
@@ -1593,6 +1601,12 @@ export function LiveDocView({ doc, canManage, session, onUpdated }: {
                         <span style={{ fontSize: '13px', color: 'var(--ink2)' }}>{p.conflict}</span>
                       </div>
                     )}
+                    {p.status === 'pending' && (p.affected_rules?.length ?? 0) > 0 && (
+                      <div style={{ marginBottom: '8px', padding: '8px 12px', borderRadius: '6px', background: 'var(--amber-light)', border: '1px solid var(--amber-border)', fontSize: '13px', color: 'var(--ink2)' }}>
+                        <strong style={{ color: 'var(--amber)' }}>This change also affects {new Set(p.affected_rules!.map(r => r.rule_id)).size} check{new Set(p.affected_rules!.map(r => r.rule_id)).size === 1 ? '' : 's'}: </strong>
+                        {[...new Set(p.affected_rules!.map(r => r.rule_key))].join(', ')}. Review {new Set(p.affected_rules!.map(r => r.rule_id)).size === 1 ? 'it' : 'them'} after applying.
+                      </div>
+                    )}
                     {p.status === 'pending' ? (
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <Button variant="lime" onClick={() => approveProposal(mi, pi)}>Approve</Button>
@@ -1603,6 +1617,7 @@ export function LiveDocView({ doc, canManage, session, onUpdated }: {
                         {p.status === 'approved' ? 'Applied ✓' : 'Discarded'}
                       </div>
                     )}
+                    {p.status === 'approved' && p.applied_rules && <AffectedRulesCard rules={p.applied_rules} docEditId={p.doc_edit_id ?? null} onOpenRules={onOpenRules} />}
                   </div>
                 ))}
               </div>
