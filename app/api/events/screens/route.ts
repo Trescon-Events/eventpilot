@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     loadScreenSessions(eventId),
     supabaseAdmin.from('brand_fonts').select('id, family_name').order('family_name'),
     supabaseAdmin.from('event_agenda_tracks').select('id, name').eq('event_id', eventId).order('order_index'),
-    supabaseAdmin.from('event_screen_links').select('id, track_id, label, token, created_at, revoked_at').eq('event_id', eventId).is('revoked_at', null).order('created_at'),
+    supabaseAdmin.from('event_screen_links').select('*').eq('event_id', eventId).is('revoked_at', null).order('created_at'),
     loadLook(eventId),
     supabaseAdmin.from('events').select('creative_template_config').eq('id', eventId).maybeSingle(),
   ])
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
   const stageCards = ((ev?.creative_template_config as { speaker?: { variants?: { id: string; name: string; category?: string; canvas_width: number; canvas_height: number }[] } } | null)?.speaker?.variants ?? [])
     .filter(v => v.category === 'stage_screen').map(v => ({ id: v.id, name: v.name || 'Stage screen card', width: v.canvas_width, height: v.canvas_height }))
   return NextResponse.json({
-    timezone, server_time: new Date().toISOString(), auto_redraw: look.autoRedraw, card_variants: stageCards, website_variant: look.websiteVariant ? { name: look.websiteVariant.name || 'Website photo', width: look.websiteVariant.canvas_width, height: look.websiteVariant.canvas_height } : null, sessions: sessions.map(brief), fonts: fonts ?? [], stages: tracks ?? [], links: links ?? [],
+    timezone, server_time: new Date().toISOString(), auto_redraw: look.autoRedraw, card_variants: stageCards, website_variant: look.websiteVariant ? { name: look.websiteVariant.name || 'Website photo', width: look.websiteVariant.canvas_width, height: look.websiteVariant.canvas_height } : null, sessions: sessions.map(brief), fonts: fonts ?? [], stages: tracks ?? [], links: (links ?? []).map(l => ({ id: l.id, track_id: l.track_id, label: l.label, token: l.token, kind: (l.kind as string | undefined) ?? 'stage' })),
     look: { panel: settings.panel, card_style: settings.cardStyle, card_variant_id: settings.cardVariantId, use_website_photo: settings.useWebsitePhoto, type_styles: settings.typeStyles, dims: settings.dims, head_scale: settings.headScale, font_id: settings.fontId, font_name: look.font?.family_name ?? null, background_url: look.backgroundUrl, text_color: look.textColor, accent_color: look.accentColor },
   })
 }

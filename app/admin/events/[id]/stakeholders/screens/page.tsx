@@ -2,9 +2,10 @@
 
 /* eslint-disable @next/next/no-img-element -- previews of arbitrary stored PNGs, deliberately unoptimised */
 
-import { use, useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, use, useCallback, useEffect, useMemo, useState } from 'react'
 import { flashTitle } from '@/app/lib/screens/alerts'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader'
 import TableScreensConsole from '@/app/components/screens/TableScreensConsole'
 import { Button, Input, Select } from '@/app/components/ui'
@@ -19,7 +20,7 @@ type Session = {
   id: string; title: string; topic: string; hide_topic: boolean; stage: string | null; track_id: string | null; date: string; start: string; end: string; format: string | null; status: string
   layout: string; fingerprint: string; state: 'new' | 'ready' | 'changed'; png_url: string | null; generated_at: string | null; width: number | null; height: number | null; low_res: string[]; file_name: string; cards: Card[]; reasons: string[]; starts_at: string | null; ends_at: string | null
 }
-type LinkRow = { id: string; track_id: string | null; label: string; token: string }
+type LinkRow = { id: string; track_id: string | null; label: string; token: string; kind: 'stage' | 'tables' }
 type Data = {
   timezone: string; auto_redraw: boolean; sessions: Session[]; fonts: { id: string; family_name: string }[]; stages: { id: string; name: string }[]; links: LinkRow[]
   look: { panel: 'light' | 'dark'; dims: { photoW: number; photoH: number }; head_scale: number; font_id: string | null; font_name: string | null; background_url: string | null; text_color: string; accent_color: string }
@@ -33,6 +34,13 @@ const FLASH_CSS = `
 .sc-banner { animation: scbanner 0.9s ease-in-out 14; }
 @media (prefers-reduced-motion: reduce) { .sc-flash, .sc-banner { animation: none } }
 `
+const SHELL_CSS = `
+.sc-shell { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 24px; margin-top: 14px; align-items: start; }
+.sc-nav { display: grid; gap: 8px; position: sticky; top: 12px; }
+.sc-navitem { text-align: left; display: grid; gap: 2px; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--border); background: var(--card); color: var(--ink); cursor: pointer; font-family: inherit; }
+.sc-navitem.on { border-color: var(--teal); background: var(--surface); box-shadow: inset 4px 0 0 var(--teal); }
+@media (max-width: 820px) { .sc-shell { grid-template-columns: 1fr; gap: 8px } .sc-nav { position: static; grid-template-columns: 1fr 1fr } }
+`
 const STATE_COLOR = { new: 'var(--ink3)', ready: 'var(--green)', changed: 'var(--red)' } as const
 // The panel the graphic will sit on in the venue — previews only; the exported PNG itself is always transparent.
 /* eslint-disable no-restricted-syntax */
@@ -40,13 +48,19 @@ const PANEL_BG = { light: '#FFFFFF', dark: '#0B1220' } as const
 /* eslint-enable no-restricted-syntax */
 
 export default function ScreensPage({ params }: { params: Promise<{ id: string }> }) {
+  return <Suspense fallback={null}><ScreensView params={params} /></Suspense>   // useSearchParams (the left-hand menu's view) needs a Suspense boundary
+}
+
+function ScreensView({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = use(params)
   const [data, setData] = useState<Data | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [perms, setPerms] = useState<Set<string>>(new Set())
   const [day, setDay] = useState('all')
   const [stage, setStage] = useState('all')
-  const [showTables, setShowTables] = useState(false)
+  const router = useRouter(), search = useSearchParams()
+  const view: 'stage' | 'tables' = search.get('view') === 'tables' ? 'tables' : 'stage'
+  const setView = (v: 'stage' | 'tables') => router.replace(`/admin/events/${eventId}/stakeholders/screens${v === 'tables' ? '?view=tables' : ''}`)
   const [busy, setBusy] = useState<Set<string>>(new Set())
   const [progress, setProgress] = useState<string | null>(null)
   const [editing, setEditing] = useState<Session | null>(null)
@@ -112,11 +126,22 @@ export default function ScreensPage({ params }: { params: Promise<{ id: string }
   if (error) return <div style={{ padding: '32px', color: 'var(--red)' }}>{error}</div>
   return (
     <div style={{ padding: '24px 32px 80px', maxWidth: '1280px', margin: '0 auto' }}>
-      <PageHeader eyebrow="Stakeholder Hub" title="Stage Screens" description="A transparent PNG for every session — topic and speaker cards, moderator tagged — for the AV team to lay over the stage video. Built from the agenda and the speaker records, so a change in the agenda just flags the screen to redraw." backHref={`/admin/events/${eventId}/stakeholders`} backLabel="Stakeholder Hub" />
+      <PageHeader eyebrow="Stakeholder Hub" title="Stage Screens" description="Everything that appears on the screens at the venue: the main stage graphics, and the small screens on the speakers' tables." backHref={`/admin/events/${eventId}/stakeholders`} backLabel="Stakeholder Hub" />
       {!data ? <div style={{ color: 'var(--ink3)', padding: '24px 0' }}>Loading…</div> : (
-        <>
+        <div className="sc-shell">
+          <style>{SHELL_CSS}</style>
+          <nav className="sc-nav" aria-label="Screens">
+            {([['stage', 'Main Stage', 'Stage graphics for the AV team', outOfDate.length], ['tables', 'Table Screens', 'Name cards for the speakers\' tables', 0]] as const).map(([k, l, sub, n]) => (
+              <button key={k} onClick={() => setView(k)} aria-current={view === k ? 'page' : undefined} className={`sc-navitem${view === k ? ' on' : ''}`}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, fontSize: '14.5px' }}>{l}{n > 0 && <span style={{ background: 'var(--red)', color: 'white', borderRadius: '999px', fontSize: '11px', padding: '1px 7px' }}>{n}</span>}</span>
+                <span style={{ fontSize: '12px', color: 'var(--ink3)', fontWeight: 600 }}>{sub}</span>
+              </button>
+            ))}
+          </nav>
+          <div className="sc-main">
           {msg && <div style={{ margin: '12px 0', padding: '10px 14px', borderRadius: '10px', background: 'var(--card)', border: '1px solid var(--border)', fontSize: '14px' }}>{msg}</div>}
           <style>{FLASH_CSS}</style>
+          {view === 'stage' && (<>
           {outOfDate.length > 0 && (
             <div className="sc-banner" role="alert" style={{ position: 'sticky', top: 0, zIndex: 20, background: 'var(--red)', color: 'white', padding: '14px 18px', borderRadius: '12px', margin: '12px 0', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ fontSize: 'clamp(16px, 2.2vw, 22px)', fontWeight: 900 }}>{outOfDate.length} {outOfDate.length === 1 ? 'SCREEN IS' : 'SCREENS ARE'} OUT OF DATE</span>
@@ -132,16 +157,7 @@ export default function ScreensPage({ params }: { params: Promise<{ id: string }
             {canEdit && <Button variant={data.auto_redraw ? 'ghost' : 'teal'} disabled={autoBusy} onClick={() => setAuto(!data.auto_redraw)}>{data.auto_redraw ? 'Turn off' : 'Turn on'}</Button>}
           </div>
           <LookSummary look={data.look} eventId={eventId} />
-          <LinksPanel data={data} eventId={eventId} canEdit={canEdit} onChanged={load} />
-
-          <div style={{ margin: '14px 0', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '12px 16px' }}>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <strong style={{ fontSize: '14px' }}>Table screens</strong>
-              <span style={{ color: 'var(--ink3)', fontSize: '13.5px', flex: '1 1 280px' }}>The small portrait screens beside each speaker&apos;s seat: the name (and a Moderator tag) on the event&apos;s branding. Give each seat its table and download the cards. The AV console has the same tool on its link.</span>
-              <Button variant={showTables ? 'ghost' : 'teal'} onClick={() => setShowTables(v => !v)}>{showTables ? 'Close' : 'Open'}</Button>
-            </div>
-            {showTables && <div style={{ marginTop: '14px' }}><TableScreensConsole apiBase="/api/events/screens/tables" query={`event_id=${eventId}`} showStage /></div>}
-          </div>
+          <LinksPanel kind="stage" data={data} eventId={eventId} canEdit={canEdit} onChanged={load} />
 
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', margin: '22px 0 12px' }}>
             <Select value={day} onChange={e => setDay(e.target.value)} style={{ width: 'auto', minWidth: '170px' }}>
@@ -183,7 +199,28 @@ export default function ScreensPage({ params }: { params: Promise<{ id: string }
               </div>
             ))}
           </div>
-        </>
+          </>)}
+
+          {view === 'tables' && (
+            <div style={{ display: 'grid', gap: '14px', marginTop: '14px' }}>
+              <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '14px 16px', fontSize: '14px', lineHeight: 1.65 }}>
+                <strong>Table Screens</strong> are the small portrait screens on the side tables, one per speaker: the name, and a Moderator tag for the moderator, on the event&apos;s branding.
+                <ol style={{ margin: '8px 0 0', paddingLeft: '20px', color: 'var(--ink2)' }}>
+                  <li><strong>Design</strong> — the branding team builds the card (and a standby screen) in <Link href={`/admin/events/${eventId}/creative-templates/admin`} style={{ fontWeight: 800, color: 'var(--teal-mid)' }}>Admin Console › Variants › Table Screen</Link>.</li>
+                  <li><strong>Technician link</strong> — send the link below to the technician. No login.</li>
+                  <li><strong>On the day</strong> — the stage manager tells the technician which table is in which seat; he picks the session, types the table order, checks the cards and downloads them for his app.</li>
+                </ol>
+              </div>
+              <LinksPanel kind="tables" data={data} eventId={eventId} canEdit={canEdit} onChanged={load} />
+              <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '14px 16px' }}>
+                <div style={{ fontWeight: 800, fontSize: '14.5px' }}>Preview — exactly what the technician sees</div>
+                <div style={{ fontSize: '13px', color: 'var(--ink3)', margin: '2px 0 12px' }}>Use it to check the design and the names before you send the link, or to download the cards yourself.</div>
+                <TableScreensConsole apiBase="/api/events/screens/tables" query={`event_id=${eventId}`} showStage />
+              </div>
+            </div>
+          )}
+          </div>
+        </div>
       )}
       {editing && <EditModal session={editing} eventId={eventId} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await load() }} />}
     </div>
@@ -202,12 +239,13 @@ function LookSummary({ look, eventId }: { look: Data['look']; eventId: string })
   )
 }
 
-function LinksPanel({ data, eventId, canEdit, onChanged }: { data: Data; eventId: string; canEdit: boolean; onChanged: () => void }) {
+function LinksPanel({ kind, data, eventId, canEdit, onChanged }: { kind: 'stage' | 'tables'; data: Data; eventId: string; canEdit: boolean; onChanged: () => void }) {
+  const links = data.links.filter(l => l.kind === kind)
   const [stage, setStage] = useState('')
   const [copied, setCopied] = useState<string | null>(null)
   const url = (t: string) => `${typeof window === 'undefined' ? '' : window.location.origin}/public/screens/${t}`
   async function create() {
-    await fetch('/api/events/screens/links', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, track_id: stage || null }) })
+    await fetch('/api/events/screens/links', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, kind, track_id: kind === 'stage' ? stage || null : null, ...(kind === 'tables' ? { label: 'Table screens — technician' } : {}) }) })
     onChanged()
   }
   async function revoke(id: string) {
@@ -217,9 +255,9 @@ function LinksPanel({ data, eventId, canEdit, onChanged }: { data: Data; eventId
   }
   return (
     <details open style={{ margin: '14px 0', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '12px 16px' }}>
-      <summary style={{ cursor: 'pointer', fontWeight: 800, fontSize: '14.5px' }}>AV team links ({data.links.length})</summary>
-      <div style={{ fontSize: '13px', color: 'var(--ink3)', margin: '8px 0 10px' }}>Send a stage&apos;s link to its AV console. They open it, see the latest PNG for each session in time order, and download — no login. Switch a link off any time.</div>
-      {data.links.map(l => (
+      <summary style={{ cursor: 'pointer', fontWeight: 800, fontSize: '14.5px' }}>{kind === 'tables' ? 'Technician link' : 'AV team links'} ({links.length})</summary>
+      <div style={{ fontSize: '13px', color: 'var(--ink3)', margin: '8px 0 10px' }}>{kind === 'tables' ? 'Send this link to the technician. He opens it, picks the session, types the table order and downloads the name cards for the table screens — no login. Switch it off any time.' : 'Send a stage\'s link to its AV console. They open it, see the latest PNG for each session in time order, and download — no login. Switch a link off any time.'}</div>
+      {links.map(l => (
         <div key={l.id} style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', padding: '6px 0', borderTop: '1px solid var(--border-light)' }}>
           <strong style={{ minWidth: '150px', fontSize: '14px' }}>{l.label}</strong>
           <code style={{ fontSize: '12px', color: 'var(--ink2)', wordBreak: 'break-all', flex: '1 1 260px' }}>{url(l.token)}</code>
@@ -229,10 +267,12 @@ function LinksPanel({ data, eventId, canEdit, onChanged }: { data: Data; eventId
       ))}
       {canEdit && (
         <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
-          <Select value={stage} onChange={e => setStage(e.target.value)} style={{ width: 'auto', minWidth: '220px' }}>
-            <option value="">All stages (one link)</option>{data.stages.map(s => <option key={s.id} value={s.id}>{s.name} only</option>)}
-          </Select>
-          <Button variant="teal" onClick={create}>Create link</Button>
+          {kind === 'stage' && (
+            <Select value={stage} onChange={e => setStage(e.target.value)} style={{ width: 'auto', minWidth: '220px' }}>
+              <option value="">All stages (one link)</option>{data.stages.map(s => <option key={s.id} value={s.id}>{s.name} only</option>)}
+            </Select>
+          )}
+          {!(kind === 'tables' && links.length > 0) && <Button variant="teal" onClick={create}>{kind === 'tables' ? 'Create technician link' : 'Create link'}</Button>}
         </div>
       )}
     </details>

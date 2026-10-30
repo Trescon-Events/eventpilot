@@ -12,11 +12,11 @@ import { DEFAULT_TABLE_COUNT, MAX_TABLES, parseTableOrder, seatPlan, standbyFile
    Names come from the agenda and the speaker records; a substitute or last-minute speaker can be typed in here. Cards are drawn on request from the Table Screen template the branding team made
    (Admin Console › Variants). Nothing is saved: the page is a worksheet for the session. */
 
-type Template = { id: string; name: string; width: number; height: number; standby: boolean }
+type Template = { id: string; name: string; width: number; height: number; standby: boolean; version: string }
 type SeatIn = { speakerId: string; name: string; moderator: boolean }
 type Session = { id: string; topic: string; date: string; startHM: string; endHM: string; stage: string | null; seats: SeatIn[] }
 type Payload = { table_count: number; templates: Template[]; sessions: Session[] }
-type Seat = { name: string; moderator: boolean }
+type Seat = { name: string; moderator: boolean; manual?: boolean }   // manual = added here for a substitute; only those can be flagged Moderator by hand — an agenda speaker's tag comes from their record
 
 const btn = { display: 'inline-block', padding: '10px 18px', borderRadius: '10px', border: 'none', fontWeight: 800, fontSize: '14px', cursor: 'pointer', textDecoration: 'none', fontFamily: 'inherit' } as const
 const input = { padding: '8px 10px', border: '1.5px solid var(--border)', borderRadius: '8px', fontSize: '14px', background: 'var(--card)', color: 'var(--ink)', fontFamily: 'inherit', boxSizing: 'border-box' } as const
@@ -38,6 +38,8 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
   const [day, setDay] = useState('all')
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)
+  const [nonce, setNonce] = useState(0)   // bumped by Refresh so every preview is drawn again from the template as it is now
+  const [refreshing, setRefreshing] = useState(false)
 
   const url = useCallback((path: string, extra: Record<string, string> = {}) => {
     const q = new URLSearchParams(query); for (const [k, v] of Object.entries(extra)) q.set(k, v)
@@ -75,6 +77,7 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
   const plan = seatPlan(seats, parsed.errors.length ? [] : parsed.order, tableCount)
   const ready = plan.seats.filter(s => s.table !== null && s.name.trim())
 
+  async function refresh() { setRefreshing(true); await load(); setNonce(n => n + 1); setRefreshing(false) }
   function pickSession(id: string) { setSessionId(id); setOrderText(''); setNote(null) }
   // The table dropdowns fill the order in sequence (a seat can only be set once the seat before it has a table); clearing one clears the rest of the order from that seat on.
   function setTable(seatIdx: number, table: number | null) {
@@ -98,7 +101,7 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
     setBusy(false)
   }
 
-  const cardSrc = (name: string, moderator: boolean, extra: Record<string, string> = {}) => url('/card', { name, ...(moderator ? { moderator: '1' } : {}), ...(tpl ? { template: tpl.id } : {}), ...extra })
+  const cardSrc = (name: string, moderator: boolean, extra: Record<string, string> = {}) => url('/card', { name, ...(moderator ? { moderator: '1' } : {}), ...(tpl ? { template: tpl.id, v: `${tpl.version}${nonce}` } : {}), ...extra })
   const hasProblem = parsed.errors.length > 0
 
   if (error) return <div style={{ color: 'var(--red)', padding: '12px 0' }}>{error}</div>
@@ -111,8 +114,11 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
 
   return (
     <div style={{ display: 'grid', gap: '14px' }}>
-      <div style={{ fontSize: '14px', color: 'var(--ink2)', lineHeight: 1.6 }}>
-        1. Pick the session. 2. When the stage manager says which table is in which seat, type the table numbers <strong>in seat order, from the left</strong> (moderator first). 3. Check the cards and download them for your app.
+      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ fontSize: '14px', color: 'var(--ink2)', lineHeight: 1.6, flex: '1 1 320px' }}>
+          1. Pick the session. 2. When the stage manager says which table is in which seat, type the table numbers <strong>in seat order, from the left</strong> (moderator first). 3. Check the cards and download them for your app.
+        </div>
+        <button onClick={refresh} disabled={refreshing} title="Reload the speakers and the card design, and draw every preview again" style={{ ...btn, background: 'var(--card)', color: 'var(--ink)', border: '1.5px solid var(--border)' }}>{refreshing ? 'Refreshing…' : '↻ Refresh designs & names'}</button>
       </div>
 
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -155,12 +161,14 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
             {!hasProblem && parsed.warnings.map(w => <div key={w} style={{ color: 'var(--amber)', fontWeight: 700, fontSize: '13.5px' }}>{w}</div>)}
 
             <div style={{ display: 'grid', gap: '6px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>Seats, left to right as seen from the audience. Change a name for a substitute or a last-minute speaker; the card is drawn from what you type.</div>
+              <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>Seats, left to right as seen from the audience, with the moderator first. Names and the Moderator tag come from the agenda and the speaker records. Change a name here only for a substitute or a last-minute speaker.</div>
               {seats.map((s, i) => (
                 <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                   <span style={{ width: '58px', fontWeight: 800, fontSize: '13px', color: 'var(--ink3)' }}>Seat {i + 1}</span>
                   <input value={s.name} onChange={e => setSeats(seats.map((x, j) => j === i ? { ...x, name: e.target.value } : x))} style={{ ...input, flex: '1 1 220px', minWidth: 0 }} aria-label={`Name for seat ${i + 1}`} />
-                  <label style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}><input type="checkbox" checked={s.moderator} onChange={e => setSeats(seats.map((x, j) => j === i ? { ...x, moderator: e.target.checked } : x))} /> Moderator</label>
+                  {s.manual
+                    ? <label style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}><input type="checkbox" checked={s.moderator} onChange={e => setSeats(seats.map((x, j) => j === i ? { ...x, moderator: e.target.checked } : x))} /> Moderator</label>
+                    : s.moderator && <span style={{ fontSize: '11.5px', fontWeight: 800, padding: '3px 9px', borderRadius: '999px', background: 'var(--teal)', color: 'white' }}>MODERATOR</span>}
                   <select value={plan.seats[i]?.table ?? ''} disabled={i > (parsed.errors.length ? 0 : parsed.order.length)} onChange={e => setTable(i, e.target.value ? Number(e.target.value) : null)} style={{ ...input, width: '110px' }} aria-label={`Table for seat ${i + 1}`}>
                     <option value="">Table…</option>
                     {Array.from({ length: tableCount }, (_, k) => k + 1).map(t => <option key={t} value={t}>Table {t}</option>)}
@@ -169,7 +177,7 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
                 </div>
               ))}
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                <button onClick={() => { setSeats([...seats, { name: '', moderator: false }]); setOrderText('') }} style={{ ...btn, padding: '6px 12px', background: 'var(--card)', color: 'var(--ink)', border: '1.5px solid var(--border)' }}>+ Add a speaker</button>
+                <button onClick={() => { setSeats([...seats, { name: '', moderator: false, manual: true }]); setOrderText('') }} style={{ ...btn, padding: '6px 12px', background: 'var(--card)', color: 'var(--ink)', border: '1.5px solid var(--border)' }}>+ Add a speaker</button>
                 {edited && <button onClick={() => setEdits(e => { const n = { ...e }; delete n[session.id]; return n })} style={{ ...btn, padding: '6px 12px', background: 'transparent', color: 'var(--ink3)', border: '1.5px solid var(--border)' }}>Reset names to the agenda</button>}
               </div>
             </div>
@@ -203,7 +211,7 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
             {sb && plan.standby.length > 0 && (
               <div style={{ background: 'var(--card)', border: '1.5px dashed var(--border)', borderRadius: '10px', padding: '8px', display: 'grid', gap: '6px', alignContent: 'start' }}>
                 <div style={{ fontSize: '13px', fontWeight: 900 }}>Standby <span style={{ color: 'var(--ink3)', fontWeight: 700 }}>· {plan.standby.map(t => `T${t}`).join(' ')}</span></div>
-                <img src={url('/card', { standby: '1', template: sb.id, scale: '0.2' })} alt="Standby screen" style={{ width: '100%', display: 'block', borderRadius: '6px', background: 'var(--surface)', aspectRatio: `${sb.width} / ${sb.height}` }} />
+                <img src={url('/card', { standby: '1', template: sb.id, v: `${sb.version}${nonce}`, scale: '0.2' })} alt="Standby screen" style={{ width: '100%', display: 'block', borderRadius: '6px', background: 'var(--surface)', aspectRatio: `${sb.width} / ${sb.height}` }} />
                 <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>Tables without a speaker show this.</div>
               </div>
             )}

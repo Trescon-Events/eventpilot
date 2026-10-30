@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createHash } from 'node:crypto'
 import sharp from 'sharp'
 import { Zip, ZipPassThrough } from 'fflate'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -13,7 +14,7 @@ import { DEFAULT_TABLE_COUNT, MAX_TABLES, standbyFileName, tableFileName, tables
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export const MAX_SEATS = 12
 
-export type TableTemplateInfo = { id: string; name: string; width: number; height: number; standby: boolean }
+export type TableTemplateInfo = { id: string; name: string; width: number; height: number; standby: boolean; version: string }
 export type TableSessionInfo = { id: string; topic: string; date: string; startHM: string; endHM: string; stage: string | null; seats: { speakerId: string; name: string; moderator: boolean }[] }
 
 export async function tableVariants(eventId: string): Promise<Variant[]> {
@@ -30,7 +31,7 @@ export function pickTemplates(variants: Variant[], templateId: string | null, st
 
 export async function tablesPayload(eventId: string, trackId: string | null) {
   const [variants, { sessions, timezone }] = await Promise.all([tableVariants(eventId), loadScreenSessions(eventId, { trackId })])
-  const templates: TableTemplateInfo[] = variants.map(v => ({ id: v.id, name: v.name || (v.table_standby ? 'Standby screen' : 'Table card'), width: v.canvas_width, height: v.canvas_height, standby: !!v.table_standby }))
+  const templates: TableTemplateInfo[] = variants.map(v => ({ id: v.id, name: v.name || (v.table_standby ? 'Standby screen' : 'Table card'), width: v.canvas_width, height: v.canvas_height, standby: !!v.table_standby, version: createHash('sha1').update(JSON.stringify(v)).digest('hex').slice(0, 10) }))   // changes whenever the template is edited, so a preview is never the old design
   const list: TableSessionInfo[] = sessions.map(s => ({
     id: s.id, topic: s.topic, date: s.date, startHM: s.startHM, endHM: s.endHM, stage: s.stage,
     seats: s.cards.map(c => ({ speakerId: c.speakerId, name: c.text.name, moderator: c.moderator })),   // moderator first, then the order on the session screen — the order they sit in

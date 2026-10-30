@@ -19,7 +19,7 @@ type Item = {
   png_url: string | null; width: number | null; height: number | null; generated_at: string | null; status: Status; reasons: string[]; downloaded_at: string | null; preparing: boolean; quiet_left: number
   people: { name: string; moderator: boolean }[]
 }
-type Data = { event_name: string; label: string; timezone: string; panel: 'light' | 'dark'; server_time: string; auto_redraw: boolean; baseline_at: string | null; sessions: Item[] }
+type Data = { kind?: 'tables'; event_name: string; label: string; timezone: string; panel: 'light' | 'dark'; server_time: string; auto_redraw: boolean; baseline_at: string | null; sessions: Item[] }
 
 // The panel the graphic sits on at the venue (preview only; the file itself is transparent).
 /* eslint-disable no-restricted-syntax */
@@ -46,7 +46,6 @@ export default function ScreensForAv({ params }: { params: Promise<{ token: stri
   const [offset, setOffset] = useState(0)            // server clock minus this device's clock
   const [now, setNow] = useState(() => Date.now())
   const [day, setDay] = useState('all')
-  const [tab, setTab] = useState<'stage' | 'tables'>('stage')   // the stage graphics, or the small screens on the speakers' tables
   const [dismissed, setDismissed] = useState('')
   const [sound, setSound] = useState(true)
   const [redrawing, setRedrawing] = useState(false)
@@ -141,6 +140,13 @@ export default function ScreensForAv({ params }: { params: Promise<{ token: stri
   }
 
   if (error) return <div style={{ padding: '40px 20px', textAlign: 'center', fontFamily: 'var(--font-manrope), Manrope, sans-serif', color: 'var(--ink)', background: 'var(--surface)', minHeight: '100vh' }}>{error}</div>
+  if (data?.kind === 'tables') return (   // the technician's link: only the Table Screens
+    <div style={{ minHeight: '100vh', background: 'var(--surface)', color: 'var(--ink)', fontFamily: 'var(--font-manrope), Manrope, sans-serif', padding: 'clamp(12px, 3vw, 32px)', maxWidth: '1100px', margin: '0 auto' }}>
+      <h1 style={{ margin: 0, fontSize: 'clamp(20px, 3vw, 28px)', fontWeight: 900 }}>{data.event_name} — table screens</h1>
+      <div style={{ color: 'var(--ink3)', fontSize: '14px', margin: '4px 0 16px' }}>The small screens beside each speaker&apos;s seat. Download the cards for a session and upload them to your app.</div>
+      <TableScreensConsole apiBase={`/api/public/screens/${token}/tables`} />
+    </div>
+  )
   const btn = { padding: '10px 18px', borderRadius: '10px', fontWeight: 800, fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none', display: 'inline-block', border: 'none' } as const
   return (
     <div style={{ minHeight: '100vh', background: 'var(--surface)', color: 'var(--ink)', fontFamily: 'var(--font-manrope), Manrope, sans-serif', padding: 'clamp(12px, 3vw, 32px)' }}>
@@ -165,15 +171,6 @@ export default function ScreensForAv({ params }: { params: Promise<{ token: stri
             {' · '}{data.auto_redraw ? 'Changes redraw by themselves about a minute after the last edit.' : 'Auto-redraw is off — press Redraw now after a change.'}
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
-            {([['stage', 'Stage graphics'], ['tables', 'Table screens']] as const).map(([k, l]) => (
-              <button key={k} onClick={() => setTab(k)} style={{ ...btn, background: tab === k ? 'var(--ink)' : 'transparent', color: tab === k ? 'var(--card)' : 'var(--ink2)', border: '1.5px solid var(--border)' }}>{l}</button>
-            ))}
-          </div>
-
-          {tab === 'tables' && <TableScreensConsole apiBase={`/api/public/screens/${token}/tables`} />}
-
-          {tab === 'stage' && (<>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '12px' }}>
             <a href={`/api/public/screens/${token}/zip?scope=all`} onClick={after} style={{ ...btn, background: 'var(--teal)', color: 'white' }}>Download all (zip)</a>
             {day !== 'all' && <a href={`/api/public/screens/${token}/zip?scope=day&day=${day}`} onClick={after} style={{ ...btn, background: 'var(--teal)', color: 'white' }}>Download {day} (zip)</a>}
@@ -225,7 +222,6 @@ export default function ScreensForAv({ params }: { params: Promise<{ token: stri
               )
             })}
           </div>
-          </>)}
 
           {showPopup && (
             <div role="alertdialog" aria-label="Sessions changed" style={{ position: 'fixed', top: '14px', left: '50%', transform: 'translateX(-50%)', zIndex: 60, width: 'min(560px, calc(100vw - 24px))', background: 'var(--card)', border: '4px solid var(--red)', borderRadius: '16px', padding: '16px 18px', boxShadow: 'var(--shadow-md)' }}>

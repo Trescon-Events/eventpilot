@@ -10,6 +10,13 @@ import { avView } from '@/app/lib/screens/av'
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
   const link = await linkByToken(token)
+  if (!link) {
+    const tl = await linkByToken(token, 'tables')   // the technician's link: only the Table Screens, nothing of the stage graphics
+    if (tl) {
+      const { data: e } = await supabaseAdmin.from('events').select('name, public_name').eq('id', tl.event_id).maybeSingle()
+      return NextResponse.json({ kind: 'tables', event_name: (e?.public_name as string | null) || (e?.name as string | null) || 'Event', label: tl.label }, { headers: { 'Cache-Control': 'no-store' } })
+    }
+  }
   if (!link) return NextResponse.json({ error: 'This link is not valid or has been switched off. Ask the event team for a new one.' }, { status: 404 })
   const [view, { data: ev }] = await Promise.all([
     avView(link),

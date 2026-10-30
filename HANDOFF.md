@@ -11,6 +11,12 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 ---
 
+## Stage Screens: left menu, technician link, table-card fixes (30 Oct 2026)
+- **Page** `stakeholders/screens/page.tsx`: left menu **Main Stage** / **Table Screens** (`?view=tables`). Main Stage = what was there (event-day mode, look, AV links, sessions). Table Screens = three-step explanation, the technician link, and a preview of exactly what he sees.
+- **Technician link**: `event_screen_links.kind` ('stage' | 'tables') — **migration `supabase/event_screen_links_kind_migration.sql`, run by hand**. `linkByToken(token, kind)`; a tables link opens only the Table Screens console (`/public/screens/[token]` renders it when `GET /api/public/screens/[token]` returns `kind: 'tables'`); stage links no longer have the Tables tab and cannot open the table routes. Creating a tables link needs the migration; everything else works without it.
+- **Console fixes**: Moderator tag is read-only for agenda speakers (checkbox only for speakers added by hand); every template carries a `version` hash used in preview URLs + a **Refresh designs & names** button (previews were cached 30 s under the same address, so template edits did not show).
+- **Next (agreed, not built): Table Screens Phase 2** — a small program on the technician's Windows laptop serves `/table/1..6` on the LAN and holds each table's image; the live control (Send to tables / Standby / Blank / Identify / online status) stays in the EventPilot console so improvements need no reinstall; program shows a version and the console says "Update the program" only if a feature needs it.
+
 ## Table Screens, Phase 1 (30 Oct 2026) — built on branch `feat/table-screens`, NOT pushed; no migration
 The small portrait screens beside each speaker's seat on stage (name + MODERATOR tag on branding). Phase 1 = the technician downloads PNGs and pushes them with his own app (images/videos only; table PCs have no internet). Phase 2 (not built): a small program on his Windows laptop that serves the table pages over the LAN and pushes live.
 - **Moderator tag is never silently missing:** a **+ Moderator Tag** button adds the moderator-only layer in one click; and if a Table Screen card has no moderator-only layer, moderators get a default MODERATOR tag above the name (name's font/colour, half its size) — `withModeratorFallback` in `app/lib/screens/tables.ts`, used by the real cards and the editor preview.
