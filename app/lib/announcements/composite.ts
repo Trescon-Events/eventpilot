@@ -23,9 +23,13 @@ import { toMonochrome } from '@/app/lib/media/monochrome'
 
 export { withTextLayerDefaults, type LegacyTextLayer } from '@/app/lib/announcements/text-layer-defaults'
 
+/** Table Screen cards only: which speakers a layer is drawn for (absent = everyone). Lets one template carry both the moderator's tag and the plain card. */
+export type ShowFor = 'moderator' | 'speaker'
+
 export type ImageLayer = {
   id: string
   type: 'image'
+  show_for?: ShowFor
   asset_url: string
   // Badge variants only (2026-10-02): the layer's true VECTOR art as a single-page PDF exported from
   // Illustrator at the full bleed size. The print PDF embeds this as vector; `asset_url` then holds the
@@ -46,6 +50,7 @@ export type ImageLayer = {
 export type PhotoSlotLayer = {
   id: string
   type: 'photo_slot'
+  show_for?: ShowFor
   source: 'speaker_photo' | 'speaker_logo' | 'partner_logo'
   x: number
   y: number
@@ -91,6 +96,7 @@ export type TextLayerFont = {
 export type TextLayer = {
   id: string
   type: 'text'
+  show_for?: ShowFor
   field: 'name' | 'title' | 'company' | 'tier' | 'country' | 'custom' | 'headline_lead' | 'headline_emphasis' | 'headline_trail' | 'headline_full'
   value?: string             // static text for 'custom', or a fallback for 'tier'
   x: number                  // box top-left (SAE Phase C v5, 2026-07-29) — was a single SVG baseline
@@ -158,6 +164,11 @@ export type TextLayer = {
   // AI-generated headline length. Default true (every existing layer keeps
   // shrinking, zero behavior change).
   allow_shrink?: boolean
+}
+
+/** The variant as drawn for a moderator or another speaker: layers limited to the other kind are left out. */
+export function layersForRole(variant: Variant, moderator: boolean): Variant {
+  return { ...variant, layers: variant.layers.filter(l => !l.show_for || (l.show_for === 'moderator') === moderator) }
 }
 
 export type TextLayerDiagnostics = { did_shrink: boolean; did_truncate: boolean }
@@ -233,7 +244,7 @@ export type Variant = {
   // generate route both read as an already-clean input. That version uses
   // two annotated reference images plus a mandatory second manual confirm,
   // which is what the earlier abandoned attempt lacked.
-  category?: 'promo' | 'self_promo' | 'website_photo' | 'badge' | 'memento' | 'stage_screen'
+  category?: 'promo' | 'self_promo' | 'website_photo' | 'badge' | 'memento' | 'stage_screen' | 'table_screen'
   // 'memento' (2026-10-22) — the speaker's photo cut-out for a physical memento, handed to the memento vendor (see
   // app/lib/mementos/render.ts). ONE layer: a Photo/Logo Slot (source: speaker photo) with `alignment` traced from an uploaded
   // reference exactly like Website Photo — but NO background and NO other layers; the output is a transparent PNG of exactly
@@ -247,6 +258,11 @@ export type Variant = {
   // canvas (default 1024x1536) of branding layers, the speaker photo slot and text layers (name, title, company, country), composited like any
   // Promo variant. Text layers stack bottom-up (snap_above_layer_id). Session title and the MODERATOR tag are NOT on the card — they are set
   // under Admin Console > Stage Speaker Pic. Never offered in announcement/badge pickers (they filter by exact category).
+  // 'table_screen' (2026-10-30) — the card on a speaker's table screen on stage (the small portrait screens beside each seat): the speaker's NAME only, a MODERATOR tag above it for
+  // the moderator, over the event's branding (canvas default 1080 x 1920). Built by the branding team from image and text layers like any variant; a layer's `show_for` limits it
+  // to moderators or to other speakers, so one template carries both (e.g. a "MODERATOR" text layer shown for moderators only, stacked above the name with snap_above_layer_id).
+  // `table_standby` marks the one extra variant that is the standby screen (event logo, no person). See app/lib/screens/tables*.ts. Never offered in announcement/badge pickers.
+  table_standby?: boolean
   print?: BadgePrintSpec
   // 'common' (2026-10-30) — a badge variant (category 'badge') that is ONE finished artwork with no person on it: no photo slot, no text (security, protocol, organiser passes…).
   // It is printed in a quantity ("Common Badges" in the badge printing module: batch name + template + quantity) instead of once per person.

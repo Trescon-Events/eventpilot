@@ -6,6 +6,7 @@ import { use, useCallback, useEffect, useMemo, useState } from 'react'
 import { flashTitle } from '@/app/lib/screens/alerts'
 import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
+import TableScreensConsole from '@/app/components/screens/TableScreensConsole'
 import { Button, Input, Select } from '@/app/components/ui'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
 
@@ -45,6 +46,7 @@ export default function ScreensPage({ params }: { params: Promise<{ id: string }
   const [perms, setPerms] = useState<Set<string>>(new Set())
   const [day, setDay] = useState('all')
   const [stage, setStage] = useState('all')
+  const [showTables, setShowTables] = useState(false)
   const [busy, setBusy] = useState<Set<string>>(new Set())
   const [progress, setProgress] = useState<string | null>(null)
   const [editing, setEditing] = useState<Session | null>(null)
@@ -131,6 +133,15 @@ export default function ScreensPage({ params }: { params: Promise<{ id: string }
           </div>
           <LookSummary look={data.look} eventId={eventId} />
           <LinksPanel data={data} eventId={eventId} canEdit={canEdit} onChanged={load} />
+
+          <div style={{ margin: '14px 0', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '12px 16px' }}>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <strong style={{ fontSize: '14px' }}>Table screens</strong>
+              <span style={{ color: 'var(--ink3)', fontSize: '13.5px', flex: '1 1 280px' }}>The small portrait screens beside each speaker&apos;s seat: the name (and a Moderator tag) on the event&apos;s branding. Give each seat its table and download the cards. The AV console has the same tool on its link.</span>
+              <Button variant={showTables ? 'ghost' : 'teal'} onClick={() => setShowTables(v => !v)}>{showTables ? 'Close' : 'Open'}</Button>
+            </div>
+            {showTables && <div style={{ marginTop: '14px' }}><TableScreensConsole apiBase="/api/events/screens/tables" query={`event_id=${eventId}`} showStage /></div>}
+          </div>
 
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', margin: '22px 0 12px' }}>
             <Select value={day} onChange={e => setDay(e.target.value)} style={{ width: 'auto', minWidth: '170px' }}>

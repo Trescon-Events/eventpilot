@@ -120,6 +120,10 @@ const variantPickerGroups = (activeType: StakeholderKind): { title: string; item
   { title: 'Website and screens', items: [
     ['website_photo', 'Website Photo', `Square speaker card photo, ${CLEANING_CYCLE_CANVAS_SIZE}x${CLEANING_CYCLE_CANVAS_SIZE}`],
     ...(activeType === 'speaker' ? [['stage_screen', 'Stage Screen Card', 'Speaker card for the stage-screen graphic: layers from branding, photo, name / title / company stacked bottom-up'] as PickerItem] : []),
+    ...(activeType === 'speaker' ? [
+      ['table_screen', 'Table Screen Card', 'The small screen beside a speaker’s seat: the name over the branding, with a MODERATOR tag for the moderator. 1080×1920'] as PickerItem,
+      ['table_standby', 'Table Screen — standby', 'What the table screens show between sessions: the event logo on the common background. 1080×1920'] as PickerItem,
+    ] : []),
   ] },
   { title: 'Print and keepsakes', items: [
     ['badge', 'Speaker Badge (print)', 'PVC card — you set the size next; vector layers uploaded as PDFs'],
@@ -145,6 +149,25 @@ function stageScreenStarter(): Variant {
   title.snap_above_layer_id = company.id; title.snap_gap = 14; title.y = company.y - 14 - title.height
   name.snap_above_layer_id = title.id; name.snap_gap = 30; name.y = title.y - 30 - name.height
   return { id: crypto.randomUUID(), name: 'Stage screen card', category: 'stage_screen', canvas_width: W, canvas_height: H, layers: [photo, name, title, company] }
+}
+
+// A new Table Screen card (the small portrait screen beside each speaker's seat): the speaker's NAME over the branding, and a MODERATOR tag above it for the moderator only. Branding adds the
+// background and logo as Image layers underneath, and restyles both text layers. The name is anchored by its bottom edge (a long name grows upward, never off the screen); the tag stacks above
+// it. `standby` makes the standby screen instead: just an Image layer (event logo on the common background), no person.
+function tableScreenStarter(standby: boolean): Variant {
+  const W = 1080, H = 1920, SIDE = 80
+  const bg = newLayer('image', 'speaker', W, H)
+  if (standby) return { id: crypto.randomUUID(), name: 'Table screen — standby', category: 'table_screen', table_standby: true, canvas_width: W, canvas_height: H, layers: [bg] }
+  const text = (field: TextLayer['field'], size: number, weight: number, maxLines: number, upper: boolean): TextLayer => {
+    const t = newLayer('text', 'speaker', W, H) as TextLayer
+    // eslint-disable-next-line no-restricted-syntax -- default text colour of a new template layer (baked into the exported PNG), like newLayer()
+    return { ...t, field, x: SIDE, width: W - SIDE * 2, max_lines: maxLines, font_size: size, height: Math.round(maxLines * size * 1.25), font_weight: weight, align: 'center', uppercase: upper, font_color: '#FFFFFF', allow_shrink: true }
+  }
+  const name = text('name', 84, 700, 3, false)
+  name.y = 1180 - name.height
+  const tag = { ...text('custom', 44, 600, 1, true), value: 'Moderator', show_for: 'moderator' as const }
+  tag.snap_above_layer_id = name.id; tag.snap_gap = 28; tag.y = name.y - 28 - tag.height
+  return { id: crypto.randomUUID(), name: 'Table screen card', category: 'table_screen', canvas_width: W, canvas_height: H, layers: [bg, name, tag] }
 }
 
 // Fills in width/height/max_lines for any text layer saved before Phase C
@@ -228,6 +251,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   // itself just changed underneath it — an old image there would be
   // actively misleading, not just stale.
   const [previewStale, setPreviewStale] = useState(false)
+  const [previewRole, setPreviewRole] = useState<'speaker' | 'moderator'>('speaker')   // Table Screen cards: which kind of speaker the preview draws
   const previewReqIdRef = useRef(0)
 
   // Undo/redo (2026-07-31) — commit-point snapshots, not per-keystroke/
@@ -318,7 +342,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     // photo half of "placeholder" already comes from whatever's uploaded as
     // the Photo/Logo Slot's own reference layer, so there was never a case
     // this couldn't already cover.
-    const body: Record<string, unknown> = { event_id: eventId, stakeholder_type: activeType, variant: activeVariant }
+    const body: Record<string, unknown> = { event_id: eventId, stakeholder_type: activeType, variant: activeVariant, ...(activeVariant.category === 'table_screen' ? { preview_role: previewRole } : {}) }
     const res = await fetch('/api/events/templates/preview', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     })
@@ -464,7 +488,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   // wrong canvas size (1080x1350) by mistake, only caught once a layer
   // inside it was already wrong too. Gating on the choice up front means
   // canvas dimensions are correct from the variant's very first layer.
-  function addVariant(category: 'promo' | 'self_promo' | 'website_photo' | 'badge' | 'memento' | 'stage_screen', badgeSpec?: { width_mm: number; height_mm: number; bleed_mm: number }, common?: boolean) {
+  function addVariant(category: 'promo' | 'self_promo' | 'website_photo' | 'badge' | 'memento' | 'stage_screen' | 'table_screen', badgeSpec?: { width_mm: number; height_mm: number; bleed_mm: number }, common?: boolean, tableStandby?: boolean) {
     pushUndo()
     const size = category === 'website_photo' ? CLEANING_CYCLE_CANVAS_SIZE : null
     // Badge (2026-10-02): page = trim + bleed, entered in the setup step; canvas = that page at ~300 ppi.
@@ -473,7 +497,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     const grid = badge || mementoPrint ? badgeGrid(badgeSpec!) : null
     const stage = category === 'stage_screen'
     const commonBadge = badge && !!common
-    const variant: Variant = stage ? stageScreenStarter() : {
+    const variant: Variant = category === 'table_screen' ? tableScreenStarter(!!tableStandby) : stage ? stageScreenStarter() : {
       id: crypto.randomUUID(), name: commonBadge ? 'Common badge' : badge ? 'Speaker badge' : mementoPrint ? 'Speaker memento (print)' : category === 'memento' ? 'Speaker memento' : 'Untitled Variant', category,
       canvas_width: grid ? grid.w : category === 'memento' ? 1024 : size ?? 1080, canvas_height: grid ? grid.h : category === 'memento' ? 1024 : size ?? 1350, layers: category === 'memento' ? [newLayer('photo_slot', activeType, grid ? grid.w : 1024, grid ? grid.h : 1024, null, 'memento')] : commonBadge ? [newLayer('image', activeType, grid!.w, grid!.h)] : [],
       ...(badge || mementoPrint ? { print: { ...badgeSpec! } } : {}),
@@ -869,7 +893,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       {/* Wraps instead of a fixed 4-column grid so the name box is never squeezed off-screen on narrow windows. */}
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', marginBottom: '14px' }}>
                         <Input value={activeVariant.name} onChange={e => updateActiveVariant({ name: e.target.value })} placeholder="Variant name" style={{ flex: '1 1 260px', minWidth: 0 }} />
-                        {activeVariant.category !== 'badge' && activeVariant.category !== 'memento' && activeVariant.category !== 'stage_screen' && (
+                        {activeVariant.category !== 'badge' && activeVariant.category !== 'memento' && activeVariant.category !== 'stage_screen' && activeVariant.category !== 'table_screen' && (
                         <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                           Use
                           <Select
@@ -932,6 +956,15 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                           <strong>Stage screen card</strong> — one speaker card on the stage-screen graphic (the AV team&apos;s file). Add <strong>Image layers</strong> for the background, the gradient and the top design (put the gradient above the Photo/Logo Slot, under the text), move the <strong>Photo/Logo Slot</strong> and use <em>Upload Reference Layer (auto-position)</em> to fix the head size and position, and style each <strong>Text layer</strong> (font, size, weight, colour, capitals). Text is stacked <strong>bottom-up</strong>: the company line stays on its fixed line and title and name rise above it, so a long title never runs off the card. To show country, add a Text layer with field <em>country</em>, put its box at the very bottom, and set <em>Stack above</em> on the company layer to it. Session title and the MODERATOR tag are set under <em>Stage Speaker Pic</em>. Then pick this card there.
                         </div>
                       )}
+                      {activeVariant.category === 'table_screen' && (
+                        <div style={{ marginBottom: '14px', fontSize: '12.5px', color: 'var(--ink2)', lineHeight: 1.6 }}>
+                          {activeVariant.table_standby ? (<>
+                            <strong>Table screen — standby</strong> — what every table screen shows between sessions. Add <strong>Image layers</strong> for the common background and the event logo (1080×1920, or change W/H to the screens&apos; size). There is no person on it. The technician downloads it as <em>Standby.png</em>.
+                          </>) : (<>
+                            <strong>Table screen card</strong> — the small screen beside each speaker&apos;s seat. Add <strong>Image layers</strong> for the common background and the logo (move them below the text), then style the <strong>name</strong> text layer (font, size, weight, colour, capitals). The name sits on a fixed bottom line and a long name grows upward. The <strong>Moderator</strong> tag is a text layer set to <em>Shown for: Moderator only</em>, stacked above the name; open any layer and use <em>Shown for</em> to limit it to the moderator or to the other speakers, so one template carries both. Use <em>Preview as</em> to check each. Make a separate <em>Table Screen — standby</em> template for between sessions. The technician picks these under Stage Screens › Table Screens.
+                          </>)}
+                        </div>
+                      )}
                       {activeVariant.category === 'website_photo' && (
                         <div style={{ marginBottom: '14px' }}>
                           <div style={{ fontSize: '11px', color: 'var(--ink3)', marginBottom: '10px' }}>
@@ -979,7 +1012,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
 
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                         <Button variant="ghost" title="Static art, identical on every announcement — backgrounds, decorative overlays, branding blocks. Not this speaker/partner's own photo or logo." onClick={() => addLayer('image')} disabled={activeVariant.category === 'memento' && !activeVariant.print}>+ Image Layer</Button>
-                        <Button variant="ghost" title="A slot that fills in with each real speaker/partner's own photo or logo at generation time. Not static art." onClick={() => addLayer('photo_slot')} disabled={!!activeVariant.common}>+ Photo/Logo Slot</Button>
+                        <Button variant="ghost" title="A slot that fills in with each real speaker/partner's own photo or logo at generation time. Not static art." onClick={() => addLayer('photo_slot')} disabled={!!activeVariant.common || activeVariant.category === 'table_screen'}>+ Photo/Logo Slot</Button>
                         <Button variant="ghost" title="A field of text (name, title, company, a static caption, etc.) rendered live at generation time." onClick={() => addLayer('text')} disabled={activeVariant.category === 'memento' || !!activeVariant.common}>+ Text Layer</Button>
                         <Button variant="ghost" title="A mockup to place text and photos against. Shown in Generate Preview only — never in real announcements, website photos or print." onClick={addPreviewLayer}>+ Preview Layer</Button>
                         <Button variant="ghost" title="Copies this variant with all its layers intact — into this event, or into another event (e.g. the same badge for a sister event)." onClick={() => openCopyDialog(activeVariant.id)}>Copy this</Button>
@@ -1008,6 +1041,15 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--teal-mid)', letterSpacing: '0.6px', textTransform: 'uppercase' }}>Preview</span>
                     <div style={{ display: 'flex', gap: '8px' }}>
+                      {activeVariant?.category === 'table_screen' && !activeVariant.table_standby && (
+                        <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          Preview as
+                          <Select value={previewRole} onChange={e => { setPreviewRole(e.target.value as 'speaker' | 'moderator'); setPreviewStale(true) }}>
+                            <option value="speaker">Speaker</option>
+                            <option value="moderator">Moderator</option>
+                          </Select>
+                        </label>
+                      )}
                       <Button variant="ghost" onClick={() => setShowPlaceholderPanel(s => !s)}>
                         {showPlaceholderPanel ? 'Close' : 'Edit Placeholder'}
                       </Button>
@@ -1171,7 +1213,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                     <div style={{ fontSize: '11.5px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>{g.title}</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px' }}>
                       {g.items.map(([value, label, hint]) => (
-                        <button key={value} onClick={() => value === 'common_badge' ? setBadgeSetup({ kind: 'badge', common: true, trim_w: String(BADGE_DEFAULT.trim_w), trim_h: String(BADGE_DEFAULT.trim_h), bleed: String(BADGE_DEFAULT.bleed) }) : value === 'badge' ? setBadgeSetup({ kind: 'badge', trim_w: String(BADGE_DEFAULT.trim_w), trim_h: String(BADGE_DEFAULT.trim_h), bleed: String(BADGE_DEFAULT.bleed) }) : value === 'memento_print' ? setBadgeSetup({ kind: 'memento', trim_w: String(MEMENTO_DEFAULT.trim_w), trim_h: String(MEMENTO_DEFAULT.trim_h), bleed: String(MEMENTO_DEFAULT.bleed) }) : addVariant(value as 'promo' | 'self_promo' | 'website_photo' | 'memento' | 'stage_screen')} style={{ display: 'block', width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1.5px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+                        <button key={value} onClick={() => value === 'table_standby' ? addVariant('table_screen', undefined, undefined, true) : value === 'common_badge' ? setBadgeSetup({ kind: 'badge', common: true, trim_w: String(BADGE_DEFAULT.trim_w), trim_h: String(BADGE_DEFAULT.trim_h), bleed: String(BADGE_DEFAULT.bleed) }) : value === 'badge' ? setBadgeSetup({ kind: 'badge', trim_w: String(BADGE_DEFAULT.trim_w), trim_h: String(BADGE_DEFAULT.trim_h), bleed: String(BADGE_DEFAULT.bleed) }) : value === 'memento_print' ? setBadgeSetup({ kind: 'memento', trim_w: String(MEMENTO_DEFAULT.trim_w), trim_h: String(MEMENTO_DEFAULT.trim_h), bleed: String(MEMENTO_DEFAULT.bleed) }) : addVariant(value as 'promo' | 'self_promo' | 'website_photo' | 'memento' | 'stage_screen')} style={{ display: 'block', width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1.5px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
                           <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>{label}</div>
                           <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginTop: '3px', lineHeight: 1.45 }}>{hint}</div>
                         </button>
@@ -1258,7 +1300,7 @@ function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onTog
           <span {...attributes} {...listeners} title="Drag to reorder" style={{ cursor: 'grab', color: 'var(--ink4)', fontSize: '15px', lineHeight: 1, touchAction: 'none', flexShrink: 0 }}>⠿</span>
           <Badge color={layer.type === 'image' && layer.reference_only ? 'grey' : layer.type === 'image' ? 'purple' : layer.type === 'photo_slot' ? 'amber' : 'teal'}>{layer.type === 'image' && layer.reference_only ? 'Preview' : LAYER_TYPE_LABEL[layer.type]}</Badge>
           <button onClick={onToggleExpand} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '12.5px', color: 'var(--ink)', fontWeight: 700 }}>
-            {layerSummary(layer)}
+            {layerSummary(layer)}{layer.show_for ? (layer.show_for === 'moderator' ? ' · moderator only' : ' · other speakers only') : ''}
           </button>
           {diagnostics?.did_truncate && <span title="Even at the smallest allowed size this text is longer than its box, so it runs past the box (no words are cut). Enlarge the box or shorten the text." style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--red)' }}>⚠ overflows box</span>}
           {diagnostics?.did_shrink && !diagnostics.did_truncate && <span title="Font size was auto-shrunk to fit its box" style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--amber)' }}>shrunk to fit</span>}
@@ -1268,6 +1310,16 @@ function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onTog
 
         {expanded && (
           <div style={{ padding: '12px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            {variantCategory === 'table_screen' && !(layer.type === 'image' && layer.reference_only) && (
+              <label style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                Shown for
+                <Select value={layer.show_for ?? ''} onChange={e => onChange({ show_for: (e.target.value || undefined) as Layer['show_for'] })} style={{ maxWidth: '260px' }}>
+                  <option value="">Everyone</option>
+                  <option value="moderator">Moderator only</option>
+                  <option value="speaker">Other speakers only</option>
+                </Select>
+              </label>
+            )}
             {layer.type === 'image' && layer.reference_only && <PreviewLayerFields layer={layer} onChange={onChange as (patch: Partial<ImageLayer>) => void} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} activeType={activeType} />}
             {layer.type === 'image' && !layer.reference_only && <ImageLayerFields layer={layer} onChange={onChange as (patch: Partial<ImageLayer>) => void} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} canvasWidth={canvasWidth} canvasHeight={canvasHeight} variantCategory={variantCategory} variantPrint={variantPrint} activeType={activeType} />}
             {layer.type === 'photo_slot' && <PhotoSlotLayerFields layer={layer} activeType={activeType} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} canvasWidth={canvasWidth} canvasHeight={canvasHeight} variantCategory={variantCategory} variantPrint={variantPrint} />}

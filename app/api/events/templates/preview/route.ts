@@ -2,7 +2,7 @@ import { composeMementoLayers } from '@/app/lib/mementos/render'
 import { toMonochrome } from '@/app/lib/media/monochrome'
 import { NextRequest, NextResponse } from 'next/server'
 import sharp from 'sharp'
-import { compositeAnnouncement, compositeExtraLayersOnto, analyzeTextLayers, type Variant, type ImageLayer, type PhotoSlotLayer } from '@/app/lib/announcements/composite'
+import { compositeAnnouncement, compositeExtraLayersOnto, analyzeTextLayers, layersForRole, type Variant, type ImageLayer, type PhotoSlotLayer } from '@/app/lib/announcements/composite'
 import { resolvePreviewInputs } from '@/app/lib/announcements/preview-inputs'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 import { alignAndCropPhoto } from '@/app/lib/media/face-alignment'
@@ -72,6 +72,8 @@ type PreviewBody = {
   // Quick preview popup: full-size render of what a REAL generation produces (preview/mockup layers left out).
   full_res?: boolean
   hide_reference_layers?: boolean
+  // Table Screen cards: draw the card as the moderator (their tag and other moderator-only layers) or as another speaker.
+  preview_role?: 'speaker' | 'moderator'
 }
 
 export async function POST(req: NextRequest) {
@@ -79,6 +81,8 @@ export async function POST(req: NextRequest) {
   if (!body?.variant || !body.stakeholder_type) {
     return NextResponse.json({ error: 'variant, stakeholder_type required' }, { status: 400 })
   }
+
+  if (body.variant.category === 'table_screen') body.variant = layersForRole(body.variant, body.preview_role === 'moderator')
 
   const { assets, texts } = await resolvePreviewInputs({ stakeholder_type: body.stakeholder_type, variant: body.variant, speaker_id: body.speaker_id, partner_id: body.partner_id, event_id: body.event_id })
 

@@ -4,6 +4,7 @@
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { flashTitle, playChime, primeAudio } from '@/app/lib/screens/alerts'
+import TableScreensConsole from '@/app/components/screens/TableScreensConsole'
 
 /* Stage Screens — the AV console's page (no login; the private link is the key). Built for the day itself:
    - Download all, per day, or only what changed since the last download (one zip each), or one PNG at a time. File names are stable, so a new file replaces the old one in Watchout.
@@ -45,6 +46,7 @@ export default function ScreensForAv({ params }: { params: Promise<{ token: stri
   const [offset, setOffset] = useState(0)            // server clock minus this device's clock
   const [now, setNow] = useState(() => Date.now())
   const [day, setDay] = useState('all')
+  const [tab, setTab] = useState<'stage' | 'tables'>('stage')   // the stage graphics, or the small screens on the speakers' tables
   const [dismissed, setDismissed] = useState('')
   const [sound, setSound] = useState(true)
   const [redrawing, setRedrawing] = useState(false)
@@ -163,6 +165,15 @@ export default function ScreensForAv({ params }: { params: Promise<{ token: stri
             {' · '}{data.auto_redraw ? 'Changes redraw by themselves about a minute after the last edit.' : 'Auto-redraw is off — press Redraw now after a change.'}
           </div>
 
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+            {([['stage', 'Stage graphics'], ['tables', 'Table screens']] as const).map(([k, l]) => (
+              <button key={k} onClick={() => setTab(k)} style={{ ...btn, background: tab === k ? 'var(--ink)' : 'transparent', color: tab === k ? 'var(--card)' : 'var(--ink2)', border: '1.5px solid var(--border)' }}>{l}</button>
+            ))}
+          </div>
+
+          {tab === 'tables' && <TableScreensConsole apiBase={`/api/public/screens/${token}/tables`} />}
+
+          {tab === 'stage' && (<>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '12px' }}>
             <a href={`/api/public/screens/${token}/zip?scope=all`} onClick={after} style={{ ...btn, background: 'var(--teal)', color: 'white' }}>Download all (zip)</a>
             {day !== 'all' && <a href={`/api/public/screens/${token}/zip?scope=day&day=${day}`} onClick={after} style={{ ...btn, background: 'var(--teal)', color: 'white' }}>Download {day} (zip)</a>}
@@ -214,6 +225,7 @@ export default function ScreensForAv({ params }: { params: Promise<{ token: stri
               )
             })}
           </div>
+          </>)}
 
           {showPopup && (
             <div role="alertdialog" aria-label="Sessions changed" style={{ position: 'fixed', top: '14px', left: '50%', transform: 'translateX(-50%)', zIndex: 60, width: 'min(560px, calc(100vw - 24px))', background: 'var(--card)', border: '4px solid var(--red)', borderRadius: '16px', padding: '16px 18px', boxShadow: 'var(--shadow-md)' }}>
