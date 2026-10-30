@@ -52,7 +52,8 @@ function inferSessionType(title: string, format: string | null): string {
   return 'speaker_session'
 }
 
-export async function importAgendaFromKonfhub(eventId: string, opts: { dryRun?: boolean } = {}): Promise<ImportReport> {
+/** `onlyKonfhubSessionIds` limits the import to those KonfHub sessions (e.g. one newly added stage) so a re-run never pulls in the rest of a large shared agenda. */
+export async function importAgendaFromKonfhub(eventId: string, opts: { dryRun?: boolean; onlyKonfhubSessionIds?: string[] } = {}): Promise<ImportReport> {
   const dryRun = !!opts.dryRun
   const report: ImportReport = { dryRun, stages: [], items: [], counts: { create: 0, skip: 0, warnings: 0 } }
 
@@ -97,7 +98,9 @@ export async function importAgendaFromKonfhub(eventId: string, opts: { dryRun?: 
     }
     return out
   }
-  const [sessions, filters] = await Promise.all([loadSessions(), fetchKonfhubFilters(website.konfhub_event_id, token)])
+  const [allSessions, filters] = await Promise.all([loadSessions(), fetchKonfhubFilters(website.konfhub_event_id, token)])
+  const onlyIds = opts.onlyKonfhubSessionIds ? new Set(opts.onlyKonfhubSessionIds.map(String)) : null
+  const sessions = onlyIds ? allSessions.filter(x => onlyIds.has(x.session_id)) : allSessions
   const tagOrder = new Map<string, number>(); let n = 0
   for (const f of filters) for (const t of f.tags) tagOrder.set(t.id, n++)
 

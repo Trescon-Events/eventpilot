@@ -5,6 +5,7 @@ import type { TextLayerFont, Variant } from '@/app/lib/announcements/composite'
 import type { HeadBox } from '@/app/lib/media/face-alignment'
 import { websitePhotoParts } from '@/app/lib/media/website-photo-render'
 import { PANEL_DEFAULTS, clampTypeStyles, type Panel, type TypeStyles } from './dims'
+import { buildSnapshot, lookSignature, type Snapshot } from './av-state'
 import { applyCardOverride, clampDims, clampHeadScale, fileNameFor, fingerprint, isModeratorRole, layoutFor, screenState, type CardStyle, type CardText, type Dims, type Overrides, type ScreenLayout, type ScreenState } from './geometry'
 
 /* Stage Screens — reads the agenda, the speakers and the look settings, and works out for every session what its graphic would contain right now,
@@ -13,13 +14,15 @@ import { applyCardOverride, clampDims, clampHeadScale, fileNameFor, fingerprint,
 
 export { PANEL_DEFAULTS, type Panel } from './dims'
 
-export type ScreenLook = { panel: Panel; cardStyle: CardStyle; cardVariant: Variant | null; cardVariantId: string | null; useWebsitePhoto: boolean; websiteVariant: Variant | null; typeStyles: TypeStyles; typeFonts: Record<string, TextLayerFont>; dims: Dims; headScale: number; font: TextLayerFont | null; fontId: string | null; backgroundUrl: string | null; textColor: string; accentColor: string }
+export type ScreenLook = { panel: Panel; cardStyle: CardStyle; cardVariant: Variant | null; cardVariantId: string | null; useWebsitePhoto: boolean; websiteVariant: Variant | null; autoRedraw: boolean; typeStyles: TypeStyles; typeFonts: Record<string, TextLayerFont>; dims: Dims; headScale: number; font: TextLayerFont | null; fontId: string | null; backgroundUrl: string | null; textColor: string; accentColor: string }
 export type ScreenCard = { speakerId: string; moderator: boolean; text: CardText; base: CardText; photoUrl: string | null; cutout: boolean; head: { x: number; y: number } | null; headBox: HeadBox | null; logoUrl: string | null; lowRes: boolean }
 export type ScreenSession = {
   id: string; title: string; topic: string; hideTopic: boolean; trackId: string | null; stage: string | null; date: string; startHM: string; endHM: string
   format: string | null; status: string; layout: ScreenLayout; cards: ScreenCard[]
   fingerprint: string; state: ScreenState; pngUrl: string | null; generatedAt: string | null; width: number | null; height: number | null
   lowResNames: string[]; fileName: string; overrides: Overrides
+  startsAt: string | null; endsAt: string | null
+  snapshot: Snapshot; savedSnapshot: Snapshot | null; savedFingerprint: string | null; staleFingerprint: string | null; staleChangedAt: string | null; redrawingUntil: string | null
 }
 
 type StoredVariant = { category?: string; layers?: { type?: string; asset_url?: string; reference_only?: boolean; font_family?: TextLayerFont }[] }
@@ -65,7 +68,7 @@ export async function loadLook(eventId: string, draft?: LookDraft): Promise<Scre
     for (const f of fs ?? []) typeFonts[f.id as string] = { family_name: f.family_name, regular_url: f.regular_url, bold_url: f.bold_url, weights: f.weights }
   }
   const panel: Panel = s?.panel === 'dark' ? 'dark' : 'light'
-  return { panel, cardStyle: s?.card_style === 'card' ? 'card' : 'separate', cardVariant, cardVariantId: cardVariant?.id ?? null, useWebsitePhoto, websiteVariant, typeStyles, typeFonts, dims: clampDims(s?.dims), headScale: clampHeadScale(typeof s?.head_scale === 'string' ? parseFloat(s.head_scale) : s?.head_scale), font, fontId: s?.font_id ?? null, backgroundUrl, textColor: s?.text_color ?? PANEL_DEFAULTS[panel].text, accentColor: s?.accent_color ?? PANEL_DEFAULTS[panel].accent, settingsId: s ? eventId : null }
+  return { panel, cardStyle: s?.card_style === 'card' ? 'card' : 'separate', cardVariant, cardVariantId: cardVariant?.id ?? null, useWebsitePhoto, websiteVariant, autoRedraw: (s as { auto_redraw?: boolean } | null)?.auto_redraw === true, typeStyles, typeFonts, dims: clampDims(s?.dims), headScale: clampHeadScale(typeof s?.head_scale === 'string' ? parseFloat(s.head_scale) : s?.head_scale), font, fontId: s?.font_id ?? null, backgroundUrl, textColor: s?.text_color ?? PANEL_DEFAULTS[panel].text, accentColor: s?.accent_color ?? PANEL_DEFAULTS[panel].accent, settingsId: s ? eventId : null }
 }
 
 const clean = (v: string | null | undefined) => (v ?? '').trim()
@@ -87,7 +90,7 @@ export async function loadScreenSessions(eventId: string, only?: { sessionIds?: 
 
   const [{ data: links }, { data: saved }] = await Promise.all([
     supabaseAdmin.from('event_agenda_session_speakers').select('session_id, speaker_id, role_tag_id, order_index').in('session_id', ids).order('order_index'),
-    supabaseAdmin.from('event_screen_sessions').select('session_id, overrides, png_url, fingerprint, generated_at, width, height, low_res').in('session_id', ids),
+    supabaseAdmin.from('event_screen_sessions').select('session_id, overrides, png_url, fingerprint, generated_at, width, height, low_res, snapshot, stale_fingerprint, stale_changed_at, redrawing_until').in('session_id', ids),
   ])
   const speakerIds = [...new Set((links ?? []).map(l => l.speaker_id))]
   const { data: people } = speakerIds.length
@@ -98,6 +101,9 @@ export async function loadScreenSessions(eventId: string, only?: { sessionIds?: 
   const roleLabel = new Map(roles.map(r => [r.tag_id, r.label]))
   const savedBy = new Map((saved ?? []).map(r => [r.session_id as string, r]))
 
+  // everything in the look that changes how a screen is drawn (keys added only for the designed card / website photo, so existing screens do not show as Changed)
+  const lookPart = { font: look.font?.family_name ?? null, background: look.backgroundUrl, text: look.textColor, accent: look.accentColor, head: look.headScale, dims: look.dims, ...(look.cardStyle === 'card' ? { style: 'card', card: { ...look.cardVariant, last_preview_url: undefined } } : {}), ...(look.cardStyle !== 'card' && look.useWebsitePhoto ? { website: { ...look.websiteVariant, last_preview_url: undefined } } : {}), ...(Object.keys(look.typeStyles).length ? { type: look.typeStyles } : {}) }
+  const lookSig = lookSignature(lookPart)
   const out: ScreenSession[] = []
   for (const s of sessions ?? []) {
     const rows = (links ?? []).filter(l => l.session_id === s.id)
@@ -133,14 +139,18 @@ export async function loadScreenSessions(eventId: string, only?: { sessionIds?: 
     const live = fingerprint({
       topic: overrides.hide_topic ? '' : topic,
       cards: cards.map(c => ({ speakerId: c.speakerId, moderator: c.moderator, text: c.text, photo: `${c.photoUrl ?? ''}|${c.head ? `${c.head.x.toFixed(3)},${c.head.y.toFixed(3)}` : ''}` })),
-      look: { font: look.font?.family_name ?? null, background: look.backgroundUrl, text: look.textColor, accent: look.accentColor, head: look.headScale, dims: look.dims, ...(look.cardStyle === 'card' ? { style: 'card', card: { ...look.cardVariant, last_preview_url: undefined } } : {}), ...(look.cardStyle !== 'card' && look.useWebsitePhoto ? { website: { ...look.websiteVariant, last_preview_url: undefined } } : {}), ...(Object.keys(look.typeStyles).length ? { type: look.typeStyles } : {}) },   // keys added only for the card design, so existing screens do not show as Changed
+      look: lookPart,
     })
     const stage = s.track_id ? stageName.get(s.track_id) ?? null : null
+    const startHM = a.slice(11, 16), endHM = b.slice(11, 16)
+    const snapshot = buildSnapshot({ topic, hideTopic: !!overrides.hide_topic, date: a.slice(0, 10), startHM, endHM, stage, layout, cards }, lookSig)
     out.push({
       id: s.id, title: s.title, topic, hideTopic: !!overrides.hide_topic, trackId: s.track_id, stage, date: a.slice(0, 10), startHM: a.slice(11, 16), endHM: b.slice(11, 16),
       format: s.content_type, status: s.status, layout, cards, fingerprint: live,
       state: screenState(sv?.fingerprint as string | undefined, !!sv?.png_url, live), pngUrl: (sv?.png_url as string | null) ?? null,
       generatedAt: (sv?.generated_at as string | null) ?? null, width: (sv?.width as number | null) ?? null, height: (sv?.height as number | null) ?? null,
+      startsAt: s.start_timestamp ?? null, endsAt: s.end_timestamp ?? null, snapshot, savedSnapshot: (sv?.snapshot as Snapshot | null) ?? null, savedFingerprint: (sv?.fingerprint as string | null) ?? null,
+      staleFingerprint: (sv?.stale_fingerprint as string | null) ?? null, staleChangedAt: (sv?.stale_changed_at as string | null) ?? null, redrawingUntil: (sv?.redrawing_until as string | null) ?? null,
       lowResNames: cards.filter(c => c.lowRes).map(c => c.text.name), fileName: fileNameFor({ date: a.slice(0, 10), stage, startHM: a.slice(11, 16), layout }), overrides,
     })
   }

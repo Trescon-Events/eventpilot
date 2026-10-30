@@ -95,7 +95,7 @@ export default function StageSpeakerPicSettings({ eventId }: { eventId: string }
     setSaving(true); setMsg(null)
     const r = await fetch('/api/events/screens', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, ...draft }) })
     if (!r.ok) setMsg({ text: (await r.json().catch(() => ({}))).error ?? 'Could not save.', bad: true })
-    else { setMsg({ text: 'Saved. Screens already drawn with the old look show as “Changed” on the Stage Screens page.' }); await load() }
+    else { setMsg({ text: 'Saved. Every screen already drawn with the old look now shows as “Changed” on the Stage Screens page, and any AV console that has its link open is alerted (with Auto-redraw on, they are redrawn by themselves).' }); await load() }
     setSaving(false)
   }
 

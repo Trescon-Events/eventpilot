@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { PANEL_DEFAULTS, loadScreenSessions, loadLook } from '@/app/lib/screens/data'
-import { MAX_PER_CALL, brief, generateScreens, requireScreens } from '@/app/lib/screens/service'
+import { MAX_PER_CALL, brief, generateScreens, redrawStale, requireScreens } from '@/app/lib/screens/service'
 import { clampTypeStyles, clampDims, clampHeadScale, type Overrides } from '@/app/lib/screens/geometry'
 
 /* Stage Screens (Stakeholder Hub)
@@ -26,10 +26,12 @@ export async function GET(req: NextRequest) {
     loadLook(eventId),
     supabaseAdmin.from('events').select('creative_template_config').eq('id', eventId).maybeSingle(),
   ])
+  // event-day mode: notice changes and redraw the changed screens (in the background) whenever the marketing page is open too
+  if (look.autoRedraw) void redrawStale(eventId, { sessions: sessions.filter(s => s.state === 'changed') }, { by: 'auto' }).catch(e => console.error('[screens] auto redraw failed', e))
   const stageCards = ((ev?.creative_template_config as { speaker?: { variants?: { id: string; name: string; category?: string; canvas_width: number; canvas_height: number }[] } } | null)?.speaker?.variants ?? [])
     .filter(v => v.category === 'stage_screen').map(v => ({ id: v.id, name: v.name || 'Stage screen card', width: v.canvas_width, height: v.canvas_height }))
   return NextResponse.json({
-    timezone, card_variants: stageCards, website_variant: look.websiteVariant ? { name: look.websiteVariant.name || 'Website photo', width: look.websiteVariant.canvas_width, height: look.websiteVariant.canvas_height } : null, sessions: sessions.map(brief), fonts: fonts ?? [], stages: tracks ?? [], links: links ?? [],
+    timezone, server_time: new Date().toISOString(), auto_redraw: look.autoRedraw, card_variants: stageCards, website_variant: look.websiteVariant ? { name: look.websiteVariant.name || 'Website photo', width: look.websiteVariant.canvas_width, height: look.websiteVariant.canvas_height } : null, sessions: sessions.map(brief), fonts: fonts ?? [], stages: tracks ?? [], links: links ?? [],
     look: { panel: settings.panel, card_style: settings.cardStyle, card_variant_id: settings.cardVariantId, use_website_photo: settings.useWebsitePhoto, type_styles: settings.typeStyles, dims: settings.dims, head_scale: settings.headScale, font_id: settings.fontId, font_name: look.font?.family_name ?? null, background_url: look.backgroundUrl, text_color: look.textColor, accent_color: look.accentColor },
   })
 }

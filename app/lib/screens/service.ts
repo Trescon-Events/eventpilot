@@ -6,6 +6,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { deletePublicAssetByUrl, uploadPublicAsset } from '@/app/lib/events/storage'
 import { loadScreenSessions, type ScreenSession } from './data'
 import { renderScreen } from './render'
+import { diffSnapshots, quietEnough } from './av-state'
 
 /* Stage Screens — access, generation and the AV links. Producers (Stakeholder Hub view/edit) manage the graphics; the AV team only ever holds a private link. */
 
@@ -37,6 +38,7 @@ export async function generateScreens(eventId: string, sessionIds: string[], by:
       const { error } = await supabaseAdmin.from('event_screen_sessions').upsert({
         session_id: s.id, event_id: eventId, png_url: url, fingerprint: s.fingerprint, layout: s.layout, width, height,
         low_res: s.lowResNames, generated_at: new Date().toISOString(), generated_by: by,
+        snapshot: s.snapshot, stale_fingerprint: null, stale_changed_at: null, redrawing_until: null,
       }, { onConflict: 'session_id' })
       if (error) throw new Error(error.message)
       if (s.pngUrl && s.pngUrl !== url) await deletePublicAssetByUrl(s.pngUrl)
@@ -47,11 +49,52 @@ export async function generateScreens(eventId: string, sessionIds: string[], by:
   return { done, failed }
 }
 
+const QUIET_MS = 60_000      // a screen is redrawn once its content has been still this long, so half-finished edits do not alert the AV desk
+const LOCK_MS = 120_000      // one page draws a given screen at a time
+const PER_ROUND = 4
+
+/** Sessions on stage or about to be, soonest first; ones already over go last. */
+function byUrgency<T extends { startsAt: string | null; endsAt: string | null; date: string; startHM: string }>(list: T[], now = Date.now()): T[] {
+  const over = (x: T) => !!x.endsAt && new Date(x.endsAt).getTime() < now
+  return [...list].sort((a, b) => Number(over(a)) - Number(over(b)) || (a.date + a.startHM).localeCompare(b.date + b.startHM))
+}
+
+/** Redraws changed / new screens. Marks the moment a change is first noticed (the quiet time counts from there) and, once quiet — or at once with `force` — draws up to
+    PER_ROUND of the most urgent, claiming each first so two open pages never draw the same one. Returns how many are still waiting. */
+export async function redrawStale(eventId: string, scope: { sessions: ScreenSession[] }, opts: { force?: boolean; by: string; onlyIds?: string[] }): Promise<{ drawn: number; waiting: number }> {
+  const now = Date.now()
+  const stale = scope.sessions.filter(s => s.state !== 'ready' && (!opts.onlyIds || opts.onlyIds.includes(s.id)))
+  if (!stale.length) return { drawn: 0, waiting: 0 }
+  // note the change (no-op when already noted at this content)
+  const unnoted = stale.filter(s => s.staleFingerprint !== s.fingerprint)
+  if (unnoted.length) {
+    await supabaseAdmin.from('event_screen_sessions').upsert(unnoted.map(s => ({ session_id: s.id, event_id: eventId, stale_fingerprint: s.fingerprint, stale_changed_at: new Date(now).toISOString() })), { onConflict: 'session_id' })
+    for (const s of unnoted) { s.staleFingerprint = s.fingerprint; s.staleChangedAt = new Date(now).toISOString() }
+  }
+  const ready = byUrgency(stale.filter(s => (opts.force || quietEnough(s.staleChangedAt, now, QUIET_MS)) && !(s.redrawingUntil && new Date(s.redrawingUntil).getTime() > now)), now).slice(0, PER_ROUND)
+  if (!ready.length) return { drawn: 0, waiting: stale.length }
+  // atomic claim: only rows nobody else holds
+  const { data: claimed } = await supabaseAdmin.from('event_screen_sessions')
+    .update({ redrawing_until: new Date(now + LOCK_MS).toISOString() })
+    .in('session_id', ready.map(s => s.id)).or(`redrawing_until.is.null,redrawing_until.lt.${new Date(now).toISOString()}`).select('session_id')
+  const ids = (claimed ?? []).map(r => r.session_id as string)
+  if (!ids.length) return { drawn: 0, waiting: stale.length }
+  const r = await generateScreens(eventId, ids, opts.by)
+  const drawn = r.done.length
+  const failedIds = r.failed.map(f => f.id)
+  if (failedIds.length) await supabaseAdmin.from('event_screen_sessions').update({ redrawing_until: null }).in('session_id', failedIds)
+  return { drawn, waiting: Math.max(0, stale.length - drawn) }
+}
+
+/** What changed since the file was drawn, in words (for the marketing page). */
+export const reasonsFor = (s: ScreenSession): string[] => (s.state === 'changed' ? diffSnapshots(s.savedSnapshot, s.snapshot) : [])
+
 /** Trimmed shape for the pages. */
 export const brief = (s: ScreenSession) => ({
   id: s.id, title: s.title, topic: s.topic, hide_topic: s.hideTopic, stage: s.stage, track_id: s.trackId, date: s.date, start: s.startHM, end: s.endHM, format: s.format, status: s.status,
   layout: s.layout, fingerprint: s.fingerprint, state: s.state, png_url: s.pngUrl, generated_at: s.generatedAt, width: s.width, height: s.height, low_res: s.lowResNames, file_name: s.fileName,
   cards: s.cards.map(c => ({ speaker_id: c.speakerId, moderator: c.moderator, text: c.text, base: c.base, has_photo: !!c.photoUrl, low_res: c.lowRes })),
+  reasons: reasonsFor(s), starts_at: s.startsAt, ends_at: s.endsAt,
 })
 
 export const newToken = () => randomBytes(24).toString('hex')
@@ -59,6 +102,6 @@ export const newToken = () => randomBytes(24).toString('hex')
 /** Resolves an AV link to its event/stage, or null when it is unknown or revoked. */
 export async function linkByToken(token: string) {
   if (!/^[0-9a-f]{32,128}$/i.test(token)) return null
-  const { data } = await supabaseAdmin.from('event_screen_links').select('id, event_id, track_id, label, revoked_at').eq('token', token).maybeSingle()
+  const { data } = await supabaseAdmin.from('event_screen_links').select('id, event_id, track_id, label, revoked_at, baseline_at').eq('token', token).maybeSingle()
   return data && !data.revoked_at ? data : null
 }

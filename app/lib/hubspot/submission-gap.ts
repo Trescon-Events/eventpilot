@@ -2,12 +2,13 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import type { HubSpotFieldMapping } from '@/app/lib/hubspot/types'
 import { checkFormWorkflow } from '@/app/lib/hubspot/crm-client'
 import { addConsentValues, applyMapping } from '@/app/lib/hubspot/submission-ingest'
+import { conversionIdsIn, findGap } from '@/app/lib/hubspot/gap-match'
 import { sendAlert } from '@/app/lib/alerts/send'
 import { siteUrl } from '@/app/lib/badges/client-approval'
 
 /* HubSpot-vs-EventPilot gap check. Every form submission HubSpot recorded must have a matching row in EventPilot; anything HubSpot has that EventPilot doesn't is a "gap".
    Runs every 15 minutes (cron) and on demand from the Sync health card. Forward-only: only submissions from the moment a form was first checked (`since`) onward are
-   ever compared or brought in, nothing historical is touched. Matching is by email and count, because a webhook row carries no HubSpot submission id.
+   ever compared or brought in, nothing historical is touched. Matching is by email and count, sharpened by the conversion id stored in a row's file links and by treating a quickly-repeated submission as covered (see gap-match.ts).
    A gap can also be a submission HubSpot is holding in its spam tab — the card says so, and a person decides (bring it in, or ignore). */
 
 const API = 'https://api.hubapi.com'
@@ -85,21 +86,15 @@ export async function checkForm(c: Conn): Promise<FormHealth> {
   try {
     const [subs, { data: rows }] = await Promise.all([
       listSubmissions(c.hubspot_form_id, sinceMs),
-      supabaseAdmin.from('stakeholder_form_submissions').select('submitted_data, submitted_at').eq('event_id', c.event_id).eq('form_type', c.form_type).eq('source', 'hubspot').gte('submitted_at', prev.since as string),
+      supabaseAdmin.from('stakeholder_form_submissions').select('submitted_data, submitted_at, file_urls').eq('event_id', c.event_id).eq('form_type', c.form_type).eq('source', 'hubspot').gte('submitted_at', prev.since as string),
     ])
     const mapping = (c.field_mapping ?? []) as HubSpotFieldMapping[]
-    const epByEmail = new Map<string, number>()
-    for (const r of rows ?? []) { const e = rowEmail((r.submitted_data ?? {}) as Record<string, unknown>, mapping); epByEmail.set(e, (epByEmail.get(e) ?? 0) + 1) }
+    const epRows = (rows ?? []).map(r => ({ email: rowEmail((r.submitted_data ?? {}) as Record<string, unknown>, mapping), conversionIds: conversionIdsIn(r.file_urls) }))
     const hsByEmail = new Map<string, Hs[]>()
     for (const s of subs) { const e = hsEmail(s); hsByEmail.set(e, [...(hsByEmail.get(e) ?? []), s]) }
-    for (const [email, list] of hsByEmail) {
-      const missing = list.length - (epByEmail.get(email) ?? 0)
-      if (missing <= 0) continue
-      // The newest submissions are the ones assumed missing (an older one is more likely to have been delivered already).
-      for (const s of [...list].sort((a, b) => b.submittedAt - a.submittedAt).slice(0, missing)) {
-        if (dismissed.has(s.conversionId)) continue
-        gap.push({ conversion_id: s.conversionId, email, submitted_at: new Date(s.submittedAt).toISOString(), first_seen: prevSeen.get(s.conversionId) ?? now })
-      }
+    for (const { email, sub: s } of findGap(hsByEmail, epRows)) {
+      if (dismissed.has(s.conversionId)) continue
+      gap.push({ conversion_id: s.conversionId, email, submitted_at: new Date(s.submittedAt).toISOString(), first_seen: prevSeen.get(s.conversionId) ?? now })
     }
     gap.sort((a, b) => b.submitted_at.localeCompare(a.submitted_at))
     hubspotCount = subs.length; epCount = rows?.length ?? 0

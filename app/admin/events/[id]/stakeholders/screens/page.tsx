@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- previews of arbitrary stored PNGs, deliberately unoptimised */
 
 import { use, useCallback, useEffect, useMemo, useState } from 'react'
+import { flashTitle } from '@/app/lib/screens/alerts'
 import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Input, Select } from '@/app/components/ui'
@@ -15,16 +16,23 @@ type Card = { speaker_id: string; moderator: boolean; text: CardText; base: Card
 type CardText = { name: string; title: string; company: string; country: string }
 type Session = {
   id: string; title: string; topic: string; hide_topic: boolean; stage: string | null; track_id: string | null; date: string; start: string; end: string; format: string | null; status: string
-  layout: string; fingerprint: string; state: 'new' | 'ready' | 'changed'; png_url: string | null; generated_at: string | null; width: number | null; height: number | null; low_res: string[]; file_name: string; cards: Card[]
+  layout: string; fingerprint: string; state: 'new' | 'ready' | 'changed'; png_url: string | null; generated_at: string | null; width: number | null; height: number | null; low_res: string[]; file_name: string; cards: Card[]; reasons: string[]; starts_at: string | null; ends_at: string | null
 }
 type LinkRow = { id: string; track_id: string | null; label: string; token: string }
 type Data = {
-  timezone: string; sessions: Session[]; fonts: { id: string; family_name: string }[]; stages: { id: string; name: string }[]; links: LinkRow[]
+  timezone: string; auto_redraw: boolean; sessions: Session[]; fonts: { id: string; family_name: string }[]; stages: { id: string; name: string }[]; links: LinkRow[]
   look: { panel: 'light' | 'dark'; dims: { photoW: number; photoH: number }; head_scale: number; font_id: string | null; font_name: string | null; background_url: string | null; text_color: string; accent_color: string }
 }
 
-const STATE_LABEL = { new: 'Not generated', ready: 'Up to date', changed: 'Changed — regenerate' } as const
-const STATE_COLOR = { new: 'var(--ink3)', ready: 'var(--green)', changed: 'var(--amber)' } as const
+const STATE_LABEL = { new: 'Not generated', ready: 'Up to date', changed: 'CHANGED — OUT OF DATE' } as const
+const FLASH_CSS = `
+@keyframes scflash { 0%,100% { box-shadow: 0 0 0 0 transparent; background: var(--card) } 50% { box-shadow: 0 0 0 8px var(--red); background: var(--red-light) } }
+@keyframes scbanner { 0%,100% { filter: none } 50% { filter: brightness(1.45) } }
+.sc-flash { animation: scflash 0.9s ease-in-out 14; }
+.sc-banner { animation: scbanner 0.9s ease-in-out 14; }
+@media (prefers-reduced-motion: reduce) { .sc-flash, .sc-banner { animation: none } }
+`
+const STATE_COLOR = { new: 'var(--ink3)', ready: 'var(--green)', changed: 'var(--red)' } as const
 // The panel the graphic will sit on in the venue — previews only; the exported PNG itself is always transparent.
 /* eslint-disable no-restricted-syntax */
 const PANEL_BG = { light: '#FFFFFF', dark: '#0B1220' } as const
@@ -59,9 +67,28 @@ export default function ScreensPage({ params }: { params: Promise<{ id: string }
     return () => { cancelled = true }
   }, [eventId, load])
 
+  // Something may change on another desk at any time (a swapped speaker, a new time): look again every 20 s, 5 s while screens are being redrawn.
+  const changedCount = (data?.sessions ?? []).filter(s => s.state === 'changed').length
+  useEffect(() => {
+    const t = setInterval(() => { if (!document.hidden) void load() }, changedCount && data?.auto_redraw ? 5_000 : 20_000)
+    return () => clearInterval(t)
+  }, [load, changedCount, data?.auto_redraw])
+  useEffect(() => {
+    if (!changedCount) return
+    return flashTitle(`(${changedCount}) CHANGED — Stage Screens`, 'Stage Screens')
+  }, [changedCount])
+
   const days = useMemo(() => [...new Set((data?.sessions ?? []).map(s => s.date))].sort(), [data])
   const shown = useMemo(() => (data?.sessions ?? []).filter(s => (day === 'all' || s.date === day) && (stage === 'all' || s.track_id === stage)), [data, day, stage])
   const todo = shown.filter(s => s.state !== 'ready')
+  const outOfDate = (data?.sessions ?? []).filter(s => s.state === 'changed')
+  const [autoBusy, setAutoBusy] = useState(false)
+  async function setAuto(on: boolean) {
+    setAutoBusy(true)
+    const r = await fetch('/api/events/screens/auto', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, auto_redraw: on }) })
+    if (!r.ok) setMsg((await r.json().catch(() => ({}))).error ?? 'Could not change auto-redraw.')
+    await load(); setAutoBusy(false)
+  }
   const panel = data?.look.panel ?? 'light'
 
   async function generate(ids: string[]) {
@@ -87,6 +114,21 @@ export default function ScreensPage({ params }: { params: Promise<{ id: string }
       {!data ? <div style={{ color: 'var(--ink3)', padding: '24px 0' }}>Loading…</div> : (
         <>
           {msg && <div style={{ margin: '12px 0', padding: '10px 14px', borderRadius: '10px', background: 'var(--card)', border: '1px solid var(--border)', fontSize: '14px' }}>{msg}</div>}
+          <style>{FLASH_CSS}</style>
+          {outOfDate.length > 0 && (
+            <div className="sc-banner" role="alert" style={{ position: 'sticky', top: 0, zIndex: 20, background: 'var(--red)', color: 'white', padding: '14px 18px', borderRadius: '12px', margin: '12px 0', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 'clamp(16px, 2.2vw, 22px)', fontWeight: 900 }}>{outOfDate.length} {outOfDate.length === 1 ? 'SCREEN IS' : 'SCREENS ARE'} OUT OF DATE</span>
+              <span style={{ fontSize: '14px' }}>{data.auto_redraw ? 'Redrawing automatically about a minute after the last change — the AV console is alerted when the new files are ready.' : 'The AV console still has the old content. Redraw them now.'}</span>
+              <span style={{ flex: 1 }} />
+              {canEdit && <Button variant="lime" disabled={!!progress} onClick={() => generate(outOfDate.map(s => s.id))}>{progress ?? `Redraw ${outOfDate.length} now`}</Button>}
+            </div>
+          )}
+          <div style={{ margin: '14px 0', background: 'var(--card)', border: `1px solid ${data.auto_redraw ? 'var(--green)' : 'var(--border)'}`, borderRadius: '12px', padding: '10px 16px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', fontSize: '13.5px' }}>
+            <strong>Event-day mode</strong>
+            <span style={{ color: data.auto_redraw ? 'var(--green)' : 'var(--ink3)', fontWeight: 800 }}>● Auto-redraw {data.auto_redraw ? 'ON' : 'OFF'}</span>
+            <span style={{ color: 'var(--ink3)', flex: '1 1 280px' }}>When on, a screen whose agenda changed (design, text, speaker or timing) is redrawn by itself a minute after the last edit, and the AV console is alerted. Turn it on for the event days.</span>
+            {canEdit && <Button variant={data.auto_redraw ? 'ghost' : 'teal'} disabled={autoBusy} onClick={() => setAuto(!data.auto_redraw)}>{data.auto_redraw ? 'Turn off' : 'Turn on'}</Button>}
+          </div>
           <LookSummary look={data.look} eventId={eventId} />
           <LinksPanel data={data} eventId={eventId} canEdit={canEdit} onChanged={load} />
 
@@ -105,7 +147,7 @@ export default function ScreensPage({ params }: { params: Promise<{ id: string }
           {!shown.length && <div style={{ color: 'var(--ink3)', padding: '20px 0' }}>No sessions with speakers yet. Add speakers to sessions in the Agenda and they appear here.</div>}
           <div style={{ display: 'grid', gap: '12px' }}>
             {shown.map(s => (
-              <div key={s.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 340px) 1fr', gap: '16px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '12px' }}>
+              <div key={`${s.id}:${s.state}`} className={s.state === 'changed' ? 'sc-flash' : undefined} style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 340px) 1fr', gap: '16px', background: 'var(--card)', border: `${s.state === 'changed' ? 3 : 1}px solid ${s.state === 'changed' ? 'var(--red)' : 'var(--border)'}`, borderRadius: '12px', padding: '12px' }}>
                 <div style={{ position: 'relative', background: PANEL_BG[panel], border: '1px solid var(--border)', borderRadius: '8px', minHeight: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                   {/* A drawn file is shown as is; anything not drawn yet, or out of date, is a live preview with the current look and the live agenda. */}
                   <img src={s.state === 'ready' && s.png_url ? s.png_url : `/api/events/screens/preview?event_id=${eventId}&session_id=${s.id}&v=${s.fingerprint}`} alt={`Screen for ${s.title}`} loading="lazy" style={{ width: '100%', display: 'block' }} />
@@ -116,9 +158,10 @@ export default function ScreensPage({ params }: { params: Promise<{ id: string }
                   <div style={{ fontSize: '16px', fontWeight: 800, lineHeight: 1.3 }}>{s.topic}</div>
                   <div style={{ fontSize: '13px', color: 'var(--ink2)' }}>{s.cards.map(c => `${c.text.name}${c.moderator ? ' (Moderator)' : ''}`).join(' · ')}</div>
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '12.5px', fontWeight: 800, color: STATE_COLOR[s.state] }}>● {STATE_LABEL[s.state]}</span>
+                    <span style={{ fontSize: s.state === 'changed' ? '16px' : '12.5px', fontWeight: 900, color: STATE_COLOR[s.state] }}>● {STATE_LABEL[s.state]}</span>
                     {s.generated_at && <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>drawn {new Date(s.generated_at).toLocaleString()} · {s.width}×{s.height}px</span>}
                   </div>
+                  {s.reasons.length > 0 && <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13.5px', fontWeight: 700, color: 'var(--red)' }}>{s.reasons.map(r => <li key={r}>{r}</li>)}</ul>}
                   {s.low_res.length > 0 && <div style={{ fontSize: '12.5px', color: 'var(--amber)' }}>Low-resolution photo: {s.low_res.join(', ')} — will look soft on a big wall; ask for a better one.</div>}
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
                     {canEdit && <Button variant={s.state === 'ready' ? 'ghost' : 'teal'} disabled={busy.has(s.id) || !!progress} onClick={() => generate([s.id])}>{busy.has(s.id) ? 'Drawing…' : s.png_url ? 'Regenerate' : 'Generate'}</Button>}
