@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { loadBatch, renderItem, requireBadgePermission } from '@/app/lib/badges/service'
+import { assertBatchEditable } from '@/app/lib/badges/client-approval'
 import type { BadgeItemRow, BadgeOverrides } from '@/app/lib/badges/types'
 
 /* PATCH .../batches/[id]/items/[itemId]
@@ -10,7 +11,10 @@ import type { BadgeItemRow, BadgeOverrides } from '@/app/lib/badges/types'
    adjustment drawer. Approving needs a fresh preview.
    `leave_out: true` / `restore_left_out: true` — the team acting on a CLIENT'S comment ("no need to print"): takes the badge out of (or back into) the print file even on an
    approved batch, without reopening it. The picture is unchanged, so the client's approval stays valid and nothing is sent to them again. Needs a client comment on the badge,
-   and is refused once the batch has been handed to Operations or the printer. */
+   and is refused once the batch has been handed to Operations or the printer.
+   `edit_after_approval: true` + `overrides` — change a badge's text (or photo position) on an APPROVED batch and regenerate just that badge, instead of leaving it out and printing it as a
+   separate batch. The batch and the badge stay approved (the change is what the client asked for, so nothing is re-sent), the time is recorded on the badge, and the print file has to be
+   generated again to carry it. Refused while the batch is with the client, once it has been handed to Operations or the printer, and for a badge that is out of print. */
 
 const TEXT_KEYS = ['name', 'title', 'company', 'country'] as const
 
@@ -34,10 +38,31 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!batch) return NextResponse.json({ error: 'Batch not found.' }, { status: 404 })
   const auth = await requireBadgePermission(req, batch.event_id, 'sae.badges.manage')
   if ('error' in auth) return auth.error
-  const body = await req.json().catch(() => null) as { overrides?: unknown; approved?: boolean; removed?: boolean; render?: boolean; leave_out?: boolean; restore_left_out?: boolean } | null
+  const body = await req.json().catch(() => null) as { overrides?: unknown; approved?: boolean; removed?: boolean; render?: boolean; leave_out?: boolean; restore_left_out?: boolean; edit_after_approval?: boolean } | null
   if (!body) return NextResponse.json({ error: 'Invalid body.' }, { status: 400 })
   if (batch.quantity && (body.overrides !== undefined || body.removed !== undefined || body.leave_out === true || body.restore_left_out === true)) return NextResponse.json({ error: 'A Common Badges design can only be approved — there are no names or photos to adjust.' }, { status: 409 })
   const leaveOut = body.leave_out === true || body.restore_left_out === true
+  if (body.edit_after_approval === true) {
+    if (batch.quantity) return NextResponse.json({ error: 'A Common Badges design has no names or photos to edit.' }, { status: 409 })
+    if (batch.status !== 'approved') return NextResponse.json({ error: 'This batch is not approved yet — use Adjust.' }, { status: 409 })
+    if (body.overrides === undefined) return NextResponse.json({ error: 'overrides required.' }, { status: 400 })
+    const editable = await assertBatchEditable(id)
+    if (!editable.ok) return NextResponse.json({ error: editable.error }, { status: 409 })
+    const { data: live } = await supabaseAdmin.from('badge_print_dispatches').select('id').eq('batch_id', id).in('status', ['requested', 'sent', 'downloaded']).limit(1)
+    if (live?.length) return NextResponse.json({ error: 'This batch has been handed to Operations or the printer. Ask Ops to revoke the hand-off first.' }, { status: 409 })
+    const { data: cur } = await supabaseAdmin.from('badge_batch_items').select('*').eq('id', itemId).eq('batch_id', id).maybeSingle()
+    if (!cur) return NextResponse.json({ error: 'Badge not found.' }, { status: 404 })
+    if ((cur as BadgeItemRow).removed) return NextResponse.json({ error: 'This badge is out of the print file. Put it back first.' }, { status: 409 })
+    // approved stays true: the batch (and the client) approved this badge; the edit is the change that was asked for
+    const { data: edited, error: upErr } = await supabaseAdmin.from('badge_batch_items')
+      .update({ overrides: cleanOverrides(body.overrides), preview_stale: true, edited_after_approval_at: new Date().toISOString() }).eq('id', itemId).select('*').single()
+    if (upErr) return NextResponse.json({ error: upErr.message.includes('edited_after_approval_at') ? 'Run supabase/badge_edit_after_approval_migration.sql first.' : upErr.message }, { status: 500 })
+    try {
+      const item = await renderItem(batch, edited as BadgeItemRow)
+      await supabaseAdmin.from('badge_batches').update({ updated_at: new Date().toISOString() }).eq('id', id)   // approved_at is untouched, so the client-approval gate still holds
+      return NextResponse.json({ item })
+    } catch (e) { return NextResponse.json({ error: `The change is saved but the picture could not be redrawn: ${e instanceof Error ? e.message : 'render failed'}`, item: edited }, { status: 500 }) }
+  }
   if (batch.status === 'approved' && !leaveOut) return NextResponse.json({ error: 'The batch is approved. Reopen it to make changes.' }, { status: 409 })
 
   const { data: current } = await supabaseAdmin.from('badge_batch_items').select('*').eq('id', itemId).eq('batch_id', id).maybeSingle()

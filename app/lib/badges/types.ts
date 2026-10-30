@@ -33,6 +33,8 @@ export type BadgeItemRow = {
   // Set when the client's approval settled: a rejected badge is also removed = true, so it stays out of the print file.
   client_rejected?: boolean
   client_comment?: string | null
+  // Set when this badge's text was changed on an already-approved batch ("Edit & regenerate"): the print file made before this time does not have the change.
+  edited_after_approval_at?: string | null
 }
 
 export const CONFIRMED_STATUSES = ['New Confirmed', 'Reconfirmed', 'Confirmed'] as const

@@ -1,5 +1,6 @@
 'use client'
 
+import { editedSincePdf } from '@/app/lib/badges/edited'
 import { looksLikeSkip } from '@/app/lib/badges/skip-intent'
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -48,6 +49,7 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
   const [sendClientOpen, setSendClientOpen] = useState(false)
   const [filter, setFilter] = useState<Filter>('all')
   const [adjusting, setAdjusting] = useState<BadgeItemRow | null>(null)
+  const [afterApproval, setAfterApproval] = useState(false)   // the open edit is on an already-approved batch: it redraws this badge and keeps the batch approved
   const [busy, setBusy] = useState<string | null>(null)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -131,6 +133,7 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
     const u = await patchItem(item, out ? { leave_out: true } : { restore_left_out: true })
     if (u) say(out ? `${item.name ?? 'The badge'} is left out of the print file.` : `${item.name ?? 'The badge'} is back in the print file.`)
   }
+  function openEdit(item: BadgeItemRow, after: boolean) { setAfterApproval(after); setAdjusting(item) }
   async function leaveOutAll(list: BadgeItemRow[]) { for (const i of list) await leaveOut(i, true) }
   async function batchAction(action: string, label: string) {
     setBusy(action)
@@ -183,6 +186,8 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
   const waived = !!ca?.waived
   const printUnlocked = locked && (!caRequired || roundApproved || waived)
   const clientRejected = items.filter(i => i.client_rejected)
+  const editedAfterPdf = editedSincePdf(items, batch?.pdf_versions ?? [])   // changed after the newest print file was made
+  const canEditAfter = (i: BadgeItemRow) => canManage && locked && !roundPending && !i.removed && !common
   const clientComments = items.filter(i => (i.client_comment ?? '').trim())
   const skipAsks = items.filter(i => !i.removed && looksLikeSkip(i.client_comment))   // comments that read like "don't print this one" but were not rejected
   async function caAction(action: string, extra?: Record<string, unknown>, label?: string) {
@@ -333,10 +338,11 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
                       <div key={i.id} style={{ fontSize: '13.5px', color: 'var(--ink2)', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', padding: '3px 0' }}>
                         <span><strong>{i.name}</strong> — “{i.client_comment}”</span>
                         {looksLikeSkip(i.client_comment) && !i.removed && <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--amber)', border: '1px solid var(--amber)', borderRadius: '10px', padding: '1px 8px' }}>Looks like a request to skip</span>}
+                        {canEditAfter(i) && <Button variant={looksLikeSkip(i.client_comment) ? 'ghost' : 'teal'} onClick={() => openEdit(i, true)}>Edit &amp; regenerate</Button>}
                         {canManage && !i.removed && !roundPending && <Button variant={looksLikeSkip(i.client_comment) ? 'teal' : 'ghost'} onClick={() => void leaveOut(i, true)}>Leave out of print</Button>}
                       </div>
                     ))}
-                    <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '6px' }}>“Leave out of print” drops a badge the client doesn’t want — no reopening, nothing goes back to the client. To change a badge instead (a title, a photo), Reopen the batch, edit it and approve again; the client then sees it once more.</div>
+                    <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '6px' }}>“Leave out of print” drops a badge the client doesn’t want — no reopening, nothing goes back to the client. To change a badge instead (fix a name or a title as the client asked), use “Edit &amp; regenerate”: the badge is redrawn in place and stays approved, so nothing goes back to the client; then generate the print file again.</div>
                   </div>
                 )}
               </div>
@@ -350,8 +356,13 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
               <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Print file</div>
               <span style={{ fontSize: '13.5px', color: 'var(--ink3)', flex: 1 }}>Instruction page, {stats.total} badges, then the common back. Vector layers, outlined text, CMYK.</span>
-              <Button variant="teal" disabled={!!activeJob || !!busy} onClick={() => void generatePdf()}>{batch.pdf_versions.length ? 'Generate a new version' : 'Generate print file'}</Button>
+              <Button variant={editedAfterPdf.length ? 'lime' : 'teal'} disabled={!!activeJob || !!busy} onClick={() => void generatePdf()}>{batch.pdf_versions.length ? 'Generate a new version' : 'Generate print file'}</Button>
             </div>
+            {editedAfterPdf.length > 0 && batch.pdf_versions.length > 0 && (
+              <div style={{ marginTop: '10px', padding: '10px 12px', borderRadius: '8px', border: '2px solid var(--amber)', background: 'var(--surface)', fontSize: '14px', color: 'var(--ink)', lineHeight: 1.5 }}>
+                <strong>The newest print file does not have {editedAfterPdf.length === 1 ? 'this change' : `these ${editedAfterPdf.length} changes`}</strong> — {editedAfterPdf.map(i => i.overrides.name ?? i.name).join(', ')}. Generate a new version before downloading or sending it to Ops.
+              </div>
+            )}
             {batch.pdf_versions.length > 0 && (() => {
               const activeD = dispatches.find(x => ['requested', 'sent', 'downloaded'].includes(x.status)) ?? dispatches[0]
               return (
@@ -399,6 +410,7 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
                 <div style={{ fontSize: '14.5px', fontWeight: 800, color: 'var(--ink)' }}>{item.overrides.name ?? item.name ?? '(no name)'}</div>
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', margin: '6px 0 8px', minHeight: '22px' }}>
                   {item.flags.map(f => <span key={f.code} title={f.message} style={{ fontSize: '12px', fontWeight: 700, color: FLAG_COLOR[f.code], border: `1px solid ${FLAG_COLOR[f.code]}`, borderRadius: '10px', padding: '1px 8px' }}>{f.message}</span>)}
+                  {item.edited_after_approval_at && <span title={`Changed after the batch was approved (${new Date(item.edited_after_approval_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })})`} style={{ fontSize: '12px', fontWeight: 700, color: 'var(--amber)', border: '1px solid var(--amber)', borderRadius: '10px', padding: '1px 8px' }}>Edited after approval</span>}
                   {Object.keys(item.overrides).length > 0 && <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', border: '1px solid var(--border)', borderRadius: '10px', padding: '1px 8px' }}>Adjusted</span>}
                 </div>
                 {item.client_rejected && <div style={{ fontSize: '12.5px', fontWeight: 800, color: 'var(--red)', marginBottom: '6px' }}>Left out of print at the client’s request</div>}
@@ -408,9 +420,10 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
                     {canManage && !locked && !item.client_rejected && <Button variant="ghost" onClick={() => void patchItem(item, { removed: false })}>Restore</Button>}
                     {canManage && (item.client_comment ?? '').trim() && (locked || item.client_rejected) && !roundPending && <Button variant="ghost" onClick={() => void leaveOut(item, false)}>Put back</Button>}
                   </>) : (<>
+                    {canEditAfter(item) && <Button variant={(item.client_comment ?? '').trim() && !looksLikeSkip(item.client_comment) ? 'teal' : 'ghost'} onClick={() => openEdit(item, true)}>Edit &amp; regenerate</Button>}
                     {canManage && (item.client_comment ?? '').trim() && !roundPending && <Button variant={looksLikeSkip(item.client_comment) ? 'teal' : 'ghost'} onClick={() => void leaveOut(item, true)}>Leave out of print</Button>}
                     {canManage && !locked && <Button variant={item.approved ? 'ghost' : 'lime'} disabled={item.preview_stale || !item.preview_url} onClick={() => void patchItem(item, { approved: !item.approved })}>{item.approved ? 'Approved ✓' : 'Approve'}</Button>}
-                    {canManage && !locked && !common && <Button variant="ghost" onClick={() => setAdjusting(item)}>Adjust</Button>}
+                    {canManage && !locked && !common && <Button variant="ghost" onClick={() => openEdit(item, false)}>Adjust</Button>}
                     {canManage && !locked && !common && <Button variant="ghost" onClick={() => void patchItem(item, { removed: true })}>Remove</Button>}
                   </>)}
                 </div>
@@ -428,8 +441,12 @@ export default function BadgeBatchPage({ params }: { params: Promise<{ id: strin
       </div>
 
       {adjusting && (
-        <AdjustModal item={items.find(i => i.id === adjusting.id) ?? adjusting} onClose={() => setAdjusting(null)}
-          onApply={async (overrides) => patchItem(adjusting, { overrides, render: true })} canvas={{ w: batch.canvas_width, h: batch.canvas_height }} />
+        <AdjustModal item={items.find(i => i.id === adjusting.id) ?? adjusting} onClose={() => setAdjusting(null)} afterApproval={afterApproval}
+          onApply={async (overrides) => {
+            const u = await patchItem(adjusting, afterApproval ? { overrides, render: true, edit_after_approval: true } : { overrides, render: true })
+            if (u && afterApproval) say(`${adjusting.name ?? 'The badge'} is redrawn and still approved. Generate the print file again to include it.`)
+            return u
+          }} canvas={{ w: batch.canvas_width, h: batch.canvas_height }} />
       )}
       {deleting && <DeleteModal name={batch.name} onClose={() => setDeleting(false)} onConfirm={async () => {
         const r = await api(`/api/events/badges/batches/${batchId}`, 'DELETE', { confirm: 'DELETE' })
@@ -507,7 +524,7 @@ function modalShell(children: React.ReactNode, onClose: () => void, width = 560)
   )
 }
 
-function AdjustModal({ item, onClose, onApply, canvas }: { item: BadgeItemRow; onClose: () => void; onApply: (o: BadgeOverrides) => Promise<BadgeItemRow | null>; canvas: { w: number; h: number } }) {
+function AdjustModal({ item, onClose, onApply, canvas, afterApproval }: { item: BadgeItemRow; afterApproval?: boolean; onClose: () => void; onApply: (o: BadgeOverrides) => Promise<BadgeItemRow | null>; canvas: { w: number; h: number } }) {
   const o = item.overrides ?? {}
   const frozen = { name: item.name ?? '', title: item.title ?? '', company: item.company ?? '', country: item.country ?? '' }
   // The boxes start with what the badge currently says (an earlier adjustment, else the speaker's own text) so it can be edited in place.
@@ -531,7 +548,13 @@ function AdjustModal({ item, onClose, onApply, canvas }: { item: BadgeItemRow; o
   )
   return modalShell(
     <>
-      <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)', marginBottom: '12px' }}>Adjust badge — {item.name}</div>
+      <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)', marginBottom: '12px' }}>{afterApproval ? 'Edit & regenerate' : 'Adjust badge'} — {item.name}</div>
+      {afterApproval && (
+        <div style={{ marginBottom: '12px', padding: '10px 12px', borderRadius: '8px', background: 'var(--surface)', border: '1px solid var(--amber)', fontSize: '13px', color: 'var(--ink2)', lineHeight: 1.5 }}>
+          {(item.client_comment ?? '').trim() && <div style={{ marginBottom: '6px' }}><strong>Client comment:</strong> “{item.client_comment}”</div>}
+          The batch is approved. This redraws <strong>this badge only</strong> and it stays approved; nothing goes back to the client. Check the new picture, then generate the print file again so it carries the change.
+        </div>
+      )}
       <div style={{ display: 'flex', gap: '18px', flexWrap: 'wrap' }}>
         <div style={{ flex: '0 0 190px' }}>
           {item.preview_url ? (
@@ -558,7 +581,7 @@ function AdjustModal({ item, onClose, onApply, canvas }: { item: BadgeItemRow; o
       <div style={{ marginTop: '16px', display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
         <Button variant="ghost" disabled={working} onClick={() => { setText(frozen); setPhoto({ dx: 0, dy: 0, zoom: 1 }); void apply({}) }}>Reset adjustments</Button>
         <Button variant="ghost" onClick={onClose}>Close</Button>
-        <Button variant="lime" disabled={working} onClick={() => void apply(build())}>{working ? 'Rendering…' : 'Apply & preview'}</Button>
+        <Button variant="lime" disabled={working} onClick={() => void apply(build())}>{working ? 'Rendering…' : afterApproval ? 'Apply & regenerate' : 'Apply & preview'}</Button>
       </div>
     </>, onClose, 640)
 }
