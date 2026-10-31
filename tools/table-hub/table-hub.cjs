@@ -82,8 +82,12 @@ const page = n => `<!doctype html><html><head><meta charset="utf-8"><meta name="
 <body><div id="w">Table ${n} — waiting</div><img id="i" alt=""><div id="id">${n}<small>TABLE ${n}</small></div>
 <script>
 const N=${n};let rev=-1,until=0;
-// Screen mounted on its side but the PC still outputs landscape? Open /table/N?rotate=90 (or 270) once; it is remembered on that PC. ?rotate=0 clears it.
-{const q=new URLSearchParams(location.search).get('rotate');try{if(q!==null)localStorage.setItem('rotate',q)}catch(e){}let r='0';try{r=localStorage.getItem('rotate')||'0'}catch(e){}if(r==='90'||r==='270')document.documentElement.classList.add('r'+r)}
+// Automatic: a landscape window shows the portrait card turned 90°, a portrait one shows it as is, so no setting is needed on the table PC. If it ends up upside down, open /table/N?rotate=270 once
+// (remembered on that PC); ?rotate=0 never rotates; ?rotate=auto goes back to automatic.
+const root=document.documentElement;let mode='auto'
+{const q=new URLSearchParams(location.search).get('rotate');try{if(q!==null)localStorage.setItem('rotate',q)}catch(e){}try{mode=localStorage.getItem('rotate')||'auto'}catch(e){}}
+function fit(){root.classList.remove('r90','r270');const r=mode==='auto'?(innerWidth>innerHeight?'90':'0'):mode;if(r==='90'||r==='270')root.classList.add('r'+r)}
+addEventListener('resize',fit);fit()
 const i=document.getElementById('i'),w=document.getElementById('w'),idb=document.getElementById('id')
 document.body.addEventListener('click',()=>{if(!document.fullscreenElement)document.documentElement.requestFullscreen?.().catch(()=>{})})
 async function tick(){try{const s=await (await fetch('/table/'+N+'/state',{cache:'no-store'})).json()
@@ -108,7 +112,7 @@ http.createServer((req, res) => {
   if (u.pathname === '/') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(index()) }
   res.writeHead(404); res.end('Not found')
 }).listen(PORT, '0.0.0.0', () => {
-  console.log(`\nEventPilot Table Hub ${PROGRAM_VERSION} is running.\nOn each table PC, open in Chrome (then F11; if its screen is turned on its side but shows sideways, add ?rotate=90 or ?rotate=270 to the address once):`)
+  console.log(`\nEventPilot Table Hub ${PROGRAM_VERSION} is running.\nOn each table PC, open in Chrome (then click once on the page, or press F11, for full screen). A landscape screen shows the card turned automatically; if it comes out upside down, add ?rotate=270 to the address once:`)
   for (const a of lanAddresses()) for (const n of [1, 2, 3, 4, 5, 6]) console.log(`   ${a}/table/${n}`)
   console.log('\nLeave this window open during the event. (On Windows, if asked, click "Allow access" so the table PCs can reach this laptop.)\n')
 }).on('error', e => { console.error(e.code === 'EADDRINUSE' ? `Port ${PORT} is already in use — is the Table Hub already running?` : e.message); process.exit(1) })
