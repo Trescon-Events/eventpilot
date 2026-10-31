@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DEFAULT_TABLE_COUNT, MAX_TABLES, parseTableOrder, seatPlan, standbyFileName, tableFileName } from '@/app/lib/screens/tables'
+import type { LiveView } from '@/app/lib/screens/table-live'
 
 /* Table Screens (Phase 1) — the console for the small screens on the tables beside each speaker's seat. Used on the producers' Stage Screens page and on the AV console's private link.
 
@@ -24,6 +25,82 @@ const sig = (s: SeatIn[]) => s.map(x => `${x.name}|${x.moderator ? 1 : 0}`).join
 
 function readCount(): number {
   try { const n = parseInt(localStorage.getItem('tables:count') ?? '', 10); return n >= 1 && n <= MAX_TABLES ? n : DEFAULT_TABLE_COUNT } catch { return DEFAULT_TABLE_COUNT }
+}
+
+
+type LiveCmd = Record<string, unknown>
+
+/* Live control (Phase 2): sends the cards to the tables through the Table Hub program on the technician's laptop, and shows whether the program and each table screen are online. */
+function LivePanel({ url, query, canSend, buildShow, tableCount, standbyId, programLinks }: { url: (p: string, e?: Record<string, string>) => string; query: string; canSend: boolean; buildShow: () => LiveCmd | null; tableCount: number; standbyId?: string; programLinks: boolean }) {
+  const [live, setLive] = useState<LiveView | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    let stop = false
+    const tick = async () => {
+      if (document.hidden) return
+      try { const r = await fetch(url('/live'), { cache: 'no-store' }); const d = await r.json().catch(() => ({})); if (stop) return; if (r.ok) { setLive(d as LiveView); setErr(null) } else setErr(d.error ?? 'Could not read the live status.') } catch { /* offline for a moment */ }
+    }
+    void tick(); const t = setInterval(tick, 3000)
+    return () => { stop = true; clearInterval(t) }
+  }, [url])
+
+  async function send(cmd: LiveCmd, okMsg: string) {
+    setBusy(true); setMsg(null)
+    try {
+      const r = await fetch(url('/live'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...cmd, ...(query ? Object.fromEntries(new URLSearchParams(query)) : {}) }) })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) setMsg(d.error ?? 'Could not send.'); else { setLive(d as LiveView); setMsg(okMsg) }
+    } catch { setMsg('Could not reach EventPilot — try again.') }
+    setBusy(false)
+  }
+
+  const p = live?.program
+  const ago = (ms: number | null | undefined) => ms == null ? null : ms < 8000 ? 'online' : ms < 60000 ? `${Math.round(ms / 1000)}s ago` : 'offline'
+  const chip = (on: boolean) => ({ fontSize: '12px', fontWeight: 800, padding: '3px 10px', borderRadius: '999px', background: on ? 'var(--teal)' : 'var(--border)', color: on ? 'white' : 'var(--ink3)' }) as const
+  const show = buildShow()
+  return (
+    <div style={{ padding: '12px 14px', borderRadius: '12px', background: 'var(--card)', border: '1px solid var(--border)', display: 'grid', gap: '10px' }}>
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ fontSize: '15px', fontWeight: 900 }}>Live to the tables</div>
+        <span style={chip(!!p?.online)}>{p?.online ? 'Table Hub connected' : p ? 'Table Hub offline' : 'Table Hub not started yet'}</span>
+        {p?.online && p.version != null && <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>program v{p.version}</span>}
+      </div>
+      {err && <div style={{ color: 'var(--red)', fontSize: '13.5px', fontWeight: 700 }}>{err}</div>}
+      {p?.needs_update && <div role="alert" style={{ padding: '10px 12px', borderRadius: '8px', background: 'var(--amber)', color: 'white', fontWeight: 800, fontSize: '13.5px' }}>Update the program: the one running on the laptop is out of date for this feature. Download it again and restart it.</div>}
+      {!p?.online && <div style={{ fontSize: '13px', color: 'var(--ink2)', lineHeight: 1.6 }}>
+        On the technician&apos;s laptop: download the two files below into one folder, install Node.js once (nodejs.org, the LTS version), and double-click <strong>start-table-hub.bat</strong>. It prints the address for each table (like <em>http://192.168.1.20:8080/table/3</em>); open that in Chrome on the table PC and press F11. Cards sent from here then appear within a couple of seconds.
+        {programLinks && <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+          <a href={url('/program', { file: 'hub' })} style={{ ...btn, background: 'var(--card)', color: 'var(--ink)', border: '1.5px solid var(--border)', fontSize: '13px', padding: '8px 14px' }}>Download table-hub.mjs</a>
+          <a href={url('/program', { file: 'bat' })} style={{ ...btn, background: 'var(--card)', color: 'var(--ink)', border: '1.5px solid var(--border)', fontSize: '13px', padding: '8px 14px' }}>Download start-table-hub.bat</a>
+        </div>}
+      </div>}
+      {p?.online && p.lan.length > 0 && <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>Table PCs open: {p.lan.map(a => `${a}/table/N`).join('  or  ')}</div>}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '8px' }}>
+        {Array.from({ length: tableCount }, (_, i) => i + 1).map(n => {
+          const t = p?.tables[String(n)], w = ago(t?.seen_ms_ago), on = w === 'online', showing = live?.state.tables[String(n)]
+          return (
+            <div key={n} style={{ border: '1.5px solid var(--border)', borderRadius: '10px', padding: '8px', display: 'grid', gap: '3px', background: 'var(--surface)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><strong style={{ fontSize: '14px' }}>Table {n}</strong><span style={chip(on)}>{w ?? 'not seen'}</span></div>
+              <div style={{ fontSize: '12px', color: 'var(--ink2)', lineHeight: 1.3, wordBreak: 'break-word' }}>{showing ? (showing.mode === 'card' ? showing.name : showing.mode === 'standby' ? 'Standby' : 'Blank') : '—'}{showing?.mode === 'card' && showing.moderator ? ' · Moderator' : ''}</div>
+            </div>
+          )
+        })}
+      </div>
+
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <button disabled={busy || !canSend || !show} onClick={() => show && send(show, 'Sent. The tables update within a couple of seconds.')} style={{ ...btn, background: busy || !canSend || !show ? 'var(--border)' : 'var(--teal)', color: 'white', fontSize: '16px', padding: '14px 24px' }}>{busy ? 'Sending…' : 'Send to tables'}</button>
+        <button disabled={busy || !canSend} onClick={() => send({ action: 'all', mode: 'standby', table_count: tableCount, ...(standbyId ? { standby_template: standbyId } : {}) }, 'All tables on standby.')} style={{ ...btn, background: 'var(--card)', color: 'var(--ink)', border: '1.5px solid var(--border)' }}>All standby</button>
+        <button disabled={busy || !canSend} onClick={() => send({ action: 'all', mode: 'blank', table_count: tableCount }, 'All tables blank.')} style={{ ...btn, background: 'var(--card)', color: 'var(--ink)', border: '1.5px solid var(--border)' }}>All blank</button>
+        <button disabled={busy || !canSend} onClick={() => send({ action: 'identify', seconds: 15 }, 'Every table now flashes its number for 15 seconds.')} style={{ ...btn, background: 'var(--card)', color: 'var(--ink)', border: '1.5px solid var(--border)' }}>Identify tables</button>
+      </div>
+      {msg && <div style={{ fontSize: '13.5px', fontWeight: 700, color: /could not|does not|twice|no name|nothing/i.test(msg) ? 'var(--red)' : 'var(--ink2)' }}>{msg}</div>}
+      {live?.state.session && <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>Last sent: {live.state.session}</div>}
+    </div>
+  )
 }
 
 export default function TableScreensConsole({ apiBase, query = '', showStage = false }: { apiBase: string; query?: string; showStage?: boolean }) {
@@ -193,6 +270,12 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
               <label style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>Standby <select value={sb?.id ?? ''} onChange={e => setStandbyId(e.target.value)} style={input}>{standbyTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
             )}
           </div>
+          <LivePanel url={url} query={query} canSend={!hasProblem} tableCount={tableCount} standbyId={sb?.id} programLinks={apiBase.includes('/api/public/')}
+            buildShow={() => {
+              if (hasProblem || (!ready.length)) return null
+              return { action: 'show', template: tpl?.id, standby_template: sb?.id, session: session.topic,
+                tables: [...ready.map(s => ({ n: s.table, mode: 'card', name: s.name.trim(), moderator: s.moderator })), ...plan.standby.map(n => ({ n, mode: sb ? 'standby' : 'blank' }))] }
+            }} />
           {!sb && <div style={{ fontSize: '13px', color: 'var(--amber)' }}>No standby screen template has been made yet, so the zip has only the speaker cards. The branding team adds one under Variants › Table Screen — standby.</div>}
           {note && <div style={{ color: 'var(--red)', fontWeight: 700, fontSize: '14px' }}>{note}</div>}
 
