@@ -77,26 +77,64 @@ async function beat() {
 }
 
 
-const statusPage = () => `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Table Hub</title>
-<style>:root{color-scheme:light dark}body{font:16px/1.5 system-ui,sans-serif;margin:0;background:#0f1720;color:#e8eef5}main{max-width:760px;margin:0 auto;padding:28px 20px}h1{font-size:22px;margin:0 0 4px}
-.pill{display:inline-block;padding:3px 12px;border-radius:999px;font-weight:800;font-size:13px;background:#394552;color:#cbd5df}.on{background:#0ea79d;color:#fff}.bad{background:#c0392b;color:#fff}
-.card{background:#18222d;border:1px solid #2a3846;border-radius:12px;padding:14px 16px;margin:14px 0}.row{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid #2a3846;flex-wrap:wrap}.row:first-of-type{border-top:0}
-a.btn,button{font:inherit;font-weight:800;padding:8px 14px;border-radius:9px;border:1.5px solid #3a4b5c;background:#18222d;color:#e8eef5;cursor:pointer;text-decoration:none}button.quit{border-color:#7a3a3a;color:#ff9a9a}
-code{background:#0b1117;padding:2px 7px;border-radius:6px;font-size:14px}small{color:#93a4b5}</style></head><body><main>
-<h1>EventPilot Table Hub</h1><div id="top"><span class="pill">starting…</span></div>
-<div class="card"><strong>Tables</strong><div id="tables"></div><p><small>On each table PC: open Chrome, go to that table's address, then click once on the page (or press F11) for full screen. A landscape screen turns the card by itself. Upside down? Add <code>?rotate=270</code> to that address once.</small></p></div>
-<div class="card"><strong>Now showing</strong><div id="now" style="margin-top:6px"></div></div>
-<p><small>Keep this program running during the event. Close this page whenever you like: the hub keeps running. Open the app again to see this page. The cards are sent from the Table Screens page in EventPilot.</small></p>
-<button class="quit" onclick="if(confirm('Stop the Table Hub? The table screens will keep their last picture but stop updating.'))fetch('/quit',{method:'POST'}).then(()=>document.body.innerHTML='<main><h1>Table Hub stopped.</h1><p>Open the app again to start it.</p></main>')">Quit Table Hub</button>
+const statusPage = () => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Table Hub</title>
+<style>
+:root{--bg:#0b1220;--panel:#131c2e;--line:#22304a;--ink:#eaf0fa;--dim:#8fa1bd;--teal:#19c3b1;--red:#ef5b5b;--amber:#f2b84b}
+*{box-sizing:border-box}html,body{margin:0;height:100%}body{font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;background:radial-gradient(1200px 500px at 80% -10%,#16314a 0,transparent 60%),var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+main{max-width:880px;margin:0 auto;padding:26px 24px 40px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:22px}
+.brand{display:flex;align-items:center;gap:12px}.logo{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--teal),#2a7de1);display:grid;place-items:center;font-weight:900;color:#fff;font-size:18px}
+h1{font-size:20px;margin:0;letter-spacing:-.2px}.sub{color:var(--dim);font-size:13px}
+.status{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-weight:700;font-size:13.5px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--dim)}.ok .dot{background:var(--teal);box-shadow:0 0 0 4px #19c3b133}.bad .dot{background:var(--red);box-shadow:0 0 0 4px #ef5b5b33}
+.now{background:linear-gradient(180deg,#16233a,#111a2b);border:1px solid var(--line);border-radius:16px;padding:18px 20px;margin-bottom:22px}
+.label{color:var(--dim);font-size:12px;font-weight:700;letter-spacing:.8px;text-transform:uppercase}.now .t{font-size:19px;font-weight:700;margin-top:4px;line-height:1.3}.now .s{color:var(--dim);font-size:13px;margin-top:4px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;display:grid;gap:10px}.tile.on{border-color:#19c3b155}
+.top{display:flex;align-items:center;justify-content:space-between}.num{font-size:15px;font-weight:800}.chip{font-size:11.5px;font-weight:800;padding:3px 10px;border-radius:999px;background:#22304a;color:var(--dim);white-space:nowrap}.on .chip{background:#19c3b122;color:var(--teal)}
+.who{min-height:42px;font-size:17px;font-weight:700;line-height:1.25;word-break:break-word}.who.empty{color:var(--dim);font-weight:500;font-size:14px}
+.addr{font:12px ui-monospace,Menlo,Consolas,monospace;color:var(--dim);word-break:break-all}
+.btns{display:flex;gap:8px}button,a.btn{font:inherit;font-size:13px;font-weight:700;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:#1a2740;color:var(--ink);cursor:pointer;text-decoration:none;flex:1;text-align:center}button:hover,a.btn:hover{background:#21314f}
+details{margin-top:22px;color:var(--dim);font-size:13.5px}summary{cursor:pointer;font-weight:700;color:var(--ink)}details p{margin:8px 0 0}code{background:#0d1626;padding:2px 7px;border-radius:6px;color:#cfe0f7}
+footer{margin-top:26px;display:flex;justify-content:space-between;align-items:center;color:var(--dim);font-size:12.5px;gap:10px;flex-wrap:wrap}button.quit{flex:none;color:#ff9a9a;border-color:#4a2a33;background:transparent}
+</style></head><body><main>
+<header><div class="brand"><div class="logo">T</div><div><h1>Table Hub</h1><div class="sub">Shows each speaker's card on their table screen</div></div></div><div id="top" class="status"><span class="dot"></span>Starting…</div></header>
+<section class="now"><div class="label">Now showing</div><div class="t" id="nowT">Nothing sent yet</div><div class="s" id="nowS">Choose a session on the Table Screens page in EventPilot, then press Send to tables.</div></section>
+<div class="label" style="margin-bottom:10px">Table screens</div><div class="grid" id="grid"></div>
+<details><summary>How to set up a table PC</summary><p>On each table PC open Chrome, go to that table's address (use Copy address), then click once on the page, or press F11, for full screen. A landscape screen turns the card by itself. If a card comes out upside down, add <code>?rotate=270</code> to that address once. The table PCs and this computer must be on the same network. Keep this program running during the event; closing this window does not stop it.</p></details>
+<footer><span id="ver"></span><button class="quit" onclick="if(confirm('Stop the Table Hub? The table screens keep their last picture but stop updating.'))fetch('/quit',{method:'POST'}).then(()=>{document.body.innerHTML='<main><h1>Table Hub stopped</h1><p class=sub>Open the app again to start it.</p></main>'})">Quit Table Hub</button></footer>
 <script>
+const $=id=>document.getElementById(id)
+async function copy(u,b){try{await navigator.clipboard.writeText(u);const t=b.textContent;b.textContent='Copied';setTimeout(()=>b.textContent=t,1200)}catch(e){prompt('Copy this address',u)}}
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('button.cp');if(b)copy(b.dataset.u,b)})
 async function tick(){try{const s=await (await fetch('/api/status',{cache:'no-store'})).json()
-document.getElementById('top').innerHTML='<span class="pill '+(s.online?'on':'bad')+'">'+(s.online?'Connected to EventPilot':'Cannot reach EventPilot – tables keep their last picture')+'</span> <small>program v'+s.version+'</small>'
-document.getElementById('tables').innerHTML=s.tables.map(t=>'<div class="row"><div><strong>Table '+t.n+'</strong> <span class="pill '+(t.seen?'on':'')+'">'+(t.seen?'screen online':'not opened yet')+'</span><br><small>'+(t.label||'nothing sent yet')+'</small></div><div><code>'+t.url+'</code> <a class="btn" target="_blank" href="'+t.local+'">Open here</a></div></div>').join('')
-document.getElementById('now').textContent=s.session?s.session+(s.sent?' (sent '+new Date(s.sent).toLocaleTimeString()+')':''):'Nothing sent yet.'}catch(e){document.getElementById('top').innerHTML='<span class="pill bad">Table Hub is not running</span>'}}
+$('top').className='status '+(s.online?'ok':'bad');$('top').innerHTML='<span class="dot"></span>'+(s.online?'Connected to EventPilot':'No connection to EventPilot')
+$('ver').textContent='Table Hub v'+s.version+(s.online?'':' · tables keep their last picture until the connection returns')
+$('nowT').textContent=s.session||'Nothing sent yet';$('nowS').textContent=s.session?(s.sent?'Sent '+new Date(s.sent).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):''):'Choose a session on the Table Screens page in EventPilot, then press Send to tables.'
+$('grid').innerHTML=s.tables.map(t=>'<div class="tile '+(t.seen?'on':'')+'"><div class="top"><span class="num">Table '+t.n+'</span><span class="chip">'+(t.seen?'Screen online':'Not opened yet')+'</span></div><div class="who '+(t.label?'':'empty')+'">'+(t.label?t.label.replace(/</g,'&lt;'):'Nothing sent yet')+'</div><div class="addr">'+t.url+'</div><div class="btns"><button class="cp" data-u="'+t.url+'">Copy address</button><a class="btn" target="_blank" href="'+t.local+'">Preview</a></div></div>').join('')
+}catch(e){$('top').className='status bad';$('top').innerHTML='<span class="dot"></span>Table Hub is not running'}}
 tick();setInterval(tick,2000)
 </script></main></body></html>`
 
-const openPage = url => { if (NO_OPEN) return; try { const { spawn } = require('node:child_process'); const [cmd, args] = process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]] : process.platform === 'darwin' ? ['open', [url]] : ['xdg-open', [url]]; spawn(cmd, args, { stdio: 'ignore', detached: true }).unref() } catch { /* the address is printed anyway */ } }
+// Opens the hub's page in its own app window (no tabs, no address bar) using Chrome or Edge, which these computers already have; falls back to the normal browser.
+const openPage = url => {
+  if (NO_OPEN) return
+  const { spawn, spawnSync } = require('node:child_process')
+  const profile = path.join(here, 'table-hub-window')
+  const flags = [`--app=${url}`, `--user-data-dir=${profile}`, '--window-size=960,820', '--no-first-run', '--no-default-browser-check', '--disable-features=Translate']
+  const candidates = process.platform === 'win32'
+    ? ['LOCALAPPDATA', 'PROGRAMFILES', 'PROGRAMFILES(X86)'].flatMap(v => process.env[v] ? [path.join(process.env[v], 'Google/Chrome/Application/chrome.exe'), path.join(process.env[v], 'Microsoft/Edge/Application/msedge.exe')] : [])
+    : process.platform === 'darwin'
+      ? ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge', '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser']
+      : ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/microsoft-edge']
+  const browser = candidates.find(c => { try { return fs.existsSync(c) } catch { return false } })
+  try {
+    if (browser) { spawn(browser, flags, { stdio: 'ignore', detached: true }).unref(); return }
+    const [cmd, args] = process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]] : process.platform === 'darwin' ? ['open', [url]] : ['xdg-open', [url]]
+    spawn(cmd, args, { stdio: 'ignore', detached: true }).unref()
+  } catch { /* the address is printed anyway */ }
+  void spawnSync
+}
 
 const page = n => `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Table ${n}</title>
 <style>html,body{margin:0;height:100%;background:#000;overflow:hidden;cursor:none}img{position:fixed;inset:0;width:100%;height:100%;object-fit:contain;display:none}
