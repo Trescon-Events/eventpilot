@@ -76,11 +76,15 @@ async function beat() {
 
 const page = n => `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Table ${n}</title>
 <style>html,body{margin:0;height:100%;background:#000;overflow:hidden;cursor:none}img{position:fixed;inset:0;width:100%;height:100%;object-fit:contain;display:none}
+.r90 img,.r270 img,.r90 #id,.r270 #id,.r90 #w,.r270 #w{inset:auto;top:50%;left:50%;width:100vh;height:100vw}.r90 img,.r90 #id,.r90 #w{transform:translate(-50%,-50%) rotate(90deg)}.r270 img,.r270 #id,.r270 #w{transform:translate(-50%,-50%) rotate(270deg)}
 #id{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:#fff;color:#000;font:900 28vmin/1 system-ui,sans-serif;flex-direction:column;z-index:5}#id small{font-size:6vmin;font-weight:700}
 #w{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#333;font:700 4vmin system-ui,sans-serif}</style></head>
 <body><div id="w">Table ${n} — waiting</div><img id="i" alt=""><div id="id">${n}<small>TABLE ${n}</small></div>
 <script>
-const N=${n};let rev=-1,until=0;const i=document.getElementById('i'),w=document.getElementById('w'),idb=document.getElementById('id')
+const N=${n};let rev=-1,until=0;
+// Screen mounted on its side but the PC still outputs landscape? Open /table/N?rotate=90 (or 270) once; it is remembered on that PC. ?rotate=0 clears it.
+{const q=new URLSearchParams(location.search).get('rotate');try{if(q!==null)localStorage.setItem('rotate',q)}catch(e){}let r='0';try{r=localStorage.getItem('rotate')||'0'}catch(e){}if(r==='90'||r==='270')document.documentElement.classList.add('r'+r)}
+const i=document.getElementById('i'),w=document.getElementById('w'),idb=document.getElementById('id')
 document.body.addEventListener('click',()=>{if(!document.fullscreenElement)document.documentElement.requestFullscreen?.().catch(()=>{})})
 async function tick(){try{const s=await (await fetch('/table/'+N+'/state',{cache:'no-store'})).json()
  if(s.rev!==rev){rev=s.rev;if(s.key){i.src='/img/'+s.key;i.style.display='block';w.style.display='none'}else if(s.mode==='blank'){i.style.display='none';w.style.display='none'}else{i.style.display='none';w.style.display='flex'}}
@@ -104,7 +108,7 @@ http.createServer((req, res) => {
   if (u.pathname === '/') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(index()) }
   res.writeHead(404); res.end('Not found')
 }).listen(PORT, '0.0.0.0', () => {
-  console.log(`\nEventPilot Table Hub ${PROGRAM_VERSION} is running.\nOn each table PC, open in Chrome (then F11):`)
+  console.log(`\nEventPilot Table Hub ${PROGRAM_VERSION} is running.\nOn each table PC, open in Chrome (then F11; if its screen is turned on its side but shows sideways, add ?rotate=90 or ?rotate=270 to the address once):`)
   for (const a of lanAddresses()) for (const n of [1, 2, 3, 4, 5, 6]) console.log(`   ${a}/table/${n}`)
   console.log('\nLeave this window open during the event. (On Windows, if asked, click "Allow access" so the table PCs can reach this laptop.)\n')
 }).on('error', e => { console.error(e.code === 'EADDRINUSE' ? `Port ${PORT} is already in use — is the Table Hub already running?` : e.message); process.exit(1) })
