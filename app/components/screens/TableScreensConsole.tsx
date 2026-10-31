@@ -59,7 +59,7 @@ function LivePanel({ url, query, canSend, buildShow, tableCount, standbyId, prog
 
   const p = live?.program
   const ago = (ms: number | null | undefined) => ms == null ? null : ms < 8000 ? 'online' : ms < 60000 ? `${Math.round(ms / 1000)}s ago` : 'offline'
-  const chip = (on: boolean) => ({ fontSize: '12px', fontWeight: 800, padding: '3px 10px', borderRadius: '999px', background: on ? 'var(--teal)' : 'var(--border)', color: on ? 'white' : 'var(--ink3)' }) as const
+  const chip = (on: boolean) => ({ fontSize: '12px', fontWeight: 800, padding: '3px 10px', whiteSpace: 'nowrap', borderRadius: '999px', background: on ? 'var(--teal)' : 'var(--border)', color: on ? 'white' : 'var(--ink3)' }) as const
   const show = buildShow()
   return (
     <div style={{ padding: '12px 14px', borderRadius: '12px', background: 'var(--card)', border: '1px solid var(--border)', display: 'grid', gap: '10px' }}>
@@ -70,16 +70,22 @@ function LivePanel({ url, query, canSend, buildShow, tableCount, standbyId, prog
       </div>
       {err && <div style={{ color: 'var(--red)', fontSize: '13.5px', fontWeight: 700 }}>{err}</div>}
       {p?.needs_update && <div role="alert" style={{ padding: '10px 12px', borderRadius: '8px', background: 'var(--amber)', color: 'white', fontWeight: 800, fontSize: '13.5px' }}>Update the program: the one running on the laptop is out of date for this feature. Download it again and restart it.</div>}
-      {!p?.online && <div style={{ fontSize: '13px', color: 'var(--ink2)', lineHeight: 1.6 }}>
-        On the technician&apos;s laptop: download the two files below into one folder, install Node.js once (nodejs.org, the LTS version), and double-click <strong>start-table-hub.bat</strong>. It prints the address for each table (like <em>http://192.168.1.20:8080/table/3</em>); open that in Chrome on the table PC and press F11. Cards sent from here then appear within a couple of seconds.
-        {programLinks && <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
-          <a href={url('/program', { file: 'hub' })} style={{ ...btn, background: 'var(--card)', color: 'var(--ink)', border: '1.5px solid var(--border)', fontSize: '13px', padding: '8px 14px' }}>Download table-hub.mjs</a>
-          <a href={url('/program', { file: 'bat' })} style={{ ...btn, background: 'var(--card)', color: 'var(--ink)', border: '1.5px solid var(--border)', fontSize: '13px', padding: '8px 14px' }}>Download start-table-hub.bat</a>
+      {!p?.online && <div style={{ fontSize: '13px', color: 'var(--ink2)', lineHeight: 1.7, display: 'grid', gap: '8px' }}>
+        <div><strong>On the technician&apos;s Windows laptop:</strong> 1. Download and double-click the file below. 2. If Windows says &quot;Windows protected your PC&quot;, click <strong>More info</strong> then <strong>Run anyway</strong>; if it asks about the firewall, click <strong>Allow access</strong>. 3. A black window opens and lists an address for each table. Open that address in Chrome on the table PC and press F11. This page then shows the hub as connected, and <strong>Send to tables</strong> works. Nothing else to install.</div>
+        {programLinks && <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <a href={url('/program', { file: 'exe' })} style={{ ...btn, background: 'var(--teal)', color: 'white', fontSize: '15px', padding: '12px 20px' }}>Download Table Hub for Windows</a>
+          <details style={{ fontSize: '12.5px' }}><summary style={{ cursor: 'pointer', color: 'var(--ink3)' }}>Mac, or a laptop that already has Node.js</summary>
+            <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+              <a href={url('/program', { file: 'hub' })} style={{ ...btn, background: 'var(--card)', color: 'var(--ink)', border: '1.5px solid var(--border)', fontSize: '13px', padding: '8px 14px' }}>table-hub.cjs</a>
+              <a href={url('/program', { file: 'bat' })} style={{ ...btn, background: 'var(--card)', color: 'var(--ink)', border: '1.5px solid var(--border)', fontSize: '13px', padding: '8px 14px' }}>start-table-hub.bat</a>
+            </div>
+            <div style={{ marginTop: '6px' }}>Same folder; Windows: double-click the .bat. Mac: in Terminal run <code>node table-hub.cjs</code>.</div>
+          </details>
         </div>}
       </div>}
       {p?.online && p.lan.length > 0 && <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>Table PCs open: {p.lan.map(a => `${a}/table/N`).join('  or  ')}</div>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '8px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '8px' }}>
         {Array.from({ length: tableCount }, (_, i) => i + 1).map(n => {
           const t = p?.tables[String(n)], w = ago(t?.seen_ms_ago), on = w === 'online', showing = live?.state.tables[String(n)]
           return (

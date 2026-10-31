@@ -2,21 +2,24 @@
 // It asks EventPilot every 2 seconds what each table should show, keeps those pictures on this laptop, and serves them to the table PCs over the local network:
 //   http://<this laptop's address>:8080/table/1   …   /table/6      (open in Chrome on each table PC, press F11 or click once for full screen)
 // The table PCs need no internet. Once a picture is here it keeps showing even if the internet drops. Needs Node.js 18 or newer. No other installs.
-import http from 'node:http'
-import os from 'node:os'
-import fs from 'node:fs'
-import path from 'node:path'
-import { createHash } from 'node:crypto'
-import { fileURLToPath } from 'node:url'
+const http = require('node:http')
+const os = require('node:os')
+const fs = require('node:fs')
+const path = require('node:path')
+const { createHash } = require('node:crypto')
 
 const PROGRAM_VERSION = 1
-// __CONFIG__ is replaced when the file is downloaded from EventPilot with this event's private link. Running it by hand: node table-hub.mjs <https://eventpilot…/api/public/screens/TOKEN> [port]
+// __CONFIG__ is replaced when the file is downloaded from EventPilot with this event's private link. Other ways to give it the link: the one-file .exe is downloaded as TableHub-<code>.exe (the code in
+// the file name is the link), or run:  node table-hub.cjs <https://eventpilot…/api/public/screens/CODE> [port]
+const DEFAULT_BASE = 'https://eventpilot.tresconglobal.com'
 const CONFIG = /*__CONFIG__*/ null
-const link = (CONFIG?.link ?? process.argv[2] ?? '').replace(/\/+$/, '')
-const PORT = Number(CONFIG?.port ?? process.argv[3] ?? 8080)
+const nameCode = (path.basename(process.execPath) + ' ' + path.basename(process.argv[1] ?? '')).match(/[0-9a-f]{40,128}/i)?.[0]
+const link = (CONFIG?.link ?? (process.argv[2]?.startsWith('http') ? process.argv[2] : nameCode ? `${DEFAULT_BASE}/api/public/screens/${nameCode}` : '')).replace(/\/+$/, '')
+const PORT = Number(CONFIG?.port ?? (process.argv[2]?.startsWith('http') ? process.argv[3] : null) ?? 8080)
 if (!/^https?:\/\/.+\/api\/public\/screens\/[0-9a-f]+$/i.test(link)) { console.error('This copy has no EventPilot link in it. Download the program again from the Table Screens page.'); process.exit(1) }
 
-const here = path.dirname(fileURLToPath(import.meta.url))
+let isSea = false; try { isSea = require('node:sea').isSea() } catch { /* plain node */ }
+const here = isSea ? path.dirname(process.execPath) : __dirname
 const cacheDir = path.join(here, 'table-hub-cache')
 fs.mkdirSync(cacheDir, { recursive: true })
 
@@ -103,7 +106,7 @@ http.createServer((req, res) => {
 }).listen(PORT, '0.0.0.0', () => {
   console.log(`\nEventPilot Table Hub ${PROGRAM_VERSION} is running.\nOn each table PC, open in Chrome (then F11):`)
   for (const a of lanAddresses()) for (const n of [1, 2, 3, 4, 5, 6]) console.log(`   ${a}/table/${n}`)
-  console.log('\nLeave this window open during the event.\n')
+  console.log('\nLeave this window open during the event. (On Windows, if asked, click "Allow access" so the table PCs can reach this laptop.)\n')
 }).on('error', e => { console.error(e.code === 'EADDRINUSE' ? `Port ${PORT} is already in use — is the Table Hub already running?` : e.message); process.exit(1) })
 
 setInterval(poll, 2000); poll()
