@@ -61,6 +61,8 @@ function LivePanel({ url, query, canSend, buildShow, tableCount, standbyId, prog
   const ago = (ms: number | null | undefined) => ms == null ? null : ms < 8000 ? 'online' : ms < 60000 ? `${Math.round(ms / 1000)}s ago` : 'offline'
   const chip = (on: boolean) => ({ fontSize: '12px', fontWeight: 800, padding: '3px 10px', whiteSpace: 'nowrap', borderRadius: '999px', background: on ? 'var(--teal)' : 'var(--border)', color: on ? 'white' : 'var(--ink3)' }) as const
   const show = buildShow()
+  // The picture each table is showing right now (the same card the program fetched), drawn small; a new send changes the address, so it is never a stale one.
+  const liveImg = (img: string) => { const q = new URLSearchParams(img.split('?')[1] ?? ''); const extra: Record<string, string> = {}; q.forEach((v, k) => { extra[k] = v }); extra.scale = '0.2'; extra.v = String(live?.seq ?? 0); return url('/card', extra) }
   return (
     <div style={{ padding: '12px 14px', borderRadius: '12px', background: 'var(--card)', border: '1px solid var(--border)', display: 'grid', gap: '10px' }}>
       <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -85,12 +87,17 @@ function LivePanel({ url, query, canSend, buildShow, tableCount, standbyId, prog
       </div>}
       {p?.online && p.lan.length > 0 && <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>Table PCs open: {p.lan.map(a => `${a}/table/N`).join('  or  ')}</div>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '8px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '8px' }}>
         {Array.from({ length: tableCount }, (_, i) => i + 1).map(n => {
           const t = p?.tables[String(n)], w = ago(t?.seen_ms_ago), on = w === 'online', showing = live?.state.tables[String(n)]
           return (
             <div key={n} style={{ border: '1.5px solid var(--border)', borderRadius: '10px', padding: '8px', display: 'grid', gap: '3px', background: 'var(--surface)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><strong style={{ fontSize: '14px' }}>Table {n}</strong><span style={chip(on)}>{w ?? 'not seen'}</span></div>
+              <div style={{ aspectRatio: '9 / 16', borderRadius: '6px', background: 'var(--surface)', overflow: 'hidden', display: 'grid', placeItems: 'center', color: 'var(--ink3)', fontSize: '11px' }}>
+                {showing?.img
+                  ? <img src={liveImg(showing.img)} alt={`What Table ${n} shows now`} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+                  : showing ? 'Blank' : 'Nothing sent'}
+              </div>
               <div style={{ fontSize: '12px', color: 'var(--ink2)', lineHeight: 1.3, wordBreak: 'break-word' }}>{showing ? (showing.mode === 'card' ? showing.name : showing.mode === 'standby' ? 'Standby' : 'Blank') : '—'}{showing?.mode === 'card' && showing.moderator ? ' · Moderator' : ''}</div>
             </div>
           )
@@ -285,7 +292,7 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
           {!sb && <div style={{ fontSize: '13px', color: 'var(--amber)' }}>No standby screen template has been made yet, so the zip has only the speaker cards. The branding team adds one under Variants › Table Screen — standby.</div>}
           {note && <div style={{ color: 'var(--red)', fontWeight: 700, fontSize: '14px' }}>{note}</div>}
 
-          <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>Previews, in seat order from the left. Upload each file to the screen of the table named in it.</div>
+          <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>Worksheet previews for the session you picked, in seat order from the left. These are not what is on the tables now: that is in the “Live to the tables” boxes above.</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px' }}>
             {plan.seats.map(s => (
               <div key={s.seat} style={{ background: 'var(--card)', border: `1.5px solid ${s.table && s.name.trim() ? 'var(--border)' : 'var(--amber)'}`, borderRadius: '10px', padding: '8px', display: 'grid', gap: '6px', alignContent: 'start' }}>
