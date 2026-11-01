@@ -65,12 +65,16 @@ export function applyCardOverride(base: CardText, o: Partial<CardText> | undefin
 export type FingerprintInput = {
   topic: string
   cards: { speakerId: string; moderator: boolean; text: CardText; photo: string | null }[]
+  topicLines?: number   // only present for layouts whose title is held to fewer lines than the default, so existing screens are not marked Changed by an unrelated rule
   look: { font: string | null; background: string | null; text: string; accent: string; head: number; dims: Dims; style?: string; card?: unknown; type?: Record<string, unknown> }
 }
 /** Anything visible on the graphic goes in; when it differs from what a PNG was built from, that PNG is out of date. */
 export function fingerprint(input: FingerprintInput): string {
   return createHash('sha1').update(JSON.stringify(input)).digest('hex').slice(0, 16)
 }
+
+/** How many lines the session title may take. A fireside chat is narrow (two cards), and a title on three or four lines pushes the photos down the screen, so its title is held to two (the type shrinks to fit; no word is ever dropped). */
+export const topicLinesFor = (layout: ScreenLayout): number => (layout === 'fireside' ? 2 : 3)
 
 export type ScreenState = 'ready' | 'changed' | 'new'
 export function screenState(savedFingerprint: string | null | undefined, hasPng: boolean, live: string): ScreenState {

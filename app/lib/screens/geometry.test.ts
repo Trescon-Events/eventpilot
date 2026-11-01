@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { zoomCrop, clampHeadScale, layoutFor, rowSizes, cardColumns, canvasWidthFor, rowWidth, applyCardOverride, fingerprint, screenState, fileNameFor, isModeratorRole, clampDims, DEFAULT_DIMS, type Dims } from './geometry'
+import { topicLinesFor, zoomCrop, clampHeadScale, layoutFor, rowSizes, cardColumns, canvasWidthFor, rowWidth, applyCardOverride, fingerprint, screenState, fileNameFor, isModeratorRole, clampDims, DEFAULT_DIMS, type Dims } from './geometry'
 
 const CARD = DEFAULT_DIMS.photoW, GAP = DEFAULT_DIMS.gap, PAD = DEFAULT_DIMS.pad
 
@@ -118,4 +118,8 @@ test('card-mode defaults: moderator tag follows the card width, sizes come from 
   assert.equal(typeDefaults('topic', ctx).color, '#222222')
   assert.equal(typeDefaults('name', ctx).upper, true)
   assert.equal(typeDefaults('title', ctx).upper, false)
+})
+
+test('only a fireside chat holds its title to two lines', () => {
+  assert.equal(topicLinesFor('fireside'), 2); assert.equal(topicLinesFor('panel'), 3); assert.equal(topicLinesFor('keynote'), 3)
 })

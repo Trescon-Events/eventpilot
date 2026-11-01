@@ -24,3 +24,12 @@ test('all blank / standby reset every table; identify sets a time window', () =>
   const i = applyCommand(empty, { action: 'identify', seconds: 15 }, 1000)
   assert.ok('state' in i && i.state.identify_until === 16000)
 })
+
+test('a show command remembers what it was made from; "all" forgets it', () => {
+  const base = { tables: {} }
+  const show = applyCommand(base, { action: 'show', tables: [{ n: 1, mode: 'card', name: 'Farah', moderator: true }], session: 'S', sent: { session_id: '293bde73-22c0-40f0-b621-6306c9266d6a', seats: [{ id: 'sp1', name: 'Farah', moderator: true, table: 1 }] } })
+  assert.ok('state' in show && show.state.sent?.seats[0].table === 1)
+  const bad = applyCommand(base, { action: 'show', tables: [{ n: 1, mode: 'card', name: 'Farah' }], sent: { session_id: 'nope', seats: [] } })
+  assert.ok('state' in bad && bad.state.sent === undefined)
+  if ('state' in show) { const all = applyCommand(show.state, { action: 'all', mode: 'standby' }); assert.ok('state' in all && all.state.sent === undefined) }
+})

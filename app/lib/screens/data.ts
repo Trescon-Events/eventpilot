@@ -6,7 +6,7 @@ import type { HeadBox } from '@/app/lib/media/face-alignment'
 import { websitePhotoParts } from '@/app/lib/media/website-photo-render'
 import { PANEL_DEFAULTS, clampTypeStyles, type Panel, type TypeStyles } from './dims'
 import { buildSnapshot, lookSignature, type Snapshot } from './av-state'
-import { applyCardOverride, clampDims, clampHeadScale, fileNameFor, fingerprint, isModeratorRole, layoutFor, screenState, type CardStyle, type CardText, type Dims, type Overrides, type ScreenLayout, type ScreenState } from './geometry'
+import { applyCardOverride, clampDims, clampHeadScale, fileNameFor, fingerprint, isModeratorRole, layoutFor, screenState, type CardStyle, type CardText, type Dims, type Overrides, type ScreenLayout, type ScreenState, topicLinesFor } from './geometry'
 
 /* Stage Screens — reads the agenda, the speakers and the look settings, and works out for every session what its graphic would contain right now,
    whether the stored PNG still matches, and what the AV file is called. The agenda has no change history for speaker assignments, so "changed" comes
@@ -140,6 +140,7 @@ export async function loadScreenSessions(eventId: string, only?: { sessionIds?: 
       topic: overrides.hide_topic ? '' : topic,
       cards: cards.map(c => ({ speakerId: c.speakerId, moderator: c.moderator, text: c.text, photo: `${c.photoUrl ?? ''}|${c.head ? `${c.head.x.toFixed(3)},${c.head.y.toFixed(3)}` : ''}` })),
       look: lookPart,
+      ...(layout === 'fireside' ? { topicLines: topicLinesFor(layout) } : {}),   // a fireside screen drawn before the two-line title rule shows as Changed and is redrawn
     })
     const stage = s.track_id ? stageName.get(s.track_id) ?? null : null
     const startHM = a.slice(11, 16), endHM = b.slice(11, 16)

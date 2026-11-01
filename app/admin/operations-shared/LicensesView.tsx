@@ -254,6 +254,19 @@ function BatchCard({ batch: b, onCancel, onChanged, onError }: { batch: Batch; o
     }
     onChanged()
   }
+  // The whole batch as one ZIP for the Ops team to pass on when the vendor's own download does not work. Checked first so a refusal shows as a message; the browser then saves the file itself.
+  async function downloadAll() {
+    if (!window.confirm(`This downloads the passport and ID copies of all ${b.items.length} speaker${b.items.length === 1 ? '' : 's'} in Batch ${b.batch_number} to your computer.\n\nSend it to the vendor only through a secure route, and make sure it is deleted from your computer afterwards. This download is recorded.`)) return
+    setBusy(true); onError(null)
+    try {
+      const res = await fetch(`/api/events/operations/licenses/batches/${b.id}/download?check=1`)
+      if (!res.ok) { onError((await res.json().catch(() => null))?.error ?? 'Could not prepare the download.'); return }
+      const a = document.createElement('a'); a.href = `/api/events/operations/licenses/batches/${b.id}/download`; a.download = `Batch-${b.batch_number}-all.zip`
+      document.body.appendChild(a); a.click(); a.remove()
+      notify('The download has started; it can take a minute. Follow it in your browser\'s downloads.', 'success')
+    } catch { onError('That did not go through. Please try again.') }
+    finally { setBusy(false) }
+  }
   async function attachLicense(file: File | undefined) {
     if (!file) return
     setBusy(true); onError(null)
@@ -277,6 +290,7 @@ function BatchCard({ batch: b, onCancel, onChanged, onError }: { batch: Batch; o
         {flagged > 0 && <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--amber)' }}>⚠ {flagged} changed since batch</span>}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button onClick={() => setOpen(o => !o)} style={btnGhost}>{open ? 'Hide details' : 'Details'}</button>
+          {b.status !== 'cancelled' && b.items.length > 0 && <button onClick={downloadAll} disabled={busy} title="The whole batch as one ZIP, to send to the vendor separately" style={btnGhost}>{busy ? 'Preparing…' : 'Download ZIP'}</button>}
           {b.status === 'draft' && <><button onClick={() => setPending('send')} disabled={busy} style={btnPrimary}>Send to vendor</button><button onClick={onCancel} style={btnGhost}>Cancel batch</button></>}
           {live && <><button onClick={() => setPending('extend')} style={btnGhost}>Extend</button><button onClick={() => setPending('revoke')} style={btnGhost}>Revoke access</button></>}
           {(b.status === 'completed' || b.status === 'expired') && <button onClick={() => setPending('reopen')} style={btnGhost}>Reopen</button>}

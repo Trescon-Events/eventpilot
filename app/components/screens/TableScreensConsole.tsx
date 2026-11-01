@@ -2,9 +2,11 @@
 
 /* eslint-disable @next/next/no-img-element -- the card PNG itself is the content; no optimisation wanted */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { flashTitle, playChime, primeAudio } from '@/app/lib/screens/alerts'
 import { DEFAULT_TABLE_COUNT, MAX_TABLES, parseTableOrder, seatPlan, standbyFileName, tableFileName } from '@/app/lib/screens/tables'
-import type { LiveView } from '@/app/lib/screens/table-live'
+import type { LiveView, SentInfo } from '@/app/lib/screens/table-live'
+import { diffSeats, seatsOf } from '@/app/lib/screens/table-changes'
 
 /* Table Screens (Phase 1) — the console for the small screens on the tables beside each speaker's seat. Used on the producers' Stage Screens page and on the AV console's private link.
 
@@ -16,7 +18,9 @@ import type { LiveView } from '@/app/lib/screens/table-live'
 type Template = { id: string; name: string; width: number; height: number; standby: boolean; version: string }
 type SeatIn = { speakerId: string; name: string; moderator: boolean }
 type Session = { id: string; topic: string; date: string; startHM: string; endHM: string; stage: string | null; seats: SeatIn[] }
-type Payload = { table_count: number; templates: Template[]; sessions: Session[] }
+type Change = { status: 'ok' | 'changed' | 'notice' | 'new' | 'undownloaded'; reasons: string[] }
+type Removed = { id: string; topic: string; date: string; startHM: string; stage: string }
+type Payload = { table_count: number; templates: Template[]; sessions: Session[]; changes?: { baseline_at: string | null; by_session: Record<string, Change>; removed: Removed[] } | null; link_label?: string | null }
 type Seat = { name: string; moderator: boolean; manual?: boolean }   // manual = added here for a substitute; only those can be flagged Moderator by hand — an agenda speaker's tag comes from their record
 
 const btn = { display: 'inline-block', padding: '10px 18px', borderRadius: '10px', border: 'none', fontWeight: 800, fontSize: '14px', cursor: 'pointer', textDecoration: 'none', fontFamily: 'inherit' } as const
@@ -31,7 +35,7 @@ function readCount(): number {
 type LiveCmd = Record<string, unknown>
 
 /* Live control (Phase 2): sends the cards to the tables through the Table Hub program on the technician's laptop, and shows whether the program and each table screen are online. */
-function LivePanel({ url, query, canSend, buildShow, tableCount, standbyId, programLinks }: { url: (p: string, e?: Record<string, string>) => string; query: string; canSend: boolean; buildShow: () => LiveCmd | null; tableCount: number; standbyId?: string; programLinks: boolean }) {
+function LivePanel({ url, query, canSend, buildShow, tableCount, standbyId, programLinks, sessions, onReview }: { url: (p: string, e?: Record<string, string>) => string; query: string; canSend: boolean; buildShow: () => LiveCmd | null; tableCount: number; standbyId?: string; programLinks: boolean ; sessions: Session[]; onReview: (sent: SentInfo) => void }) {
   const [live, setLive] = useState<LiveView | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -61,6 +65,12 @@ function LivePanel({ url, query, canSend, buildShow, tableCount, standbyId, prog
   const ago = (ms: number | null | undefined) => ms == null ? null : ms < 8000 ? 'online' : ms < 60000 ? `${Math.round(ms / 1000)}s ago` : 'offline'
   const chip = (on: boolean) => ({ fontSize: '12px', fontWeight: 800, padding: '3px 10px', whiteSpace: 'nowrap', borderRadius: '999px', background: on ? 'var(--teal)' : 'var(--border)', color: on ? 'white' : 'var(--ink3)' }) as const
   const show = buildShow()
+  // The tables show what was sent; if the agenda has changed for that session since, say so (nothing is ever pushed to the tables by itself).
+  const sent = live?.state.sent
+  const sentSession = sent ? sessions.find(x => x.id === sent.session_id) : undefined
+  const sentChanges = !sent ? [] : sentSession && sentSession.seats.length
+    ? diffSeats(sent.seats.map(x => ({ id: x.id, name: x.name, moderator: x.moderator })), seatsOf(sentSession))
+    : ['This session is no longer in the agenda, or has no speakers']
   // The picture each table is showing right now (the same card the program fetched), drawn small; a new send changes the address, so it is never a stale one.
   const liveImg = (img: string) => { const q = new URLSearchParams(img.split('?')[1] ?? ''); const extra: Record<string, string> = {}; q.forEach((v, k) => { extra[k] = v }); extra.scale = '0.2'; extra.v = String(live?.seq ?? 0); return url('/card', extra) }
   return (
@@ -108,6 +118,13 @@ function LivePanel({ url, query, canSend, buildShow, tableCount, standbyId, prog
       )}
       {p?.online && p.lan.length > 0 && <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>Table PCs open: {p.lan.map(a => `${a}/table/N`).join('  or  ')}</div>}
 
+      {sent && sentChanges.length > 0 && (
+        <div role="alert" style={{ padding: '12px 14px', borderRadius: '10px', background: 'var(--red)', color: 'white', display: 'grid', gap: '6px' }}>
+          <div style={{ fontWeight: 900 }}>The agenda changed since you sent this to the tables{live?.state.sent_at ? ` (${new Date(live.state.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})` : ''}: {live?.state.session}</div>
+          <div style={{ fontSize: '13.5px' }}>{sentChanges.join(' · ')}</div>
+          <div><button onClick={() => onReview(sent)} style={{ ...btn, background: 'white', color: 'var(--red)', padding: '8px 16px' }}>Open this session to review and send again</button></div>
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '8px' }}>
         {Array.from({ length: tableCount }, (_, i) => i + 1).map(n => {
           const t = p?.tables[String(n)], w = ago(t?.seen_ms_ago), on = w === 'online', showing = live?.state.tables[String(n)]
@@ -167,7 +184,7 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
   }, [url])
   useEffect(() => { let cancelled = false; void (async () => { if (!cancelled) await load() })(); return () => { cancelled = true } }, [load])
   useEffect(() => {   // the agenda can change while the technician is waiting for the stage manager: look again every 30 s
-    const t = setInterval(() => { if (!document.hidden) void load() }, 30_000)
+    const t = setInterval(() => { if (!document.hidden) void load() }, 15_000)
     return () => clearInterval(t)
   }, [load])
 
@@ -177,6 +194,25 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
   const dlSessions = useMemo(() => (data?.sessions ?? []).filter(s => s.seats.length && (dlDay === 'all' || s.date === dlDay) && (!dlStage || s.stage === dlStage)), [data, dlDay, dlStage])
   const dlCards = dlSessions.reduce((n, s) => n + s.seats.length, 0)
   const session = data?.sessions.find(s => s.id === sessionId) ?? null
+  // What changed in the agenda since the technician's link last downloaded (the technician sees it flash; the producers see the same list for that link).
+  const alertsOn = apiBase.includes('/api/public/')
+  const changeOf = (id: string): Change | undefined => data?.changes?.by_session[id]
+  const outstanding = useMemo(() => {
+    const ch = data?.changes; if (!ch) return { items: [] as { id: string; label: string; reasons: string[]; status: string }[], removed: [] as Removed[] }
+    const items = (data?.sessions ?? []).filter(s => ch.by_session[s.id]?.status === 'changed' || ch.by_session[s.id]?.status === 'new')
+      .sort((a, b) => (a.date + a.startHM).localeCompare(b.date + b.startHM))
+      .map(s => ({ id: s.id, label: `${s.date} ${s.startHM}${s.stage ? ` · ${s.stage}` : ''} — ${s.topic}`, reasons: ch.by_session[s.id].reasons, status: ch.by_session[s.id].status }))
+    return { items, removed: ch.removed }
+  }, [data])
+  const outstandingCount = outstanding.items.length + outstanding.removed.length
+  const seenAlert = useRef<Set<string> | null>(null)
+  useEffect(() => {   // a chime when something newly needs attention (never on the first load); the tab title flashes while it is outstanding
+    if (!alertsOn || !data) return
+    const ids = new Set([...outstanding.items.map(i => `${i.id}|${i.reasons.join(';')}`), ...outstanding.removed.map(r => `gone|${r.id}`)])
+    const prev = seenAlert.current; seenAlert.current = ids
+    if (prev && [...ids].some(i => !prev.has(i))) playChime()
+  }, [alertsOn, data, outstanding])
+  useEffect(() => { if (!alertsOn || !outstandingCount) return; return flashTitle(`(${outstandingCount}) CHANGED — table cards`, 'Table cards') }, [alertsOn, outstandingCount])
   const cardTemplates = (data?.templates ?? []).filter(t => !t.standby), standbyTemplates = (data?.templates ?? []).filter(t => t.standby)
   const tpl = cardTemplates.find(t => t.id === templateId) ?? cardTemplates[0] ?? null
   const sb = standbyTemplates.find(t => t.id === standbyId) ?? standbyTemplates[0] ?? null
@@ -203,6 +239,19 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
   function changeCount(n: number) { const c = Math.min(MAX_TABLES, Math.max(1, n || 1)); setTableCount(c); try { localStorage.setItem('tables:count', String(c)) } catch { /* private window */ } }
 
   // Every speaker card, no table numbers needed, in the agenda's order (Seat 1 = the moderator): one session, or a whole stage-day / stage / day. Files are named Seat1_Moderator_Name.png.
+  async function downloadChanged() {
+    setDlBusy('changed'); setNote(null)
+    try {
+      const r = await fetch(url('/cards'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ changed_only: true, template: tpl?.id, standby_template: sb?.id, ...(query ? Object.fromEntries(new URLSearchParams(query)) : {}) }) })
+      if (!r.ok) { setNote((await r.json().catch(() => ({}))).error ?? 'Could not make the download.'); setDlBusy(null); return }
+      const blob = await r.blob()
+      const name = /filename="([^"]+)"/.exec(r.headers.get('Content-Disposition') ?? '')?.[1] ?? 'changed-cards.zip'
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10_000)
+      setTimeout(() => void load(), 1500)   // the server has just noted what was downloaded
+    } catch { setNote('The download failed — check the connection and try again.') }
+    setDlBusy(null)
+  }
+
   async function downloadCards(what: { sessionId?: string }) {
     const key = what.sessionId ?? 'all'
     setDlBusy(key); setNote(null)
@@ -213,6 +262,7 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
       const blob = await r.blob()
       const name = /filename="([^"]+)"/.exec(r.headers.get('Content-Disposition') ?? '')?.[1] ?? 'cards.zip'
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10_000)
+      setTimeout(() => void load(), 1500)
     } catch { setNote('The download failed — check the connection and try again.') }
     setDlBusy(null)
   }
@@ -221,12 +271,13 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
     if (!session) return
     setBusy(true); setNote(null)
     try {
-      const body = { template: tpl?.id, standby_template: sb?.id, table_count: tableCount, session: { date: session.date, startHM: session.startHM, topic: session.topic }, seats: plan.seats.map(s => ({ name: s.name, moderator: s.moderator, table: s.table })) }
+      const body = { session_id: session.id, template: tpl?.id, standby_template: sb?.id, table_count: tableCount, session: { date: session.date, startHM: session.startHM, topic: session.topic }, seats: plan.seats.map(s => ({ name: s.name, moderator: s.moderator, table: s.table })) }
       const r = await fetch(url('/zip'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, ...(query ? Object.fromEntries(new URLSearchParams(query)) : {}) }) })
       if (!r.ok) { setNote((await r.json().catch(() => ({}))).error ?? 'Could not make the download.'); setBusy(false); return }
       const blob = await r.blob()
       const name = /filename="([^"]+)"/.exec(r.headers.get('Content-Disposition') ?? '')?.[1] ?? 'table-screens.zip'
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10_000)
+      setTimeout(() => void load(), 1500)
     } catch { setNote('The download failed — check the connection and try again.') }
     setBusy(false)
   }
@@ -243,7 +294,7 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
   )
 
   return (
-    <div style={{ display: 'grid', gap: '14px' }}>
+    <div style={{ display: 'grid', gap: '14px' }} onPointerDown={alertsOn ? primeAudio : undefined}>
       <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ fontSize: '14px', color: 'var(--ink2)', lineHeight: 1.6, flex: '1 1 320px' }}>
           1. Pick the session. 2. When the stage manager says which table is in which seat, type the table numbers <strong>in seat order, from the left</strong> (moderator first). 3. Check the cards and download them for your app.
@@ -254,6 +305,21 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
         {['all', ...days].map(d => <button key={d} onClick={() => setDay(d)} style={{ padding: '6px 14px', borderRadius: '999px', border: '1.5px solid var(--border)', background: day === d ? 'var(--ink)' : 'transparent', color: day === d ? 'var(--card)' : 'var(--ink2)', fontWeight: 700, fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' }}>{d === 'all' ? 'All days' : d}</button>)}
       </div>
+
+      {outstandingCount > 0 && (
+        <div role="alert" style={{ padding: '14px 16px', borderRadius: '12px', background: alertsOn ? 'var(--red)' : 'var(--amber)', color: 'white', display: 'grid', gap: '8px' }}>
+          <div style={{ fontWeight: 900, fontSize: '16px' }}>{alertsOn ? 'The agenda changed since your last download' : `Since the technician${data.link_label ? ` (${data.link_label})` : ''} last downloaded`}: {outstandingCount} session{outstandingCount === 1 ? '' : 's'} to update</div>
+          <div style={{ display: 'grid', gap: '6px', fontSize: '13.5px' }}>
+            {outstanding.items.map(i => (
+              <div key={i.id}><strong>{i.status === 'new' ? 'NEW · ' : 'CHANGED · '}{i.label}</strong>{i.reasons.length > 0 && <div style={{ opacity: 0.95 }}>{i.reasons.join(' · ')}</div>}</div>
+            ))}
+            {outstanding.removed.map(r => <div key={r.id}><strong>REMOVED · {r.date} {r.startHM}{r.stage ? ` · ${r.stage}` : ''} — {r.topic}</strong><div style={{ opacity: 0.95 }}>No longer in the agenda, or has no speakers: delete its cards.</div></div>)}
+          </div>
+          {alertsOn && outstanding.items.length > 0 && (
+            <div><button onClick={downloadChanged} disabled={!!dlBusy} style={{ ...btn, background: 'white', color: 'var(--red)', fontSize: '15px', padding: '12px 20px' }}>{dlBusy === 'changed' ? 'Making the zip…' : `Download the changed cards only (${outstanding.items.length} session${outstanding.items.length === 1 ? '' : 's'})`}</button></div>
+          )}
+        </div>
+      )}
 
       <div style={{ padding: '14px 16px', borderRadius: '12px', background: 'var(--card)', border: '1px solid var(--border)', display: 'grid', gap: '10px' }}>
         <div style={{ fontSize: '16px', fontWeight: 800 }}>Download all the cards</div>
@@ -284,7 +350,7 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
         <label style={{ fontWeight: 800, fontSize: '13px' }}>Session</label>
         <select value={sessionId} onChange={e => pickSession(e.target.value)} style={{ ...input, maxWidth: '100%' }}>
           <option value="">Choose a session…</option>
-          {shown.map(s => <option key={s.id} value={s.id}>{s.date} {s.startHM}{showStage && s.stage ? ` · ${s.stage}` : ''} — {s.topic.slice(0, 90)} ({s.seats.length})</option>)}
+          {shown.map(s => <option key={s.id} value={s.id}>{changeOf(s.id)?.status === 'changed' ? '● CHANGED · ' : changeOf(s.id)?.status === 'new' ? '● NEW · ' : ''}{s.date} {s.startHM}{showStage && s.stage ? ` · ${s.stage}` : ''} — {s.topic.slice(0, 90)} ({s.seats.length})</option>)}
         </select>
         {!shown.length && <div style={{ color: 'var(--ink3)', fontSize: '13px' }}>No sessions with speakers yet.</div>}
       </div>
@@ -349,10 +415,18 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
               <label style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>Standby <select value={sb?.id ?? ''} onChange={e => setStandbyId(e.target.value)} style={input}>{standbyTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
             )}
           </div>
-          <LivePanel url={url} query={query} canSend={!hasProblem} tableCount={tableCount} standbyId={sb?.id} programLinks={apiBase.includes('/api/public/')}
+          <LivePanel url={url} query={query} canSend={!hasProblem} tableCount={tableCount} standbyId={sb?.id} programLinks={apiBase.includes('/api/public/')} sessions={data.sessions}
+            onReview={sent => {
+              const cur = data.sessions.find(x => x.id === sent.session_id); if (!cur) return
+              setSessionId(cur.id); setNote(null)
+              const tables = cur.seats.map(x => sent.seats.find(y => y.id === x.speakerId)?.table ?? null)
+              setOrderText(tables.every(t => t !== null) ? tables.join(' ') : '')   // the same tables as before, when every seat is still a person who was sent
+            }}
             buildShow={() => {
               if (hasProblem || (!ready.length)) return null
               return { action: 'show', template: tpl?.id, standby_template: sb?.id, session: session.topic,
+                // the AGENDA's names and tags (not a substitute typed here), so only a real agenda change raises the warning later
+                sent: { session_id: session.id, seats: session.seats.map((a, i) => ({ id: a.speakerId, name: a.name, moderator: a.moderator, table: plan.seats[i]?.table ?? null })) },
                 tables: [...ready.map(s => ({ n: s.table, mode: 'card', name: s.name.trim(), moderator: s.moderator })), ...plan.standby.map(n => ({ n, mode: sb ? 'standby' : 'blank' }))] }
             }} />
           {!sb && <div style={{ fontSize: '13px', color: 'var(--amber)' }}>No standby screen template has been made yet, so the zip has only the speaker cards. The branding team adds one under Variants › Table Screen — standby.</div>}

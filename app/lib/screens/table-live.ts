@@ -11,7 +11,9 @@ export const MIN_PROGRAM_VERSION = 1
 
 export type TableMode = 'card' | 'standby' | 'blank'
 export type TableShow = { mode: TableMode; name?: string; moderator?: boolean; img?: string }
-export type LiveState = { tables: Record<string, TableShow>; template?: string; standby_template?: string; session?: string; identify_until?: number; sent_at?: string }
+/** What a "Send to tables" was made from, so the console can tell when the agenda has changed since: the session and who sat at which table. */
+export type SentInfo = { session_id: string; seats: { id: string; name: string; moderator: boolean; table: number | null }[] }
+export type LiveState = { tables: Record<string, TableShow>; template?: string; standby_template?: string; session?: string; identify_until?: number; sent_at?: string; sent?: SentInfo }
 export type ProgramStatus = { version?: number; lan?: string[]; seen?: Record<string, number>; has?: Record<string, string> }
 
 export type LiveView = {
@@ -24,7 +26,7 @@ const clampName = (v: unknown) => (typeof v === 'string' ? v.replace(/\s+/g, ' '
 const ONLINE_MS = 12_000
 
 export type LiveCommand =
-  | { action: 'show'; tables: { n: number; mode: TableMode; name?: string; moderator?: boolean }[]; template?: string; standby_template?: string; session?: string }
+  | { action: 'show'; tables: { n: number; mode: TableMode; name?: string; moderator?: boolean }[]; template?: string; standby_template?: string; session?: string; sent?: SentInfo }
   | { action: 'all'; mode: 'standby' | 'blank'; table_count?: number; standby_template?: string }
   | { action: 'identify'; seconds?: number }
 
@@ -45,7 +47,7 @@ export function applyCommand(prev: LiveState, cmd: LiveCommand, now = Date.now()
     const sb = typeof cmd.standby_template === 'string' ? cmd.standby_template : state.standby_template
     state.tables = {}
     for (let n = 1; n <= count; n++) state.tables[String(n)] = { mode: cmd.mode, img: imgFor({ mode: cmd.mode }, undefined, sb) }
-    state.standby_template = sb; state.session = undefined; state.sent_at = new Date(now).toISOString()
+    state.standby_template = sb; state.session = undefined; state.sent = undefined; state.sent_at = new Date(now).toISOString()
     return { state }
   }
   if (cmd.action === 'show') {
@@ -64,6 +66,10 @@ export function applyCommand(prev: LiveState, cmd: LiveCommand, now = Date.now()
       state.tables[String(n)] = { mode, ...(mode === 'card' ? { name, moderator: t.moderator === true } : {}), img: imgFor({ mode, name, moderator: t.moderator === true }, state.template, state.standby_template) }
     }
     state.session = clampName(cmd.session) || undefined; state.sent_at = new Date(now).toISOString()
+    const sent = cmd.sent
+    state.sent = sent && /^[0-9a-f-]{36}$/i.test(String(sent.session_id)) && Array.isArray(sent.seats)
+      ? { session_id: String(sent.session_id), seats: sent.seats.slice(0, 20).map(x => ({ id: String(x.id ?? '').slice(0, 64), name: clampName(x.name), moderator: x.moderator === true, table: Number.isInteger(x.table) ? Number(x.table) : null })) }
+      : undefined
     return { state }
   }
   return { error: 'Unknown command.' }

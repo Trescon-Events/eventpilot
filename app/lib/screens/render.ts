@@ -2,7 +2,7 @@ import sharp from 'sharp'
 import { createCanvas, loadImage, type SKRSContext2D } from '@napi-rs/canvas'
 import { renderWebsitePhoto, websitePhotoParts } from '@/app/lib/media/website-photo-render'
 import { compositeAnnouncement, planTextLayer, type TextLayer, type TextLayerPlan, type Variant } from '@/app/lib/announcements/composite'
-import { canvasWidthFor, cardColumns, rowSizes, rowWidth, zoomCrop, type Dims } from './geometry'
+import { canvasWidthFor, cardColumns, rowSizes, rowWidth, topicLinesFor, zoomCrop, type Dims } from './geometry'
 import type { ScreenCard, ScreenLook, ScreenSession } from './data'
 import { typeDefaults, type TypeElement } from './dims'
 
@@ -130,7 +130,7 @@ export async function renderScreen(session: ScreenSession, look: ScreenLook): Pr
 
   const topicW = Math.max(sizes.length ? Math.max(...sizes.map(n => rowWidth(n, d))) : CARD, d.minTopicW)
   const topicText = session.hideTopic ? '' : session.topic
-  const topicPlan = topicText ? await planTextLayer(layerFor(look, { id: 'topic', width: topicW, maxLines: 3, size: topicSt.size, weight: topicSt.weight, color: topicSt.color, align: 'center', font: topicSt.font }), cased(topicSt, topicText)) : null
+  const topicPlan = topicText ? await planTextLayer(layerFor(look, { id: 'topic', width: topicW, maxLines: topicLinesFor(session.layout), size: topicSt.size, weight: topicSt.weight, color: topicSt.color, align: 'center', font: topicSt.font }), cased(topicSt, topicText)) : null
   const topicH = topicPlan ? topicPlan.lines.length * topicPlan.lineHeight : 0
 
   // Row geometry: every card in a row shares the photo line; the row is as tall as its longest text stack.

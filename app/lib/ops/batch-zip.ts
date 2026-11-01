@@ -32,8 +32,8 @@ function csvCell(v: string | null | undefined): string {
   return `"${s.replace(/"/g, '""')}"`
 }
 
-/** `part` is 1-based and required when the batch has more than one part. Each part is a complete ZIP of its own speakers (README + manifest.csv + a folder per speaker; folder numbers continue across parts). */
-export async function prepareBatchZip(batchId: string, deleteBy?: string | null, part?: number): Promise<PreparedZip> {
+/** `part` is 1-based and required when the batch has more than one part; 'all' (the Ops team's download) is the whole batch in one ZIP. Each part is a complete ZIP of its own speakers (README + manifest.csv + a folder per speaker; folder numbers continue across parts). */
+export async function prepareBatchZip(batchId: string, deleteBy?: string | null, part?: number | 'all'): Promise<PreparedZip> {
   const { data: batch } = await supabaseAdmin.from('ops_license_batches').select('batch_number').eq('id', batchId).maybeSingle()
   if (!batch) return { ok: false, message: 'Batch not found.' }
 
@@ -41,12 +41,13 @@ export async function prepareBatchZip(batchId: string, deleteBy?: string | null,
     .select('speaker_name, job_title, company, country, is_uae_resident, passport_doc_id, national_id_doc_id')
     .eq('batch_id', batchId).eq('active', true).order('speaker_name')
   if (!allItems?.length) return { ok: false, message: 'This batch has no speakers.' }
-  const partCount = partCountOf(allItems.length)
+  const whole = part === 'all'
+  const partCount = whole ? 1 : partCountOf(allItems.length)
   if (partCount > 1 && part === undefined) return { ok: false, message: 'This batch is downloaded in parts. Please choose which part.' }
-  const partNo = part ?? 1
+  const partNo = whole ? 1 : (part ?? 1)
   if (!Number.isInteger(partNo) || partNo < 1 || partNo > partCount) return { ok: false, message: 'That part does not exist.' }
-  const offset = (partNo - 1) * PART_SIZE
-  const items = allItems.slice(offset, offset + PART_SIZE)
+  const offset = whole ? 0 : (partNo - 1) * PART_SIZE
+  const items = whole ? allItems : allItems.slice(offset, offset + PART_SIZE)
 
   const docIds = items.flatMap(i => [i.passport_doc_id, i.national_id_doc_id]).filter((d): d is string => !!d)
   const { data: docs } = await supabaseAdmin.from('speaker_sensitive_documents')
