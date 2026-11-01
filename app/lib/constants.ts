@@ -35,6 +35,7 @@ export const DEPARTMENTS = [
 // equivalent brand token's literal value) so each role color stays readable
 // once tinted via tint()/mRole and rendered as text on a dark card — see
 // contrast pass, Jul 2026.
+/* eslint-disable no-restricted-syntax -- role colours are literal values by design (see the note above), tinted at use */
 export const ROLE_PRESETS = [
   { key: 'pilot',       label: 'Pilot',       color: '#5AA9F2', note: 'You are the Pilot for this project — you own the scope decisions, drive the PRD, and coordinate the build with Madhu.' },
   { key: 'co_pilot',    label: 'Co-Pilot',    color: '#F472B6', note: 'You are the Co-Pilot — you support the Pilot on every scope decision and share responsibility for driving the PRD with Madhu.' },
@@ -43,6 +44,7 @@ export const ROLE_PRESETS = [
   { key: 'collaborator',label: 'Collaborator',color: '#12C9BD', note: 'You are a Collaborator on this project — you\'ll be looped in on relevant decisions and asked for input as it progresses.' },
   { key: 'builder',     label: 'Builder',     color: '#A78BFA', note: 'You are the Builder for this project — you code it, and Build Requests submitted for this project are routed to you.' },
 ] as const
+/* eslint-enable no-restricted-syntax */
 
 export const TOOL_GRANT_OPTIONS = [
   { key: 'website_builder', label: 'Website Builder' },
