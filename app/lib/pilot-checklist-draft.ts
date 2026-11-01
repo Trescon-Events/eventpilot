@@ -27,7 +27,7 @@ const CATEGORIES = ['prerequisite', 'scope_decision', 'content_prep', 'coordinat
 export async function draftPilotChecklist(input: DraftChecklistInput): Promise<Record<string, DraftChecklistItem[]>> {
   const memberList = input.members.map(m => `- ${m.name} (${m.roleLabel}) — id: "${m.id}"`).join('\n')
 
-  const prompt = `You are drafting the initial onboarding checklist for a new "Pilot Project" inside EventPilot, Trescon's internal staff platform. A Pilot Project is a micro-tool build led by a subject-matter expert ("Pilot") in collaboration with an engineer named Durga. The Pilot owns scope, a Co-Pilot (if present) supports them, a Consulting member contributes domain expertise, and a Tracker maintains visibility and escalates blockers. This checklist is a DRAFT — a human will review and edit every item before it's sent, so it's fine to be specific and opinionated even if you have to guess at details.
+  const prompt = `You are drafting the initial onboarding checklist for a new "Pilot Project" inside EventPilot, Trescon's internal staff platform. A Pilot Project is a micro-tool build led by a subject-matter expert ("Pilot") in collaboration with the platform owner, Madhu. The Pilot owns scope, a Co-Pilot (if present) supports them, a Consulting member contributes domain expertise, and a Tracker maintains visibility and escalates blockers. This checklist is a DRAFT — a human will review and edit every item before it's sent, so it's fine to be specific and opinionated even if you have to guess at details.
 
 PROJECT NAME: ${input.projectName}
 PROJECT DESCRIPTION: ${input.projectDescription}
@@ -36,9 +36,9 @@ MEMBERS (draft one checklist array per member, keyed by their id):
 ${memberList}
 
 For each member, write 2-7 checklist items appropriate to their role:
-- The Pilot (and Co-Pilot, if present) should get: reading the SME Context Guide (a "prerequisite"), scheduling an alignment call with Durga to decide Phase 1 scope (a "scope_decision"), 2-4 concrete "scope_decision" items naming the actual open questions for THIS project (infer these from the project description — e.g. standalone vs. integrated, which sub-feature is Phase 1, what data model choices matter), any "content_prep" items for assets/templates/examples that would need curating, and a final "prerequisite" item to write the Phase 1 PRD prompt for Durga.
+- The Pilot (and Co-Pilot, if present) should get: reading the SME Context Guide (a "prerequisite"), scheduling an alignment call with Madhu to decide Phase 1 scope (a "scope_decision"), 2-4 concrete "scope_decision" items naming the actual open questions for THIS project (infer these from the project description — e.g. standalone vs. integrated, which sub-feature is Phase 1, what data model choices matter), any "content_prep" items for assets/templates/examples that would need curating, and a final "prerequisite" item to write the Phase 1 PRD prompt for Madhu.
 - Consulting members get 1-3 items: sharing relevant domain feedback ("content_prep") and joining the alignment call or reviewing the PRD draft ("coordination").
-- Tracking members get exactly 2 items: logging into EventPilot to check the Pilot Projects page ("prerequisite"), and setting up a check-in cadence with the Pilot — always ending with "Flag any blockers directly to Durga (dc@tresconglobal.com) — not to Madhu." ("coordination").
+- Tracking members get exactly 2 items: logging into EventPilot to check the Pilot Projects page ("prerequisite"), and setting up a check-in cadence with the Pilot — always ending with "Flag any blockers directly to Madhu (md@tresconglobal.com)." ("coordination").
 
 Each item needs: "title" (short, imperative, under 12 words), "description" (1-2 sentences, specific to this project — not generic filler), and "category" (one of: ${CATEGORIES.join(' | ')}).
 

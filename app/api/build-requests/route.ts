@@ -133,12 +133,12 @@ export async function POST(req: NextRequest) {
   if (fileRecords.length)
     await supabaseAdmin.from('build_request_files').insert(fileRecords)
 
-  // Notify the project's builder (falls back to Durga if the project has none set)
+  // Notify the project's builder (falls back to Madhu if the project has none set)
   const [{ data: staff }, { data: project }] = await Promise.all([
     supabaseAdmin.from('staff_members').select('name, email').eq('id', session.sid).single(),
     supabaseAdmin.from('pilot_projects').select('name, builder_id').eq('id', projectId).single(),
   ])
-  let builderEmail = 'dc@tresconglobal.com'
+  let builderEmail = 'md@tresconglobal.com'
   if (project?.builder_id) {
     const { data: builder } = await supabaseAdmin
       .from('staff_members').select('email').eq('id', project.builder_id).single()

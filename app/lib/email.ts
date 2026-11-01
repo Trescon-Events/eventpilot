@@ -196,7 +196,7 @@ export async function sendAccessRequest({
 
   return getResend().emails.send({
     from:    FROM,
-    to:      ['md@tresconglobal.com', 'dc@tresconglobal.com'],
+    to:      ['md@tresconglobal.com'],
     subject: `Access request: ${requesterEmail}`,
     html,
   })
@@ -264,11 +264,8 @@ export async function sendToolAccessRequest({
 
   return getResend().emails.send({
     from:    FROM,
-    // Both admins now (2026-08-03) — previously Durga only, which meant
-    // Madhu never saw these at all regardless of whether the send itself
-    // succeeded (real gap surfaced when Fouzan + 4 others' requests sat
-    // unresolved for weeks with neither admin aware).
-    to:      ['dc@tresconglobal.com', 'md@tresconglobal.com'],
+    // Madhu only (2026-10-31): Durga's access was removed on 28 Oct 2026, so his address no longer receives these.
+    to:      ['md@tresconglobal.com'],
     subject: `Access request: ${staffName} → ${tool}`,
     html,
   })
@@ -456,10 +453,10 @@ export async function sendPilotAssignment({
   const roleLabel = roleLabelOverride ?? roleLabels[myRole] ?? myRole
 
   const roleNotes: Record<string, string> = {
-    pilot:      'You are the Pilot for this project — you own the scope decisions, drive the PRD, and coordinate the build with Durga.',
-    co_pilot:   'You are the Co-Pilot — you support the Pilot on every scope decision and share responsibility for driving the PRD with Durga.',
+    pilot:      'You are the Pilot for this project — you own the scope decisions, drive the PRD, and coordinate the build with Madhu.',
+    co_pilot:   'You are the Co-Pilot — you support the Pilot on every scope decision and share responsibility for driving the PRD with Madhu.',
     consulting: 'You are a Consulting member — your domain expertise will shape the requirements. The Pilot will bring you in for your specific inputs.',
-    tracking:   'You are the Project Tracker — your job is to maintain visibility across all Pilot Projects, escalate blockers to Durga, and keep things moving.',
+    tracking:   'You are the Project Tracker — your job is to maintain visibility across all Pilot Projects, escalate blockers to Madhu, and keep things moving.',
   }
   const roleNote = roleNoteOverride ?? roleNotes[myRole] ?? ''
 
@@ -502,8 +499,7 @@ export async function sendPilotAssignment({
       <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:16px 18px;margin-bottom:28px;">
         <p style="margin:0;font-size:13px;color:#92400e;line-height:1.6;">
           <strong>Important:</strong> Scope and architecture questions must be discussed and decided directly with
-          <strong>Durga (dc@tresconglobal.com)</strong>. Madhu has set the high-level direction — day-to-day
-          decisions belong with you and Durga. Reach out to Madhu only for strategic input, not build decisions.
+          <strong>Madhu (md@tresconglobal.com)</strong>.
         </p>
       </div>
 
@@ -525,7 +521,7 @@ export async function sendPilotAssignment({
   })
 }
 
-// ── Email: Build Request — alert to Durga ─────────────────────────────────────
+// ── Email: Build Request — alert to Madhu ─────────────────────────────────────
 
 export async function sendBuildRequestAlert({
   submitterName,
@@ -535,7 +531,7 @@ export async function sendBuildRequestAlert({
   message,
   fileCount,
   requestUrl,
-  to = 'dc@tresconglobal.com',
+  to = 'md@tresconglobal.com',
 }: {
   submitterName:  string
   submitterEmail: string
@@ -622,7 +618,7 @@ export async function sendBuildRequestUpdate({
       label:  'Needs Clarification',
       color:  '#7e22ce',
       bg:     '#fdf4ff',
-      note:   'Durga needs more information before the build can proceed. Please reply in the Pilot Projects section.',
+      note:   'Madhu needs more information before the build can proceed. Please reply in the Pilot Projects section.',
     },
     completed: {
       label:  'Completed',
@@ -634,7 +630,7 @@ export async function sendBuildRequestUpdate({
       label:  'Deferred',
       color:  '#6b7280',
       bg:     '#f9fafb',
-      note:   'This request has been deferred. See Durga\'s note below for details.',
+      note:   'This request has been deferred. See Madhu\'s note below for details.',
     },
   }
 
@@ -661,7 +657,7 @@ export async function sendBuildRequestUpdate({
 
       ${reply ? `
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:24px;">
-        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Note from Durga</div>
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Note from Madhu</div>
         <p style="margin:0;font-size:14px;color:#374151;line-height:1.7;">${reply}</p>
       </div>` : ''}
 

@@ -191,7 +191,7 @@ export default function NewPilotProjectPage() {
                 <div style={{ flex: 1 }}>
                   <label style={labelStyle}>PROJECT BUILDER <span style={{ fontWeight: 400, color: 'var(--ink3)' }}>(optional — who Build Requests route to)</span></label>
                   <select value={builderId} onChange={e => setBuilderId(e.target.value)} style={inputStyle}>
-                    <option value="">— Unset (falls back to Durga) —</option>
+                    <option value="">— Unset (falls back to Madhu) —</option>
                     {staffList.slice().sort((a, b) => a.name.localeCompare(b.name)).map(s => (
                       <option key={s.id} value={s.id}>{s.name} ({s.email})</option>
                     ))}

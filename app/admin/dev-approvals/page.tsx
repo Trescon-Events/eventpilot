@@ -98,7 +98,7 @@ export default function DevApprovalsPage() {
         title="PR Approvals"
         description={canDecide
           ? "Khalifa's Task Manager pull requests, waiting on your decision. Approve merges it live and tells him; Send Back requests a fix with your note."
-          : "Status of your Task Manager pull requests — view only. Madhu or Durga approves or sends these back; you'll get an email either way."}
+          : "Status of your Task Manager pull requests — view only. Madhu approves or sends these back; you'll get an email either way."}
       />
       <div style={{ maxWidth: '780px', margin: '0 auto', padding: '28px 32px' }}>
         {!canDecide && (
@@ -106,7 +106,7 @@ export default function DevApprovalsPage() {
             padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '13.5px',
             background: 'var(--surface2, #f5f5f5)', border: '1px solid var(--border)', color: 'var(--ink3)',
           }}>
-            👁 View-only — you can see status here, but only Madhu or Durga can approve or send back.
+            👁 View-only — you can see status here, but only Madhu can approve or send back.
           </div>
         )}
         <Toast message={msg?.text ?? null} type={msg?.type} onClose={() => setMsg(null)} />

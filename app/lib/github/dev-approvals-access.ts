@@ -3,8 +3,8 @@
   API routes). Deliberately a hard email allowlist, not the general
   session.adm / access_roles admin check every other admin_only page uses —
   this button can merge code straight to production, so decision-making
-  (approve/reject) is scoped to the two people named in this repo's own
-  CLAUDE.md as owners (Madhu, Durga), not "anyone who happens to hold a
+  (approve/reject) is scoped to the person named in this repo's own
+  CLAUDE.md as owner (Madhu; Durga was removed 28 Oct 2026), not "anyone who happens to hold a
   platform-admin role."
 
   Khalifa gets a separate view-only allowance (added 2026-09-01) so he can
@@ -16,7 +16,7 @@ import { NextRequest } from 'next/server'
 import { getSession } from '@/app/lib/access/session'
 import { supabaseAdmin } from '@/app/lib/supabase'
 
-const ALLOWED_EMAILS = ['md@tresconglobal.com', 'dc@tresconglobal.com']
+const ALLOWED_EMAILS = ['md@tresconglobal.com']
 const VIEW_ONLY_EMAILS = ['khalifa@tresconglobal.com']
 
 async function resolveSessionEmail(req: NextRequest): Promise<{ ok: true; staffId: string; email: string } | { ok: false; status: number; error: string }> {
@@ -33,7 +33,7 @@ export async function requireDevApprovalsAccess(req: NextRequest): Promise<{ ok:
   if (!resolved.ok) return resolved
 
   if (!ALLOWED_EMAILS.includes(resolved.email)) {
-    return { ok: false, status: 403, error: 'Forbidden — PR Approvals is restricted to Madhu and Durga' }
+    return { ok: false, status: 403, error: 'Forbidden — PR Approvals is restricted to Madhu' }
   }
   return resolved
 }
@@ -43,7 +43,7 @@ export async function requireDevApprovalsViewAccess(req: NextRequest): Promise<{
   if (!resolved.ok) return resolved
 
   if (!ALLOWED_EMAILS.includes(resolved.email) && !VIEW_ONLY_EMAILS.includes(resolved.email)) {
-    return { ok: false, status: 403, error: 'Forbidden — PR Approvals is restricted to Madhu, Durga, and Khalifa (view only)' }
+    return { ok: false, status: 403, error: 'Forbidden — PR Approvals is restricted to Madhu and Khalifa (view only)' }
   }
   return { ...resolved, canDecide: ALLOWED_EMAILS.includes(resolved.email) }
 }

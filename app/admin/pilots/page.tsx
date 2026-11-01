@@ -739,7 +739,7 @@ export default function AdminPilotsPage() {
                                           }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                                               <span style={{ fontSize: 12, fontWeight: 700, color: reply.is_admin_reply ? 'var(--success)' : 'var(--ink2)' }}>{reply.author_name}</span>
-                                              {reply.is_admin_reply && <span style={{ fontSize: 10, background: 'var(--success-light)', color: 'var(--success)', padding: '1px 6px', borderRadius: 999, fontWeight: 700 }}>Durga</span>}
+                                              {reply.is_admin_reply && <span style={{ fontSize: 10, background: 'var(--success-light)', color: 'var(--success)', padding: '1px 6px', borderRadius: 999, fontWeight: 700 }}>Admin</span>}
                                               <span style={{ fontSize: 11, color: 'var(--ink3)', marginLeft: 'auto' }}>{fmtDate(reply.created_at)}</span>
                                             </div>
                                             <p style={{ margin: 0, fontSize: 13, color: 'var(--ink2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{reply.message}</p>

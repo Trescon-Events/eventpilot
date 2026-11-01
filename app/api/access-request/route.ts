@@ -7,7 +7,7 @@
  * Two-track behaviour:
  *   1. Persists the request to `access_requests` so admins can act on it
  *      from the /admin/access-requests dashboard.
- *   2. Sends an email to Durga (same as before) so nothing's missed.
+ *   2. Sends an email to Madhu (same as before) so nothing's missed.
  *
  * Body: { tool: string, from?: string }
  * Auth: session cookie required.

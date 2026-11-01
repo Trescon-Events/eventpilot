@@ -276,7 +276,7 @@ export default function PilotsPage() {
     <div style={{ minHeight: '100vh', background: 'var(--surface)' }}>
       <PageHeader
         title="Pilot Projects"
-        description={<>Complete your checklist items, then submit build requests for Durga to implement. Scope and architecture questions go directly to <strong>Durga (dc@tresconglobal.com)</strong>.</>}
+        description={<>Complete your checklist items, then submit build requests for Madhu to implement. Scope and architecture questions go directly to <strong>Madhu (md@tresconglobal.com)</strong>.</>}
       />
       <div style={{ maxWidth: 860, margin: '0 auto', padding: '40px 24px' }}>
 
@@ -561,7 +561,7 @@ export default function PilotsPage() {
                                         }}>
                                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                                             <span style={{ fontSize: 12, fontWeight: 700, color: reply.is_admin_reply ? 'var(--success)' : 'var(--ink2)' }}>{reply.author_name}</span>
-                                            {reply.is_admin_reply && <span style={{ fontSize: 10, background: 'var(--success-light)', color: 'var(--success)', padding: '1px 6px', borderRadius: 999, fontWeight: 700 }}>Durga</span>}
+                                            {reply.is_admin_reply && <span style={{ fontSize: 10, background: 'var(--success-light)', color: 'var(--success)', padding: '1px 6px', borderRadius: 999, fontWeight: 700 }}>Admin</span>}
                                             <span style={{ fontSize: 11, color: 'var(--ink3)', marginLeft: 'auto' }}>{fmtDate(reply.created_at)}</span>
                                           </div>
                                           <p style={{ margin: 0, fontSize: 13, color: 'var(--ink2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{reply.message}</p>
@@ -574,11 +574,11 @@ export default function PilotsPage() {
                                 {/* Pilot reply input (only when needs_clarification) */}
                                 {canReply && (
                                   <div style={{ marginTop: 8 }}>
-                                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--purple)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>Reply to Durga</div>
+                                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--purple)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>Reply to Madhu</div>
                                     <textarea
                                       value={replyText[br.id] ?? ''}
                                       onChange={e => setReplyText(prev => ({ ...prev, [br.id]: e.target.value }))}
-                                      placeholder="Provide the clarification Durga asked for…"
+                                      placeholder="Provide the clarification Madhu asked for…"
                                       rows={3}
                                       style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--purple-border)', fontSize: 14, boxSizing: 'border-box', resize: 'vertical', outline: 'none', fontFamily: 'inherit' }}
                                     />
@@ -608,7 +608,7 @@ export default function PilotsPage() {
           <p style={{ margin: 0, fontSize: 14, color: 'var(--amber)', lineHeight: 1.7 }}>
             <strong>How build requests work:</strong> Complete your checklist items first.
             Then submit a build request with a clear description and any supporting files (PDF with screenshots is best).
-            Durga will review and either complete the build or ask for clarification.
+            Madhu will review and either complete the build or ask for clarification.
             Files are automatically deleted once a request is completed or deferred.
           </p>
         </div>
