@@ -18,9 +18,9 @@ import { diffSeats, seatsOf } from '@/app/lib/screens/table-changes'
 type Template = { id: string; name: string; width: number; height: number; standby: boolean; version: string }
 type SeatIn = { speakerId: string; name: string; moderator: boolean }
 type Session = { id: string; topic: string; date: string; startHM: string; endHM: string; stage: string | null; seats: SeatIn[] }
-type Change = { status: 'ok' | 'changed' | 'notice' | 'new' | 'undownloaded'; reasons: string[] }
+type Change = { status: 'ok' | 'changed' | 'notice' | 'new' | 'undownloaded'; reasons: string[]; downloaded_at?: string | null }
 type Removed = { id: string; topic: string; date: string; startHM: string; stage: string }
-type Payload = { table_count: number; templates: Template[]; sessions: Session[]; changes?: { baseline_at: string | null; by_session: Record<string, Change>; removed: Removed[] } | null; link_label?: string | null }
+type Payload = { timezone?: string; table_count: number; templates: Template[]; sessions: Session[]; changes?: { baseline_at: string | null; by_session: Record<string, Change>; removed: Removed[] } | null; link_label?: string | null }
 type Seat = { name: string; moderator: boolean; manual?: boolean }   // manual = added here for a substitute; only those can be flagged Moderator by hand — an agenda speaker's tag comes from their record
 
 const btn = { display: 'inline-block', padding: '10px 18px', borderRadius: '10px', border: 'none', fontWeight: 800, fontSize: '14px', cursor: 'pointer', textDecoration: 'none', fontFamily: 'inherit' } as const
@@ -33,6 +33,16 @@ function readCount(): number {
 
 
 type LiveCmd = Record<string, unknown>
+
+// the same flashing as the Stage Screens page, so the people who run both find it familiar
+const FLASH_CSS = `
+@keyframes avflash { 0%,100% { box-shadow: 0 0 0 0 transparent; background: var(--card) } 50% { box-shadow: 0 0 0 8px var(--red); background: var(--red-light) } }
+@keyframes avbanner { 0%,100% { filter: none } 50% { filter: brightness(1.45) } }
+.av-flash { animation: avflash 0.9s ease-in-out 14; }
+.av-banner { animation: avbanner 0.9s ease-in-out 14; }
+@media (prefers-reduced-motion: reduce) { .av-flash, .av-banner { animation: none } }
+`
+const clockOf = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '')
 
 /* Live control (Phase 2): sends the cards to the tables through the Table Hub program on the technician's laptop, and shows whether the program and each table screen are online. */
 function LivePanel({ url, query, canSend, buildShow, tableCount, standbyId, programLinks, sessions, onReview }: { url: (p: string, e?: Record<string, string>) => string; query: string; canSend: boolean; buildShow: () => LiveCmd | null; tableCount: number; standbyId?: string; programLinks: boolean ; sessions: Session[]; onReview: (sent: SentInfo) => void }) {
@@ -164,7 +174,9 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
   const [templateId, setTemplateId] = useState('')
   const [standbyId, setStandbyId] = useState('')
   const [day, setDay] = useState('all')
-  const [dlStage, setDlStage] = useState(''), [dlDay, setDlDay] = useState('all'), [dlBusy, setDlBusy] = useState<string | null>(null)   // the all-cards download: its own stage and day choice
+  const [dlStage, setDlStage] = useState(''), [dlDay, setDlDay] = useState('all'), [dlBusy, setDlBusy] = useState<string | null>(null)
+  const [failing, setFailing] = useState(false), [lastOk, setLastOk] = useState(() => Date.now()), [now, setNow] = useState(() => Date.now())   // is the server answering (the technician's page says so loudly when it stops)
+  const [sound, setSound] = useState(true), [dismissed, setDismissed] = useState('')   // the all-cards download: its own stage and day choice
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)
   const [nonce, setNonce] = useState(0)   // bumped by Refresh so every preview is drawn again from the template as it is now
@@ -179,8 +191,8 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
     try {
       const r = await fetch(url(''), { cache: 'no-store' }); const d = await r.json().catch(() => ({}))
       if (!r.ok) { setError(d.error ?? 'Could not load the table screens.'); return }
-      setError(null); setData(d as Payload)
-    } catch { /* offline for a moment: keep what is on screen */ }
+      setError(null); setData(d as Payload); setFailing(false); setLastOk(Date.now())
+    } catch { setFailing(true) /* offline for a moment: keep what is on screen */ }
   }, [url])
   useEffect(() => { let cancelled = false; void (async () => { if (!cancelled) await load() })(); return () => { cancelled = true } }, [load])
   useEffect(() => {   // the agenda can change while the technician is waiting for the stage manager: look again every 30 s
@@ -205,14 +217,48 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
     return { items, removed: ch.removed }
   }, [data])
   const outstandingCount = outstanding.items.length + outstanding.removed.length
+  const outIds = useMemo(() => [...outstanding.items.map(i => i.id), ...outstanding.removed.map(r => `gone-${r.id}`)].sort().join(','), [outstanding])
   const seenAlert = useRef<Set<string> | null>(null)
   useEffect(() => {   // a chime when something newly needs attention (never on the first load); the tab title flashes while it is outstanding
     if (!alertsOn || !data) return
     const ids = new Set([...outstanding.items.map(i => `${i.id}|${i.reasons.join(';')}`), ...outstanding.removed.map(r => `gone|${r.id}`)])
     const prev = seenAlert.current; seenAlert.current = ids
-    if (prev && [...ids].some(i => !prev.has(i))) playChime()
-  }, [alertsOn, data, outstanding])
-  useEffect(() => { if (!alertsOn || !outstandingCount) return; return flashTitle(`(${outstandingCount}) CHANGED — table cards`, 'Table cards') }, [alertsOn, outstandingCount])
+    if (prev && sound && [...ids].some(i => !prev.has(i))) playChime()
+  }, [alertsOn, data, outstanding, sound])
+  useEffect(() => { if (!alertsOn || !outstandingCount) return; return flashTitle(`(${outstandingCount}) CHANGED — table screens`, 'Table screens') }, [alertsOn, outstandingCount])
+  useEffect(() => {   // the technician's page: a clock (for "on stage now", "checked at" and the lost-connection warning), the sound preference, and the first touch unlocks audio
+    if (!alertsOn) return
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    void (async () => { try { if (localStorage.getItem('screens-sound') === 'off') setSound(false) } catch { /* private mode */ } })()
+    const unlock = () => primeAudio()
+    document.addEventListener('pointerdown', unlock, { once: true })
+    return () => { clearInterval(t); document.removeEventListener('pointerdown', unlock) }
+  }, [alertsOn])
+  const showPopup = alertsOn && outstandingCount > 0 && dismissed !== outIds
+  useEffect(() => {
+    if (!showPopup) return
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setDismissed(outIds) }
+    document.addEventListener('keydown', esc)
+    return () => document.removeEventListener('keydown', esc)
+  }, [showPopup, outIds])
+  const lost = alertsOn && now - lastOk > 45_000
+  function toggleSound() {
+    const next = !sound
+    setSound(next); primeAudio()
+    try { localStorage.setItem('screens-sound', next ? 'on' : 'off') } catch { /* ignore */ }
+    if (next) playChime()
+  }
+  // "ON STAGE NOW" / "NEXT UP · n min", from the event's own time zone
+  const whenLabel = (s: Session): string | null => {
+    const tz = data?.timezone; if (!tz) return null
+    const parts = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).formatToParts(new Date(now))
+    const g = (t: string) => parts.find(p => p.type === t)?.value ?? '00'
+    if (`${g('year')}-${g('month')}-${g('day')}` !== s.date) return null
+    const mins = +g('hour') * 60 + +g('minute'), a = +s.startHM.slice(0, 2) * 60 + +s.startHM.slice(3, 5), b = +s.endHM.slice(0, 2) * 60 + +s.endHM.slice(3, 5)
+    if (a <= mins && mins <= b) return 'ON STAGE NOW'
+    if (a > mins && a - mins <= 60) return `NEXT UP · ${a - mins} min`
+    return null
+  }
   const cardTemplates = (data?.templates ?? []).filter(t => !t.standby), standbyTemplates = (data?.templates ?? []).filter(t => t.standby)
   const tpl = cardTemplates.find(t => t.id === templateId) ?? cardTemplates[0] ?? null
   const sb = standbyTemplates.find(t => t.id === standbyId) ?? standbyTemplates[0] ?? null
@@ -295,6 +341,34 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
 
   return (
     <div style={{ display: 'grid', gap: '14px' }} onPointerDown={alertsOn ? primeAudio : undefined}>
+      {alertsOn && <style>{FLASH_CSS}</style>}
+      {lost && <div role="alert" style={{ position: 'sticky', top: 0, zIndex: 40, background: 'var(--red)', color: 'white', padding: '12px 16px', borderRadius: '10px', fontWeight: 800 }}>No connection to the server for {Math.round((now - lastOk) / 1000)} s — this page may be out of date. Retrying…</div>}
+      {alertsOn && outstandingCount > 0 && (
+        <div className="av-banner" role="alert" style={{ position: 'sticky', top: lost ? 56 : 0, zIndex: 30, background: 'var(--red)', color: 'white', padding: '14px 18px', borderRadius: '12px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 'clamp(16px, 2.4vw, 22px)', fontWeight: 900 }}>{outstandingCount} {outstandingCount === 1 ? 'SESSION' : 'SESSIONS'} CHANGED</span>
+          <span style={{ fontSize: '14px', opacity: 0.95 }}>{[...outstanding.items.map(i => i.label.replace(/^\S+ /, '').replace(/ — /, ' ')), ...outstanding.removed.map(r => `${r.startHM} ${r.topic} (removed)`)].slice(0, 3).map(t => t.slice(0, 48)).join(' · ')}{outstandingCount > 3 ? ` · +${outstandingCount - 3} more` : ''}</span>
+          <span style={{ flex: 1 }} />
+          {outstanding.items.length > 0 && <button onClick={downloadChanged} disabled={!!dlBusy} style={{ ...btn, background: 'white', color: 'var(--red)' }}>{dlBusy === 'changed' ? 'Making the zip…' : `Download changed (${outstanding.items.length})`}</button>}
+        </div>
+      )}
+      {alertsOn && (
+        <>
+          <div style={{ color: 'var(--ink3)', fontSize: '14px' }}>
+            <span style={{ color: failing ? 'var(--red)' : 'var(--green)', fontWeight: 800 }}>● {failing ? 'Retrying…' : `Live · checked ${clockOf(new Date(lastOk).toISOString())}`}</span>
+            {' · '}Cards are drawn from the agenda as it is now; this page tells you the moment anything changes after you download.
+          </div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <button onClick={downloadChanged} disabled={!!dlBusy || !outstanding.items.length}
+              style={{ ...btn, background: outstanding.items.length ? 'var(--red)' : 'var(--card)', color: outstanding.items.length ? 'white' : 'var(--ink3)', border: outstanding.items.length ? 'none' : '1.5px solid var(--border)', cursor: outstanding.items.length ? 'pointer' : 'default' }}>
+              {dlBusy === 'changed' ? 'Making the zip…' : `Download only what changed (${outstanding.items.length})`}
+            </button>
+            <span style={{ flex: 1 }} />
+            <button onClick={toggleSound} style={{ ...btn, background: 'var(--card)', color: 'var(--ink2)', border: '1.5px solid var(--border)', fontWeight: 700 }}>🔔 Alert sound: {sound ? 'on' : 'off'}</button>
+            {sound && <button onClick={() => playChime()} style={{ ...btn, background: 'transparent', color: 'var(--ink3)', border: '1.5px solid var(--border)', fontWeight: 700 }}>Test</button>}
+          </div>
+          {!data.changes?.baseline_at && data.sessions.length > 0 && <div style={{ padding: '10px 14px', borderRadius: '10px', background: 'var(--card)', border: '1px solid var(--border)', fontSize: '14px' }}>Start with <strong>Download all the cards</strong> (or one session). From then on this page tells you the moment anything changes.</div>}
+        </>
+      )}
       <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ fontSize: '14px', color: 'var(--ink2)', lineHeight: 1.6, flex: '1 1 320px' }}>
           1. Pick the session. 2. When the stage manager says which table is in which seat, type the table numbers <strong>in seat order, from the left</strong> (moderator first). 3. Check the cards and download them for your app.
@@ -306,8 +380,8 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
         {['all', ...days].map(d => <button key={d} onClick={() => setDay(d)} style={{ padding: '6px 14px', borderRadius: '999px', border: '1.5px solid var(--border)', background: day === d ? 'var(--ink)' : 'transparent', color: day === d ? 'var(--card)' : 'var(--ink2)', fontWeight: 700, fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' }}>{d === 'all' ? 'All days' : d}</button>)}
       </div>
 
-      {outstandingCount > 0 && (
-        <div role="alert" style={{ padding: '14px 16px', borderRadius: '12px', background: alertsOn ? 'var(--red)' : 'var(--amber)', color: 'white', display: 'grid', gap: '8px' }}>
+      {!alertsOn && outstandingCount > 0 && (
+        <div role="alert" style={{ padding: '14px 16px', borderRadius: '12px', background: 'var(--amber)', color: 'white', display: 'grid', gap: '8px' }}>
           <div style={{ fontWeight: 900, fontSize: '16px' }}>{alertsOn ? 'The agenda changed since your last download' : `Since the technician${data.link_label ? ` (${data.link_label})` : ''} last downloaded`}: {outstandingCount} session{outstandingCount === 1 ? '' : 's'} to update</div>
           <div style={{ display: 'grid', gap: '6px', fontSize: '13.5px' }}>
             {outstanding.items.map(i => (
@@ -315,9 +389,6 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
             ))}
             {outstanding.removed.map(r => <div key={r.id}><strong>REMOVED · {r.date} {r.startHM}{r.stage ? ` · ${r.stage}` : ''} — {r.topic}</strong><div style={{ opacity: 0.95 }}>No longer in the agenda, or has no speakers: delete its cards.</div></div>)}
           </div>
-          {alertsOn && outstanding.items.length > 0 && (
-            <div><button onClick={downloadChanged} disabled={!!dlBusy} style={{ ...btn, background: 'white', color: 'var(--red)', fontSize: '15px', padding: '12px 20px' }}>{dlBusy === 'changed' ? 'Making the zip…' : `Download the changed cards only (${outstanding.items.length} session${outstanding.items.length === 1 ? '' : 's'})`}</button></div>
-          )}
         </div>
       )}
 
@@ -346,7 +417,33 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
         {!dlSessions.length && <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>No sessions with speakers for that choice.</div>}
       </div>
 
-      <div style={{ display: 'grid', gap: '6px' }}>
+      {alertsOn && (
+        <div style={{ display: 'grid', gap: '14px' }}>
+          {shown.filter(s => s.seats.length && (!dlStage || s.stage === dlStage)).map(s => {
+            const c = changeOf(s.id), st = c?.status ?? 'undownloaded', red = st === 'changed', out = red || st === 'new', pri = whenLabel(s)
+            return (
+              <div key={`${s.id}:${st}`} className={red ? 'av-flash' : undefined} style={{ display: 'grid', gap: '6px', alignContent: 'start', background: 'var(--card)', border: `${out ? 3 : 1}px solid ${red ? 'var(--red)' : st === 'new' ? 'var(--info)' : 'var(--border)'}`, borderRadius: '12px', padding: '12px' }}>
+                {pri && <div style={{ justifySelf: 'start', padding: '3px 10px', borderRadius: '999px', background: pri.startsWith('ON') ? 'var(--red)' : 'var(--amber)', color: 'white', fontWeight: 900, fontSize: '12.5px' }}>{pri}</div>}
+                <div style={{ fontSize: '13px', color: 'var(--ink3)', fontWeight: 700 }}>{s.date} · {s.startHM}–{s.endHM}{s.stage ? ` · ${s.stage}` : ''} · {s.seats.length} card{s.seats.length === 1 ? '' : 's'}</div>
+                <div style={{ fontSize: '17px', fontWeight: 800, lineHeight: 1.3 }}>{s.topic}</div>
+                <div style={{ fontSize: '13.5px', color: 'var(--ink2)' }}>{s.seats.map(p => `${p.name}${p.moderator ? ' (Moderator)' : ''}`).join(' · ')}</div>
+                {st === 'changed' && <div style={{ color: 'var(--red)', fontWeight: 900, fontSize: '16px' }}>CHANGED — DOWNLOAD THE NEW CARDS</div>}
+                {st === 'new' && <div style={{ color: 'var(--info)', fontWeight: 900, fontSize: '15px' }}>NEW SESSION</div>}
+                {st === 'notice' && <div style={{ color: 'var(--amber)', fontWeight: 800, fontSize: '13.5px' }}>Time or title changed — the cards are the same (only the folder name differs)</div>}
+                {st === 'ok' && <div style={{ color: 'var(--green)', fontWeight: 800, fontSize: '13.5px' }}>✓ Up to date — downloaded {clockOf(c?.downloaded_at)}</div>}
+                {st === 'undownloaded' && <div style={{ color: 'var(--ink3)', fontWeight: 700, fontSize: '13px' }}>Not downloaded yet</div>}
+                {(c?.reasons.length ?? 0) > 0 && <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '14px', fontWeight: 700 }}>{c!.reasons.map(r => <li key={r}>{r}</li>)}</ul>}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginTop: '2px' }}>
+                  <button onClick={() => downloadCards({ sessionId: s.id })} disabled={!!dlBusy} style={{ ...btn, background: red ? 'var(--red)' : 'var(--teal)', color: 'white' }}>{dlBusy === s.id ? 'Making the zip…' : 'Download cards (zip)'}</button>
+                  <button onClick={() => { pickSession(s.id); setTimeout(() => document.getElementById('tc-worksheet')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50) }} style={{ ...btn, background: 'var(--card)', color: 'var(--ink)', border: '1.5px solid var(--border)' }}>Set tables &amp; send to screens</button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <div id="tc-worksheet" style={{ display: 'grid', gap: '6px' }}>
         <label style={{ fontWeight: 800, fontSize: '13px' }}>Session</label>
         <select value={sessionId} onChange={e => pickSession(e.target.value)} style={{ ...input, maxWidth: '100%' }}>
           <option value="">Choose a session…</option>
@@ -453,6 +550,27 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
             )}
           </div>
         </>
+      )}
+      {showPopup && (
+        <div role="alertdialog" aria-label="Sessions changed" style={{ position: 'fixed', top: '14px', left: '50%', transform: 'translateX(-50%)', zIndex: 60, width: 'min(560px, calc(100vw - 24px))', background: 'var(--card)', border: '4px solid var(--red)', borderRadius: '16px', padding: '16px 18px', boxShadow: 'var(--shadow-md)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--red)', flex: 1 }}>{outstandingCount} {outstandingCount === 1 ? 'SESSION' : 'SESSIONS'} CHANGED</div>
+            <button onClick={() => setDismissed(outIds)} aria-label="Close" style={{ ...btn, background: 'var(--ink)', color: 'var(--card)', fontSize: '22px', padding: '6px 16px', lineHeight: 1 }}>✕</button>
+          </div>
+          <div style={{ display: 'grid', gap: '8px', margin: '10px 0 12px', maxHeight: '38vh', overflow: 'auto' }}>
+            {outstanding.items.map(i => (
+              <div key={i.id} style={{ fontSize: '14px' }}>
+                <strong>{i.status === 'new' ? 'NEW · ' : ''}{i.label.slice(0, 90)}</strong>
+                {i.reasons.map(r => <div key={r} style={{ color: 'var(--ink2)', marginLeft: '12px' }}>• {r}</div>)}
+              </div>
+            ))}
+            {outstanding.removed.map(r => <div key={r.id} style={{ fontSize: '14px' }}><strong>REMOVED · {r.date} {r.startHM} — {r.topic.slice(0, 70)}</strong><div style={{ color: 'var(--ink2)', marginLeft: '12px' }}>• No longer in the agenda: delete its cards</div></div>)}
+          </div>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            {outstanding.items.length > 0 && <button onClick={() => { void downloadChanged(); setDismissed(outIds) }} style={{ ...btn, background: 'var(--red)', color: 'white', fontSize: '16px', padding: '14px 22px' }}>Download changed ({outstanding.items.length})</button>}
+            <button onClick={() => setDismissed(outIds)} style={{ ...btn, background: 'var(--card)', color: 'var(--ink)', border: '2px solid var(--ink)', fontSize: '16px', padding: '14px 22px' }}>Close</button>
+          </div>
+        </div>
       )}
     </div>
   )

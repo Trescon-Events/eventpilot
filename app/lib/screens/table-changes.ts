@@ -54,7 +54,7 @@ export function tableStatus(prev: TableSnap | null, live: TableSnap, liveLook: s
   return { status: 'ok', reasons: [] }
 }
 
-export type TableChangeRow = { status: TableStatus; reasons: string[] }
+export type TableChangeRow = { status: TableStatus; reasons: string[]; downloaded_at?: string | null }
 export type RemovedRow = { id: string; topic: string; date: string; startHM: string; stage: string }
 
 /** Every session's status, plus the downloaded sessions that are no longer in the agenda (or no longer have speakers). */

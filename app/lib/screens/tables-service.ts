@@ -39,9 +39,12 @@ export const lookOf = (templates: TableTemplateInfo[], templateId?: string | nul
 export type TableChanges = { baseline_at: string | null; by_session: Record<string, TableChangeRow>; removed: RemovedRow[] }
 
 /** What the technician's link downloaded, per session. */
+async function downloadRows(linkId: string) {
+  const { data } = await supabaseAdmin.from('event_screen_link_downloads').select('session_id, snapshot, downloaded_at').eq('link_id', linkId)
+  return (data ?? []).filter(r => r.snapshot && Array.isArray((r.snapshot as TableSnap).seats))
+}
 export async function tableDownloads(linkId: string): Promise<Map<string, TableSnap>> {
-  const { data } = await supabaseAdmin.from('event_screen_link_downloads').select('session_id, snapshot').eq('link_id', linkId)
-  return new Map((data ?? []).filter(r => r.snapshot && Array.isArray((r.snapshot as TableSnap).seats)).map(r => [r.session_id as string, r.snapshot as TableSnap]))
+  return new Map((await downloadRows(linkId)).map(r => [r.session_id as string, r.snapshot as TableSnap]))
 }
 
 /** Remembers what the technician's link downloaded (the first one starts the baseline, like the Stage Screens). Best effort: a failure here never blocks the download. */
@@ -79,8 +82,10 @@ export async function tablesPayload(eventId: string, trackId: string | null, lin
   }))
   let changes: TableChanges | null = null
   if (linkId) {
-    const [downloads, { data: l }] = await Promise.all([tableDownloads(linkId), supabaseAdmin.from('event_screen_links').select('baseline_at').eq('id', linkId).maybeSingle()])
+    const [rows, { data: l }] = await Promise.all([downloadRows(linkId), supabaseAdmin.from('event_screen_links').select('baseline_at').eq('id', linkId).maybeSingle()])
+    const downloads = new Map(rows.map(r => [r.session_id as string, r.snapshot as TableSnap]))
     changes = { baseline_at: (l?.baseline_at as string | null) ?? null, ...changesFor({ templates, sessions: list }, downloads) }
+    for (const r of rows) { const c = changes.by_session[r.session_id as string]; if (c) c.downloaded_at = r.downloaded_at as string }
   }
   return { timezone, table_count: DEFAULT_TABLE_COUNT, max_tables: MAX_TABLES, templates, sessions: list, changes }
 }
@@ -159,11 +164,10 @@ export async function allCardsResponse(eventId: string, body: AllCardsRequest, l
   // "Changed cards only": the sessions whose cards differ from what this technician link last downloaded, or that were added since, plus a CHANGES.txt saying what and why.
   let changedNote: string | null = null
   let changedIds: Set<string> | null = null
-  let prevVia = new Map<string, TableSnap['via']>()
+  const had = link ? await tableDownloads(link.id) : new Map<string, TableSnap>()
+  const prevVia = new Map<string, TableSnap['via']>([...had].map(([id, d]) => [id, d.via]))   // a re-download keeps how the session was first covered
   if (body.changed_only) {
     if (!link) return NextResponse.json({ error: 'Changed-only downloads are for the technician link.' }, { status: 400 })
-    const had = await tableDownloads(link.id)
-    prevVia = new Map([...had].map(([id, d]) => [id, d.via]))
     const ch = changesFor(payload, had)
     changedIds = new Set(Object.entries(ch.by_session).filter(([, r]) => r.status === 'changed' || r.status === 'new').map(([id]) => id))
     const lines = payload.sessions.filter(s => changedIds!.has(s.id)).sort((a, b) => (a.date + a.startHM).localeCompare(b.date + b.startHM))
@@ -178,7 +182,7 @@ export async function allCardsResponse(eventId: string, body: AllCardsRequest, l
   if (!sessions.length && !changedNote) return NextResponse.json({ error: 'No sessions with speakers for that choice.' }, { status: 400 })
   const multiDay = new Set(sessions.map(s => s.date)).size > 1
   const filename = changedIds ? `Cards_CHANGED_${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')}.zip` : one ? tablesZipName(sessions[0]).replace(/^Tables_/, 'Cards_') : allCardsZipName({ date, stage })
-  if (link) void recordTableDownloads(link.id, sessions, lookOf(payload.templates, body.template), changedIds ? (x => prevVia.get(x.id) ?? 'bulk') : one ? 'session' : 'bulk')   // a re-download keeps how the session was first covered   // what this link now has
+  if (link) void recordTableDownloads(link.id, sessions, lookOf(payload.templates, body.template), changedIds ? (x => prevVia.get(x.id) ?? 'bulk') : one ? (x => prevVia.get(x.id) ?? 'session') : 'bulk')   // what this link now has
   const drawn = new Map<string, Promise<Uint8Array>>()
   const draw = (name: string, moderator: boolean) => {
     const key = `${moderator ? 1 : 0}|${name}`
