@@ -14,6 +14,6 @@ echo '{ "main": "table-hub.cjs", "output": "sea.blob", "disableExperimentalSEAWa
 node --experimental-sea-config sea-config.json
 curl -L -o TableHub-win.exe https://nodejs.org/dist/v<NODE VERSION OF THIS MACHINE>/win-x64/node.exe     # same Node version as the machine making the blob
 npx postject TableHub-win.exe NODE_SEA_BLOB sea.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
-gzip -9 -k TableHub-win.exe        # upload to bucket event-stakeholder-assets as tools/table-hub/TableHub-win-x64-v1.exe.gz (bump v1 and EXE_PATH in the route for a new version)
+gzip -9 -k TableHub-win.exe        # upload to bucket event-stakeholder-assets as tools/table-hub/TableHub-win-x64-v2.exe.gz (bump v1 and EXE_PATH in the route for a new version)
 ```
 The Windows exe is not code-signed, so Windows shows "Windows protected your PC — More info — Run anyway" the first time.

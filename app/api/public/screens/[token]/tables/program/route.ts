@@ -6,9 +6,9 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 
 /* GET ?file=exe|hub|bat — the Table Hub program for the technician's laptop, with this link already built in (so he downloads, double-clicks and nothing needs typing).
    exe = TableHub-<code>.exe, a single Windows file that needs nothing installed (Node.js packaged inside; the link is the <code> in its name; stored gzipped in the assets bucket at
-         tools/table-hub/TableHub-win-x64-v1.exe.gz and unpacked while it streams; built from tools/table-hub/table-hub.cjs — see tools/table-hub/README.md);
+         tools/table-hub/TableHub-win-x64-v2.exe.gz and unpacked while it streams; built from tools/table-hub/table-hub.cjs — see tools/table-hub/README.md);
    hub = table-hub.cjs + bat = start-table-hub.bat, the alternative for any computer that has Node.js. */
-const EXE_BUCKET = 'event-stakeholder-assets', EXE_PATH = 'tools/table-hub/TableHub-win-x64-v1.exe.gz'
+const EXE_BUCKET = 'event-stakeholder-assets', EXE_PATH = 'tools/table-hub/TableHub-win-x64-v2.exe.gz'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eventpilot.tresconglobal.com'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {

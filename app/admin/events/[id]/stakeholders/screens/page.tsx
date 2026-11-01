@@ -249,7 +249,7 @@ function LinksPanel({ kind, data, eventId, canEdit, onChanged }: { kind: 'stage'
     onChanged()
   }
   async function revoke(id: string) {
-    if (!window.confirm('Switch this link off? Anyone using it loses access immediately.')) return
+    if (!window.confirm(kind === 'tables' ? 'Switch this link off? A Table Hub that is already running on the technician\'s laptop will lose its connection, and the technician must download it again from the new link. The table screens keep their last picture meanwhile.' : 'Switch this link off? Anyone using it loses access immediately.')) return
     await fetch('/api/events/screens/links', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, id }) })
     onChanged()
   }
