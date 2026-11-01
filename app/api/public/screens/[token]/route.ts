@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
-import { linkByToken, redrawStale } from '@/app/lib/screens/service'
+import { linkByToken, redrawStale, touchLinkSeen } from '@/app/lib/screens/service'
 import { avView } from '@/app/lib/screens/av'
 
 /* The AV team's side (public — see middleware.ts's /api/public prefix; the private link is the key).
@@ -13,11 +13,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   if (!link) {
     const tl = await linkByToken(token, 'tables')   // the technician's link: only the Table Screens, nothing of the stage graphics
     if (tl) {
+      touchLinkSeen(tl.id)
       const { data: e } = await supabaseAdmin.from('events').select('name, public_name').eq('id', tl.event_id).maybeSingle()
       return NextResponse.json({ kind: 'tables', event_name: (e?.public_name as string | null) || (e?.name as string | null) || 'Event', label: tl.label }, { headers: { 'Cache-Control': 'no-store' } })
     }
   }
   if (!link) return NextResponse.json({ error: 'This link is not valid or has been switched off. Ask the event team for a new one.' }, { status: 404 })
+  touchLinkSeen(link.id)   // the marketing page shows when this page last asked
   const [view, { data: ev }] = await Promise.all([
     avView(link),
     supabaseAdmin.from('events').select('name, public_name').eq('id', link.event_id).maybeSingle(),
@@ -27,6 +29,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   return NextResponse.json({
     event_name: (ev?.public_name as string | null) || (ev?.name as string | null) || 'Event', label: link.label, timezone: view.timezone, panel: view.panel,
     server_time: new Date(now).toISOString(), auto_redraw: view.autoRedraw, baseline_at: view.baselineAt,
+    removed: view.removed,   // downloaded sessions that are no longer on this link (moved stage / no speakers): the AV team deletes the file and says so (…/ack)
     sessions: view.rows.map(({ session: s, status, reasons, downloadedAt, preparing }) => ({
       id: s.id, title: s.topic, stage: s.stage, date: s.date, start: s.startHM, end: s.endHM, layout: s.layout, file_name: s.fileName,
       starts_at: s.startsAt, ends_at: s.endsAt, png_url: s.pngUrl, width: s.width, height: s.height, generated_at: s.generatedAt,

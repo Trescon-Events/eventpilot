@@ -19,7 +19,8 @@ type Item = {
   png_url: string | null; width: number | null; height: number | null; generated_at: string | null; status: Status; reasons: string[]; downloaded_at: string | null; preparing: boolean; quiet_left: number
   people: { name: string; moderator: boolean }[]
 }
-type Data = { kind?: 'tables'; event_name: string; label: string; timezone: string; panel: 'light' | 'dark'; server_time: string; auto_redraw: boolean; baseline_at: string | null; sessions: Item[] }
+type Removed = { id: string; title: string; date: string; start: string; stage: string; downloadedAt: string | null }
+type Data = { kind?: 'tables'; removed?: Removed[]; event_name: string; label: string; timezone: string; panel: 'light' | 'dark'; server_time: string; auto_redraw: boolean; baseline_at: string | null; sessions: Item[] }
 
 // The panel the graphic sits on at the venue (preview only; the file itself is transparent).
 /* eslint-disable no-restricted-syntax */
@@ -84,7 +85,9 @@ export default function ScreensForAv({ params }: { params: Promise<{ token: stri
 
   const sessions = useMemo(() => data?.sessions ?? [], [data])
   const outstanding = useMemo(() => sessions.filter(isOut), [sessions])
-  const outIds = useMemo(() => outstanding.map(s => s.id).sort().join(','), [outstanding])
+  const removed = useMemo(() => data?.removed ?? [], [data])
+  const outIds = useMemo(() => [...outstanding.map(s => s.id), ...removed.map(r => `gone-${r.id}`)].sort().join(','), [outstanding, removed])
+  const outCount = outstanding.length + removed.length
   const readyChanged = sessions.filter(s => (s.status === 'changed' || s.status === 'new') && !s.preparing)
 
   // chime when a session newly needs attention (never on first load)
@@ -97,11 +100,11 @@ export default function ScreensForAv({ params }: { params: Promise<{ token: stri
 
   // flashing tab title while the tab is in the background
   useEffect(() => {
-    if (!outstanding.length) return
-    return flashTitle(`(${outstanding.length}) CHANGED — stage screens`, 'Stage screens')
-  }, [outstanding.length])
+    if (!outCount) return
+    return flashTitle(`(${outCount}) CHANGED — stage screens`, 'Stage screens')
+  }, [outCount])
 
-  const showPopup = outstanding.length > 0 && dismissed !== outIds
+  const showPopup = outCount > 0 && dismissed !== outIds
   useEffect(() => {
     if (!showPopup) return
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setDismissed(outIds) }
@@ -132,6 +135,10 @@ export default function ScreensForAv({ params }: { params: Promise<{ token: stri
       }
     } catch { setNote('Could not redraw — check the connection and try again.') } finally { setRedrawing(false) }
   }
+  async function ackRemoved(id: string) {
+    try { await fetch(`/api/public/screens/${token}/ack`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: id }) }) } catch { /* the next poll shows it again */ }
+    void load()
+  }
   function toggleSound() {
     const next = !sound
     setSound(next); primeAudio()
@@ -155,10 +162,10 @@ export default function ScreensForAv({ params }: { params: Promise<{ token: stri
         <>
           {lost && <div role="alert" style={{ position: 'sticky', top: 0, zIndex: 40, background: 'var(--red)', color: 'white', padding: '12px 16px', borderRadius: '10px', fontWeight: 800, marginBottom: '12px' }}>No connection to the server for {Math.round((now - lastOk) / 1000)} s — this page may be out of date. Retrying…</div>}
 
-          {outstanding.length > 0 && (
+          {outCount > 0 && (
             <div className="av-banner" role="alert" style={{ position: 'sticky', top: lost ? 56 : 0, zIndex: 30, background: 'var(--red)', color: 'white', padding: '14px 18px', borderRadius: '12px', marginBottom: '14px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 'clamp(16px, 2.4vw, 22px)', fontWeight: 900 }}>{outstanding.length} {outstanding.length === 1 ? 'SESSION' : 'SESSIONS'} CHANGED</span>
-              <span style={{ fontSize: '14px', opacity: 0.95 }}>{outstanding.slice(0, 3).map(s => `${s.start} ${s.title.slice(0, 40)}`).join(' · ')}{outstanding.length > 3 ? ` · +${outstanding.length - 3} more` : ''}</span>
+              <span style={{ fontSize: 'clamp(16px, 2.4vw, 22px)', fontWeight: 900 }}>{outCount} {outCount === 1 ? 'SESSION' : 'SESSIONS'} CHANGED</span>
+              <span style={{ fontSize: '14px', opacity: 0.95 }}>{[...outstanding.map(s => `${s.start} ${s.title.slice(0, 40)}`), ...removed.map(r => `${r.start} ${r.title.slice(0, 40)} (removed)`)].slice(0, 3).join(' · ')}{outCount > 3 ? ` · +${outCount - 3} more` : ''}</span>
               <span style={{ flex: 1 }} />
               {readyChanged.length > 0 && <a href={`/api/public/screens/${token}/zip?scope=changed`} onClick={after} style={{ ...btn, background: 'white', color: 'var(--red)' }}>Download changed ({readyChanged.length})</a>}
             </div>
@@ -190,8 +197,17 @@ export default function ScreensForAv({ params }: { params: Promise<{ token: stri
             {['all', ...days].map(d => <button key={d} onClick={() => setDay(d)} style={{ padding: '7px 14px', borderRadius: '999px', border: '1.5px solid var(--border)', background: day === d ? 'var(--ink)' : 'transparent', color: day === d ? 'var(--card)' : 'var(--ink2)', fontWeight: 700, fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' }}>{d === 'all' ? 'All days' : d}</button>)}
           </div>
 
-          {!shown.length && <div style={{ color: 'var(--ink3)' }}>No screens have been published for this link yet.</div>}
+          {!shown.length && !removed.length && <div style={{ color: 'var(--ink3)' }}>No screens have been published for this link yet.</div>}
           <div style={{ display: 'grid', gap: '14px' }}>
+            {removed.filter(r => day === 'all' || r.date === day).map(r => (
+              <div key={`gone-${r.id}`} className="av-flash" style={{ display: 'grid', gap: '6px', background: 'var(--card)', border: '3px solid var(--red)', borderRadius: '12px', padding: '12px' }}>
+                <div style={{ color: 'var(--red)', fontWeight: 900, fontSize: '16px' }}>REMOVED — DELETE THIS FILE FROM YOUR PLAYOUT</div>
+                <div style={{ fontSize: '13px', color: 'var(--ink3)', fontWeight: 700 }}>{r.date} · {r.start}{r.stage ? ` · ${r.stage}` : ''}{r.downloadedAt ? ` · you downloaded it ${clock(r.downloadedAt)}` : ''}</div>
+                <div style={{ fontSize: '17px', fontWeight: 800, lineHeight: 1.3 }}>{r.title}</div>
+                <div style={{ fontSize: '14px', color: 'var(--ink2)' }}>This session is no longer on this stage (it was moved to another stage, or has no speakers any more). Delete its file so it cannot be shown by mistake.</div>
+                <div><button onClick={() => void ackRemoved(r.id)} style={{ ...btn, background: 'var(--red)', color: 'white' }}>I have deleted it</button></div>
+              </div>
+            ))}
             {shown.map(s => {
               const out = isOut(s), red = s.status === 'changed' || s.status === 'updating', pri = label(s)
               return (
@@ -226,10 +242,11 @@ export default function ScreensForAv({ params }: { params: Promise<{ token: stri
           {showPopup && (
             <div role="alertdialog" aria-label="Sessions changed" style={{ position: 'fixed', top: '14px', left: '50%', transform: 'translateX(-50%)', zIndex: 60, width: 'min(560px, calc(100vw - 24px))', background: 'var(--card)', border: '4px solid var(--red)', borderRadius: '16px', padding: '16px 18px', boxShadow: 'var(--shadow-md)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--red)', flex: 1 }}>{outstanding.length} {outstanding.length === 1 ? 'SESSION' : 'SESSIONS'} CHANGED</div>
+                <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--red)', flex: 1 }}>{outCount} {outCount === 1 ? 'SESSION' : 'SESSIONS'} CHANGED</div>
                 <button onClick={() => setDismissed(outIds)} aria-label="Close" style={{ ...btn, background: 'var(--ink)', color: 'var(--card)', fontSize: '22px', padding: '6px 16px', lineHeight: 1 }}>✕</button>
               </div>
               <div style={{ display: 'grid', gap: '8px', margin: '10px 0 12px', maxHeight: '38vh', overflow: 'auto' }}>
+                {removed.map(r => <div key={`gone-${r.id}`} style={{ fontSize: '14px' }}><strong>REMOVED · {r.date} {r.start}{r.stage ? ` · ${r.stage}` : ''}</strong> — {r.title.slice(0, 70)}<div style={{ color: 'var(--ink2)', marginLeft: '12px' }}>• No longer on this stage: delete its file</div></div>)}
                 {outstanding.map(s => (
                   <div key={s.id} style={{ fontSize: '14px' }}>
                     <strong>{s.date} {s.start}{s.stage ? ` · ${s.stage}` : ''}</strong> — {s.title.slice(0, 70)}

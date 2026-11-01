@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildSnapshot, diffSnapshots, avStatus, versionKey, quietEnough } from './av-state'
+import { buildSnapshot, diffSnapshots, avStatus, versionKey, quietEnough, removedSessions, linkStatus, type AvStatus } from './av-state'
 
 const base = { topic: 'Scaling', hideTopic: false, date: '2026-11-05', startHM: '10:00', endHM: '10:15', stage: 'Main Stage', layout: 'keynote', cards: [{ speakerId: 'a', moderator: false, text: { name: 'Mark', title: 'CEO', company: 'DFSA', country: 'UAE' } }] }
 const snap = (o: Partial<typeof base> = {}, look = 'L1') => buildSnapshot({ ...base, ...o }, look)
@@ -38,4 +38,21 @@ test('quiet time counts from the last change noticed', () => {
   assert.equal(quietEnough('2026-11-05T09:58:30Z', t), true)
   assert.equal(quietEnough('2026-11-05T09:59:30Z', t), false)
   assert.equal(quietEnough(null, t), false)
+})
+
+
+test('a downloaded session that left the link is reported as removed', () => {
+  const snap = (topic: string, date: string, start: string) => ({ topic, date, start, end: '', stage: 'Plenary 1', hideTopic: false, layout: 'panel', look: '', cards: [] })
+  const downloads = new Map([['a', { snapshot: snap('A', '2026-11-02', '10:00'), downloadedAt: '2026-11-01T08:00:00Z' }], ['b', { snapshot: snap('B', '2026-11-02', '09:00'), downloadedAt: null }]])
+  assert.deepEqual(removedSessions(new Set(['a']), downloads).map(r => r.id), ['b'])
+  assert.deepEqual(removedSessions(new Set(['a', 'b']), downloads), [])
+})
+
+test('link status: waiting count, oldest since, urgent when on stage now or within the hour', () => {
+  const now = Date.parse('2026-11-02T10:00:00Z')
+  const row = (status: AvStatus, since: string | null, a: string, b: string) => ({ status, since, startsAt: a, endsAt: b })
+  const rows = [row('ok', null, '2026-11-02T09:00:00Z', '2026-11-02T09:30:00Z'), row('changed', '2026-11-02T09:40:00Z', '2026-11-02T10:30:00Z', '2026-11-02T11:00:00Z'),
+    row('updating', '2026-11-02T09:50:00Z', '2026-11-02T15:00:00Z', '2026-11-02T16:00:00Z'), row('new', '2026-11-02T09:45:00Z', '2026-11-02T09:50:00Z', '2026-11-02T10:20:00Z')]
+  const s = linkStatus(rows, 1, '2026-11-02T09:59:50Z', '2026-11-01T00:00:00Z', now)
+  assert.equal(s.waiting, 3); assert.equal(s.oldest_since, '2026-11-02T09:40:00Z'); assert.equal(s.urgent, 2); assert.equal(s.removed, 1); assert.equal(s.downloaded, true)
 })

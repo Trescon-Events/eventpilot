@@ -106,3 +106,12 @@ export async function linkByToken(token: string, kind: 'stage' | 'tables' | 'sho
   if (!data || data.revoked_at || ((data.kind as string | undefined) ?? 'stage') !== kind) return null
   return { id: data.id as string, event_id: data.event_id as string, track_id: data.track_id as string | null, label: data.label as string, revoked_at: null, baseline_at: (data.baseline_at as string | null) ?? null, kind }
 }
+
+const lastTouched = new Map<string, number>()
+/** Notes that a private link's page just asked for its data (at most one write every 10 s per link). Best effort: it must never slow or break the page, and it does nothing until the last_seen_at column exists. */
+export function touchLinkSeen(linkId: string): void {
+  const n = Date.now()
+  if (n - (lastTouched.get(linkId) ?? 0) < 10_000) return
+  lastTouched.set(linkId, n)
+  void supabaseAdmin.from('event_screen_links').update({ last_seen_at: new Date(n).toISOString() }).eq('id', linkId).then(() => undefined, () => undefined)
+}

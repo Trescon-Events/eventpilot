@@ -20,7 +20,8 @@ type Session = {
   id: string; title: string; topic: string; hide_topic: boolean; stage: string | null; track_id: string | null; date: string; start: string; end: string; format: string | null; status: string
   layout: string; fingerprint: string; state: 'new' | 'ready' | 'changed'; png_url: string | null; generated_at: string | null; width: number | null; height: number | null; low_res: string[]; file_name: string; cards: Card[]; reasons: string[]; starts_at: string | null; ends_at: string | null
 }
-type LinkRow = { id: string; track_id: string | null; label: string; token: string; kind: 'stage' | 'tables' }
+type LinkStatus = { last_seen_at: string | null; waiting: number; oldest_since: string | null; urgent: number; removed: number; downloaded: boolean }
+type LinkRow = { id: string; track_id: string | null; label: string; token: string; kind: 'stage' | 'tables'; status?: LinkStatus }
 type Data = {
   timezone: string; auto_redraw: boolean; sessions: Session[]; fonts: { id: string; family_name: string }[]; stages: { id: string; name: string }[]; links: LinkRow[]
   look: { panel: 'light' | 'dark'; dims: { photoW: number; photoH: number }; head_scale: number; font_id: string | null; font_name: string | null; background_url: string | null; text_color: string; accent_color: string }
@@ -239,6 +240,29 @@ function LookSummary({ look, eventId }: { look: Data['look']; eventId: string })
   )
 }
 
+/** One line under an AV link: is its page open, and is anything waiting for it. Measured against what that link downloaded, so a bulk redraw by someone else shows up here for the right stage. */
+function LinkStatusLine({ s, tables }: { s: LinkStatus; tables: boolean }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 10_000); return () => clearInterval(t) }, [])
+  const age = s.last_seen_at ? now - Date.parse(s.last_seen_at) : null
+  const clock = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '')
+  const chip = (text: string, color: string, bold = false) => <span style={{ fontSize: '12.5px', fontWeight: bold ? 900 : 700, color, whiteSpace: 'nowrap' }}>{text}</span>
+  const seen = age === null ? chip('Never opened', 'var(--ink3)')
+    : age < 45_000 ? chip('● Page open now', 'var(--green)')
+    : age < 120_000 ? chip(`Last seen ${Math.round(age / 1000)} s ago`, 'var(--ink2)')
+    : chip(`Last seen ${age < 3_600_000 ? `${Math.round(age / 60_000)} min` : `${Math.round(age / 3_600_000)} h`} ago — page may be closed`, 'var(--amber)', true)
+  return (
+    <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center', padding: '0 0 8px' }}>
+      {seen}
+      {!tables && (s.waiting > 0
+        ? <>{chip(`${s.waiting} screen${s.waiting === 1 ? '' : 's'} waiting for download${s.oldest_since ? ` · oldest since ${clock(s.oldest_since)}` : ''}`, 'var(--red)', true)}
+            {s.urgent > 0 && chip(`URGENT: ${s.urgent} on stage now or starting within the hour`, 'var(--red)', true)}</>
+        : s.downloaded ? chip('✓ Up to date', 'var(--green)') : chip('Nothing downloaded yet', 'var(--ink3)'))}
+      {!tables && s.removed > 0 && chip(`${s.removed} to delete (moved or removed)`, 'var(--amber)', true)}
+    </div>
+  )
+}
+
 function LinksPanel({ kind, data, eventId, canEdit, onChanged }: { kind: 'stage' | 'tables'; data: Data; eventId: string; canEdit: boolean; onChanged: () => void }) {
   const links = data.links.filter(l => l.kind === kind)
   const [stage, setStage] = useState('')
@@ -263,6 +287,7 @@ function LinksPanel({ kind, data, eventId, canEdit, onChanged }: { kind: 'stage'
           <code style={{ fontSize: '12px', color: 'var(--ink2)', wordBreak: 'break-all', flex: '1 1 260px' }}>{url(l.token)}</code>
           <Button variant="ghost" onClick={() => { void navigator.clipboard.writeText(url(l.token)); setCopied(l.id); setTimeout(() => setCopied(null), 1500) }}>{copied === l.id ? 'Copied' : 'Copy link'}</Button>
           {canEdit && <Button variant="red" onClick={() => revoke(l.id)}>Switch off</Button>}
+          {l.status && <div style={{ flexBasis: '100%' }}><LinkStatusLine s={l.status} tables={kind === 'tables'} /></div>}
         </div>
       ))}
       {canEdit && (

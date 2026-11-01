@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { PANEL_DEFAULTS, loadScreenSessions, loadLook } from '@/app/lib/screens/data'
+import { linkStatus } from '@/app/lib/screens/av-state'
+import { avRowsFor, removedFor } from '@/app/lib/screens/av'
 import { MAX_PER_CALL, brief, generateScreens, redrawStale, requireScreens } from '@/app/lib/screens/service'
 import { clampTypeStyles, clampDims, clampHeadScale, type Overrides } from '@/app/lib/screens/geometry'
 
@@ -30,8 +32,24 @@ export async function GET(req: NextRequest) {
   if (look.autoRedraw) void redrawStale(eventId, { sessions: sessions.filter(s => s.state === 'changed') }, { by: 'auto' }).catch(e => console.error('[screens] auto redraw failed', e))
   const stageCards = ((ev?.creative_template_config as { speaker?: { variants?: { id: string; name: string; category?: string; canvas_width: number; canvas_height: number }[] } } | null)?.speaker?.variants ?? [])
     .filter(v => v.category === 'stage_screen').map(v => ({ id: v.id, name: v.name || 'Stage screen card', width: v.canvas_width, height: v.canvas_height }))
+  // Per AV link: is its page open, how many screens are waiting to be downloaded (and since when), anything urgent, anything to delete — measured against what THAT link downloaded.
+  const stageLinks = (links ?? []).filter(l => ((l.kind as string | undefined) ?? 'stage') === 'stage')
+  const { data: dl } = stageLinks.length
+    ? await supabaseAdmin.from('event_screen_link_downloads').select('link_id, session_id, version_key, snapshot, downloaded_at').in('link_id', stageLinks.map(l => l.id as string))
+    : { data: [] as { link_id: string; session_id: string; version_key: string; snapshot: unknown; downloaded_at: string }[] }
+  const nowMs = Date.now()
+  const status: Record<string, ReturnType<typeof linkStatus>> = {}
+  for (const l of links ?? []) {
+    const isStage = ((l.kind as string | undefined) ?? 'stage') === 'stage'
+    const lastSeen = (l.last_seen_at as string | null | undefined) ?? null
+    if (!isStage) { status[l.id as string] = linkStatus([], 0, lastSeen, null, nowMs); continue }
+    const scope = sessions.filter(x => !l.track_id || x.trackId === l.track_id)
+    const got = new Map((dl ?? []).filter(r => r.link_id === l.id).map(r => [r.session_id, r]))
+    const rows = avRowsFor(scope, got, (l.baseline_at as string | null | undefined) ?? null)
+    status[l.id as string] = linkStatus(rows.map(r => ({ status: r.status, since: r.status === 'updating' ? r.session.staleChangedAt ?? null : r.session.generatedAt ?? null, startsAt: r.session.startsAt, endsAt: r.session.endsAt })), removedFor(scope, got).length, lastSeen, (l.baseline_at as string | null | undefined) ?? null, nowMs)
+  }
   return NextResponse.json({
-    timezone, server_time: new Date().toISOString(), auto_redraw: look.autoRedraw, card_variants: stageCards, website_variant: look.websiteVariant ? { name: look.websiteVariant.name || 'Website photo', width: look.websiteVariant.canvas_width, height: look.websiteVariant.canvas_height } : null, sessions: sessions.map(brief), fonts: fonts ?? [], stages: tracks ?? [], links: (links ?? []).map(l => ({ id: l.id, track_id: l.track_id, label: l.label, token: l.token, kind: (l.kind as string | undefined) ?? 'stage' })),
+    timezone, server_time: new Date().toISOString(), auto_redraw: look.autoRedraw, card_variants: stageCards, website_variant: look.websiteVariant ? { name: look.websiteVariant.name || 'Website photo', width: look.websiteVariant.canvas_width, height: look.websiteVariant.canvas_height } : null, sessions: sessions.map(brief), fonts: fonts ?? [], stages: tracks ?? [], links: (links ?? []).map(l => ({ id: l.id, track_id: l.track_id, label: l.label, token: l.token, kind: (l.kind as string | undefined) ?? 'stage', status: status[l.id as string] })),
     look: { panel: settings.panel, card_style: settings.cardStyle, card_variant_id: settings.cardVariantId, use_website_photo: settings.useWebsitePhoto, type_styles: settings.typeStyles, dims: settings.dims, head_scale: settings.headScale, font_id: settings.fontId, font_name: look.font?.family_name ?? null, background_url: look.backgroundUrl, text_color: look.textColor, accent_color: look.accentColor },
   })
 }

@@ -66,3 +66,26 @@ export function quietEnough(staleChangedAt: string | null | undefined, now: numb
   if (!staleChangedAt) return false
   return now - new Date(staleChangedAt).getTime() >= quietMs
 }
+
+export type RemovedItem = { id: string; title: string; date: string; start: string; stage: string; downloadedAt: string | null }
+
+/** Sessions this link downloaded a file for that are no longer in its list (moved to another stage, or no speakers any more): the AV team must delete the file from their playout.
+    A session deleted outright takes its download record with it (the record is removed together with the session), so that case cannot be told apart from "never downloaded". */
+export function removedSessions(liveIds: Set<string>, downloads: Map<string, { snapshot?: Snapshot | null; downloadedAt: string | null }>): RemovedItem[] {
+  return [...downloads.entries()].filter(([id]) => !liveIds.has(id)).map(([id, d]) => ({
+    id, title: d.snapshot?.topic ?? 'A session', date: d.snapshot?.date ?? '', start: d.snapshot?.start ?? '', stage: d.snapshot?.stage ?? '', downloadedAt: d.downloadedAt,
+  })).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start))
+}
+
+export type LinkStatus = { last_seen_at: string | null; waiting: number; oldest_since: string | null; urgent: number; removed: number; downloaded: boolean }
+
+/** What the marketing page shows for one AV link: is its page open (last poll), how many screens are waiting to be downloaded and since when, and whether any of them is on stage now or starts within the hour. */
+export function linkStatus(rows: { status: AvStatus; since: string | null; startsAt: string | null; endsAt: string | null }[], removed: number, lastSeenAt: string | null, baselineAt: string | null, now: number): LinkStatus {
+  const waiting = rows.filter(r => r.status === 'changed' || r.status === 'updating' || r.status === 'new')
+  const since = waiting.map(r => r.since).filter((x): x is string => !!x).sort()
+  const urgent = waiting.filter(r => {
+    const a = r.startsAt ? Date.parse(r.startsAt) : NaN, b = r.endsAt ? Date.parse(r.endsAt) : NaN
+    return (a <= now && now <= b) || (a > now && a - now <= 3_600_000)
+  }).length
+  return { last_seen_at: lastSeenAt, waiting: waiting.length, oldest_since: since[0] ?? null, urgent, removed, downloaded: !!baselineAt }
+}
