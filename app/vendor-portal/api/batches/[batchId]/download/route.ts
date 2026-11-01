@@ -39,6 +39,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
   const prepared = await prepareBatchZip(batch.id, batch.delete_by)
   if (!prepared.ok) return vpError(409, prepared.message, { eventIds })
 
+  // The page asks first (?check=1) so a refusal can be shown as a message; the browser then fetches the file itself and saves it straight to disk.
+  if (req.nextUrl.searchParams.get('check') === '1') return NextResponse.json({ ok: true })
+
   const audited = await logOpsAccess({
     ...auditOwner(scope), actorType: 'vendor', actorId: session.userId, action: 'vendor_batch_download_started',
     targetType: 'license_batch', targetId: batch.id, meta: { batch_number: batch.batch_number, files: prepared.files.length - 2 }, ip,
@@ -55,6 +58,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
       await notifyOps(scope, `Batch ${batch.batch_number} downloaded by ${session.vendorName}`, 'Batch downloaded',
         `${session.name} (${session.vendorName}) downloaded Batch ${batch.batch_number} (${prepared.speakerCount} speaker${prepared.speakerCount === 1 ? '' : 's'}).`)
     }
+  }, {
+    // A download that breaks part-way used to leave no trace at all; now the audit log says how far it got and why it stopped.
+    onFail: async f => {
+      console.error(`[vendor-batch-download] batch ${batch.batch_number} failed at file ${f.fileIndex + 1}/${f.fileCount} after ${f.seconds}s, ${(f.bytesSent / 1e6).toFixed(1)} MB sent: ${f.reason}`)
+      await logOpsAccess({ ...auditOwner(scope), actorType: 'vendor', actorId: session.userId, action: 'vendor_batch_download_failed', targetType: 'license_batch', targetId: batch.id, ip,
+        meta: { batch_number: batch.batch_number, file: f.fileIndex + 1, of: f.fileCount, mb_sent: Math.round(f.bytesSent / 1e5) / 10, seconds: f.seconds, reason: f.reason } })
+    },
   })
 
   return new NextResponse(body, {

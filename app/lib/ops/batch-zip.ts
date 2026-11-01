@@ -76,24 +76,49 @@ export async function prepareBatchZip(batchId: string, deleteBy?: string | null)
   return { ok: true, batchNumber: batch.batch_number, speakerCount: items.length, files: [{ name: 'README.txt', load: async () => readme }, { name: 'manifest.csv', load: async () => manifest }, ...files] }
 }
 
-/** Streams the archive. `onComplete` runs only after every file was read successfully (never on abort/failure). */
-export function streamZip(files: ZipFile[], onComplete: () => Promise<void>): ReadableStream<Uint8Array> {
-  let next = 0
-  let finished = false
+export type ZipFailure = { fileIndex: number; fileCount: number; bytesSent: number; seconds: number; reason: string }
+
+/** Files read ahead of the one being written. Reading them one by one took over two minutes for 146 files; a few at a time keeps memory small (a handful of files) and cuts the wait. */
+const READ_AHEAD = 5
+
+/** Streams the archive. `onComplete` runs only after every file was read successfully (never on abort/failure).
+    `onFail` runs once if the archive cannot be finished: a file could not be read (after one retry) or the receiver went away before the end. */
+export function streamZip(files: ZipFile[], onComplete: () => Promise<void>, opts?: { onFail?: (f: ZipFailure) => void | Promise<void> }): ReadableStream<Uint8Array> {
+  const t0 = Date.now()
+  let next = 0, nextLoad = 0, bytesSent = 0
+  let finished = false, failed = false
   let zip: Zip
+  const pending = new Map<number, Promise<Uint8Array | null>>()
+  // Never rejects: a file that cannot be read after one more try comes back as null.
+  const load = async (f: ZipFile): Promise<Uint8Array | null> => {
+    for (let attempt = 0; attempt < 2; attempt++) { try { const b = await f.load(); if (b) return b } catch { /* try once more */ } }
+    return null
+  }
+  const readAhead = () => { while (pending.size < READ_AHEAD && nextLoad < files.length) { pending.set(nextLoad, load(files[nextLoad])); nextLoad++ } }
+  const fail = async (reason: string, fileIndex: number) => {
+    if (failed || finished) return
+    failed = true; pending.clear()
+    try { await opts?.onFail?.({ fileIndex, fileCount: files.length, bytesSent, seconds: Math.round((Date.now() - t0) / 1000), reason }) } catch { /* reporting must never mask the failure */ }
+  }
   return new ReadableStream<Uint8Array>({
     start(controller) {
       zip = new Zip((err, chunk, final) => {
-        if (err) { controller.error(err); return }
+        if (err) { void fail(`Archive error: ${err.message}`, next); controller.error(err); return }
+        bytesSent += chunk.length
         controller.enqueue(chunk)
         if (final) controller.close()
       })
     },
     async pull(controller) {
+      if (failed) return
+      readAhead()
       if (next < files.length) {
-        const file = files[next++]
-        const bytes = await file.load()
-        if (!bytes) { controller.error(new Error(`Could not read ${file.name}`)); return }
+        const idx = next++
+        const file = files[idx]
+        const bytes = await pending.get(idx)
+        pending.delete(idx)
+        readAhead()
+        if (!bytes) { await fail(`Could not read ${file.name}`, idx); controller.error(new Error(`Could not read ${file.name}`)); return }
         const entry = new ZipPassThrough(file.name)   // JPG/PDF/PNG are already compressed
         zip.add(entry)
         entry.push(bytes, true)
@@ -103,5 +128,6 @@ export function streamZip(files: ZipFile[], onComplete: () => Promise<void>): Re
         zip.end()
       }
     },
+    cancel() { void fail('The connection was closed before the download finished (the receiver went away or the network dropped)', next) },
   })
 }

@@ -85,19 +85,17 @@ export default function VendorBatchPage({ params }: { params: Promise<{ batchId:
   async function download() {
     setBusy('download'); setError(null); setNotice(null)
     try {
-      const res = await fetch(`/vendor-portal/api/batches/${batchId}/download`)
+      // Ask first, so a refusal (expired, not confirmed, signed out) shows as a message; then the browser fetches the file itself and saves it to disk as it arrives.
+      const res = await fetch(`/vendor-portal/api/batches/${batchId}/download?check=1`)
       if (await redirected(res)) return
       if (!res.ok) { setError(await readError(res)); reload(); return }
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
-      a.href = url; a.download = `Batch-${d?.batch_number ?? ''}.zip`
+      a.href = `/vendor-portal/api/batches/${batchId}/download`; a.download = `Batch-${d?.batch_number ?? ''}.zip`
       document.body.appendChild(a); a.click(); a.remove()
-      setTimeout(() => URL.revokeObjectURL(url), 10_000)
-      setNotice('Download complete. Trescon Ops has been notified.')
-      reload()
+      setNotice('Your download has started. It can take a minute or two; you can follow it in your browser\'s downloads. If the browser says it failed, just click Download again; nothing is lost. Trescon Ops is notified when it completes.')
+      for (const s of [15, 40, 90, 180]) setTimeout(reload, s * 1000)   // pick up the "downloaded" status once the file has finished
     } catch {
-      setError({ error: 'The download did not complete. Please try again.' })
+      setError({ error: 'That did not go through. Please try again.' })
     } finally { setBusy(null) }
   }
 
