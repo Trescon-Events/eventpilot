@@ -11,6 +11,22 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 ---
 
+## Nav fix + Durga clean-up (31 Oct 2026) — built locally, NOT pushed
+Why staff kept emailing "Admin Panel" access requests: every event page's breadcrumb began with "Admin Dashboard" (`/admin`, admin-only) because Event Workspace's `breadcrumbParent` is 'admin'; a click landed on `/no-access?tool=admin` whose big button sends the request. Log showed from_path `/admin` and `/admin/events`.
+- `app/lib/nav/breadcrumbs.ts`: `deriveBreadcrumbs(path, labels, isAdmin)` drops `/admin` and `/admin/events` crumbs for non-admins; `AppShellRoot.tsx` now renders them via a `Crumbs` component inside `NavDataProvider` (knows `session.adm`). Test: `breadcrumbs.test.ts`.
+- `app/no-access/page.tsx`: for `tool=admin` the main button is "My dashboard"; asking for admin access is a small deliberate link.
+- `middleware.ts`: everything under `/admin/events/[id]/…` is sign-in-only EXCEPT `access|integrations|settings|content-check` (inverted from a hand-kept page list; each page's own layout is the real gate). New event pages no longer need adding.
+- Durga: removed `dc@` from access-request emails (`email.ts`), build-request default recipient (`email.ts`, `api/build-requests`) → md@; removed from PR-approvals allowlist (`dev-approvals-access.ts`); user-visible "Durga" text → Madhu/Admin (pilots pages, constants, emails, checklist-draft prompt). Left alone on purpose: historic build-log attribution, `credentials.ts` note, one-time seed scripts and `api/admin/setup-pilots` (already-run seed text).
+- Later (bigger): move the event workspace off `/admin/events/…` to `/events/…` with redirects.
+
+## Show Caller — live run-of-show sheet (31 Oct 2026) — built locally, NOT committed/pushed, migration NOT run
+Full-screen editable cue sheet for the show caller (references: BSS 2025 xlsx, DFS 2025 PDFs). Sheet = agenda sessions + auto MC rows + custom rows; time/title/speakers/format are read live from the Agenda, everything the show caller types lives in `event_showcall_cues` (migration `supabase/event_showcall_migration.sql`, also adds kind 'showcall' to `event_screen_links`). Agenda changes after first build are flagged NEW / CHANGED / REMOVED (never overwrite typed cells); "OK, noted" accepts.
+- Logic: `app/lib/showcall/model.ts` (pure, 7 tests in `model.test.ts`: rows, flags, seat-change suggestions, defaults), `service.ts` (loadSheet/ensureCues/runAction, `requireShowcall`), `xlsx.ts` (browser Excel, one tab per stage-day).
+- API: `app/api/events/showcall` (producers, perms `sae.showcall.view|manage`), `app/api/public/showcall/[token]` (private link). Links made via the existing `/api/events/screens/links` with `kind:'showcall'`.
+- UI: `app/components/showcall/ShowcallSheet.tsx` (shared; 3 s polling, columns toggle, font size, Now/Next strip, fill-empty, MC copy-to-all, + cue), producers page `app/admin/events/[id]/showcall`, show caller page `app/public/showcall/[token]`.
+- Also (31 Oct): speaker page got a read-only **Sessions** tab (`SessionsTab.tsx`, API `speakers/[id]/sessions`, helper `app/lib/stakeholders/speaker-sessions.ts` with clash detection) + a session-count chip under the name. Not yet seen in a browser. Test link/rows for Show Caller (BSS 2026 event) must be deleted with `.scratch/showcall-link.ts clean`.
+- Not yet: side-by-side all-stages view, PDF print view, editable vocabularies/defaults (hard-coded in model.ts), undo. Live-test after running the migration.
+
 ## Table Screens Phase 2 — live control + Table Hub (31 Oct 2026) — built, committed locally, NOT pushed, migration NOT run
 - **Flow:** the console (EventPilot) writes what each table should show → the **Table Hub** program on the technician's laptop polls EventPilot every 2 s, keeps each picture on the laptop (memory + `table-hub-cache/`) and serves `/table/1..6` over the LAN to the table PCs (no internet there). The laptop only makes outbound calls, so no mixed-content/firewall problems; everything except the program is updated by deploying here.
 - **Migration to run by hand:** `supabase/event_table_screens_live_migration.sql` (table `event_table_screens_live`: state, seq, program status). Until it is run the Live panel shows "needs a one-time database update".
