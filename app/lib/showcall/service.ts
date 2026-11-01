@@ -112,7 +112,7 @@ export type Action =
   | { action: 'set'; id: string; fields: Record<string, unknown> }
   | { action: 'accept'; id: string }
   | { action: 'delete'; id: string }
-  | { action: 'add'; track_id: string; day: string; start: string; dur_sec?: number; type?: string }
+  | { action: 'add'; track_id: string; day: string; start: string; dur_sec?: number; type?: string; topic?: string }
   | { action: 'fill'; key: string; value: string; track_id: string | null; day: string; only_empty?: boolean }
   | { action: 'restore_mc'; track_id: string | null; day: string }
 
@@ -162,7 +162,7 @@ export async function runAction(eventId: string, trackId: string | null, by: str
       if (!/^\d{4}-\d{2}-\d{2}$/.test(a.day ?? '') || hmToSec(a.start) === null) return { error: 'A day and a start time like 10:05 are needed.' }
       const { data: t } = await supabaseAdmin.from('event_agenda_tracks').select('id').eq('id', a.track_id).eq('event_id', eventId).maybeSingle()
       if (!t) return { error: 'Stage not found.' }
-      const fields: Fields = { ...defaultsFor('custom', null, 0), start: a.start, dur_sec: String(Math.max(0, Math.min(86400, Math.round(a.dur_sec ?? 300)))), type: clean(a.type).slice(0, 80) || 'Custom cue' }
+      const fields: Fields = { ...defaultsFor('custom', null, 0), start: a.start, dur_sec: String(Math.max(0, Math.min(86400, Math.round(a.dur_sec ?? 300)))), type: clean(a.type).slice(0, 80) || 'Custom cue', ...(clean(a.topic) ? { topic: clean(a.topic).slice(0, MAX_LEN) } : {}) }
       const { error } = await supabaseAdmin.from('event_showcall_cues').insert({ event_id: eventId, track_id: a.track_id, day: a.day, kind: 'custom', fields, ack: null, updated_by: by })
       return error ? { error: error.message } : { ok: true }
     }

@@ -42,6 +42,11 @@ const CSS = `
 .scx .chip { display: inline-block; margin: 0 6px 4px; padding: 1px 7px; border-radius: 999px; border: 1px dashed var(--teal); color: var(--teal-mid); cursor: pointer; font-size: .85em; background: transparent; font-family: inherit; }
 .scx select.fill { max-width: 100%; margin-top: 3px; font-size: .85em; background: var(--card); color: var(--ink2); border: 1px solid var(--border); border-radius: 6px; }
 .scx-err { background: var(--red); color: var(--surface); padding: 8px 12px; font-weight: 800; }
+.scx-modal { position: fixed; inset: 0; z-index: 50; background: color-mix(in srgb, var(--ink) 45%, transparent); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.scx-dlg { width: min(560px, 100%); max-height: 100%; overflow: auto; background: var(--card); color: var(--ink); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-md); padding: 18px; display: grid; gap: 14px; font-size: 14px; }
+.scx-dlg label.l { display: grid; gap: 5px; font-weight: 800; color: var(--ink2); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+.scx-dlg input, .scx-dlg select, .scx-dlg textarea { font: inherit; font-size: 14px; padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--ink); text-transform: none; letter-spacing: 0; font-weight: 600; }
+.scx-dlg input:focus, .scx-dlg select:focus, .scx-dlg textarea:focus { outline: none; border-color: var(--teal); }
 @media print { .scx-bar, .scx-now { display: none } .scx-grid { overflow: visible } }
 `
 
@@ -71,6 +76,48 @@ function Cell({ value, onSave, ro, list, placeholder, multiline }: { value: stri
     : <input {...common} list={list} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLElement).blur(); if (e.key === 'Escape') { setV(value); (e.target as HTMLElement).blur() } }} />
 }
 
+const QUICK = ['VIP arrival', 'Registration open', 'Holding / walk-in', 'Sponsor video', 'Break', 'Delay filler', 'Group photo', 'Announcement']
+const MINS = [1, 2, 5, 10, 15, 30]
+
+/** The Add-cue pop-up: say what it is, where it goes (after which row) and how long. The start time follows the chosen row until it is typed over. */
+function AddCue({ rows, first, busy, onAdd, onClose }: { rows: Row[]; first: string; busy: boolean; onAdd: (v: { title: string; notes: string; start: string; sec: number }) => void | Promise<void>; onClose: () => void }) {
+  const endOf = (id: string, mins: number) => { const r = rows.find(x => x.id === id); const sec = r ? r.startSec + r.durSec : Math.max(0, (rows[0]?.startSec ?? 0) - mins * 60); return secToHm(Math.round(sec / 60) * 60) }
+  const [title, setTitle] = useState(''), [notes, setNotes] = useState(''), [after, setAfter] = useState(first), [mins, setMins] = useState(2)
+  const [start, setStart] = useState(() => endOf(first, 2))
+  const ok = title.trim().length > 0 && hmToSec(start) !== null && mins > 0
+  const submit = () => { if (ok && !busy) void onAdd({ title: title.trim(), notes: notes.trim(), start, sec: Math.round(mins * 60) }) }
+  const label = (r: Row) => `Cue ${r.cue} · ${secToHm(r.startSec)} · ${(r.typeLabel || r.topic || 'Cue').slice(0, 40)}${r.kind === 'mc' ? ' (MC)' : ''}`
+  return (
+    <div className="scx-modal" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }} onKeyDown={e => { if (e.key === 'Escape') onClose() }}>
+      <div className="scx-dlg" role="dialog" aria-label="Add a cue">
+        <div><strong style={{ fontSize: 17 }}>Add a cue</strong><div style={{ color: 'var(--ink3)', marginTop: 3 }}>For things that are not in the Agenda and should not be public, such as a VIP arriving. The Agenda is not changed.</div></div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{QUICK.map(q => <button key={q} type="button" className={`scx-pill${title === q ? ' on' : ''}`} onClick={() => setTitle(q)}>{q}</button>)}</div>
+        <label className="l">What is it?<input autoFocus value={title} placeholder="Type, or pick one above" maxLength={80} onChange={e => setTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submit() }} /></label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 130px', gap: 10 }}>
+          <label className="l">Goes after
+            <select value={after} onChange={e => { setAfter(e.target.value); setStart(endOf(e.target.value, mins)) }}>
+              <option value="">At the very start of the day</option>
+              {rows.map(r => <option key={r.id} value={r.id}>{label(r)}</option>)}
+            </select>
+          </label>
+          <label className="l">Starts at<input type="time" value={start} onChange={e => setStart(e.target.value)} /></label>
+        </div>
+        <div className="l" style={{ display: 'grid', gap: 5, fontWeight: 800, color: 'var(--ink2)', fontSize: 12, letterSpacing: '.04em', textTransform: 'uppercase' }}>How long?
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            {MINS.map(m => <button key={m} type="button" className={`scx-pill${mins === m ? ' on' : ''}`} onClick={() => setMins(m)}>{m} min</button>)}
+            <input type="number" min={1} max={600} value={mins} style={{ width: 80, padding: '5px 8px', border: '1.5px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--ink)', font: 'inherit' }} onChange={e => setMins(Math.max(0, parseFloat(e.target.value) || 0))} />
+          </div>
+        </div>
+        <label className="l">Notes (optional)<input value={notes} placeholder="e.g. Chief Guest arrives at Gate 2, escort to front row" onChange={e => setNotes(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submit() }} /></label>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button type="button" className="scx-btn" onClick={onClose}>Cancel</button>
+          <button type="button" className="scx-btn" style={{ background: 'var(--teal)', color: 'var(--surface)', borderColor: 'var(--teal)' }} disabled={!ok || busy} onClick={submit}>Add cue</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ShowcallSheet({ load, act, readOnly, onExcel, title }: Props) {
   const [data, setData] = useState<SheetPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -81,7 +128,8 @@ export default function ShowcallSheet({ load, act, readOnly, onExcel, title }: P
   const [hidden, setHidden] = useState<Set<ColKey>>(() => { try { return new Set(JSON.parse(ls('scx-hidden') ?? '[]') as ColKey[]) } catch { return new Set() } })
   const [fs, setFs] = useState(() => { const f = parseFloat(ls('scx-fs') ?? ''); return f >= 9 && f <= 22 ? f : 12.5 })
   const [clock, setClock] = useState('')
-  const [mcName, setMcName] = useState(''), [adding, setAdding] = useState(false), [add, setAdd] = useState({ start: '', min: '5', type: '' })
+  const [mcName, setMcName] = useState('')
+  const [adding, setAdding] = useState<{ after: string } | null>(null)   // the Add-cue pop-up; `after` is the row it goes after ('' = very start)
   const [busy, setBusy] = useState(false)
   const loading = useRef(false)
 
@@ -153,15 +201,7 @@ export default function ShowcallSheet({ load, act, readOnly, onExcel, title }: P
           <span style={{ color: 'var(--ink3)', fontWeight: 700 }}>{stage?.name} · MC for the whole day:</span>
           <input className="c" style={{ width: 170, height: 30, border: '1.5px solid var(--border)', borderRadius: 8 }} placeholder="MC name" value={mcName} onChange={e => setMcName(e.target.value)} />
           <button className="scx-btn" disabled={busy || !mcName.trim()} onClick={() => run({ action: 'fill', key: 'mc', value: mcName.trim(), track_id: stageId, day })}>Copy to all rows</button>
-          <button className="scx-btn" onClick={() => setAdding(a => !a)}>+ Add cue</button>
-          {adding && (
-            <span style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-              <input className="c" style={{ width: 80, height: 30, border: '1.5px solid var(--border)', borderRadius: 8 }} placeholder="10:05" value={add.start} onChange={e => setAdd({ ...add, start: e.target.value })} />
-              <input className="c" style={{ width: 60, height: 30, border: '1.5px solid var(--border)', borderRadius: 8 }} placeholder="min" value={add.min} onChange={e => setAdd({ ...add, min: e.target.value })} />
-              <input className="c" style={{ width: 200, height: 30, border: '1.5px solid var(--border)', borderRadius: 8 }} placeholder="What (e.g. Lunch / Sponsor video)" value={add.type} onChange={e => setAdd({ ...add, type: e.target.value })} />
-              <button className="scx-btn" disabled={busy || hmToSec(add.start) === null} onClick={async () => { await run({ action: 'add', track_id: stageId, day, start: add.start, dur_sec: Math.round((parseFloat(add.min) || 5) * 60), type: add.type }); setAdding(false); setAdd({ start: '', min: '5', type: '' }) }}>Add</button>
-            </span>
-          )}
+          <button className="scx-btn" title="Add a cue that is not in the Agenda, such as a VIP arrival" onClick={() => setAdding({ after: (nowRow ?? all[all.length - 1])?.id ?? '' })}>+ Add cue</button>
           <button className="scx-btn" disabled={busy} title="Bring back MC rows you removed" onClick={() => run({ action: 'restore_mc', track_id: stageId, day })}>Restore MC rows</button>
         </div>
       )}
@@ -169,9 +209,11 @@ export default function ShowcallSheet({ load, act, readOnly, onExcel, title }: P
         <span><span style={{ color: 'var(--ink3)', fontWeight: 800 }}>NOW </span>{nowRow ? <strong>Cue {nowRow.cue} · {nowRow.typeLabel || nowRow.topic} — {nowRow.topic}</strong> : <span style={{ color: 'var(--ink3)' }}>{isToday ? 'Between cues' : 'Not today'}</span>}</span>
         {nextRow && <span><span style={{ color: 'var(--ink3)', fontWeight: 800 }}>NEXT </span><strong>Cue {nextRow.cue} at {secToHm(nextRow.startSec)}</strong> · in {fmtDur(Math.max(0, nextRow.startSec - today.sec))} · {nextRow.typeLabel} — {nextRow.topic}</span>}
       </div>
+      {adding && <AddCue rows={all} onClose={() => setAdding(null)} first={adding.after} busy={busy}
+        onAdd={async (v) => { await run({ action: 'add', track_id: stageId, day, start: v.start, dur_sec: v.sec, type: v.title, topic: v.notes }); setAdding(null) }} />}
       <div className="scx-grid">
         <table>
-          <colgroup><col style={{ width: 52 }} /><col style={{ width: 62 }} /><col style={{ width: 62 }} />{colsShown.map(c => <col key={c.key} style={{ width: c.w }} />)}<col style={{ width: 62 }} />{!readOnly && <col style={{ width: 34 }} />}</colgroup>
+          <colgroup><col style={{ width: 52 }} /><col style={{ width: 62 }} /><col style={{ width: 62 }} />{colsShown.map(c => <col key={c.key} style={{ width: c.w }} />)}<col style={{ width: 62 }} />{!readOnly && <col style={{ width: 40 }} />}</colgroup>
           <thead><tr>
             <th>Cue</th><th>Time</th><th>Dur.</th>
             {colsShown.map(c => (
@@ -194,8 +236,8 @@ export default function ShowcallSheet({ load, act, readOnly, onExcel, title }: P
                   <td className="ro strong cue">{r.cue}
                     {r.flag && <div><span className="tag" style={{ background: r.flag === 'changed' || r.flag === 'removed' ? 'var(--red)' : 'var(--info)', color: 'var(--surface)' }}>{r.flag.toUpperCase()}</span></div>}
                   </td>
-                  <td className="ro strong">{secToHm(r.startSec)}</td>
-                  <td className="ro">{r.kind === 'mc' && editable
+                  <td className={r.kind === 'custom' && editable ? 'strong' : 'ro strong'}>{r.kind === 'custom' && editable ? <Cell value={secToHm(r.startSec)} onSave={v => set(r, { start: v })} /> : secToHm(r.startSec)}</td>
+                  <td className="ro">{(r.kind === 'mc' || r.kind === 'custom') && editable
                     ? <Cell value={String(r.durSec)} onSave={v => set(r, { dur_sec: v })} />
                     : fmtDur(r.durSec)}</td>
                   {colsShown.map(c => {
@@ -226,7 +268,7 @@ export default function ShowcallSheet({ load, act, readOnly, onExcel, title }: P
                     }
                   })}
                   <td className="ro">{actualDur(r.fields.actual_start, r.fields.actual_end)}</td>
-                  {!readOnly && <td className="ro" style={{ textAlign: 'center' }}>{(r.kind === 'mc' || r.kind === 'custom') && <button className="scx-btn" style={{ padding: '0 6px' }} title="Remove this row" onClick={() => run({ action: 'delete', id: r.id })}>×</button>}</td>}
+                  {!readOnly && <td className="ro" style={{ textAlign: 'center' }}><button className="scx-btn" style={{ padding: '0 6px', marginBottom: 2 }} title="Add a cue after this row" onClick={() => setAdding({ after: r.id })}>+</button>{(r.kind === 'mc' || r.kind === 'custom') && <button className="scx-btn" style={{ padding: '0 6px' }} title="Remove this row" onClick={() => run({ action: 'delete', id: r.id })}>×</button>}</td>}
                 </tr>
               )
             })}
