@@ -24,6 +24,7 @@ import AnnouncementsTab from './AnnouncementsTab'
 import SensitiveDocumentsTab from './SensitiveDocumentsTab'
 import CommunicationsTab from './CommunicationsTab'
 import GuestInviteTab from './GuestInviteTab'
+import SessionsTab, { type SessionsInfo } from './SessionsTab'
 import DeleteSensitiveDocumentModal from './DeleteSensitiveDocumentModal'
 import type { Speaker as SaeSpeaker, Partner as SaePartner } from '../../creative-templates/page'
 import type { HeadlineVariant } from '@/app/lib/events/announcements'
@@ -228,8 +229,9 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   // Announcements tab (2026-08-18, SAE-into-Hub merge) — ?tab=announcements
   // (+ optional ?announcement=X) is how Queue's "Open" links land directly
   // on one creative's review panel, same deep-link idea SAE's own page used.
-  const activeTab: 'overview' | 'registration' | 'secondary' | 'documents' | 'communications' | 'guest' | 'announcements' =
+  const activeTab: 'overview' | 'sessions' | 'registration' | 'secondary' | 'documents' | 'communications' | 'guest' | 'announcements' =
     searchParams.get('tab') === 'announcements' ? 'announcements'
+    : searchParams.get('tab') === 'sessions' ? 'sessions'
     : searchParams.get('tab') === 'registration' ? 'registration'
     : searchParams.get('tab') === 'secondary' ? 'secondary'
     : searchParams.get('tab') === 'documents' ? 'documents'
@@ -240,6 +242,15 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
 
   const [record, setRecord] = useState<StakeholderRecord | null>(null)
   const [eventName, setEventName] = useState<string | null>(null)
+  // Sessions tab (2026-10-31): read once when the page opens so the tab label and the header chip can show the count without opening the tab.
+  const [sessionsInfo, setSessionsInfo] = useState<SessionsInfo | null>(null)
+  const [sessionsError, setSessionsError] = useState<string | null>(null)
+  useEffect(() => {
+    if (kind !== 'speaker') return
+    let cancelled = false
+    void fetch(`/api/events/stakeholders/speakers/${stakeholderId}/sessions`).then(async r => { const j = await r.json().catch(() => ({})); if (cancelled) return; if (r.ok) setSessionsInfo(j as SessionsInfo); else setSessionsError(j.error ?? 'Could not load sessions.') }).catch(() => { if (!cancelled) setSessionsError('Could not load sessions.') })
+    return () => { cancelled = true }
+  }, [kind, stakeholderId])
   // Per-event feature toggles (2026-09-27) — see app/lib/registry/feature-flags.ts.
   const [sensitiveDocsEnabled, setSensitiveDocsEnabled] = useState(true)
   const [uaeFieldEnabled, setUaeFieldEnabled] = useState(true)
@@ -1097,7 +1108,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     setStatus(data.announcement_status)
   }
 
-  function setTab(tab: 'overview' | 'registration' | 'secondary' | 'documents' | 'communications' | 'guest' | 'announcements') {
+  function setTab(tab: 'overview' | 'sessions' | 'registration' | 'secondary' | 'documents' | 'communications' | 'guest' | 'announcements') {
     const params = new URLSearchParams(searchParams.toString())
     params.set('tab', tab)
     if (tab === 'overview') params.delete('announcement')
@@ -1297,7 +1308,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       <PageHeader
         eyebrow="Stakeholder Hub"
         title={name || (kind === 'speaker' ? 'New Speaker' : 'New Partner')}
-        description={<Badge color={badge.color}>{badge.label}</Badge>}
+        description={<span style={{ display: 'inline-flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}><Badge color={badge.color}>{badge.label}</Badge>{kind === 'speaker' && sessionsInfo && <button onClick={() => setTab('sessions')} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}><Badge color={sessionsInfo.clashes.length || !sessionsInfo.sessions.length ? 'amber' : 'teal'}>{sessionsInfo.sessions.length === 0 ? 'No sessions yet' : `${sessionsInfo.sessions.length} session${sessionsInfo.sessions.length > 1 ? 's' : ''}${sessionsInfo.clashes.length ? ' · clash' : ''}`}</Badge></button>}</span>}
         backHref={`/admin/events/${eventId}/stakeholders`}
         backLabel="Back to Stakeholder Hub"
       />
@@ -1314,7 +1325,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
               "don't even reveal it exists" treatment as every other
               permission-gated surface in this app. */}
           {(kind === 'speaker'
-            ? (['overview', 'registration', 'secondary', ...(can('sae.sensitive_documents.view') && sensitiveDocsEnabled ? ['documents' as const] : []), 'communications', 'guest', 'announcements'] as const)
+            ? (['overview', 'sessions', 'registration', 'secondary', ...(can('sae.sensitive_documents.view') && sensitiveDocsEnabled ? ['documents' as const] : []), 'communications', 'guest', 'announcements'] as const)
             : (['overview', 'announcements'] as const)
           ).map(t => (
             <button key={t} onClick={() => setTab(t)}
@@ -1323,7 +1334,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                 background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: 700,
                 color: activeTab === t ? 'var(--ink)' : 'var(--ink3)', marginBottom: '-1px',
               }}>
-              {t === 'overview' ? 'Overview' : t === 'registration' ? 'Registration' : t === 'secondary' ? 'Additional Roles' : t === 'documents' ? 'Documents' : t === 'communications' ? 'Communications' : t === 'guest' ? 'Guest Invite' : 'Announcements'}
+              {t === 'overview' ? 'Overview' : t === 'sessions' ? `Sessions${sessionsInfo ? ` (${sessionsInfo.sessions.length})` : ''}` : t === 'registration' ? 'Registration' : t === 'secondary' ? 'Additional Roles' : t === 'documents' ? 'Documents' : t === 'communications' ? 'Communications' : t === 'guest' ? 'Guest Invite' : 'Announcements'}
             </button>
           ))}
         </div>
@@ -1505,6 +1516,8 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
           onClose={() => { if (!assetDelete.deleting) setAssetDelete(null) }}
         />
       )}
+
+      {activeTab === 'sessions' && kind === 'speaker' && <SessionsTab eventId={eventId} info={sessionsInfo} error={sessionsError} />}
 
       {activeTab === 'communications' && kind === 'speaker' && (
         <CommunicationsTab speakerId={stakeholderId} stakeholderName={name || 'this speaker'} canEdit={canEdit} />
