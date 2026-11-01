@@ -38,3 +38,9 @@ test('a receiver that goes away mid-way is reported, not marked complete', async
   await r.read(); await r.cancel()
   assert.equal(completed, false); assert.ok(failure)
 })
+
+test('a batch is split into parts of PART_SIZE speakers', async () => {
+  const { PART_SIZE, partCountOf } = await import('./batch-zip')
+  assert.equal(partCountOf(0), 1); assert.equal(partCountOf(1), 1); assert.equal(partCountOf(PART_SIZE), 1)
+  assert.equal(partCountOf(PART_SIZE + 1), 2); assert.equal(partCountOf(80), Math.ceil(80 / PART_SIZE))
+})

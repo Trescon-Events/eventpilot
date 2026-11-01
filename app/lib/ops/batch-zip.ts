@@ -11,7 +11,11 @@ import { formatDeleteBy } from '@/app/lib/ops/delete-by'
    is streamed one file at a time so a large batch never sits fully in memory. */
 
 export type ZipFile = { name: string; load: () => Promise<Uint8Array | null> }
-export type PreparedZip = { ok: true; batchNumber: number; files: ZipFile[]; speakerCount: number } | { ok: false; message: string }
+export type PreparedZip = { ok: true; batchNumber: number; files: ZipFile[]; speakerCount: number; part: number; partCount: number } | { ok: false; message: string }
+
+/** A big batch is downloaded in parts of this many speakers (about 30 MB each for passports + IDs), so one slow or dropped connection only costs one part. */
+export const PART_SIZE = 20
+export const partCountOf = (speakers: number) => Math.max(1, Math.ceil(speakers / PART_SIZE))
 
 const EXT_BY_MIME: Record<string, string> = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
 
@@ -28,14 +32,21 @@ function csvCell(v: string | null | undefined): string {
   return `"${s.replace(/"/g, '""')}"`
 }
 
-export async function prepareBatchZip(batchId: string, deleteBy?: string | null): Promise<PreparedZip> {
+/** `part` is 1-based and required when the batch has more than one part. Each part is a complete ZIP of its own speakers (README + manifest.csv + a folder per speaker; folder numbers continue across parts). */
+export async function prepareBatchZip(batchId: string, deleteBy?: string | null, part?: number): Promise<PreparedZip> {
   const { data: batch } = await supabaseAdmin.from('ops_license_batches').select('batch_number').eq('id', batchId).maybeSingle()
   if (!batch) return { ok: false, message: 'Batch not found.' }
 
-  const { data: items } = await supabaseAdmin.from('ops_license_batch_items')
+  const { data: allItems } = await supabaseAdmin.from('ops_license_batch_items')
     .select('speaker_name, job_title, company, country, is_uae_resident, passport_doc_id, national_id_doc_id')
     .eq('batch_id', batchId).eq('active', true).order('speaker_name')
-  if (!items?.length) return { ok: false, message: 'This batch has no speakers.' }
+  if (!allItems?.length) return { ok: false, message: 'This batch has no speakers.' }
+  const partCount = partCountOf(allItems.length)
+  if (partCount > 1 && part === undefined) return { ok: false, message: 'This batch is downloaded in parts. Please choose which part.' }
+  const partNo = part ?? 1
+  if (!Number.isInteger(partNo) || partNo < 1 || partNo > partCount) return { ok: false, message: 'That part does not exist.' }
+  const offset = (partNo - 1) * PART_SIZE
+  const items = allItems.slice(offset, offset + PART_SIZE)
 
   const docIds = items.flatMap(i => [i.passport_doc_id, i.national_id_doc_id]).filter((d): d is string => !!d)
   const { data: docs } = await supabaseAdmin.from('speaker_sensitive_documents')
@@ -44,7 +55,8 @@ export async function prepareBatchZip(batchId: string, deleteBy?: string | null)
 
   const files: ZipFile[] = []
   const rows: string[] = ['Speaker,Job title,Company,Country,UAE resident,Passport file,National ID file']
-  for (const [idx, it] of items.entries()) {
+  for (const [i, it] of items.entries()) {
+    const idx = offset + i
     const folder = `${String(idx + 1).padStart(2, '0')} - ${safeSegment(it.speaker_name)}`
     const cells: Record<string, string> = {}
     for (const [label, docId] of [['passport', it.passport_doc_id], ['national-id', it.national_id_doc_id]] as const) {
@@ -71,9 +83,10 @@ export async function prepareBatchZip(batchId: string, deleteBy?: string | null)
     'Use these documents only to apply for the speakers\' licences/permits. Do not share or forward them.',
     `Delete EVERY copy (drive, email, devices, downloads) as soon as the permits are approved${deleteBy ? ` - and in any case by ${formatDeleteBy(deleteBy)}` : ''}.`,
     'Report any loss or exposure to the Trescon Ops team immediately.',
+    ...(partCount > 1 ? ['', `This is part ${partNo} of ${partCount} of the batch (speakers ${offset + 1}-${offset + items.length} of ${allItems.length}). Download every part.`] : []),
     '',
   ].join('\r\n'))
-  return { ok: true, batchNumber: batch.batch_number, speakerCount: items.length, files: [{ name: 'README.txt', load: async () => readme }, { name: 'manifest.csv', load: async () => manifest }, ...files] }
+  return { ok: true, batchNumber: batch.batch_number, speakerCount: items.length, part: partNo, partCount, files: [{ name: 'README.txt', load: async () => readme }, { name: 'manifest.csv', load: async () => manifest }, ...files] }
 }
 
 export type ZipFailure = { fileIndex: number; fileCount: number; bytesSent: number; seconds: number; reason: string }

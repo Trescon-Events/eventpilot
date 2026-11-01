@@ -9,6 +9,7 @@ type Detail = {
   id: string; batch_number: number; event_name: string; status: string
   sent_at: string | null; expires_at: string | null; downloaded_at: string | null; completed_at: string | null; completion_type: string | null
   can_download: boolean; can_respond: boolean
+  parts: { n: number; from: number; to: number }[]; downloaded_parts: number[]
   delete_by: string | null; acknowledged: boolean
   deletion_confirmed_at: string | null; deletion_confirmed_by_name: string | null; can_confirm_deletion_only: boolean
   speakers: { name: string; job_title: string | null; company: string | null; country: string | null; uae_resident: boolean; documents: string[] }[]
@@ -82,17 +83,17 @@ export default function VendorBatchPage({ params }: { params: Promise<{ batchId:
     if (res) { setAckTick(false); reload() }
   }
 
-  async function download() {
+  async function download(part?: number) {
     setBusy('download'); setError(null); setNotice(null)
     try {
       // Ask first, so a refusal (expired, not confirmed, signed out) shows as a message; then the browser fetches the file itself and saves it to disk as it arrives.
-      const res = await fetch(`/vendor-portal/api/batches/${batchId}/download?check=1`)
+      const res = await fetch(`/vendor-portal/api/batches/${batchId}/download?check=1${part ? `&part=${part}` : ''}`)
       if (await redirected(res)) return
       if (!res.ok) { setError(await readError(res)); reload(); return }
       const a = document.createElement('a')
-      a.href = `/vendor-portal/api/batches/${batchId}/download`; a.download = `Batch-${d?.batch_number ?? ''}.zip`
+      a.href = `/vendor-portal/api/batches/${batchId}/download${part ? `?part=${part}` : ''}`; a.download = `Batch-${d?.batch_number ?? ''}${part ? `-part-${part}` : ''}.zip`
       document.body.appendChild(a); a.click(); a.remove()
-      setNotice('Your download has started. It can take a minute or two; you can follow it in your browser\'s downloads. If the browser says it failed, just click Download again; nothing is lost. Trescon Ops is notified when it completes.')
+      setNotice(`${part ? `Part ${part} has started downloading. ` : 'Your download has started. '}It can take a minute or two; you can follow it in your browser's downloads. If the browser says it failed, just click Download again; nothing is lost. Trescon Ops is notified when it completes.`)
       for (const s of [15, 40, 90, 180]) setTimeout(reload, s * 1000)   // pick up the "downloaded" status once the file has finished
     } catch {
       setError({ error: 'That did not go through. Please try again.' })
@@ -166,10 +167,32 @@ export default function VendorBatchPage({ params }: { params: Promise<{ batchId:
                 </div>
               ) : (
                 <div style={panel}>
-                  <button onClick={download} disabled={busy !== null} style={primary(busy === null)}>
-                    {busy === 'download' ? 'Preparing download…' : 'Download batch (ZIP)'}
-                  </button>
-                  <span style={{ fontSize: '12px', color: 'var(--ink3)', marginLeft: '12px' }}>Includes a manifest.csv and a folder per speaker. You can download again while access remains.</span>
+                  {d.parts.length > 1 ? (
+                    <div style={{ display: 'grid', gap: '10px' }}>
+                      <div style={{ fontSize: '14px', color: 'var(--ink2)', lineHeight: 1.6 }}>
+                        This batch is large, so it is split into <strong>{d.parts.length} parts</strong>. Download every part; each one has its own manifest.csv and a folder per speaker. You can download any part again while access remains.
+                      </div>
+                      {d.parts.map(p => {
+                        const done = d.downloaded_parts.includes(p.n)
+                        return (
+                          <div key={p.n} style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <button onClick={() => download(p.n)} disabled={busy !== null} style={primary(busy === null)}>
+                              {busy === 'download' ? 'Preparing download…' : `Download part ${p.n} of ${d.parts.length}`}
+                            </button>
+                            <span style={{ fontSize: '13px', color: 'var(--ink2)' }}>Speakers {p.from}–{p.to}</span>
+                            {done && <span style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--teal)' }}>✓ Downloaded</span>}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <>
+                      <button onClick={() => download()} disabled={busy !== null} style={primary(busy === null)}>
+                        {busy === 'download' ? 'Preparing download…' : 'Download batch (ZIP)'}
+                      </button>
+                      <span style={{ fontSize: '12px', color: 'var(--ink3)', marginLeft: '12px' }}>Includes a manifest.csv and a folder per speaker. You can download again while access remains.</span>
+                    </>
+                  )}
                   {d.delete_by && <div style={{ fontSize: '12.5px', color: 'var(--ink2)', marginTop: '12px' }}>Delete every copy as soon as the permits are approved, and no later than <strong>{fmtDate(d.delete_by)}</strong>.</div>}
                 </div>
               )}
