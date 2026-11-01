@@ -110,6 +110,10 @@ export const ACCESS_REGISTRY: AccessModule[] = [
       // Separate from sae.stakeholders.* so an on-site marketing manager can run the screens without being able to edit speaker records.
       { key: 'sae.screens.view',           label: 'Stage Screens — view the screens and AV links', enforced: true },
       { key: 'sae.screens.manage',         label: 'Stage Screens — generate screens, edit text for a session, manage AV links', enforced: true },
+      // Show Caller (2026-10-31): the live run-of-show sheet for the person calling the show (MC, screen, mic, lights, seats, actual times).
+      // The show caller themself uses a private link; these keys are for the producers who open the sheet in EventPilot and make that link.
+      { key: 'sae.showcall.view',          label: 'Show Caller — open the live sheet and download it', enforced: true },
+      { key: 'sae.showcall.manage',        label: 'Show Caller — edit the sheet, add rows, manage the show caller link', enforced: true },
       // PR Content Studio (2026-09-17) — press release research-chat +
       // generate + versioned drafts. Mirrors the sae.announcements.* split:
       // .generate covers research + drafting, .approve gates moving a draft

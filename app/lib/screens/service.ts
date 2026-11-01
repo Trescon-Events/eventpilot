@@ -99,8 +99,8 @@ export const brief = (s: ScreenSession) => ({
 
 export const newToken = () => randomBytes(24).toString('hex')
 
-/** Resolves a private link to its event/stage, or null when it is unknown, revoked or of another kind. A link is for the stage graphics ('stage', the default) or for the Table Screens ('tables'). */
-export async function linkByToken(token: string, kind: 'stage' | 'tables' = 'stage') {
+/** Resolves a private link to its event/stage, or null when it is unknown, revoked or of another kind. A link is for the stage graphics ('stage', the default) for the Table Screens ('tables') or for the show caller's sheet ('showcall'). */
+export async function linkByToken(token: string, kind: 'stage' | 'tables' | 'showcall' = 'stage') {
   if (!/^[0-9a-f]{32,128}$/i.test(token)) return null
   const { data } = await supabaseAdmin.from('event_screen_links').select('*').eq('token', token).maybeSingle()   // '*': also works before the kind column exists
   if (!data || data.revoked_at || ((data.kind as string | undefined) ?? 'stage') !== kind) return null

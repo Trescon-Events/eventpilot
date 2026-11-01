@@ -1230,6 +1230,17 @@ export function getModuleRegistry(): ModuleDef[] {
       sidebar: { section: 'events', parent: 'events', order: 6.5 },
     },
     {
+      key: 'showcall', label: 'Show Caller',
+      description: 'The live run-of-show sheet for the show caller — built from the Agenda, editable on the day, with a private link and an Excel download.',
+      icon: I.clock, color: '#0291DB',
+      href: ctx => `/admin/events/${ctx.eventId}/showcall`,
+      needsEvent: true,
+      breadcrumbPattern: '/admin/events/:eventId/showcall', breadcrumbParent: 'admin-event-workspace',
+      // Matches showcall/layout.tsx's real gate.
+      access: { kind: 'event_permission', permissionKey: 'sae.showcall.view' },
+      sidebar: { section: 'events', parent: 'events', order: 6.6 },
+    },
+    {
       key: 'admin-event-integrations', label: 'Integrations',
       description: 'KonfHub, HubSpot Forms, Postiz, and Client Approval Contacts config for this event.',
       icon: I.gear, color: '#009C89',
