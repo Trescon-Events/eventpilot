@@ -262,21 +262,17 @@ export async function middleware(req: NextRequest) {
     // forbidden) lives in app/lib/github/dev-approvals-access.ts and is
     // enforced by the API routes, not this middleware.
     pathname.startsWith('/admin/dev-approvals') ||
-    // 2026-10-21: agenda and press-releases added — both have their own server-side layout gate (permission, then the per-event feature toggle), but this list
-    // never included them, so every non-admin (e.g. a Producer holding sae.agenda.manage) was bounced to /no-access?tool=admin before the layout ever ran.
-    /^\/admin\/events\/[^/]+\/(website|brand|market-intel|creative-templates|stakeholders|plan|execution|brief|details|announcements|messaging|operations|agenda|press-releases|pr-media)/.test(pathname) ||
+    // 2026-10-31: EVERY page under an event workspace is sign-in-only here, except the few that are admin-only below. The real check is each page's own layout (a tool's permission,
+    // else the workspace layout's hasAnyEventAccess). This used to be a hand-kept list of page names, and every page missing from it (agenda, press-releases, showcall…) bounced
+    // non-admins to /no-access?tool=admin, where a click on "Request access" emailed an admin request. New pages no longer need adding to a list.
+    (/^\/admin\/events\/[^/]+(\/|$)/.test(pathname) && !/^\/admin\/events\/[^/]+\/(access|integrations|settings|content-check)(\/|$)/.test(pathname)) ||
     // 2026-09-25: umbrella-level Operations (licence processing for a whole umbrella, e.g. DFFW). Auth-only here; app/admin/umbrellas/[id]/operations/layout.tsx does the real check.
     pathname.startsWith('/admin/email-templates') ||
     /^\/admin\/umbrellas\/[^/]+\/operations(\/|$)/.test(pathname) ||
     // The umbrella's own URL is reachable by any signed-in person too, so an Operations user can enter its workspace: app/admin/umbrellas/[id]/page.tsx sends non-admins on to /operations, and the layout refuses anyone with neither admin nor ops.view.
     /^\/admin\/umbrellas\/[^/]+\/?$/.test(pathname) ||
     // 2026-10-17: Reference Documents — auth-only here; the page re-checks admin or sae.messaging.umbrella_manage on that umbrella, and every write re-checks it too.
-    /^\/admin\/umbrellas\/[^/]+\/reference-docs\/?$/.test(pathname) ||
-    // 2026-08-17: the workspace hub itself (no sub-segment) — auth-only,
-    // app/admin/events/[id]/layout.tsx does the real hasAnyEventAccess
-    // check. Deliberately excludes /access (RBAC assignment management),
-    // which stays admin-only.
-    /^\/admin\/events\/[^/]+$/.test(pathname)
+    /^\/admin\/umbrellas\/[^/]+\/reference-docs\/?$/.test(pathname)
 
   // /admin/* → admin only
   if (pathname.startsWith('/admin') && !isToolRoute) {

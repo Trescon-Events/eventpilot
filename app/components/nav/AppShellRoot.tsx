@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { deriveBreadcrumbs } from '@/app/lib/nav/breadcrumbs'
 import { useBreadcrumbLabels } from '@/app/lib/nav/breadcrumb-labels'
 import { HelpMenu, SoundToggle, ProfileMenu } from '@/app/components/NavBar'
-import { NavDataProvider } from '@/app/lib/nav/NavDataContext'
+import { NavDataProvider, useNavData } from '@/app/lib/nav/NavDataContext'
 import AppSidebar from './AppSidebar'
 import CommandPalette from './CommandPalette'
 
@@ -24,24 +24,14 @@ import CommandPalette from './CommandPalette'
   the nav rebuild plan's Stage 7 for retiring the pieces that referenced it
   (the Admin Dashboard tab bar, /dashboard's own tile list).
 */
-export default function AppShellRoot({ children }: { children: React.ReactNode }) {
+/** The trail under the top edge. Inside the provider so it knows whether the person is a platform admin: for everyone else the admin-only crumbs are left out (they led to "no access"). */
+function Crumbs() {
   const pathname = usePathname()
   const breadcrumbLabels = useBreadcrumbLabels()
-  const crumbs = deriveBreadcrumbs(pathname, breadcrumbLabels)
-
+  const { session } = useNavData()
+  const crumbs = deriveBreadcrumbs(pathname, breadcrumbLabels, session ? session.adm : true)   // until the session has loaded, show the trail as before
   return (
-    <NavDataProvider>
-      <div style={{ display: 'flex', minHeight: '100vh' }}>
-        <AppSidebar />
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-          <div
-            style={{
-              display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0,
-              padding: '10px 28px', background: 'var(--surface)', borderBottom: '1px solid var(--border-light)',
-              fontFamily: 'var(--font-manrope), Manrope, sans-serif', flexShrink: 0,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0, flex: 1 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0, flex: 1 }}>
               {crumbs.map((c, i) => (
                 <span key={i} style={{ display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0 }}>
                   {i > 0 && <span style={{ color: 'var(--ink4)', fontSize: '11px', flexShrink: 0 }}>›</span>}
@@ -57,6 +47,23 @@ export default function AppShellRoot({ children }: { children: React.ReactNode }
                 </span>
               ))}
             </div>
+  )
+}
+
+export default function AppShellRoot({ children }: { children: React.ReactNode }) {
+  return (
+    <NavDataProvider>
+      <div style={{ display: 'flex', minHeight: '100vh' }}>
+        <AppSidebar />
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+          <div
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0,
+              padding: '10px 28px', background: 'var(--surface)', borderBottom: '1px solid var(--border-light)',
+              fontFamily: 'var(--font-manrope), Manrope, sans-serif', flexShrink: 0,
+            }}
+          >
+            <Crumbs />
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
               <HelpMenu />
               <SoundToggle />

@@ -142,7 +142,16 @@ function walkParentChain(startKey: string | undefined, registry: ModuleDef[], pa
   return ancestorCrumbs
 }
 
-export function deriveBreadcrumbs(pathname: string, labels: Record<string, string> = {}): Crumb[] {
+/** Pages only platform admins can open. A non-admin who clicks one of these crumbs lands on "no access" (and used to be one click from emailing an access request). */
+const ADMIN_ONLY_CRUMB_HREFS = new Set(['/admin', '/admin/events'])
+
+/** The trail for a page. For someone who is not a platform admin the admin-only crumbs (Admin Dashboard, Events list) are left out, so the trail starts at their own area. */
+export function deriveBreadcrumbs(pathname: string, labels: Record<string, string> = {}, isAdmin = true): Crumb[] {
+  const all = deriveAllBreadcrumbs(pathname, labels)
+  return isAdmin ? all : all.filter(c => !(c.href && ADMIN_ONLY_CRUMB_HREFS.has(c.href)))
+}
+
+function deriveAllBreadcrumbs(pathname: string, labels: Record<string, string>): Crumb[] {
   const registry = getModuleRegistry()
   const clean = pathname.replace(/\/+$/, '') || '/'
   const dashboardMod = registry.find(m => m.key === 'dashboard')

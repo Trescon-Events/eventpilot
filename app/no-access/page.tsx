@@ -6,7 +6,7 @@
  * redirect here instead of silently bouncing to /dashboard.
  *
  * Shows a friendly card + a Request Access button that posts to
- * /api/access-request so Durga gets an email and can enable the tool for
+ * /api/access-request so Madhu gets an email and can enable the tool for
  * that user.
  */
 'use client'
@@ -48,6 +48,7 @@ function NoAccessInner() {
   const toolKey  = params.get('tool') ?? ''
   const fromPath = params.get('from') ?? ''
   const label    = TOOL_LABEL[toolKey] ?? 'this tool'
+  const isAdminArea = toolKey === 'admin'
 
   const [state,   setState]   = useState<'idle' | 'sending' | 'sent' | 'sent_no_email' | 'error'>('idle')
   const [errText, setErrText] = useState<string | null>(null)
@@ -141,11 +142,25 @@ function NoAccessInner() {
           textAlign: 'center',
           margin: '0 0 26px',
         }}>
-          Click <strong style={{ color: 'var(--teal-mid)' }}>Request access</strong> and your admin will get an email to enable it for you.
+          {isAdminArea
+            ? <>This is the platform admin area, which most people never need. If you were just trying to go back, use <strong style={{ color: 'var(--teal-mid)' }}>My dashboard</strong> below.</>
+            : <>Click <strong style={{ color: 'var(--teal-mid)' }}>Request access</strong> and your admin will get an email to enable it for you.</>}
         </p>
 
+        {/* Admin Panel: people mostly arrive here by clicking a breadcrumb or Back, so the easy button is to go home, and asking for admin access is a deliberate small link. */}
+        {isAdminArea && state === 'idle' && (
+          <>
+            <Link href="/dashboard" style={{ display: 'block', textAlign: 'center', background: 'var(--lime)', color: 'var(--lime-dark)', borderRadius: '50px', padding: '14px 22px', fontSize: '14px', fontWeight: 800, textDecoration: 'none', marginBottom: '14px' }}>
+              My dashboard
+            </Link>
+            <button type="button" onClick={requestAccess} style={{ display: 'block', margin: '0 auto', background: 'transparent', border: 'none', color: 'var(--ink3)', fontSize: '12.5px', textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit' }}>
+              I do need Admin Panel access — ask Madhu
+            </button>
+          </>
+        )}
+
         {/* Action */}
-        {state === 'idle' && (
+        {state === 'idle' && !isAdminArea && (
           <button
             type="button"
             onClick={requestAccess}
