@@ -5,7 +5,7 @@ import { Zip, ZipPassThrough } from 'fflate'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { compositeAnnouncement, layersForRole, type Variant } from '@/app/lib/announcements/composite'
 import { loadScreenSessions } from './data'
-import { DEFAULT_TABLE_COUNT, MAX_TABLES, standbyFileName, tableFileName, tablesZipName, withModeratorFallback } from './tables'
+import { DEFAULT_TABLE_COUNT, MAX_TABLES, allCardsZipName, seatFileName, sessionFolderName, standbyFileName, tableFileName, tablesZipName, withModeratorFallback } from './tables'
 
 /* Table Screens (Phase 1) — what the console shows and downloads. The Table Screen templates are built by the branding team in the template editor (Admin Console › Variants ›
    New Variant › Table Screen); a session's speakers come from the same place as Stage Screens (agenda + speaker records + the producers' per-session name edits), so a correction made there
@@ -98,3 +98,46 @@ export async function zipResponse(variants: Variant[], body: ZipRequest, tableCo
 }
 
 export const isUuid = (v: string | null | undefined): v is string => !!v && UUID.test(v)
+
+export type AllCardsRequest = { template?: string; standby_template?: string; date?: string | null; stage?: string | null; session_id?: string | null }
+
+/** POST …/cards — every speaker card of the chosen sessions in one zip, named by seat (no table numbers: those are decided on the day). `session_id` = that one session (flat files);
+    otherwise every session of the chosen day (or all days, one folder per day) and stage, one folder per session, plus Standby.png. Cards of a speaker who appears in many sessions are drawn once and reused. */
+export async function allCardsResponse(eventId: string, body: AllCardsRequest): Promise<NextResponse> {
+  const [variants, payload] = await Promise.all([tableVariants(eventId), tablesPayload(eventId, null)])
+  const { card, standby } = pickTemplates(variants, body.template ?? null, body.standby_template ?? null)
+  if (!card) return NextResponse.json({ error: 'No Table Screen template has been made yet.' }, { status: 404 })
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(body.date ?? '') ? body.date! : null
+  const stage = typeof body.stage === 'string' && body.stage ? body.stage : null
+  const one = isUuid(body.session_id) ? body.session_id : null
+  const sessions = payload.sessions
+    .filter(s => s.seats.length && (one ? s.id === one : (!date || s.date === date) && (!stage || s.stage === stage)))
+    .sort((a, b) => (a.date + a.startHM).localeCompare(b.date + b.startHM))
+  if (!sessions.length) return NextResponse.json({ error: 'No sessions with speakers for that choice.' }, { status: 400 })
+  const multiDay = new Set(sessions.map(s => s.date)).size > 1
+  const filename = one ? tablesZipName(sessions[0]).replace(/^Tables_/, 'Cards_') : allCardsZipName({ date, stage })
+  const drawn = new Map<string, Promise<Uint8Array>>()
+  const draw = (name: string, moderator: boolean) => {
+    const key = `${moderator ? 1 : 0}|${name}`
+    if (!drawn.has(key)) drawn.set(key, drawTableCard(card, { name, moderator }).then(b => new Uint8Array(b)))
+    return drawn.get(key)!
+  }
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        const zip = new Zip((err, chunk, final) => { if (err) controller.error(err); else { controller.enqueue(chunk); if (final) controller.close() } })
+        const add = async (name: string, bytes: Promise<Uint8Array>) => { const f = new ZipPassThrough(name); zip.add(f); f.push(await bytes, true) }   // PNGs are already compressed
+        for (const s of sessions) {
+          const dir = one ? '' : `${multiDay ? `${s.date}/` : ''}${sessionFolderName(s, false)}/`   // several days: a folder per day, then one per session
+          for (const [i, seat] of s.seats.slice(0, MAX_SEATS).entries()) {
+            const name = clampName(seat.name); if (!name) continue
+            await add(dir + seatFileName({ seat: i + 1, moderator: seat.moderator, name }), draw(name, seat.moderator))
+          }
+        }
+        if (standby && !one) await add(standbyFileName(), drawTableCard(standby, null).then(b => new Uint8Array(b)))
+        zip.end()
+      } catch (e) { controller.error(e) }
+    },
+  })
+  return new NextResponse(stream, { headers: { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${filename}"`, 'Cache-Control': 'no-store' } })
+}

@@ -66,3 +66,18 @@ export const standbyFileName = (table?: number) => table ? `Table${table}_Standb
 export function tablesZipName(s: { date: string; startHM: string; topic: string }): string {
   return `Tables_${s.date}_${s.startHM.replace(':', '')}_${slug(s.topic, 36)}.zip`
 }
+
+/** A card named by seat only, for the "all cards" downloads where no table has been chosen yet: Seat1_Moderator_Yousef-Gamal-El-Din.png */
+export function seatFileName(s: { seat: number; moderator: boolean; name: string }): string {
+  return `Seat${s.seat}_${s.moderator ? 'Moderator_' : ''}${slug(s.name)}.png`
+}
+
+/** The folder of one session inside an all-cards zip, e.g. 0950 - What-innovation-can-drive (with the date in front when the zip spans several days). */
+export function sessionFolderName(s: { date: string; startHM: string; topic: string }, withDate: boolean): string {
+  return `${withDate ? `${s.date}_` : ''}${s.startHM.replace(':', '')} - ${slug(s.topic, 50)}`
+}
+
+/** Cards_2026-11-02_Plenary-1.zip (a day on one stage) / Cards_All-days_All-stages.zip */
+export function allCardsZipName(s: { date?: string | null; stage?: string | null }): string {
+  return `Cards_${s.date || 'All-days'}_${s.stage ? slug(s.stage, 30) : 'All-stages'}.zip`
+}

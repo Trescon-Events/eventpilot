@@ -147,6 +147,7 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
   const [templateId, setTemplateId] = useState('')
   const [standbyId, setStandbyId] = useState('')
   const [day, setDay] = useState('all')
+  const [dlStage, setDlStage] = useState(''), [dlDay, setDlDay] = useState('all'), [dlBusy, setDlBusy] = useState<string | null>(null)   // the all-cards download: its own stage and day choice
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)
   const [nonce, setNonce] = useState(0)   // bumped by Refresh so every preview is drawn again from the template as it is now
@@ -172,6 +173,9 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
 
   const days = useMemo(() => [...new Set((data?.sessions ?? []).map(s => s.date))].sort(), [data])
   const shown = useMemo(() => (data?.sessions ?? []).filter(s => day === 'all' || s.date === day), [data, day])
+  const stages = useMemo(() => [...new Set((data?.sessions ?? []).map(s => s.stage).filter((x): x is string => !!x))].sort(), [data])
+  const dlSessions = useMemo(() => (data?.sessions ?? []).filter(s => s.seats.length && (dlDay === 'all' || s.date === dlDay) && (!dlStage || s.stage === dlStage)), [data, dlDay, dlStage])
+  const dlCards = dlSessions.reduce((n, s) => n + s.seats.length, 0)
   const session = data?.sessions.find(s => s.id === sessionId) ?? null
   const cardTemplates = (data?.templates ?? []).filter(t => !t.standby), standbyTemplates = (data?.templates ?? []).filter(t => t.standby)
   const tpl = cardTemplates.find(t => t.id === templateId) ?? cardTemplates[0] ?? null
@@ -197,6 +201,21 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
     setOrderText(order.join(' '))
   }
   function changeCount(n: number) { const c = Math.min(MAX_TABLES, Math.max(1, n || 1)); setTableCount(c); try { localStorage.setItem('tables:count', String(c)) } catch { /* private window */ } }
+
+  // Every speaker card, no table numbers needed, in the agenda's order (Seat 1 = the moderator): one session, or a whole stage-day / stage / day. Files are named Seat1_Moderator_Name.png.
+  async function downloadCards(what: { sessionId?: string }) {
+    const key = what.sessionId ?? 'all'
+    setDlBusy(key); setNote(null)
+    try {
+      const body = { template: tpl?.id, standby_template: sb?.id, ...(what.sessionId ? { session_id: what.sessionId } : { date: dlDay === 'all' ? null : dlDay, stage: dlStage || null }) }
+      const r = await fetch(url('/cards'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, ...(query ? Object.fromEntries(new URLSearchParams(query)) : {}) }) })
+      if (!r.ok) { setNote((await r.json().catch(() => ({}))).error ?? 'Could not make the download.'); setDlBusy(null); return }
+      const blob = await r.blob()
+      const name = /filename="([^"]+)"/.exec(r.headers.get('Content-Disposition') ?? '')?.[1] ?? 'cards.zip'
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10_000)
+    } catch { setNote('The download failed — check the connection and try again.') }
+    setDlBusy(null)
+  }
 
   async function downloadZip() {
     if (!session) return
@@ -234,6 +253,31 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
 
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
         {['all', ...days].map(d => <button key={d} onClick={() => setDay(d)} style={{ padding: '6px 14px', borderRadius: '999px', border: '1.5px solid var(--border)', background: day === d ? 'var(--ink)' : 'transparent', color: day === d ? 'var(--card)' : 'var(--ink2)', fontWeight: 700, fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' }}>{d === 'all' ? 'All days' : d}</button>)}
+      </div>
+
+      <div style={{ padding: '14px 16px', borderRadius: '12px', background: 'var(--card)', border: '1px solid var(--border)', display: 'grid', gap: '10px' }}>
+        <div style={{ fontSize: '16px', fontWeight: 800 }}>Download all the cards</div>
+        <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.5 }}>Every speaker&apos;s card in the agenda&apos;s order (Seat 1 is the moderator, then the speakers left to right). No table numbers needed. One zip: a folder per session{days.length > 1 ? ' (and per day when you choose all days)' : ''}, plus the standby screen.</div>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'end' }}>
+          {stages.length > 0 && (
+            <label style={{ display: 'grid', gap: '4px', fontWeight: 800, fontSize: '13px' }}>Stage
+              <select value={dlStage} onChange={e => setDlStage(e.target.value)} style={{ ...input, minWidth: '180px' }}>
+                <option value="">All stages</option>
+                {stages.map(st => <option key={st} value={st}>{st}</option>)}
+              </select>
+            </label>
+          )}
+          <label style={{ display: 'grid', gap: '4px', fontWeight: 800, fontSize: '13px' }}>Day
+            <select value={dlDay} onChange={e => setDlDay(e.target.value)} style={{ ...input, minWidth: '180px' }}>
+              <option value="all">All days</option>
+              {days.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </label>
+          <button onClick={() => downloadCards({})} disabled={!!dlBusy || !dlSessions.length} style={{ ...btn, background: !!dlBusy || !dlSessions.length ? 'var(--border)' : 'var(--teal)', color: 'white', fontSize: '15px', padding: '12px 20px' }}>
+            {dlBusy === 'all' ? 'Making the zip…' : `Download ${dlCards} card${dlCards === 1 ? '' : 's'} (${dlSessions.length} session${dlSessions.length === 1 ? '' : 's'})`}
+          </button>
+        </div>
+        {!dlSessions.length && <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>No sessions with speakers for that choice.</div>}
       </div>
 
       <div style={{ display: 'grid', gap: '6px' }}>
@@ -296,6 +340,7 @@ export default function TableScreensConsole({ apiBase, query = '', showStage = f
 
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
             <button onClick={downloadZip} disabled={busy || hasProblem || (!ready.length && !sb)} style={{ ...btn, background: hasProblem || (!ready.length && !sb) ? 'var(--border)' : 'var(--teal)', color: 'white', fontSize: '16px', padding: '14px 24px' }}>{busy ? 'Making the zip…' : `Download ${ready.length} card${ready.length === 1 ? '' : 's'}${sb ? ' + standby' : ''} (zip)`}</button>
+            <button onClick={() => downloadCards({ sessionId: session.id })} disabled={!!dlBusy || !seats.length} title="Every card of this session in seat order, without table numbers" style={{ ...btn, background: 'var(--card)', color: 'var(--ink)', border: '1.5px solid var(--border)' }}>{dlBusy === session.id ? 'Making the zip…' : `Download all ${seats.length} cards (by seat)`}</button>
             {sb && <a href={url('/card', { standby: '1', template: sb.id, download: '1', file: standbyFileName() })} style={{ ...btn, background: 'var(--card)', color: 'var(--ink)', border: '1.5px solid var(--border)' }}>Standby only</a>}
             {cardTemplates.length > 1 && (
               <label style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>Design <select value={tpl?.id ?? ''} onChange={e => setTemplateId(e.target.value)} style={input}>{cardTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>

@@ -65,3 +65,12 @@ test('no fallback for other speakers, for a template that has its own moderator 
   const noName = tv([txt({ field: 'custom', value: 'x' })])
   assert.equal(withModeratorFallback(noName, true), noName)
 })
+
+test('all-cards names: by seat, a folder per session, a zip named for the day and stage', async () => {
+  const { seatFileName, sessionFolderName, allCardsZipName } = await import('./tables')
+  assert.equal(seatFileName({ seat: 1, moderator: true, name: 'Farah Elbahrawy' }), 'Seat1_Moderator_Farah-Elbahrawy.png')
+  assert.equal(seatFileName({ seat: 2, moderator: false, name: 'Jason Moo' }), 'Seat2_Jason-Moo.png')
+  assert.equal(sessionFolderName({ date: '2026-11-02', startHM: '09:50', topic: 'A New Era for Global Wealth' }, false), '0950 - A-New-Era-for-Global-Wealth')
+  assert.equal(allCardsZipName({ date: '2026-11-02', stage: 'Plenary 1' }), 'Cards_2026-11-02_Plenary-1.zip')
+  assert.equal(allCardsZipName({}), 'Cards_All-days_All-stages.zip')
+})
