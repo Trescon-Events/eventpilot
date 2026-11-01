@@ -2,7 +2,7 @@ import sharp from 'sharp'
 import { createCanvas, loadImage, type SKRSContext2D } from '@napi-rs/canvas'
 import { renderWebsitePhoto, websitePhotoParts } from '@/app/lib/media/website-photo-render'
 import { compositeAnnouncement, planTextLayer, type TextLayer, type TextLayerPlan, type Variant } from '@/app/lib/announcements/composite'
-import { canvasWidthFor, cardColumns, rowSizes, rowWidth, topicLinesFor, zoomCrop, type Dims } from './geometry'
+import { canvasWidthFor, cardColumns, rowSizes, rowWidth, titleMinWidth, topicLinesFor, zoomCrop, type Dims } from './geometry'
 import type { ScreenCard, ScreenLook, ScreenSession } from './data'
 import { typeDefaults, type TypeElement } from './dims'
 
@@ -119,7 +119,7 @@ export async function renderScreen(session: ScreenSession, look: ScreenLook): Pr
   const modSt = styleFor(look, 'moderator'), topicSt = styleFor(look, 'topic')
   const CARD = d.photoW, TAG_PX = modSt.size, TAG_H = Math.round(TAG_PX * TAG_H_RATIO), PAD = d.pad
   const sizes = rowSizes(cards.length, d)
-  const W = canvasWidthFor(sizes, d)
+  const W = canvasWidthFor(sizes, d, session.layout)
   const hasMod = cards.some(c => c.moderator)
 
   const bgRaw = look.backgroundUrl && !cardMode ? await fetchBuf(look.backgroundUrl) : null
@@ -128,7 +128,7 @@ export async function renderScreen(session: ScreenSession, look: ScreenLook): Pr
   const stacks = await Promise.all(cards.map(c => cardMode ? Promise.resolve({ blocks: [] as Block[], height: 0 }) : stack(look, c, d)))
   const afterPhoto = cardMode ? 0 : AFTER_PHOTO
 
-  const topicW = Math.max(sizes.length ? Math.max(...sizes.map(n => rowWidth(n, d))) : CARD, d.minTopicW)
+  const topicW = Math.max(sizes.length ? Math.max(...sizes.map(n => rowWidth(n, d))) : CARD, d.minTopicW, titleMinWidth(session.layout, d))
   const topicText = session.hideTopic ? '' : session.topic
   const topicPlan = topicText ? await planTextLayer(layerFor(look, { id: 'topic', width: topicW, maxLines: topicLinesFor(session.layout), size: topicSt.size, weight: topicSt.weight, color: topicSt.color, align: 'center', font: topicSt.font }), cased(topicSt, topicText)) : null
   const topicH = topicPlan ? topicPlan.lines.length * topicPlan.lineHeight : 0

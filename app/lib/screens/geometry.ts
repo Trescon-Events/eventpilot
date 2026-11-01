@@ -37,9 +37,13 @@ export function cardColumns(sizes: number[], canvasWidth: number, d: Dims = DEFA
   })
 }
 
-export function canvasWidthFor(sizes: number[], d: Dims = DEFAULT_DIMS): number {
+/** A fireside chat has only two cards, but its title gets the width a five-speaker panel would need, so a long title can stay on one or two lines instead of squeezing into the width of two photos. */
+export const FIRESIDE_TITLE_SPEAKERS = 5
+export const titleMinWidth = (layout: ScreenLayout | undefined, d: Dims = DEFAULT_DIMS): number => (layout === 'fireside' ? rowWidth(FIRESIDE_TITLE_SPEAKERS, d) : 0)
+
+export function canvasWidthFor(sizes: number[], d: Dims = DEFAULT_DIMS, layout?: ScreenLayout): number {
   const widest = sizes.length ? Math.max(...sizes.map(n => rowWidth(n, d))) : d.photoW
-  return Math.max(widest, d.minTopicW) + d.pad * 2
+  return Math.max(widest, d.minTopicW, titleMinWidth(layout, d)) + d.pad * 2
 }
 
 
@@ -65,7 +69,7 @@ export function applyCardOverride(base: CardText, o: Partial<CardText> | undefin
 export type FingerprintInput = {
   topic: string
   cards: { speakerId: string; moderator: boolean; text: CardText; photo: string | null }[]
-  topicLines?: number   // only present for layouts whose title is held to fewer lines than the default, so existing screens are not marked Changed by an unrelated rule
+  title?: { lines: number; span: number }   // only present for layouts with their own title rule (fireside: two lines, five-speaker width), so existing screens are not marked Changed by an unrelated rule
   look: { font: string | null; background: string | null; text: string; accent: string; head: number; dims: Dims; style?: string; card?: unknown; type?: Record<string, unknown> }
 }
 /** Anything visible on the graphic goes in; when it differs from what a PNG was built from, that PNG is out of date. */
