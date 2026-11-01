@@ -31,7 +31,8 @@ export const SPEAKER_EXPORT_FIELDS: SpeakerExportField[] = [
   { key: 'country', label: 'Country', group: 'Identity', width: 18, get: s => s.country ?? '' },
 
   { key: 'email', label: 'Email', group: 'Contact', width: 30, get: s => s.email ?? String(s.custom_fields?.email ?? '') },
-  { key: 'phone', label: 'Phone', group: 'Contact', width: 20, get: s => [s.dial_code, s.phone].filter(Boolean).join(' ') },
+  // The number is kept in custom_fields.phone_number (the form and the KonfHub push both read it there); the `phone` column is only a fallback.
+  { key: 'phone', label: 'Phone', group: 'Contact', width: 20, get: s => { const n = String(s.phone || s.custom_fields?.phone_number || '').trim(); return n.startsWith('+') ? n : [s.dial_code, n].map(v => (v ?? '').trim()).filter(Boolean).join(' ') } },
   { key: 'linkedin', label: 'LinkedIn', group: 'Contact', width: 14, get: s => s.linkedin_url ?? '' },
 
   { key: 'bio', label: 'Bio', group: 'Profile', width: 70, get: s => s.bio ?? '' },

@@ -779,6 +779,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     { href: 'status-board', label: 'Status Board' },
     { href: 'speaker-order', label: 'Speaker Order' },
     { href: 'screens', label: 'Stage Screens' },
+    ...(can('sae.showcall.view') ? [{ href: '../showcall', label: 'Show Caller' }] : []),
     ...(mementosEnabled ? [{ href: 'mementos', label: 'Mementos' }] : []),
     { href: 'guest-invites', label: 'Guest Invites' },
     ...(prMediaEnabled ? [{ href: 'media-interviews', label: 'Media Interviews' }] : []),
@@ -857,7 +858,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
               {c.kind === 'speaker' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginBottom: '4px' }}>
                   {speakerMenuOpen && speakerTools.map(t => (
-                    <Link key={t.href} href={`/admin/events/${eventId}/stakeholders/${t.href}`}
+                    <Link key={t.href} href={t.href.startsWith('../') ? `/admin/events/${eventId}/${t.href.slice(3)}` : `/admin/events/${eventId}/stakeholders/${t.href}`}
                       style={{ display: 'block', padding: '7px 12px 7px 26px', borderRadius: '8px', textDecoration: 'none', fontFamily: 'inherit', fontSize: '14.5px', fontWeight: 600, color: 'var(--ink3)' }}>
                       {t.label}
                     </Link>
