@@ -6,7 +6,7 @@ import type { HeadBox } from '@/app/lib/media/face-alignment'
 import { websitePhotoParts } from '@/app/lib/media/website-photo-render'
 import { PANEL_DEFAULTS, clampTypeStyles, type Panel, type TypeStyles } from './dims'
 import { buildSnapshot, lookSignature, type Snapshot } from './av-state'
-import { applyCardOverride, clampDims, clampHeadScale, fileNameFor, fingerprint, isModeratorRole, layoutFor, screenState, type CardStyle, type CardText, type Dims, type Overrides, type ScreenLayout, type ScreenState, topicLinesFor, FIRESIDE_TITLE_SPEAKERS } from './geometry'
+import { applyCardOverride, hideDetails, clampDims, clampHeadScale, fileNameFor, fingerprint, isModeratorRole, layoutFor, screenState, type CardStyle, type CardText, type Dims, type Overrides, type ScreenLayout, type ScreenState, topicLinesFor, FIRESIDE_TITLE_SPEAKERS } from './geometry'
 
 /* Stage Screens — reads the agenda, the speakers and the look settings, and works out for every session what its graphic would contain right now,
    whether the stored PNG still matches, and what the AV file is called. The agenda has no change history for speaker assignments, so "changed" comes
@@ -129,7 +129,7 @@ export async function loadScreenSessions(eventId: string, only?: { sessionIds?: 
         const cutout = !!p.photo_processed_url
         const hb = p.photo_head_box as { centerXRatio?: number; centerYRatio?: number } | null
         const head = hb && typeof hb.centerXRatio === 'number' && typeof hb.centerYRatio === 'number' ? { x: hb.centerXRatio, y: hb.centerYRatio } : null
-        return { speakerId: id, moderator: meta.moderator, base, text: applyCardOverride(base, overrides.cards?.[id]), photoUrl: ((p.photo_processed_url as string) || (p.photo_url as string) || null), cutout, head, headBox: (p.photo_head_box as HeadBox | null) ?? null, logoUrl: (p.company_logo_url as string | null) ?? null, lowRes: !!p.photo_low_resolution }
+        return { speakerId: id, moderator: meta.moderator, base, text: hideDetails(applyCardOverride(base, overrides.cards?.[id]), look.typeStyles), photoUrl: ((p.photo_processed_url as string) || (p.photo_url as string) || null), cutout, head, headBox: (p.photo_head_box as HeadBox | null) ?? null, logoUrl: (p.company_logo_url as string | null) ?? null, lowRes: !!p.photo_low_resolution }
       })
     if (!cards.length) continue
 

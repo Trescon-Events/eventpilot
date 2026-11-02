@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { DEFAULT_DIMS, clampHeadScale, type Dims } from './dims'
-export { DEFAULT_DIMS, DIM_LIMITS, clampDims, MAX_HEAD_SCALE, clampHeadScale, clampTypeStyles, SCREEN_TEXT_ELEMENTS, typeDefaults, TYPE_ELEMENTS, TYPE_LABELS, TYPE_WEIGHTS, TYPE_SIZE_LIMITS, type TypeElement, type TypeStyle, type TypeStyles, type Dims, type CardStyle } from './dims'
+export { DEFAULT_DIMS, DIM_LIMITS, clampDims, MAX_HEAD_SCALE, clampHeadScale, clampTypeStyles, hideDetails, DETAIL_ELEMENTS, SCREEN_TEXT_ELEMENTS, typeDefaults, TYPE_ELEMENTS, TYPE_LABELS, TYPE_WEIGHTS, TYPE_SIZE_LIMITS, type TypeElement, type TypeStyle, type TypeStyles, type Dims, type CardStyle } from './dims'
 
 /* Stage Screens — the pure parts: which layout a session gets, how cards are arranged, the "has this changed?" fingerprint and the file name the AV team sees.
    Nothing here touches the database or draws anything, so it is unit-tested (geometry.test.ts). */

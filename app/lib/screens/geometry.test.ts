@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { topicLinesFor, zoomCrop, clampHeadScale, layoutFor, rowSizes, cardColumns, canvasWidthFor, rowWidth, applyCardOverride, fingerprint, screenState, fileNameFor, isModeratorRole, clampDims, DEFAULT_DIMS, type Dims } from './geometry'
+import { topicLinesFor, zoomCrop, clampHeadScale, layoutFor, rowSizes, cardColumns, canvasWidthFor, rowWidth, applyCardOverride, fingerprint, screenState, fileNameFor, isModeratorRole, clampDims, clampTypeStyles, hideDetails, DEFAULT_DIMS, type Dims } from './geometry'
 
 const CARD = DEFAULT_DIMS.photoW, GAP = DEFAULT_DIMS.gap, PAD = DEFAULT_DIMS.pad
 
@@ -122,4 +122,10 @@ test('card-mode defaults: moderator tag follows the card width, sizes come from 
 
 test('only a fireside chat holds its title to two lines', () => {
   assert.equal(topicLinesFor('fireside'), 2); assert.equal(topicLinesFor('panel'), 3); assert.equal(topicLinesFor('keynote'), 3)
+})
+
+test('a line the event leaves off is blanked on every card, and only the four detail lines can be hidden', () => {
+  const styles = clampTypeStyles({ country: { hidden: true }, topic: { hidden: true }, name: { hidden: false } })
+  assert.deepEqual(styles, { country: { hidden: true } })
+  assert.deepEqual(hideDetails({ name: 'A', title: 'CEO', company: 'Acme', country: 'UAE' }, styles), { name: 'A', title: 'CEO', company: 'Acme', country: '' })
 })

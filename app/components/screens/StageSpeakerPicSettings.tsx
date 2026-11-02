@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- previews of an on-the-fly PNG, deliberately unoptimised */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button, Select } from '@/app/components/ui'
-import { DEFAULT_DIMS, DIM_LIMITS, PANEL_DEFAULTS, SCREEN_TEXT_ELEMENTS, TYPE_ELEMENTS, TYPE_LABELS, TYPE_SIZE_LIMITS, TYPE_WEIGHTS, clampDims, clampHeadScale, clampTypeStyles, typeDefaults, type Dims, type Panel, type TypeElement, type TypeStyle, type TypeStyles } from '@/app/lib/screens/dims'
+import { DETAIL_ELEMENTS, DEFAULT_DIMS, DIM_LIMITS, PANEL_DEFAULTS, SCREEN_TEXT_ELEMENTS, TYPE_ELEMENTS, TYPE_LABELS, TYPE_SIZE_LIMITS, TYPE_WEIGHTS, clampDims, clampHeadScale, clampTypeStyles, typeDefaults, type Dims, type Panel, type TypeElement, type TypeStyle, type TypeStyles } from '@/app/lib/screens/dims'
 
 /* Admin Console → "Stage Speaker Pic": where the branding / on-site marketing team defines how the stage-screen graphics look for this event — the panel they sit on
    (white or dark), how big the heads are, font, text colours, the card background and the card sizes. Nothing changes until Save: edits are kept on this page as an
@@ -318,6 +318,18 @@ function TextStyles({ n, look, fonts, fontName, cardMode, onChange }: { n: numbe
         </div>
         {!cardMode && <Colour label="Default name & details colour" value={look.text_color} onChange={v => onChange({ text_color: v })} />}
         <Colour label="Default topic & moderator colour" value={look.accent_color} onChange={v => onChange({ accent_color: v })} />
+      </div>
+
+      <div>
+        <div style={{ ...lab, marginBottom: '6px' }}>Shown under each speaker</div>
+        <div style={{ display: 'flex', gap: '18px', flexWrap: 'wrap' }}>
+          {DETAIL_ELEMENTS.map(el => (
+            <label key={el} style={{ display: 'flex', gap: '6px', alignItems: 'center', fontSize: '13.5px', color: 'var(--ink)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={!look.type_styles[el]?.hidden} onChange={e => set(el, { hidden: e.target.checked ? undefined : true })} /> {TYPE_LABELS[el]}
+            </label>
+          ))}
+        </div>
+        <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '4px' }}>Untick a line to leave it off every screen of this event. Screens already downloaded will show as Changed until they are re-downloaded.</div>
       </div>
 
       <div style={{ overflowX: 'auto' }}>

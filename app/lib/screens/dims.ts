@@ -45,8 +45,17 @@ export const TYPE_ELEMENTS = ['topic', 'moderator', 'name', 'title', 'company', 
 export type TypeElement = typeof TYPE_ELEMENTS[number]
 export const TYPE_LABELS: Record<TypeElement, string> = { topic: 'Session title', moderator: 'Moderator tag', name: 'Speaker name', title: 'Job title', company: 'Company', country: 'Country' }
 export const TYPE_WEIGHTS = [400, 500, 600, 700] as const
-export type TypeStyle = { fontId?: string | null; weight?: number; size?: number; color?: string; upper?: boolean }
+export type TypeStyle = { fontId?: string | null; weight?: number; size?: number; color?: string; upper?: boolean; hidden?: boolean }   // hidden: the line is left off every card (name / title / company / country)
 export type TypeStyles = Partial<Record<TypeElement, TypeStyle>>
+/** The lines under a speaker's photo that an event can choose to leave off (e.g. no country). */
+export const DETAIL_ELEMENTS = ['name', 'title', 'company', 'country'] as const
+export type DetailElement = typeof DETAIL_ELEMENTS[number]
+/** Blanks the lines the event chose not to show; an empty line is never drawn, in either card design. */
+export function hideDetails<T extends Record<DetailElement, string>>(text: T, styles: TypeStyles): T {
+  const out = { ...text }
+  for (const el of DETAIL_ELEMENTS) if (styles[el]?.hidden) out[el] = '' as T[DetailElement]
+  return out
+}
 export const TYPE_SIZE_LIMITS: [number, number] = [20, 320]
 const HEX6 = /^#[0-9a-f]{6}$/i
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -63,12 +72,13 @@ export function clampTypeStyles(raw: unknown): TypeStyles {
     if (typeof x.size === 'number' && isFinite(x.size)) st.size = Math.min(TYPE_SIZE_LIMITS[1], Math.max(TYPE_SIZE_LIMITS[0], Math.round(x.size)))
     if (typeof x.color === 'string' && HEX6.test(x.color)) st.color = x.color
     if (typeof x.upper === 'boolean') st.upper = x.upper
+    if (x.hidden === true && (DETAIL_ELEMENTS as readonly string[]).includes(el)) st.hidden = true
     if (Object.keys(st).length) out[el] = st
   }
   return out
 }
 /** What each element uses when nothing is set: sizes come from the card dims, colours from the panel, weights and capitals as before. */
-export function typeDefaults(el: TypeElement, ctx: { cardMode: boolean; dims: Dims; frameW: number; textColor: string; accentColor: string }): Required<Omit<TypeStyle, 'fontId'>> {
+export function typeDefaults(el: TypeElement, ctx: { cardMode: boolean; dims: Dims; frameW: number; textColor: string; accentColor: string }): Required<Omit<TypeStyle, 'fontId' | 'hidden'>> {
   const frameW = ctx.frameW
   switch (el) {
     case 'topic': return { weight: 700, size: ctx.dims.topicSize, color: ctx.accentColor, upper: false }
