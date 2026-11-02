@@ -188,14 +188,6 @@ export async function pushAgendaToKonfhub(eventId: string, opts: { dryRun?: bool
         add({ session_id: s.id, title: s.title, action: 'created', warnings: warnings.length ? warnings : undefined })
         if (khId) stampIds.add(khId)
       } else {
-        // KonfHub-side edits since the last sync are never silently overwritten (2026-10-18).
-        const liveUpdated = live!.updated_at ? new Date(/[Zz+]/.test(live!.updated_at) ? live!.updated_at : live!.updated_at.replace(' ', 'T') + 'Z').getTime() : 0
-        const syncedAt = s.konfhub_last_synced_updated_at ? new Date(s.konfhub_last_synced_updated_at).getTime() : 0
-        if (!opts.force && syncedAt && liveUpdated > syncedAt + 1500) {
-          driftIds.add(khId)
-          add({ session_id: s.id, title: s.title, action: 'error', reason: 'Changed in KonfHub since the last sync. Review it in KonfHub, then push again with “overwrite KonfHub edits”.' })
-          continue
-        }
         const keptTags = (live!.tags ?? []).filter(t => !managedTagIds.has(t.id))
         const nextTags = [...keptTags, ...wanted]
         const liveSpeakers = (live!.session_speakers ?? []).map(x => String(x.speaker_id))
@@ -204,6 +196,16 @@ export async function pushAgendaToKonfhub(eventId: string, opts: { dryRun?: bool
           (pushType && (live!.session_type ?? 1) !== (common as { session_type?: number }).session_type) || (live!.start_timestamp ?? '').slice(0, 19).replace('T', ' ') !== common.start_timestamp ||
           (live!.end_timestamp ?? '').slice(0, 19).replace('T', ' ') !== common.end_timestamp || !sameSet(liveSpeakers, speakerIds) ||
           !sameSet((live!.tags ?? []).map(t => t.id), nextTags.map(t => t.id)) || (!!hex && live!.session_colour !== hex)
+        // KonfHub-side edits since the last sync are never silently overwritten (2026-10-18). KonfHub moves its "last modified" time on any save, even one that
+        // changes nothing (2 Nov 2026: a re-save of a whole stage flagged 12 sessions that matched EventPilot exactly), so it only counts as drift when the
+        // content EventPilot would push really differs from what KonfHub holds. When nothing differs there is nothing to overwrite: the session counts as in sync.
+        const liveUpdated = live!.updated_at ? new Date(/[Zz+]/.test(live!.updated_at) ? live!.updated_at : live!.updated_at.replace(' ', 'T') + 'Z').getTime() : 0
+        const syncedAt = s.konfhub_last_synced_updated_at ? new Date(s.konfhub_last_synced_updated_at).getTime() : 0
+        if (!opts.force && syncedAt && liveUpdated > syncedAt + 1500 && changed) {
+          driftIds.add(khId)
+          add({ session_id: s.id, title: s.title, action: 'error', reason: 'Changed in KonfHub since the last sync. Review it in KonfHub, then push again with “overwrite KonfHub edits”.' })
+          continue
+        }
         if (changed) {
           if (!dryRun) {
             // Only send the description when its text really changed: otherwise KonfHub keeps its own HTML formatting (bold, lists, links) untouched.
