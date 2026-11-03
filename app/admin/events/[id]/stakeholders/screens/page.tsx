@@ -21,7 +21,7 @@ type Session = {
   layout: string; fingerprint: string; state: 'new' | 'ready' | 'changed'; png_url: string | null; generated_at: string | null; width: number | null; height: number | null; low_res: string[]; file_name: string; cards: Card[]; reasons: string[]; starts_at: string | null; ends_at: string | null
 }
 type LinkStatus = { last_seen_at: string | null; waiting: number; oldest_since: string | null; urgent: number; removed: number; downloaded: boolean }
-type LinkRow = { id: string; track_id: string | null; label: string; token: string; kind: 'stage' | 'tables'; status?: LinkStatus }
+type LinkRow = { id: string; track_id: string | null; label: string; token: string; kind: 'stage' | 'tables'; created_by?: string | null; created_at?: string; status?: LinkStatus }
 type Data = {
   timezone: string; auto_redraw: boolean; sessions: Session[]; fonts: { id: string; family_name: string }[]; stages: { id: string; name: string }[]; links: LinkRow[]
   look: { panel: 'light' | 'dark'; dims: { photoW: number; photoH: number }; head_scale: number; font_id: string | null; font_name: string | null; background_url: string | null; text_color: string; accent_color: string }
@@ -287,6 +287,7 @@ function LinksPanel({ kind, data, eventId, canEdit, onChanged }: { kind: 'stage'
           <code style={{ fontSize: '12px', color: 'var(--ink2)', wordBreak: 'break-all', flex: '1 1 260px' }}>{url(l.token)}</code>
           <Button variant="ghost" onClick={() => { void navigator.clipboard.writeText(url(l.token)); setCopied(l.id); setTimeout(() => setCopied(null), 1500) }}>{copied === l.id ? 'Copied' : 'Copy link'}</Button>
           {canEdit && <Button variant="red" onClick={() => revoke(l.id)}>Switch off</Button>}
+          {l.created_at && <div style={{ flexBasis: '100%', fontSize: '12px', color: 'var(--ink3)' }}>Created by {l.created_by ?? 'someone no longer on the team'} · {new Date(l.created_at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>}
           {l.status && <div style={{ flexBasis: '100%' }}><LinkStatusLine s={l.status} tables={kind === 'tables'} /></div>}
         </div>
       ))}

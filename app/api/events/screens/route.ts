@@ -37,6 +37,9 @@ export async function GET(req: NextRequest) {
   const { data: dl } = stageLinks.length
     ? await supabaseAdmin.from('event_screen_link_downloads').select('link_id, session_id, version_key, snapshot, downloaded_at').in('link_id', stageLinks.map(l => l.id as string))
     : { data: [] as { link_id: string; session_id: string; version_key: string; snapshot: unknown; downloaded_at: string }[] }
+  const creatorIds = [...new Set((links ?? []).map(l => l.created_by as string | null).filter((x): x is string => !!x && UUID.test(x)))]
+  const { data: creators } = creatorIds.length ? await supabaseAdmin.from('staff_members').select('id, name').in('id', creatorIds) : { data: [] as { id: string; name: string }[] }
+  const creatorName = new Map((creators ?? []).map(c => [c.id, c.name]))
   const nowMs = Date.now()
   const status: Record<string, ReturnType<typeof linkStatus>> = {}
   for (const l of links ?? []) {
@@ -49,7 +52,7 @@ export async function GET(req: NextRequest) {
     status[l.id as string] = linkStatus(rows.map(r => ({ status: r.status, since: r.status === 'updating' ? r.session.staleChangedAt ?? null : r.session.generatedAt ?? null, startsAt: r.session.startsAt, endsAt: r.session.endsAt })), removedFor(scope, got).length, lastSeen, (l.baseline_at as string | null | undefined) ?? null, nowMs)
   }
   return NextResponse.json({
-    timezone, server_time: new Date().toISOString(), auto_redraw: look.autoRedraw, card_variants: stageCards, website_variant: look.websiteVariant ? { name: look.websiteVariant.name || 'Website photo', width: look.websiteVariant.canvas_width, height: look.websiteVariant.canvas_height } : null, sessions: sessions.map(brief), fonts: fonts ?? [], stages: tracks ?? [], links: (links ?? []).map(l => ({ id: l.id, track_id: l.track_id, label: l.label, token: l.token, kind: (l.kind as string | undefined) ?? 'stage', status: status[l.id as string] })),
+    timezone, server_time: new Date().toISOString(), auto_redraw: look.autoRedraw, card_variants: stageCards, website_variant: look.websiteVariant ? { name: look.websiteVariant.name || 'Website photo', width: look.websiteVariant.canvas_width, height: look.websiteVariant.canvas_height } : null, sessions: sessions.map(brief), fonts: fonts ?? [], stages: tracks ?? [], links: (links ?? []).map(l => ({ id: l.id, track_id: l.track_id, label: l.label, token: l.token, kind: (l.kind as string | undefined) ?? 'stage', created_by: creatorName.get(l.created_by as string) ?? null, created_at: l.created_at, status: status[l.id as string] })),
     look: { panel: settings.panel, card_style: settings.cardStyle, card_variant_id: settings.cardVariantId, use_website_photo: settings.useWebsitePhoto, type_styles: settings.typeStyles, dims: settings.dims, head_scale: settings.headScale, font_id: settings.fontId, font_name: look.font?.family_name ?? null, background_url: look.backgroundUrl, text_color: look.textColor, accent_color: look.accentColor },
   })
 }
