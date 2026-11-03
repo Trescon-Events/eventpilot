@@ -68,13 +68,15 @@ export default function SessionPanel({ khLabels, days, themes, formats, session,
   const needsTz = !tz && !!date
   const stageRooms = useMemo(() => rooms.filter(r => r.track_id === trackId).sort((a, b) => a.order_index - b.order_index), [rooms, trackId])
 
-  const speakerOptions = allSpeakers.map(s => ({ id: s.id, label: s.public_name || s.name, sublabel: s.company ?? undefined }))
+  // A deleted (inactive) record can still be listed, and a person may have both an old and a new record: the bracket tells them apart. Stage screens skip deleted records.
+  const shownName = (s: Speaker) => `${s.public_name || s.name}${s.active === false ? ' (deleted record)' : ''}`
+  const speakerOptions = allSpeakers.map(s => ({ id: s.id, label: shownName(s), sublabel: s.company ?? undefined }))
   // "No override" = the role on the speaker's own record (resolvePrimaryRole: their chosen role, else "Speaker", else the first role).
   const ownRole = (id: string) => {
     const tag = allSpeakers.find(x => x.id === id)?.konfhub_primary_role_tag_id
     return roles.find(r => r.tag_id === tag) ?? roles.find(r => r.label.trim().toLowerCase() === 'speaker') ?? roles[0] ?? null
   }
-  const nameOf = (id: string) => { const s = allSpeakers.find(x => x.id === id); return s ? (s.public_name || s.name) : 'Unknown speaker' }
+  const nameOf = (id: string) => { const s = allSpeakers.find(x => x.id === id); return s ? shownName(s) : 'Unknown speaker' }
 
   const disabled = saving || !title.trim() || !!timeError || needsTz
   const missingWhen = !date || !startT || !endT   // a session needs a day and times before it can be sent to KonfHub
