@@ -1,3 +1,4 @@
+import { withLibraryFixedLines } from '@/app/lib/content/copy-library'
 import { setupGateResponse } from '@/app/lib/events/sae-setup'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -95,8 +96,9 @@ export async function POST(req: NextRequest) {
     resolveEffectiveRules(body.event_id).catch(() => []),
   ])
 
-  const event = eventRes.data
-  if (eventRes.error || !event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+  if (eventRes.error || !eventRes.data) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+  // Copy Library (copy-library.md §6.1): approved `cta` / `attribution_line` first; with none approved the event is returned untouched.
+  const event = await withLibraryFixedLines(body.event_id, eventRes.data)
 
   const speaker = speakerRes.data
   const partner = partnerRes.data

@@ -1,3 +1,4 @@
+import { runCopyReviewCycle } from './copy-library'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { resolveEffectiveDocs, getChildEventIds, type MessagingDocRow } from './resolve-reference-docs'
 import type { ContentOwnerRef } from './owner'
@@ -247,6 +248,9 @@ export async function recompileEventAndChildren(owner: ContentOwnerRef): Promise
       await supabaseAdmin.from('events').update({ sae_compile_error: (e instanceof Error ? e.message : String(e)).slice(0, 500), sae_compile_error_at: new Date().toISOString() }).eq('id', id)
     }
   }))
+  // Copy Library review cycle (copy-library.md §5): items built from a section that changed go to needs_review. A Trescon-wide (house style) change never
+  // starts one (§2.4). Best effort, never throws.
+  if (owner.kind !== 'org') await runCopyReviewCycle(owner)
 }
 
 export async function getLatestCompiledReference(eventId: string) {

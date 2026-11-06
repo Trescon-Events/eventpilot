@@ -11,6 +11,17 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 ---
 
+## Copy Library (6 Nov 2026) — built on branch `feat/copy-library`, NOT pushed
+Spec: `docs/build_suggestions/copy-library.md`. Migration `supabase/copy_library_migration.sql` is RUN on production (Madhu, 6 Nov). Acceptance §10 passed on a throwaway event + umbrella (deleted afterwards); §10.1 passed by event ID for DFS, FSF, FIFF, FTF, DFWS, BSS.
+- Logic: `app/lib/content/copy-catalogue.ts` (12 keys), `copy-model.ts` (pure, tested), `copy-library.ts` (getCopyItem, generate, approve, bundle, review cycle, `withLibraryFixedLines`), `style-notes.ts`.
+- API: `/api/events/copy-library` (GET + POST actions), `/api/events/style-notes`, public `/api/public/copy-review/[token]`. Pages/UI: Event Details → Copy Library tab (`app/components/copy-library/CopyLibraryTab.tsx`, also on the umbrella page), client link `/public/copy-review/[token]`, Style notes section inside the Rules screen (`StyleNotesPanel.tsx`).
+- Wired: SAE `cta` + `attribution_line` read the library first (generate, regenerate-copy, Setup tab); readiness warning `copy_library_incomplete`. Review cycle runs at the end of `recompileEventAndChildren` (not for Trescon-wide changes). With no approved item every consumer returns the event untouched.
+- **BSS**: 24 generated items are left as DRAFT on purpose (the producer reviews them and sends them to KSDC). Nothing approved, so BSS output is unchanged.
+- **Follow-ups (not built):**
+  1. **Style notes into SAE, short bio, headlines and press release prompts** — only Copy Library generation reads them today (`getEffectiveStyleNotes` in `style-notes.ts` is ready). Needed before AI InfraNext content starts.
+  2. **Workspace badge** — "N need review" shows on the Copy Library tab only, not on the event workspace home.
+  Also later: press releases / invites / Konfhub / website / YouTube consume the library in their own builds.
+
 ## Last Session — Claude Code with Madhu, 2–6 Nov 2026 (DFS / FIFF live week). Handed off to: next session
 All code is pushed (`main` = `origin/main`, CI green). Live data changes and external steps are listed separately below.
 

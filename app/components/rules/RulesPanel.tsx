@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Button, Card } from '@/app/components/ui'
+import StyleNotesPanel from './StyleNotesPanel'
 import { notify } from '@/app/lib/ui/notify'
 import { readCanonical, writeCanonical, suggestLoose } from '@/app/lib/content/canonical-name'
 
@@ -120,6 +121,7 @@ export default function RulesPanel({ ownerType, ownerId, title = 'Rules' }: { ow
   const total = data?.levels.reduce((n, l) => n + l.rules.length, 0) ?? 0
 
   return (
+    <div style={{ display: 'grid', gap: '16px' }}>
     <Card padded>
       <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '8px' }}>{title} ({total})</div>
       {error && <div style={{ fontSize: '12.5px', color: 'var(--red)' }}>{error}</div>}
@@ -247,5 +249,7 @@ export default function RulesPanel({ ownerType, ownerId, title = 'Rules' }: { ow
         )}
       </div>
     </Card>
+    <StyleNotesPanel ownerType={ownerType} ownerId={ownerId} />
+    </div>
   )
 }

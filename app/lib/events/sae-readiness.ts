@@ -26,6 +26,8 @@ export type ReadinessInput = {
   /** Every reference document of the event and of its umbrella (any status). */
   docs: ReadinessDoc[]
   compiled: { version: number; conflicts: unknown[] | null } | null
+  /** Copy Library (copy-library.md §6): which fixed lines an approved library item supplies, and the starter-set items with no approved version. Omitted = unknown (no effect). */
+  library?: { has_cta: boolean; has_attribution: boolean; missing: string[] } | null
 }
 
 const blank = (v: string | null | undefined) => !v || !v.trim()
@@ -35,7 +37,7 @@ const lettersOnly = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '')
 const spellingKey = (w: string) => w.replace(/isation/g, 'ization').replace(/ise\b/g, 'ize')
 const nameWords = (s: string) => s.toLowerCase().replace(/\b(19|20)\d\d\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').split(' ').filter(Boolean).map(spellingKey)
 
-export function runReadiness({ event, docs, compiled }: ReadinessInput): ReadinessCheck[] {
+export function runReadiness({ event, docs, compiled, library }: ReadinessInput): ReadinessCheck[] {
   const out: ReadinessCheck[] = []
   const details = `/admin/events/${event.id}/details`
   const refDocs = `${details}?tab=messaging`
@@ -51,7 +53,7 @@ export function runReadiness({ event, docs, compiled }: ReadinessInput): Readine
   if (blank(event.registration_url)) ctaProblems.push('the registration URL is not set')
   else if (!/^https:\/\/\S+$/.test(event.registration_url!.trim())) ctaProblems.push('the registration URL must start with https://')
   // The label drives the fixed CTA line, which only exists in assembled mode; legacy events (DFS) keep the model-written CTA and need no label.
-  if (event.sae_copy_mode === 'assembled' && blank(event.announcement_cta_label)) ctaProblems.push('the call-to-action label is not set')
+  if (event.sae_copy_mode === 'assembled' && blank(event.announcement_cta_label) && !library?.has_cta) ctaProblems.push('the call-to-action label is not set')
   if (ctaProblems.length) add('cta', 'block', `Call to action: ${ctaProblems.join(' and ')}.`)
   const liveMessaging = docs.some(d => d.role === 'messaging' && d.status === 'live')
   if (!liveMessaging) add('messaging_doc', 'block', 'No live messaging document (event or umbrella).', refDocs)
@@ -72,7 +74,8 @@ export function runReadiness({ event, docs, compiled }: ReadinessInput): Readine
     if (diff.length) add('public_vs_internal_name', 'warn', `Public name "${event.public_name}" and event name "${event.name}" differ (${[...new Set(diff)].join(', ')}).`)
   }
   if (event.sae_copy_mode !== 'assembled') add('copy_mode', 'warn', 'Copy mode is legacy — fixed lines (dates, venue, hashtags, attribution) are not code-assembled.')
-  if (event.umbrella_id && blank(event.announcement_attribution_line)) add('attribution', 'warn', 'No attribution line is set for this umbrella event.')
+  if (event.umbrella_id && blank(event.announcement_attribution_line) && !library?.has_attribution) add('attribution', 'warn', 'No attribution line is set for this umbrella event.')
+  if (library && library.missing.length) add('copy_library_incomplete', 'warn', `Copy Library: no approved version yet for ${library.missing.join(', ')}.`, `${details}?tab=copy`)
   const pending = docs.filter(d => d.status === 'draft' || d.extraction_status === 'processing')
   if (pending.length) add('pending_drafts', 'warn', `${pending.length} reference document${pending.length === 1 ? ' is' : 's are'} still in draft or extracting.`, refDocs)
   if (event.sae_compile_error) add('compile_failed', 'warn', `The last reference recompile failed: ${event.sae_compile_error}`, refDocs)

@@ -1,3 +1,4 @@
+import { withLibraryFixedLines } from '@/app/lib/content/copy-library'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { loadSetupSnapshot, decideGate } from '@/app/lib/events/sae-setup'
@@ -16,7 +17,8 @@ export async function GET(req: NextRequest) {
   if (!snap) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
 
   const { data: full } = await supabaseAdmin.from('events').select('*').eq('id', eventId).single()
-  const ctx = full as unknown as EventContext
+  // Shows the fixed lines as they will actually print: an approved Copy Library cta / attribution_line first (copy-library.md §6.1), otherwise unchanged.
+  const ctx = await withLibraryFixedLines(eventId, full as unknown as EventContext)
   const assembled = snap.event.sae_copy_mode === 'assembled'
   const fixedLines = assembled
     ? { dateVenue: buildDateVenueLine(ctx), attribution: buildAttributionLine(ctx), cta: buildFixedCtaLine(ctx), hashtags: snap.event.event_hashtag }

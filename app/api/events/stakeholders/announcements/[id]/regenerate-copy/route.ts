@@ -1,3 +1,4 @@
+import { withLibraryFixedLines } from '@/app/lib/content/copy-library'
 import { setupGateResponse } from '@/app/lib/events/sae-setup'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -28,12 +29,14 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const notReady = await setupGateResponse(announcement.event_id)
   if (notReady) return notReady
 
-  const { data: event, error: eventErr } = await supabaseAdmin
+  const { data: eventRow, error: eventErr } = await supabaseAdmin
     .from('events')
     .select('name, venue, city, country, event_hashtag, registration_url, public_name, public_dates_display, public_venue_display, sae_copy_mode, announcement_line_emojis, announcement_cta_label, announcement_attribution_line')
     .eq('id', announcement.event_id)
     .single()
-  if (eventErr || !event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+  if (eventErr || !eventRow) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+  // Copy Library (copy-library.md §6.1): approved `cta` / `attribution_line` first; with none approved the event is returned untouched.
+  const event = await withLibraryFixedLines(announcement.event_id, eventRow, id)
 
   const speaker = announcement.speaker_id
     ? (await supabaseAdmin.from('event_speakers').select('*').eq('id', announcement.speaker_id).single()).data

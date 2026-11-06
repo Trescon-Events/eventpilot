@@ -1,3 +1,4 @@
+import { libraryReadiness } from '@/app/lib/content/copy-library'
 import crypto from 'crypto'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -61,7 +62,7 @@ export async function loadSetupSnapshot(eventId: string): Promise<SetupSnapshot 
     }
   }
   const docSel = 'id, role, status, extraction_status, version, title, authority_rank, provenance, uploaded_by, created_at'
-  const [{ data: own }, { data: umb }, { data: umbrella }, { data: comp }, effectiveRules, orgReach] = await Promise.all([
+  const [{ data: own }, { data: umb }, { data: umbrella }, { data: comp }, effectiveRules, orgReach, library] = await Promise.all([
     supabaseAdmin.from('event_messaging_docs').select(docSel).eq('event_id', eventId),
     event.umbrella_id ? supabaseAdmin.from('event_messaging_docs').select(docSel).eq('umbrella_id', event.umbrella_id) : Promise.resolve({ data: [] as unknown[] }),
     event.umbrella_id ? supabaseAdmin.from('event_umbrellas').select('name').eq('id', event.umbrella_id).maybeSingle() : Promise.resolve({ data: null }),
@@ -69,6 +70,7 @@ export async function loadSetupSnapshot(eventId: string): Promise<SetupSnapshot 
     // Effective rules (own + umbrella + Trescon-wide, minus overrides) — so a Trescon-wide rule change or an override moves the fingerprint.
     resolveEffectiveRuleRowsForOwner({ kind: 'event', id: eventId }),
     orgDocsReachEvent(eventId),
+    libraryReadiness(eventId),
   ])
   const { data: orgDocRows } = orgReach ? await supabaseAdmin.from('event_messaging_docs').select(docSel).eq('org_scope', 'trescon') : { data: [] as unknown[] }
   const umbrellaName = (umbrella as { name?: string } | null)?.name ?? null
@@ -80,7 +82,7 @@ export async function loadSetupSnapshot(eventId: string): Promise<SetupSnapshot 
   const liveDocs = docs.filter(d => d.status === 'live')
   const rules: RuleRow[] = effectiveRules.map(r => ({ id: r.id, rule_key: r.rule_key, rule_type: r.rule_type, pattern: r.pattern, severity: r.severity, message: r.message, source_clause: r.source_clause, owner: r.level }))
   const compiled = comp as SetupSnapshot['compiled']
-  const checks = runReadiness({ event, docs, compiled })
+  const checks = runReadiness({ event, docs, compiled, library })
   return { event, docs, liveDocs, compiled, rules, checks, fingerprint: computeFingerprint(event, liveDocs, rules) }
 }
 

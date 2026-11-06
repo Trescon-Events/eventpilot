@@ -9,6 +9,7 @@ import DeleteSensitiveDocumentModal from '../stakeholders/[stakeholderId]/Delete
 import { FORM_TITLES, FormType } from '@/app/lib/forms/types'
 import { TRACKED_EVENT_FIELDS, FIELD_LABELS, TrackedEventField } from '@/app/lib/events/detail-fields'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
+import CopyLibraryTab from '@/app/components/copy-library/CopyLibraryTab'
 import SetupTab from './SetupTab'
 import AffectedRulesCard from '@/app/components/rules/AffectedRulesCard'
 import type { AffectedRule } from '@/app/lib/content/edit-diff'
@@ -549,16 +550,20 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
   const searchParams = useSearchParams()
   const router = useRouter()
 
-  const [tab, setTabState] = useState<'overview' | 'messaging' | 'setup'>(searchParams.get('tab') === 'messaging' ? 'messaging' : searchParams.get('tab') === 'setup' ? 'setup' : 'overview')
+  const [tab, setTabState] = useState<'overview' | 'messaging' | 'copy' | 'setup'>(searchParams.get('tab') === 'messaging' ? 'messaging' : searchParams.get('tab') === 'copy' ? 'copy' : searchParams.get('tab') === 'setup' ? 'setup' : 'overview')
+  const [copyReviewCount, setCopyReviewCount] = useState(0)
+  useEffect(() => {
+    fetch(`/api/events/copy-library?owner_type=event&owner_id=${eventId}`).then(r => r.ok ? r.json() : null).then(j => setCopyReviewCount(j?.needs_review ?? 0)).catch(() => {})
+  }, [eventId, tab])
   // Reference Docs sub-navigation (2026-09-27) — one panel per document type (Topline Messaging / Style Guide /
   // Production Pack), addressable as ?tab=messaging&doc=<role>. The tab= value is unchanged so old links still work.
   const [docRole, setDocRoleState] = useState<DocRole>(
     (['messaging', 'style_guide', 'production_pack'] as DocRole[]).find(r => r === searchParams.get('doc')) ?? 'messaging'
   )
   function refDocsUrl(role: DocRole) { return `/admin/events/${eventId}/details?tab=messaging${role !== 'messaging' ? `&doc=${role}` : ''}` }
-  function setTab(t: 'overview' | 'messaging' | 'setup') {
+  function setTab(t: 'overview' | 'messaging' | 'copy' | 'setup') {
     setTabState(t)
-    router.replace(t === 'messaging' ? refDocsUrl(docRole) : t === 'setup' ? `/admin/events/${eventId}/details?tab=setup` : `/admin/events/${eventId}/details`, { scroll: false })
+    router.replace(t === 'messaging' ? refDocsUrl(docRole) : t === 'setup' ? `/admin/events/${eventId}/details?tab=setup` : t === 'copy' ? `/admin/events/${eventId}/details?tab=copy` : `/admin/events/${eventId}/details`, { scroll: false })
   }
   function setDocRole(r: DocRole) {
     setDocRoleState(r)
@@ -854,7 +859,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
       />
 
       <div style={{ padding: '20px 32px 0', display: 'flex', gap: '4px', borderBottom: '1px solid var(--border-light)' }}>
-        {([['overview', 'Overview'], ['messaging', 'Reference Docs'], ['setup', 'Setup']] as const).map(([key, label]) => (
+        {([['overview', 'Overview'], ['messaging', 'Reference Docs'], ['copy', 'Copy Library'], ['setup', 'Setup']] as const).map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             style={{
               padding: '10px 18px', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit',
@@ -862,6 +867,9 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
               borderBottom: tab === key ? '2px solid var(--teal-mid)' : '2px solid transparent', marginBottom: '-1px',
             }}>
             {label}
+            {key === 'copy' && copyReviewCount > 0 && (
+              <span title={`${copyReviewCount} Copy Library item${copyReviewCount === 1 ? '' : 's'} need review`} style={{ marginLeft: '6px', minWidth: '16px', padding: '0 5px', borderRadius: '999px', background: 'var(--red)', color: 'var(--card)', fontSize: '10px', fontWeight: 800, display: 'inline-block', textAlign: 'center' }}>{copyReviewCount}</span>
+            )}
             {key === 'messaging' && (anyDraftPending || needsSync) && (
               <span style={{ marginLeft: '6px', width: '6px', height: '6px', borderRadius: '50%', background: 'var(--amber)', display: 'inline-block' }} />
             )}
@@ -873,6 +881,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
         <Toast message={msg} type={msgIsError ? 'error' : 'success'} onClose={() => setMsg(null)} />
 
         {tab === 'setup' && <SetupTab eventId={eventId} />}
+        {tab === 'copy' && <CopyLibraryTab ownerType="event" ownerId={eventId} />}
 
         {tab === 'overview' && (
           <>
