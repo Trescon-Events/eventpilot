@@ -11,6 +11,31 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 ---
 
+## Last Session — Claude Code with Madhu, 2–6 Nov 2026 (DFS / FIFF live week). Handed off to: next session
+All code is pushed (`main` = `origin/main`, CI green). Live data changes and external steps are listed separately below.
+
+**Built / fixed this session (pushed)**
+- `f97d130` Stage Screens: per-event "Shown under each speaker" ticks (name / job title / company / country). Stored as `hidden` in `event_screen_settings.type_styles` (no migration; `clampTypeStyles` accepts it only for the four detail elements). `hideDetails()` in `app/lib/screens/dims.ts` blanks the text in `loadScreenSessions` (`data.ts`), so both card designs, the fingerprint and AV/table change tracking all follow. UI: `StageSpeakerPicSettings.tsx`. Unticking redraws every screen of that event and marks it Changed. Requested for DFWS (drop Country). Test in `geometry.test.ts`.
+- `33492a1` Agenda → KonfHub: "Changed in KonfHub" now only when KonfHub was touched since the last sync AND its content differs from what EventPilot would push (`app/lib/agenda/konfhub-push.ts`). Cause: KonfHub re-saved 12 DFS Innovation 1 sessions on 1 Nov 18:28–18:33 UTC with no content change. Limit: a touched session that then gets a real EventPilot edit still reads as drift until its stamp is refreshed by a normal push of unchanged sessions.
+- `56ecc68` Stage/Table screens page shows "Created by <name> · <date>" on each link (`app/api/events/screens/route.ts` resolves `event_screen_links.created_by` through `staff_members.name`).
+- `0821596` Agenda speaker picker marks inactive records "(deleted record)" (`SessionPanel.tsx`, `agenda-utils.ts`; the speakers API already returned `active`).
+- Earlier in the session (see the Stage Screens / Table Screens sections below): AV link status + REMOVED alerts (`19ca940`, migration `event_screen_links_last_seen_migration.sql` run), fireside title rule, Table Hub v3, table-card change tracking and downloads, vendor batch parts + Ops ZIP, Show Caller under Stakeholder Hub > Speakers with a friendlier Add-cue dialog, speaker Excel phone numbers.
+
+**Live data changes (not code)**
+- DFS: Katerina Zemskova's seat on "Who Owns the Payment?…" (3 Nov) was re-linked from her old inactive record (2f2360ac…) to her active one (04dd2a62…, KonfHub 31142). That session's KonfHub push (Save and update KonfHub) was left for Madhu. A scan found no other session linked to an inactive speaker.
+- Cloudflare: Madhu upgraded the Trescon account to **Workers Paid** (renews 4 Dec 2026) after the free 100k/day cap was hit (EventPilot's proxy Worker is ~50k/day; the rest is other sites). Open flags: an unexpected "Images Stream Basic" subscription, saved cards showing expiry 12/2024, billing email still `charan@`. Nothing in the repo changed.
+- HubSpot: a FIFF speaker-form submission was held as spam ("Unregistered Site Domain"); Madhu releases it in HubSpot → form → Submissions. Not confirmed afterwards whether the speaker reached EventPilot. Registering the form's host domain in HubSpot would stop a repeat (needs Madhu's go).
+
+**What's next / open**
+- Update the KonfHub-linked Katerina session (Save and update KonfHub) and confirm the FIFF HubSpot speaker arrived.
+- Check the Cloudflare Images Stream Basic subscription and the payment card / billing email before 4 Dec.
+- DFWS: untick Country in Stage Screens settings; the AV team must re-download that event's screens afterwards.
+- Windows Table Hub exe is untested on Windows. Not built (offered): escalation messages for urgent screen changes, bulk-redraw activity record, "second Hub on the same link" warning, gentler Hub/Show Caller polling to cut Worker requests.
+- Carry-over: producer/technician feedback on Show Caller and BSS review; moving the event workspace to `/events/…`; 4 "Title to be confirmed" DFS sessions.
+- Process notes: psql migrations are run by Madhu via `!` (pooler); tests run with `npx tsx --test`; tsc needs an 8 GB heap; only "push" in his message deploys.
+
+---
+
 ## Nav fix + Durga clean-up (31 Oct 2026) — built locally, NOT pushed
 Why staff kept emailing "Admin Panel" access requests: every event page's breadcrumb began with "Admin Dashboard" (`/admin`, admin-only) because Event Workspace's `breadcrumbParent` is 'admin'; a click landed on `/no-access?tool=admin` whose big button sends the request. Log showed from_path `/admin` and `/admin/events`.
 - `app/lib/nav/breadcrumbs.ts`: `deriveBreadcrumbs(path, labels, isAdmin)` drops `/admin` and `/admin/events` crumbs for non-admins; `AppShellRoot.tsx` now renders them via a `Crumbs` component inside `NavDataProvider` (knows `session.adm`). Test: `breadcrumbs.test.ts`.
