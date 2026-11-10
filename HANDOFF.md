@@ -11,7 +11,7 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 ---
 
-## Copy Library (6 Nov 2026) — built on branch `feat/copy-library`, NOT pushed
+## Copy Library (6 Nov 2026) — PUSHED to main (`44fac68`), CI green
 Spec: `docs/build_suggestions/copy-library.md`. Migration `supabase/copy_library_migration.sql` is RUN on production (Madhu, 6 Nov). Acceptance §10 passed on a throwaway event + umbrella (deleted afterwards); §10.1 passed by event ID for DFS, FSF, FIFF, FTF, DFWS, BSS.
 - Logic: `app/lib/content/copy-catalogue.ts` (12 keys), `copy-model.ts` (pure, tested), `copy-library.ts` (getCopyItem, generate, approve, bundle, review cycle, `withLibraryFixedLines`), `style-notes.ts`.
 - API: `/api/events/copy-library` (GET + POST actions), `/api/events/style-notes`, public `/api/public/copy-review/[token]`. Pages/UI: Event Details → Copy Library tab (`app/components/copy-library/CopyLibraryTab.tsx`, also on the umbrella page), client link `/public/copy-review/[token]`, Style notes section inside the Rules screen (`StyleNotesPanel.tsx`).
@@ -21,6 +21,14 @@ Spec: `docs/build_suggestions/copy-library.md`. Migration `supabase/copy_library
   1. **Style notes into SAE, short bio, headlines and press release prompts** — only Copy Library generation reads them today (`getEffectiveStyleNotes` in `style-notes.ts` is ready). Needed before AI InfraNext content starts.
   2. **Workspace badge** — "N need review" shows on the Copy Library tab only, not on the event workspace home.
   Also later: press releases / invites / Konfhub / website / YouTube consume the library in their own builds.
+
+## Speaker lifecycle (10 Nov 2026) — built on branch `feat/speaker-lifecycle`, NOT pushed; migration RUN on production
+Why: withdrawals were handled by Delete (archive, no reason), so there was no record of who confirmed, withdrew or spoke. Migration `supabase/speaker_lifecycle_migration.sql` is RUN (Madhu, 10 Nov): renamed `Cancelled` to `Withdrew` (1 DFS row), added `No-show` and `Spoke`, withdrawal_reason/note/withdrawn_at, delete_reason/deleted_at, planned_roles, and the audit table `speaker_lifecycle_changes`. **Push soon: until the code is live, the old code writing 'Cancelled' would be rejected.**
+- Logic: `app/lib/speaker-lifecycle/model.ts` (pure, 6 tests) and `server.ts`. API: `/api/events/stakeholders/speaker-lifecycle` (stats, post-event apply, classify). The speaker PATCH validates status/withdrawal/planned roles and writes the audit row; DELETE takes `delete_reason`. A lifecycle-only PATCH no longer sends an approved speaker back to review.
+- UI (Stakeholder Hub): Speaker stats tab, post-event banner (`PostEventBanner.tsx`), Withdraw action asks for a reason (and offers to remove from the public website), Delete asks test/duplicate/mistake, Withdrawn tab (was Cancelled), Deleted tab cleanup for old deletions, planned-role chips on the speaker page.
+- Acceptance: 18 checks passed on a throwaway event (deleted, 0 leftovers). Real data: ~95 deleted speakers across the six concluded events are unclassified (DFS 62); producers should classify them in Hub → Deleted. "Invited" is 0 everywhere: speaker invites are not sent through EventPilot yet.
+- **Known gaps:** Withdrew only leaves the public website if the checkbox is ticked, and restoring does not put a speaker back on it. `app/api/events/speakers/route.ts` (Website Builder) can hard-delete a speaker, bypassing all this. Thank-you tool not built yet (design agreed: one owner per event, gallery link required, scheduled send, sent from each speaker's own producer, recipients = Confirmed or Spoke).
+- Also uncommitted in the working tree: the subscriptions tracker (`app/lib/registry/subscriptions.ts`, section on Keys & Credentials). R2 was found switched off on 6 Nov (billing), re-added.
 
 ## Last Session — Claude Code with Madhu, 2–6 Nov 2026 (DFS / FIFF live week). Handed off to: next session
 All code is pushed (`main` = `origin/main`, CI green). Live data changes and external steps are listed separately below.
