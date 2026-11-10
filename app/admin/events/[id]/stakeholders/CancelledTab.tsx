@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Card, Button, Input } from '@/app/components/ui'
 import RestoreConfirmModal from './RestoreConfirmModal'
+import { WITHDRAWAL_REASONS } from '@/app/lib/speaker-lifecycle/model'
 
 /* Cancelled speakers — restore view for the guarded Cancel flow
    (2026-09-23, see CancelSpeakerModal.tsx for the full rationale). Modeled
@@ -20,6 +21,7 @@ type CancelledSpeaker = {
   id: string; full_name: string; job_title: string; company_name: string
   photo_processed_url: string | null; photo_url: string | null
   konfhub_speaker_removed_at: string | null; konfhub_registration_cancel_requested_at: string | null
+  announcement_status?: string | null; withdrawal_reason?: string | null; withdrawal_note?: string | null; withdrawn_at?: string | null
 }
 
 export default function CancelledTab({ eventId, onChanged }: { eventId: string; onChanged: () => void }) {
@@ -32,7 +34,7 @@ export default function CancelledTab({ eventId, onChanged }: { eventId: string; 
 
   async function fetchCancelled() {
     setLoading(true)
-    const res = await fetch(`/api/events/stakeholders/speakers?event_id=${eventId}&confirmation_status=Cancelled`)
+    const res = await fetch(`/api/events/stakeholders/speakers?event_id=${eventId}&confirmation_status=Withdrew&include_archived=1`)
     const speakers: CancelledSpeaker[] = await res.json().catch(() => [])
     setItems(speakers)
     setLoading(false)
@@ -76,13 +78,13 @@ export default function CancelledTab({ eventId, onChanged }: { eventId: string; 
 
   return (
     <div>
-      <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search cancelled speakers…" style={{ width: '320px', marginBottom: '16px' }} />
+      <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search withdrawn speakers…" style={{ width: '320px', marginBottom: '16px' }} />
 
       {loading ? (
         <div style={{ color: 'var(--ink3)', fontSize: '13px' }}>Loading…</div>
       ) : filtered.length === 0 ? (
         <div style={{ color: 'var(--ink3)', fontSize: '13px', padding: '30px 0', textAlign: 'center' }}>
-          {items.length === 0 ? 'No cancelled speakers.' : 'No cancelled speakers match your search.'}
+          {items.length === 0 ? 'No withdrawn speakers.' : 'No withdrawn speakers match your search.'}
         </div>
       ) : (
         <div style={{ display: 'grid', gap: '10px' }}>
@@ -98,6 +100,12 @@ export default function CancelledTab({ eventId, onChanged }: { eventId: string; 
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '13.5px', fontWeight: 800, color: 'var(--ink)' }}>{item.full_name}</div>
                     <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '2px' }}>{subtitle}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--ink2)', marginTop: '4px' }}>
+                      {WITHDRAWAL_REASONS.find(r => r.key === item.withdrawal_reason)?.label ?? 'Reason not recorded'}
+                      {item.withdrawn_at ? ` · ${new Date(item.withdrawn_at).toLocaleDateString()}` : ''}
+                      {item.withdrawal_note ? ` · ${item.withdrawal_note}` : ''}
+                      {item.announcement_status === 'archived' ? ' · deleted earlier (restore from the Deleted tab)' : ''}
+                    </div>
                     {(item.konfhub_speaker_removed_at || item.konfhub_registration_cancel_requested_at) && (
                       <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
                         {item.konfhub_speaker_removed_at && (
@@ -106,7 +114,7 @@ export default function CancelledTab({ eventId, onChanged }: { eventId: string; 
                           </span>
                         )}
                         {item.konfhub_registration_cancel_requested_at && (
-                          <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#E07B2C', background: 'color-mix(in srgb, #E07B2C 10%, transparent)', border: '1px solid color-mix(in srgb, #E07B2C 35%, transparent)', borderRadius: '6px', padding: '2px 7px' }}>
+                          <span style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--amber)', background: 'color-mix(in srgb, var(--amber) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--amber) 35%, transparent)', borderRadius: '6px', padding: '2px 7px' }}>
                             ⚠ Needs manual KonfHub registration cancellation
                           </span>
                         )}
@@ -119,9 +127,11 @@ export default function CancelledTab({ eventId, onChanged }: { eventId: string; 
                         Mark cancelled
                       </Button>
                     )}
-                    <Button variant="teal" onClick={() => setRestoreConfirm(item)}>
-                      Restore
-                    </Button>
+                    {item.announcement_status !== 'archived' && (
+                      <Button variant="teal" onClick={() => setRestoreConfirm(item)}>
+                        Restore
+                      </Button>
+                    )}
                   </div>
                 </div>
               </Card>

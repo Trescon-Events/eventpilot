@@ -29,6 +29,7 @@ import DeleteSensitiveDocumentModal from './DeleteSensitiveDocumentModal'
 import type { Speaker as SaeSpeaker, Partner as SaePartner } from '../../creative-templates/page'
 import type { HeadlineVariant } from '@/app/lib/events/announcements'
 import HeadlinePicker from './HeadlinePicker'
+import { PLANNED_ROLES, WITHDRAWAL_REASONS, cleanPlannedRoles } from '@/app/lib/speaker-lifecycle/model'
 
 /* The generic, canonical full-page review/edit screen for a single
    stakeholder (Speaker or any Partner category) — replaces the old 440px
@@ -63,7 +64,8 @@ type AnnouncementStatus = 'pending_review' | 'approved' | 'assets_missing' | 're
 // "Cancelled" badge rendered below instead of this Select when the current
 // value is 'Cancelled'. Keep in sync with the DB constraint minus that one
 // value.
-const CONFIRMATION_STATUS_OPTIONS = ['New Confirmed', 'Reconfirmed', 'Confirmed', 'On Hold']
+// Spoke and No-show added 2026-11-10 (speaker lifecycle). 'Withdrew' (was 'Cancelled') is still only reachable through the Hub's Withdraw action, which asks why.
+const CONFIRMATION_STATUS_OPTIONS = ['New Confirmed', 'Reconfirmed', 'Confirmed', 'On Hold', 'Spoke', 'No-show']
 
 type StakeholderRecord = {
   id: string; event_id: string
@@ -125,6 +127,8 @@ type StakeholderRecord = {
   producer_staff_id?: string | null
   reference?: string | null
   confirmation_status?: string | null
+  withdrawal_reason?: string | null; withdrawal_note?: string | null; withdrawn_at?: string | null
+  planned_roles?: string[]
   // UAE Resident (2026-09-08) — see SensitiveDocumentsTab's own comment;
   // null = not yet determined.
   is_uae_resident?: boolean | null
@@ -299,6 +303,8 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   const [producerStaffId, setProducerStaffId] = useState('')
   const [reference, setReference] = useState('')
   const [confirmationStatus, setConfirmationStatus] = useState('')
+  const [plannedRoles, setPlannedRoles] = useState<string[]>([])
+  const [withdrawalInfo, setWithdrawalInfo] = useState('')
   const [producerOptions, setProducerOptions] = useState<{ id: string; name: string; email: string }[]>([])
   const [status, setStatus] = useState<AnnouncementStatus>('pending_review')
   const [loading, setLoading] = useState(true)
@@ -427,6 +433,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   const producerStaffIdRef = useRef(producerStaffId)
   const referenceRef = useRef(reference)
   const confirmationStatusRef = useRef(confirmationStatus)
+  const plannedRolesRef = useRef(plannedRoles)
   useEffect(() => { valuesRef.current = values }, [values])
   useEffect(() => { partnerTypeRef.current = partnerType }, [partnerType])
   useEffect(() => { publicNameRef.current = publicName }, [publicName])
@@ -437,6 +444,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   useEffect(() => { producerStaffIdRef.current = producerStaffId }, [producerStaffId])
   useEffect(() => { referenceRef.current = reference }, [reference])
   useEffect(() => { confirmationStatusRef.current = confirmationStatus }, [confirmationStatus])
+  useEffect(() => { plannedRolesRef.current = plannedRoles }, [plannedRoles])
 
   const load = useCallback(async () => {
     const [recRes, schemaRes, permRes, eventRes] = await Promise.all([
@@ -490,6 +498,8 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
         setProducerStaffId(data.producer_staff_id ?? '')
         setReference(data.reference ?? '')
         setConfirmationStatus(data.confirmation_status ?? '')
+        setPlannedRoles(cleanPlannedRoles(data.planned_roles))
+        setWithdrawalInfo([WITHDRAWAL_REASONS.find(r => r.key === data.withdrawal_reason)?.label, data.withdrawn_at ? new Date(data.withdrawn_at).toLocaleDateString() : null, data.withdrawal_note].filter(Boolean).join(' · '))
         setHeadlineVariants(data.headline_variants ?? [])
         setSelectedHeadlineId(data.selected_headline_variant_id ?? null)
       }
@@ -573,6 +583,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       if (top.has('producer_staff_id')) body.producer_staff_id = producerStaffIdRef.current || null
       if (top.has('reference')) body.reference = referenceRef.current.trim() || null
       if (top.has('confirmation_status')) body.confirmation_status = confirmationStatusRef.current.trim() || null
+      if (top.has('planned_roles')) body.planned_roles = plannedRolesRef.current
     }
     const restore = () => { top.forEach(k => dirtyTopRef.current.add(k)); fieldKeys.forEach(k => dirtyFieldsRef.current.add(k)) }
     try {
@@ -1587,10 +1598,10 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                       page would bypass the guarded Cancel/Restore flow's
                       KonfHub checks and double-confirm entirely. Restore
                       only via the Cancelled tab. */}
-                  {confirmationStatus === 'Cancelled' ? (
+                  {confirmationStatus === 'Withdrew' ? (
                     <div className="tfield-lg" style={{ display: 'flex', alignItems: 'center', fontWeight: 700, color: 'var(--red)' }}>
-                      Cancelled
-                      <span style={{ marginLeft: '8px', fontSize: '12px', fontWeight: 500, color: 'var(--ink4)' }}>— restore from the Cancelled tab</span>
+                      Withdrew
+                      <span style={{ marginLeft: '8px', fontSize: '12px', fontWeight: 500, color: 'var(--ink4)' }}>{withdrawalInfo ? `— ${withdrawalInfo}. ` : '— '}Restore from the Withdrawn tab</span>
                     </div>
                   ) : (
                     <Select
@@ -1602,6 +1613,25 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                     </Select>
                   )}
                 </div>
+              </div>
+              <div style={{ marginTop: '18px' }}>
+                <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Planned role</label>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {PLANNED_ROLES.map(r => {
+                    const on = plannedRoles.includes(r.key)
+                    return (
+                      <button
+                        key={r.key} type="button" disabled={!canEdit}
+                        onClick={() => { setPlannedRoles(cur => on ? cur.filter(k => k !== r.key) : [...cur, r.key]); scheduleSave('planned_roles') }}
+                        style={{
+                          padding: '7px 14px', borderRadius: '999px', fontSize: '14px', fontWeight: 700, fontFamily: 'inherit', cursor: canEdit ? 'pointer' : 'default',
+                          border: `1px solid ${on ? 'var(--teal)' : 'var(--border)'}`, background: on ? 'var(--teal-light)' : 'var(--card)', color: on ? 'var(--teal-mid)' : 'var(--ink3)',
+                        }}
+                      >{r.label}</button>
+                    )
+                  })}
+                </div>
+                <div style={{ fontSize: '12.5px', color: 'var(--ink4)', marginTop: '6px' }}>What this speaker was invited to do. Pick more than one for a dual role. Used for the speaker statistics only.</div>
               </div>
             </Card>
           )}

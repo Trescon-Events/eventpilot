@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, Button, Input } from '@/app/components/ui'
+import { Card, Button, Input, Select } from '@/app/components/ui'
+import { WITHDRAWAL_REASONS, DELETE_REASONS } from '@/app/lib/speaker-lifecycle/model'
 
 /* Deleted speakers/partners — restore view for the Hub's soft-delete
    (2026-07-28, see DeleteConfirmModal.tsx for the full rationale). Reuses
@@ -20,11 +21,14 @@ type DeletedItem = {
   thumb: string | null
   konfhubSpeakerRemovedAt: string | null
   konfhubRegistrationCancelRequestedAt: string | null
+  /** Speakers: what the deletion was (set in the cleanup); null = not yet classified. */
+  classified: string | null
 }
 
 type RawSpeaker = {
   id: string; full_name: string; job_title: string; company_name: string; photo_processed_url: string | null; photo_url: string | null
   konfhub_speaker_removed_at: string | null; konfhub_registration_cancel_requested_at: string | null
+  delete_reason?: string | null; confirmation_status?: string | null
 }
 type RawPartner = { id: string; company_name: string; partner_type: string; logo_url: string | null }
 
@@ -33,6 +37,9 @@ export default function DeletedTab({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [restoringId, setRestoringId] = useState<string | null>(null)
+  const [onlyUnclassified, setOnlyUnclassified] = useState(false)
+  const [pick, setPick] = useState<Record<string, { outcome: string; reason: string; note: string }>>({})
+  const [classifyError, setClassifyError] = useState<string | null>(null)
 
   async function fetchDeleted() {
     setLoading(true)
@@ -46,8 +53,9 @@ export default function DeletedTab({ eventId }: { eventId: string }) {
       ...speakers.map((s): DeletedItem => ({
         kind: 'speaker', id: s.id, name: s.full_name, subtitle: s.job_title && s.company_name ? `${s.job_title} · ${s.company_name}` : (s.company_name || ''), thumb: s.photo_processed_url || s.photo_url,
         konfhubSpeakerRemovedAt: s.konfhub_speaker_removed_at, konfhubRegistrationCancelRequestedAt: s.konfhub_registration_cancel_requested_at,
+        classified: s.confirmation_status === 'Withdrew' ? 'Withdrew' : (DELETE_REASONS.find(r => r.key === s.delete_reason)?.label ?? null),
       })),
-      ...partners.map((p): DeletedItem => ({ kind: 'partner', id: p.id, name: p.company_name, subtitle: p.partner_type.replace(/_/g, ' '), thumb: p.logo_url, konfhubSpeakerRemovedAt: null, konfhubRegistrationCancelRequestedAt: null })),
+      ...partners.map((p): DeletedItem => ({ kind: 'partner', id: p.id, name: p.company_name, subtitle: p.partner_type.replace(/_/g, ' '), thumb: p.logo_url, konfhubSpeakerRemovedAt: null, konfhubRegistrationCancelRequestedAt: null, classified: 'n/a' })),
     ])
     setLoading(false)
   }
@@ -80,12 +88,43 @@ export default function DeletedTab({ eventId }: { eventId: string }) {
     setRestoringId(null)
   }
 
+  // Cleanup (2026-11-10): records deleted before reasons existed. Say what each really was; the record stays deleted, only its meaning is recorded.
+  async function classify(item: DeletedItem) {
+    const p = pick[item.id]
+    if (!p?.outcome) return
+    setRestoringId(item.id); setClassifyError(null)
+    const res = await fetch('/api/events/stakeholders/speaker-lifecycle', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'classify', event_id: eventId, speaker_id: item.id, outcome: p.outcome, reason: p.reason, note: p.note }),
+    })
+    if (!res.ok) setClassifyError((await res.json().catch(() => ({}))).error || 'Could not save.')
+    await fetchDeleted()
+    setRestoringId(null)
+  }
+  const setP = (id: string, patch: Partial<{ outcome: string; reason: string; note: string }>) => setPick(m => ({ ...m, [id]: { ...{ outcome: '', reason: '', note: '' }, ...m[id], ...patch } }))
+  const unclassifiedCount = items.filter(i => i.kind === 'speaker' && !i.classified).length
+
   const q = search.trim().toLowerCase()
-  const filtered = q ? items.filter(i => `${i.name} ${i.subtitle}`.toLowerCase().includes(q)) : items
+  const bySearch = q ? items.filter(i => `${i.name} ${i.subtitle}`.toLowerCase().includes(q)) : items
+  const filtered = onlyUnclassified ? bySearch.filter(i => i.kind === 'speaker' && !i.classified) : bySearch
 
   return (
     <div>
-      <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search deleted speakers and partners…" style={{ width: '320px', marginBottom: '16px' }} />
+      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '16px' }}>
+        <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search deleted speakers and partners…" style={{ width: '320px' }} />
+        {unclassifiedCount > 0 && (
+          <label style={{ display: 'flex', gap: '6px', alignItems: 'center', fontSize: '13px', color: 'var(--ink2)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={onlyUnclassified} onChange={e => setOnlyUnclassified(e.target.checked)} />
+            Needs classifying ({unclassifiedCount})
+          </label>
+        )}
+      </div>
+      {unclassifiedCount > 0 && (
+        <div style={{ fontSize: '12.5px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '14px', maxWidth: '760px' }}>
+          Speakers deleted before reasons were recorded. For each, say whether they <strong>withdrew</strong> (kept in the statistics) or were a <strong>test, duplicate or mistake</strong> (not counted). The record stays deleted.
+        </div>
+      )}
+      {classifyError && <div style={{ fontSize: '12.5px', color: 'var(--red)', marginBottom: '10px' }}>{classifyError}</div>}
 
       {loading ? (
         <div style={{ color: 'var(--ink3)', fontSize: '13px' }}>Loading…</div>
@@ -114,14 +153,35 @@ export default function DeletedTab({ eventId }: { eventId: string }) {
                         </span>
                       )}
                       {item.konfhubRegistrationCancelRequestedAt && (
-                        <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#E07B2C', background: 'color-mix(in srgb, #E07B2C 10%, transparent)', border: '1px solid color-mix(in srgb, #E07B2C 35%, transparent)', borderRadius: '6px', padding: '2px 7px' }}>
+                        <span style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--amber)', background: 'color-mix(in srgb, var(--amber) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--amber) 35%, transparent)', borderRadius: '6px', padding: '2px 7px' }}>
                           ⚠ Needs manual KonfHub registration cancellation
                         </span>
                       )}
                     </div>
                   )}
                 </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  {item.kind === 'speaker' && (item.classified ? (
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', background: 'var(--surface)', border: '1px solid var(--border-light)', borderRadius: '6px', padding: '2px 8px' }}>{item.classified}</span>
+                  ) : (
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <Select value={pick[item.id]?.outcome ?? ''} onChange={e => setP(item.id, { outcome: e.target.value })} style={{ width: '170px' }}>
+                        <option value="">What was this?</option>
+                        <option value="withdrew">Withdrew</option>
+                        {DELETE_REASONS.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
+                      </Select>
+                      {pick[item.id]?.outcome === 'withdrew' && (
+                        <>
+                          <Select value={pick[item.id]?.reason ?? ''} onChange={e => setP(item.id, { reason: e.target.value })} style={{ width: '170px' }}>
+                            <option value="">Reason…</option>
+                            {WITHDRAWAL_REASONS.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
+                          </Select>
+                          <Input value={pick[item.id]?.note ?? ''} onChange={e => setP(item.id, { note: e.target.value })} placeholder={pick[item.id]?.reason === 'other' ? 'Note (required)' : 'Note'} style={{ width: '150px' }} />
+                        </>
+                      )}
+                      <Button variant="teal" onClick={() => classify(item)} disabled={restoringId === item.id || !pick[item.id]?.outcome || (pick[item.id]?.outcome === 'withdrew' && !pick[item.id]?.reason)}>Save</Button>
+                    </div>
+                  ))}
                   {item.konfhubRegistrationCancelRequestedAt && (
                     <Button variant="ghost" onClick={() => markRegistrationCancelled(item)} disabled={restoringId === item.id}>
                       Mark cancelled

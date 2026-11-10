@@ -11,6 +11,8 @@ import { FormFieldInput } from '@/app/components/forms/FormFieldInput'
 import { downloadFilesAsZip } from '@/app/lib/download-file'
 import DeletedTab from './DeletedTab'
 import CancelledTab from './CancelledTab'
+import PostEventBanner from './PostEventBanner'
+import SpeakerStatsTab from './SpeakerStatsTab'
 import DeleteConfirmModal from './DeleteConfirmModal'
 import CancelSpeakerModal from './CancelSpeakerModal'
 import KonfhubPushConfirmModal from './KonfhubPushConfirmModal'
@@ -106,6 +108,7 @@ const DELETED_KEY = 'deleted'
 const INVITES_KEY = 'invites'
 const VIPS_KEY = 'vips'
 const CANCELLED_KEY = 'cancelled'
+const STATS_KEY = 'stats'
 
 // "Add Speaker" quick-add panel (rebuilt 2026-09-19, per Madhu) —
 // deliberately shows only the bare minimum needed to create a placeholder
@@ -287,7 +290,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
       // rather than deriving it from `speakers`, since the default speakers
       // fetch above now excludes Cancelled entirely (see that route's own
       // comment) and has nothing to count from.
-      fetch(`/api/events/stakeholders/speakers?event_id=${eventId}&confirmation_status=Cancelled`),
+      fetch(`/api/events/stakeholders/speakers?event_id=${eventId}&confirmation_status=Withdrew&include_archived=1`),
     ])
     setSpeakers(await spRes.json().catch(() => []))
     setPartners(await ptRes.json().catch(() => []))
@@ -545,7 +548,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     fetchSubmissions(category.formType)
   }
 
-  async function performDelete(flags: { alsoRemoveFromWebsite: boolean; alsoRemoveFromKonfhubListing: boolean; alsoFlagKonfhubRegistrationCancel: boolean }) {
+  async function performDelete(flags: { alsoRemoveFromWebsite: boolean; alsoRemoveFromKonfhubListing: boolean; alsoFlagKonfhubRegistrationCancel: boolean; deleteReason?: string }) {
     if (!deleteConfirm || !category) return
     setDeleting(true)
     const base = category.kind === 'speaker' ? '/api/events/stakeholders/speakers' : '/api/events/stakeholders/partners'
@@ -556,6 +559,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
           also_remove_from_website: flags.alsoRemoveFromWebsite,
           also_remove_from_konfhub_listing: flags.alsoRemoveFromKonfhubListing,
           also_flag_konfhub_registration_cancel: flags.alsoFlagKonfhubRegistrationCancel,
+          ...(flags.deleteReason ? { delete_reason: flags.deleteReason } : {}),
         }),
       })
     ))
@@ -572,14 +576,14 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   // and, only for speakers whose registration was acknowledged, stamps the
   // same to-do flag DeletedTab's own registration-cancel flow uses — see
   // .../speakers/[id]/route.ts's also_flag_konfhub_registration_cancel.
-  async function performCancel(registrationAcknowledged: boolean) {
+  async function performCancel(registrationAcknowledged: boolean, reason: string, note: string, alsoRemoveFromWebsite: boolean) {
     if (!cancelConfirm) return
     setCancelling(true)
     await Promise.all(cancelConfirm.map(item =>
       fetch(`/api/events/stakeholders/speakers/${item.id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          confirmation_status: 'Cancelled',
+          confirmation_status: 'Withdrew', withdrawal_reason: reason, withdrawal_note: note.trim() || null, ...(alsoRemoveFromWebsite ? { also_remove_from_website: true } : {}),
           ...(registrationAcknowledged && item.konfhub_booking_id ? { also_flag_konfhub_registration_cancel: true } : {}),
         }),
       })
@@ -799,7 +803,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     // on partners), gated on the same edit permission the confirmation_
     // status PATCH itself requires. Opens CancelSpeakerModal, which does
     // its own KonfHub-safety gating before performCancel ever runs.
-    ...(category?.kind === 'speaker' && can('sae.stakeholders.edit') ? [{ label: 'Cancel', danger: true, onClick: () => setCancelConfirm(visibleItems.filter(i => selectedIds.has(i.id)) as Speaker[]) }] : []),
+    ...(category?.kind === 'speaker' && can('sae.stakeholders.edit') ? [{ label: 'Withdraw', danger: true, onClick: () => setCancelConfirm(visibleItems.filter(i => selectedIds.has(i.id)) as Speaker[]) }] : []),
     ...(can('sae.stakeholders.delete') ? [{ label: 'Delete', danger: true, onClick: () => setDeleteConfirm(visibleItems.filter(i => selectedIds.has(i.id))) }] : []),
   ]
 
@@ -924,6 +928,16 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
               <span>Email Templates</span>
             </Link>
           )}
+          <button onClick={() => setActiveTab(STATS_KEY)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '9px 12px', borderRadius: '8px', border: 'none', textAlign: 'left', cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: '15px', fontWeight: 700,
+              background: activeTab === STATS_KEY ? 'var(--card)' : 'transparent',
+              color: activeTab === STATS_KEY ? 'var(--ink)' : 'var(--ink3)',
+            }}>
+            <span>Speaker stats</span>
+          </button>
           <button onClick={() => setActiveTab(CANCELLED_KEY)}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px',
@@ -932,7 +946,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
               background: activeTab === CANCELLED_KEY ? 'var(--card)' : 'transparent',
               color: activeTab === CANCELLED_KEY ? 'var(--ink)' : 'var(--ink3)',
             }}>
-            <span>Cancelled</span>
+            <span>Withdrawn</span>
             {cancelledCount > 0 && <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>{cancelledCount}</span>}
           </button>
           <button onClick={() => setActiveTab(DELETED_KEY)}
@@ -949,14 +963,17 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
 
         {/* Main content */}
         <div>
-          {activeTab === DELETED_KEY ? (
+          {category?.kind === 'speaker' && <PostEventBanner eventId={eventId} canEdit={can('sae.stakeholders.edit')} onApplied={fetchAll} />}
+          {activeTab === STATS_KEY ? (
+            <SpeakerStatsTab eventId={eventId} onOpenDeleted={() => setActiveTab(DELETED_KEY)} />
+          ) : activeTab === DELETED_KEY ? (
             <>
               <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--ink)', marginBottom: '16px' }}>Deleted</div>
               <DeletedTab eventId={eventId} />
             </>
           ) : activeTab === CANCELLED_KEY ? (
             <>
-              <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--ink)', marginBottom: '16px' }}>Cancelled</div>
+              <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--ink)', marginBottom: '16px' }}>Withdrawn</div>
               <CancelledTab eventId={eventId} onChanged={fetchAll} />
             </>
           ) : activeTab === VIPS_KEY ? (

@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Button, Input } from '@/app/components/ui'
+import { Button, Input, Select } from '@/app/components/ui'
+import { DELETE_REASONS, type DeleteReason } from '@/app/lib/speaker-lifecycle/model'
 
 /* Delete confirmation for speakers/partners — added 2026-07-28 per Madhu's
    direct request ("since there is work gone into building one, let there be
@@ -44,6 +45,8 @@ type ConfirmFlags = {
   alsoRemoveFromWebsite: boolean
   alsoRemoveFromKonfhubListing: boolean
   alsoFlagKonfhubRegistrationCancel: boolean
+  /** Speakers only: why the record is being deleted. A speaker who withdrew is not deleted, they are marked Withdrew. */
+  deleteReason?: DeleteReason
 }
 
 type Props = {
@@ -66,7 +69,8 @@ export default function DeleteConfirmModal({ count, itemLabel, singleName, kind,
   const [alsoRemoveFromKonfhubListing, setAlsoRemoveFromKonfhubListing] = useState(false)
   const [alsoFlagKonfhubRegistrationCancel, setAlsoFlagKonfhubRegistrationCancel] = useState(false)
   const [deps, setDeps] = useState<Dependencies | null>(null)
-  const canConfirm = confirmText === 'DELETE' && !deleting
+  const [deleteReason, setDeleteReason] = useState<DeleteReason | ''>('')
+  const canConfirm = confirmText === 'DELETE' && !deleting && (kind !== 'speaker' || deleteReason !== '')
   const plural = itemLabel + 's'
   const subject = count === 1 ? (singleName ? `"${singleName}"` : `this ${itemLabel}`) : `these ${count} ${plural}`
 
@@ -145,17 +149,28 @@ export default function DeleteConfirmModal({ count, itemLabel, singleName, kind,
             <span>
               <span style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: 'var(--ink)' }}>Flag KonfHub registration for manual cancellation</span>
               <span style={{ display: 'block', fontSize: '11.5px', color: 'var(--ink3)', marginTop: '2px' }}>
-                KonfHub has no API to cancel a registration — this doesn't delete anything, it just marks it as a to-do on the Deleted tab so it isn't forgotten. You'll still need to cancel it by hand in KonfHub's dashboard.
+                KonfHub has no API to cancel a registration — this doesn&apos;t delete anything, it just marks it as a to-do on the Deleted tab so it isn&apos;t forgotten. You&apos;ll still need to cancel it by hand in KonfHub&apos;s dashboard.
               </span>
             </span>
           </label>
+        )}
+
+        {kind === 'speaker' && (
+          <div style={{ marginTop: '4px', marginBottom: '12px' }}>
+            <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>Why is {count === 1 ? 'this record' : 'this selection'} being deleted?</div>
+            <Select value={deleteReason} onChange={e => setDeleteReason(e.target.value as DeleteReason | '')}>
+              <option value="">Choose a reason…</option>
+              {DELETE_REASONS.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
+            </Select>
+            <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginTop: '4px', lineHeight: 1.5 }}>Deleted records do not count in the speaker statistics. If {count === 1 ? 'the speaker' : 'they'} withdrew, close this and use <strong>Withdraw</strong> instead, so the withdrawal is counted.</div>
+          </div>
         )}
 
         <Input value={confirmText} onChange={e => setConfirmText(e.target.value)} placeholder="Type DELETE to confirm" autoFocus style={{ marginTop: '4px', marginBottom: '16px' }} />
 
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button variant="red" onClick={() => onConfirm({ alsoRemoveFromWebsite, alsoRemoveFromKonfhubListing, alsoFlagKonfhubRegistrationCancel })} disabled={!canConfirm}>
+          <Button variant="red" onClick={() => onConfirm({ alsoRemoveFromWebsite, alsoRemoveFromKonfhubListing, alsoFlagKonfhubRegistrationCancel, deleteReason: deleteReason || undefined })} disabled={!canConfirm}>
             {deleting ? 'Deleting…' : `Delete${count > 1 ? ` ${count}` : ''}`}
           </Button>
         </div>

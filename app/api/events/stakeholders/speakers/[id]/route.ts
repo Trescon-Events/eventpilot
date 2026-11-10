@@ -15,6 +15,8 @@ import { syncContactToHubSpot } from '@/app/lib/hubspot/crm-sync'
 import { resolveEffectiveRules } from '@/app/lib/content/resolve-validation-rules'
 import { validateText } from '@/app/lib/content/validate'
 import type { HeadlineVariant } from '@/app/lib/events/announcements'
+import { isLifecycleStatus, withdrawalProblem, cleanPlannedRoles, isDeleteReason } from '@/app/lib/speaker-lifecycle/model'
+import { logLifecycleChanges, type LifecycleChange } from '@/app/lib/speaker-lifecycle/server'
 const isConfirmedStatus = (v: unknown) => (CONFIRMED_STATUSES as readonly string[]).includes(String(v ?? ''))
 
 /* PATCH  /api/events/stakeholders/speakers/[id] — update any SAE-owned field
@@ -77,6 +79,12 @@ type SpeakerPatchBody = {
   producer_staff_id?: string | null
   reference?: string | null
   confirmation_status?: string | null
+  // Speaker lifecycle (2026-11-10): moving to 'Withdrew' needs a reason (and a note for 'other'); planned_roles is what they were invited to do.
+  withdrawal_reason?: string | null
+  withdrawal_note?: string | null
+  planned_roles?: string[]
+  // Withdraw only: also take the speaker off the live public event website (sets active=false), the same opt-in the Delete flow has.
+  also_remove_from_website?: boolean
   // UAE Resident (2026-09-08) — mirrors the HubSpot onboarding form's own
   // passport/National ID requirement logic (UAE residents need both,
   // everyone else needs only Passport), tracked here since none of the
@@ -198,6 +206,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
   }
   if (body.announcement_status !== undefined) row.announcement_status = body.announcement_status
+  // Restoring a deleted record: it is a live record again, so the delete reason no longer applies.
+  if (body.announcement_status !== undefined && body.announcement_status !== 'archived' && existing.announcement_status === 'archived') { row.delete_reason = null; row.deleted_at = null }
   if (body.notes !== undefined) row.notes = body.notes || null
   if (body.reviewed_by !== undefined) { row.reviewed_by = body.reviewed_by || null; row.reviewed_at = new Date().toISOString() }
   // Restore (Deleted tab) always sets active back true AND clears any
@@ -230,7 +240,27 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   if (body.producer_staff_id !== undefined) row.producer_staff_id = body.producer_staff_id || null
   if (body.reference !== undefined) row.reference = body.reference || null
-  if (body.confirmation_status !== undefined) row.confirmation_status = body.confirmation_status || null
+  let lifecycleLog: LifecycleChange | null = null
+  if (body.confirmation_status !== undefined) {
+    const to = body.confirmation_status || null
+    if (to !== null && !isLifecycleStatus(to)) return NextResponse.json({ error: `"${to}" is not a speaker status.` }, { status: 422 })
+    const from = (existing.confirmation_status as string | null) ?? null
+    row.confirmation_status = to
+    if (to !== from) {
+      if (to === 'Withdrew') {
+        const problem = withdrawalProblem(body.withdrawal_reason, body.withdrawal_note)
+        if (problem) return NextResponse.json({ error: problem }, { status: 400 })
+        row.withdrawal_reason = body.withdrawal_reason
+        row.withdrawal_note = typeof body.withdrawal_note === 'string' && body.withdrawal_note.trim() ? body.withdrawal_note.trim() : null
+        row.withdrawn_at = new Date().toISOString()
+        if (body.also_remove_from_website) row.active = false
+      } else if (from === 'Withdrew') {
+        row.withdrawal_reason = null; row.withdrawal_note = null; row.withdrawn_at = null // restored: the withdrawal no longer applies (it stays in the audit trail)
+      }
+      lifecycleLog = { event_id: existing.event_id as string, speaker_id: id, from_status: from, to_status: to, reason: to === 'Withdrew' ? (body.withdrawal_reason ?? null) : null, note: to === 'Withdrew' ? (body.withdrawal_note ?? null) : null, source: 'manual', changed_by: session?.sid ?? null }
+    }
+  }
+  if (body.planned_roles !== undefined) row.planned_roles = cleanPlannedRoles(body.planned_roles)
   if (body.is_uae_resident !== undefined) row.is_uae_resident = body.is_uae_resident
   if ('selected_headline_variant_id' in body) row.selected_headline_variant_id = body.selected_headline_variant_id ?? null
   if (body.headline_variants !== undefined) {
@@ -248,7 +278,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // announcements again (an approved record goes back to draft on edit). Skipped when the caller explicitly sets
   // announcement_status in this same request (e.g. the Approve button's own
   // pure {announcement_status:'ready'} PATCH).
-  if (existing.announcement_status === 'ready' && body.announcement_status === undefined) {
+  // A lifecycle change (status, withdrawal, planned role) is not an edit of the speaker's public content, so it must not send an approved speaker back to review.
+  const LIFECYCLE_ONLY = new Set(['confirmation_status', 'withdrawal_reason', 'withdrawal_note', 'withdrawn_at', 'planned_roles'])
+  const lifecycleOnly = Object.keys(row).every(k => LIFECYCLE_ONLY.has(k))
+  if (existing.announcement_status === 'ready' && body.announcement_status === undefined && !lifecycleOnly) {
     row.announcement_status = 'pending_review'
   }
   row.updated_at = new Date().toISOString()
@@ -261,6 +294,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (lifecycleLog) await logLifecycleChanges([lifecycleLog])
   // Newly confirmed: propose / create their guest-pass code if the event has that switched on (never throws, never emails).
   if (isConfirmedStatus(body.confirmation_status) && !isConfirmedStatus(existing.confirmation_status)) await ensureGuestCode(id)
   const resolvedSchema = schema ?? await resolveFormSchema(existing.event_id, 'speaker')
@@ -280,11 +314,13 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     // manual-cancellation flag, never automation.
     also_remove_from_konfhub_listing?: boolean
     also_flag_konfhub_registration_cancel?: boolean
+    // Why the record is being deleted (2026-11-10): test | duplicate | mistake. Anyone who withdrew should be marked Withdrew instead, so they stay in the statistics.
+    delete_reason?: string
   }
 
   const { data: existing } = await supabaseAdmin
     .from('event_speakers')
-    .select('event_id, konfhub_speaker_id, konfhub_booking_id')
+    .select('event_id, konfhub_speaker_id, konfhub_booking_id, confirmation_status')
     .eq('id', id)
     .single()
   if (!existing) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
@@ -299,6 +335,11 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   // only touched when also_remove_from_website is explicitly true.
   const row: Record<string, unknown> = { announcement_status: 'archived', updated_at: new Date().toISOString() }
   if (body.also_remove_from_website) row.active = false
+  if (body.delete_reason !== undefined) {
+    if (!isDeleteReason(body.delete_reason)) return NextResponse.json({ error: 'Choose why this record is being deleted: test, duplicate or entered by mistake.' }, { status: 400 })
+    row.delete_reason = body.delete_reason
+    row.deleted_at = new Date().toISOString()
+  }
 
   // KonfHub Speakers-listing removal — a real external delete. Attempted
   // even if it fails: EventPilot's own soft-delete must not be blocked by a
@@ -342,5 +383,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     .eq('id', id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  await logLifecycleChanges([{ event_id: existing.event_id as string, speaker_id: id, from_status: (existing.confirmation_status as string | null) ?? null, to_status: body.delete_reason ? `deleted:${body.delete_reason}` : 'deleted', reason: body.delete_reason ?? null, source: 'delete', changed_by: session?.sid ?? null }])
   return NextResponse.json({ ok: true, konfhub_listing_error: konfhubListingError })
 }

@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Button } from '@/app/components/ui'
+import { Button, Select, Input } from '@/app/components/ui'
+import { WITHDRAWAL_REASONS, withdrawalProblem } from '@/app/lib/speaker-lifecycle/model'
 
 /* Cancel Speaker (2026-09-23, per Madhu) — the guarded flow behind the
    Overview tab's "Cancel" bulk action. Structurally modeled on
@@ -37,7 +38,7 @@ type Props = {
   eventId: string
   items: CancelItem[]
   cancelling: boolean
-  onConfirm: (registrationAcknowledged: boolean) => void
+  onConfirm: (registrationAcknowledged: boolean, reason: string, note: string, alsoRemoveFromWebsite: boolean) => void
   onClose: () => void
 }
 
@@ -50,6 +51,9 @@ export default function CancelSpeakerModal({ eventId, items, cancelling, onConfi
   const [removingAll, setRemovingAll] = useState(false)
   const [registrationAck, setRegistrationAck] = useState(false)
   const [showFinalConfirm, setShowFinalConfirm] = useState(false)
+  const [reason, setReason] = useState('')
+  const [note, setNote] = useState('')
+  const [removeFromSite, setRemoveFromSite] = useState(true)
 
   const listingItems = items.filter(i => !!i.konfhubSpeakerId)
   const registrationItems = items.filter(i => !!i.konfhubBookingId)
@@ -84,16 +88,29 @@ export default function CancelSpeakerModal({ eventId, items, cancelling, onConfi
 
   const listingResolved = listingItems.every(i => removalStatus[i.id] === 'done')
   const listingHasError = listingItems.some(i => removalStatus[i.id] === 'error')
-  const canProceed = listingResolved && (registrationItems.length === 0 || registrationAck)
+  const canProceed = listingResolved && (registrationItems.length === 0 || registrationAck) && withdrawalProblem(reason, note) === null
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'color-mix(in srgb, black 60%, transparent)', zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{ width: '480px', maxWidth: '100%', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '22px', maxHeight: '90vh', overflowY: 'auto' }}>
         <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '8px' }}>
-          Cancel {plural ? `${items.length} speakers` : 'speaker'}?
+          Withdraw {plural ? `${items.length} speakers` : 'speaker'}?
         </div>
         <div style={{ fontSize: '12.5px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '14px' }}>
-          Moves {subject} to the Cancelled tab, out of the main roster. They&apos;re retained (not deleted) and can be restored anytime.
+          Moves {subject} to the Withdrawn tab, out of the main roster. They&apos;re kept (not deleted), still counted in the speaker statistics as withdrawn, and can be restored anytime.
+        </div>
+
+        <div style={{ marginBottom: '14px' }}>
+          <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>Why {plural ? 'did they' : 'did they'} withdraw?</div>
+          <Select value={reason} onChange={e => setReason(e.target.value)}>
+            <option value="">Choose a reason…</option>
+            {WITHDRAWAL_REASONS.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
+          </Select>
+          <Input value={note} onChange={e => setNote(e.target.value)} placeholder={reason === 'other' ? 'Note (required)' : 'Note (optional)'} style={{ marginTop: '8px' }} />
+          <label style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', marginTop: '10px', cursor: 'pointer', fontSize: '12.5px', color: 'var(--ink2)', lineHeight: 1.5 }}>
+            <input type="checkbox" checked={removeFromSite} onChange={e => setRemoveFromSite(e.target.checked)} style={{ marginTop: '2px' }} />
+            <span>Also remove {plural ? 'them' : 'them'} from the live public event website. Restoring from the Withdrawn tab does not put {plural ? 'them' : 'them'} back on the site.</span>
+          </label>
         </div>
 
         {listingItems.length > 0 && (
@@ -133,7 +150,7 @@ export default function CancelSpeakerModal({ eventId, items, cancelling, onConfi
                 {registrationItems.map(i => i.name).join(', ')} — has a live KonfHub Attendee Registration
               </span>
               <span style={{ display: 'block', fontSize: '11.5px', color: 'var(--ink3)', marginTop: '2px' }}>
-                KonfHub has no API to cancel a registration — you&apos;ll need to cancel it by hand in KonfHub&apos;s dashboard. Check this box to confirm you have (or will immediately after), so it isn&apos;t forgotten — it stays flagged on the Cancelled tab until you mark it done.
+                KonfHub has no API to cancel a registration — you&apos;ll need to cancel it by hand in KonfHub&apos;s dashboard. Check this box to confirm you have (or will immediately after), so it isn&apos;t forgotten — it stays flagged on the Withdrawn tab until you mark it done.
               </span>
             </span>
           </label>
@@ -143,18 +160,18 @@ export default function CancelSpeakerModal({ eventId, items, cancelling, onConfi
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
             <Button variant="ghost" onClick={onClose}>Close</Button>
             <Button variant="red" onClick={() => setShowFinalConfirm(true)} disabled={!canProceed}>
-              Cancel {plural ? `${items.length} Speakers` : 'Speaker'}
+              Withdraw {plural ? `${items.length} Speakers` : 'Speaker'}
             </Button>
           </div>
         ) : (
           <div style={{ padding: '10px 12px', background: 'var(--surface)', border: '1px solid var(--border-light)', borderRadius: '9px' }}>
             <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink)', marginBottom: '10px' }}>
-              This moves {subject} to the Cancelled tab. Confirm?
+              This moves {subject} to the Withdrawn tab. Confirm?
             </div>
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
               <Button variant="ghost" onClick={() => setShowFinalConfirm(false)} disabled={cancelling}>No, go back</Button>
-              <Button variant="red" onClick={() => onConfirm(registrationAck)} disabled={cancelling}>
-                {cancelling ? 'Cancelling…' : 'Yes, Cancel'}
+              <Button variant="red" onClick={() => onConfirm(registrationAck, reason, note, removeFromSite)} disabled={cancelling}>
+                {cancelling ? 'Withdrawing…' : 'Yes, withdraw'}
               </Button>
             </div>
           </div>

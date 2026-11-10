@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
   const eventId = req.nextUrl.searchParams.get('event_id')
   const status  = req.nextUrl.searchParams.get('status')
   // Cancelled-tab support (2026-09-23) — same override shape as `status`
-  // above: pass ?confirmation_status=Cancelled to fetch ONLY cancelled
+  // above: pass ?confirmation_status=Withdrew (was Cancelled until 2026-11-10) to fetch ONLY withdrawn
   // speakers (CancelledTab.tsx); omitted, the default view now also hides
   // them (alongside the existing archived exclusion) so the Overview tab
   // stays clean. See RemoveFromKonfhubListing/CancelSpeakerModal's own
@@ -70,15 +70,17 @@ export async function GET(req: NextRequest) {
     .eq('event_id', eventId)
     .order('created_at', { ascending: false })
 
+  // The Withdrawn tab (2026-11-10) also lists withdrawn speakers that were deleted before reasons existed and then marked Withdrew in the cleanup.
+  const includeArchived = req.nextUrl.searchParams.get('include_archived') === '1'
   if (status) q = q.eq('announcement_status', status)
-  else q = q.neq('announcement_status', 'archived') // archived hidden from the default (all-statuses) view
+  else if (!includeArchived) q = q.neq('announcement_status', 'archived') // archived hidden from the default (all-statuses) view
 
   if (confirmationStatus) q = q.eq('confirmation_status', confirmationStatus)
   // Plain .neq() would silently exclude every speaker with confirmation_status
   // still NULL (unlike announcement_status above, this column IS nullable —
   // SQL's `NULL <> 'Cancelled'` evaluates to NULL, not true, so PostgREST's
   // neq drops those rows too). Explicit OR-null keeps unset speakers visible.
-  else q = q.or('confirmation_status.neq.Cancelled,confirmation_status.is.null')
+  else q = q.or('confirmation_status.neq.Withdrew,confirmation_status.is.null')
 
   const { data, error } = await q
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

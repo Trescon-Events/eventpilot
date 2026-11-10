@@ -85,7 +85,7 @@ export async function loadBatches(scope: OpsScope): Promise<BatchView[]> {
     : { data: [] as { id: string; name: string }[] }
   const confirmerName = new Map((confirmers ?? []).map(c => [c.id, c.name]))
   const liveReviewed = new Set((liveDocs ?? []).map(d => d.id))
-  const cancelled = new Set((speakers ?? []).filter(s => s.confirmation_status === 'Cancelled').map(s => s.id))
+  const cancelled = new Set((speakers ?? []).filter(s => s.confirmation_status === 'Withdrew').map(s => s.id))
   const creatorName = new Map((creators ?? []).map(c => [c.id, c.name]))
 
   return batches.map(b => {
