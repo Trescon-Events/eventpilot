@@ -5,6 +5,7 @@ import PageHeader from '@/app/components/PageHeader'
 import { Card, Button, Badge, Input, Select, Toast } from '@/app/components/ui'
 import type { BadgeColor } from '@/app/components/ui'
 import { CREDENTIALS, RETIRED_VARS, type RotateMode, type CredentialStore } from '@/app/lib/registry/credentials'
+import { SUBSCRIPTIONS, BILLING_WARNINGS } from '@/app/lib/registry/subscriptions'
 
 /* Keys & Credentials (2026-10-22) — the checklist for "rotate everything" day.
    Every platform/key the app depends on, with the direct console URL and the
@@ -161,6 +162,33 @@ export default function KeysAndCredentialsPage() {
         })}
 
         {rows.length === 0 && <div style={{ fontSize: '13px', color: 'var(--ink4)' }}>Nothing matches.</div>}
+
+        <Card padded>
+          <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Paid subscriptions</div>
+          <div style={{ fontSize: '12.5px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '10px' }}>
+            What we pay for, how often, and who owns it. A lapsed plan looks like a bug (R2 lapsing broke every document link on 6 Nov 2026). &quot;confirm&quot; means not yet read from the billing page. Edit <code>app/lib/registry/subscriptions.ts</code>.
+          </div>
+          {BILLING_WARNINGS.map(w => (
+            <div key={w} style={{ fontSize: '12.5px', color: 'var(--amber)', lineHeight: 1.6, marginBottom: '10px' }}><strong>Check:</strong> {w}</div>
+          ))}
+          {SUBSCRIPTIONS.map(s => (
+            <div key={s.id} style={{ borderTop: '1px solid var(--border)', padding: '12px 0', fontSize: '12.5px', lineHeight: 1.6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div><strong style={{ fontSize: '14px', color: 'var(--ink)' }}>{s.platform}</strong> <span style={{ color: 'var(--ink3)' }}>· {s.plan}</span></div>
+                <Badge color={s.status === 'active' ? 'teal' : 'amber'}>{s.status === 'active' ? 'Active' : 'Needs checking'}</Badge>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '6px 20px', marginTop: '6px' }}>
+                <div><span style={{ color: 'var(--ink4)', fontWeight: 700 }}>Cost</span><br />{s.cost}</div>
+                <div><span style={{ color: 'var(--ink4)', fontWeight: 700 }}>Billed</span><br />{s.frequency}</div>
+                <div><span style={{ color: 'var(--ink4)', fontWeight: 700 }}>Renews</span><br />{s.renews}</div>
+                <div><span style={{ color: 'var(--ink4)', fontWeight: 700 }}>Pays with</span><br />{s.payWith}</div>
+                <div style={{ gridColumn: '1 / -1' }}><span style={{ color: 'var(--ink4)', fontWeight: 700 }}>Account</span><br />{s.login}</div>
+                {s.note && <div style={{ gridColumn: '1 / -1', color: 'var(--ink3)' }}>{s.note}</div>}
+              </div>
+              <div style={{ marginTop: '8px' }}><Button variant="teal" href={s.billingUrl} target="_blank" rel="noopener noreferrer">Open billing ↗</Button></div>
+            </div>
+          ))}
+        </Card>
 
         <Card padded>
           <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Retired — delete from Railway</div>
