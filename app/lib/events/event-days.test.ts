@@ -21,3 +21,10 @@ test('eventEnded uses the event timezone', () => {
   assert.equal(eventEnded('2026-11-05', new Date('2026-11-06T00:00:00Z'), null), true)
   assert.equal(eventEnded(null, new Date(), 'Asia/Dubai'), false)
 })
+test('eventDateText: public text first, then the real event days, never the project dates', async () => {
+  const { eventDateText } = await import('./event-days')
+  assert.equal(eventDateText({ public_dates_display: '3–5 November 2026', actual_start_date: '2026-11-04' }), '3–5 November 2026')
+  assert.equal(eventDateText({ actual_start_date: '2026-11-03', actual_end_date: '2026-11-05' }), '3–5 November 2026')
+  assert.equal(eventDateText({ event_date: '2026-06-06', end_date: '2026-11-20' }), null)
+  assert.equal(eventDateText({ public_dates_display: '  ' }), null)
+})

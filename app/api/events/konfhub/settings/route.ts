@@ -1,3 +1,4 @@
+import { eventDays } from '@/app/lib/events/event-days'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
@@ -86,8 +87,9 @@ export async function PATCH(req: NextRequest) {
   // default, so create one here the same way POST /api/events/website
   // does (slug from event name + year), rather than requiring the user to
   // visit Website Builder first just to satisfy a column constraint.
-  const { data: ev } = await supabaseAdmin.from('events').select('name, event_date').eq('id', eventId).single()
-  const year = ev?.event_date ? new Date(ev.event_date).getFullYear() : new Date().getFullYear()
+  const { data: ev } = await supabaseAdmin.from('events').select('name, event_date, actual_start_date, actual_end_date').eq('id', eventId).single()
+  const startDay = ev ? eventDays(ev).start : null
+  const year = startDay ? new Date(startDay).getFullYear() : new Date().getFullYear()
   const slug = `${(ev?.name ?? eventId).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}-${year}`
 
   const { data, error } = await supabaseAdmin

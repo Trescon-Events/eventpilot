@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader'
 
-type Event = { id: string; name: string; city: string; event_date: string | null; type: string }
+type Event = { id: string; name: string; city: string; event_date: string | null; actual_start_date?: string | null; type: string }
 type Campaign = {
   id: string; name: string; phase: string; status: string; platforms: string[]
   created_at: string; event_id: string | null
@@ -447,7 +447,7 @@ function ContentHubInner() {
                         {c.events && (
                           <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '14px' }}>
                             {c.events.name}{c.events.city ? ` · ${c.events.city}` : ''}
-                            {c.events.event_date && ` · ${new Date(c.events.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                            {(c.events.actual_start_date ?? c.events.event_date) && ` · ${new Date((c.events.actual_start_date ?? c.events.event_date)!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`}
                           </div>
                         )}
 

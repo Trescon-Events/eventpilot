@@ -1,3 +1,4 @@
+import { eventDays } from '@/app/lib/events/event-days'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { checkAccess, getServerSession } from '@/app/lib/registry/access'
@@ -42,10 +43,12 @@ export async function GET() {
     eventIds = access.allEvents ? null : access.eventIds
   }
 
-  let query = supabaseAdmin.from('events').select('id, name, status, event_date, city').order('event_date', { ascending: false })
+  let query = supabaseAdmin.from('events').select('id, name, status, event_date, actual_start_date, actual_end_date, city')
   if (eventIds) query = query.in('id', eventIds)
-  const { data: events } = await query
-  if (!events || events.length === 0) return NextResponse.json({ allEvents: isPlatformAdmin || eventIds === null, events: [] })
+  const { data: rawEvents } = await query
+  // Listed and sorted by the event's real start (event days), falling back to the project start only when no event days exist yet; newest first.
+  const events = (rawEvents ?? []).map(e => ({ ...e, event_date: eventDays(e).start })).sort((a, b) => (b.event_date ?? '').localeCompare(a.event_date ?? ''))
+  if (events.length === 0) return NextResponse.json({ allEvents: isPlatformAdmin || eventIds === null, events: [] })
 
   // Admin (or an org-wide grant) already passes every check below by
   // construction (checkAccess's own admin bypass) — skip the per-event,

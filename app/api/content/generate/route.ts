@@ -1,3 +1,4 @@
+import { eventDateText, eventDays } from '@/app/lib/events/event-days'
 import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
@@ -41,14 +42,14 @@ export async function POST(req: NextRequest) {
     // ── Load campaign + event + brief documents ────────────────────────────
     const { data: campaign } = await supabaseAdmin
       .from('content_campaigns')
-      .select('*, events(id, name, city, event_date, type, description)')
+      .select('*, events(id, name, city, event_date, actual_start_date, actual_end_date, public_dates_display, type, description)')
       .eq('id', campaign_id)
       .single()
 
     if (!campaign) return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
 
     const event = campaign.events as {
-      id: string; name: string; city: string; event_date: string; type: string; description: string
+      id: string; name: string; city: string; event_date: string; actual_start_date: string | null; actual_end_date: string | null; public_dates_display: string | null; type: string; description: string
     } | null
 
     // Load structured event brief + uploaded documents
@@ -96,7 +97,7 @@ export async function POST(req: NextRequest) {
 
     // ── Build the prompt ──────────────────────────────────────────────────
     const eventInfo = event
-      ? `Event: ${event.name} | Type: ${event.type} | Location: ${event.city} | Date: ${event.event_date ?? 'TBD'}`
+      ? `Event: ${event.name} | Type: ${event.type} | Location: ${event.city} | Date: ${eventDateText(event) ?? 'TBD'}`
       : 'Event details not available'
 
     const systemPrompt = `You are the senior social media manager for Trescon — a B2B events company that runs the World AI Show, World Blockchain Summit, DATE, and CARE summits across 15+ countries.

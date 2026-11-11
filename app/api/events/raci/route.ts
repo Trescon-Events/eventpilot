@@ -1,3 +1,4 @@
+import { strictEventDays } from '@/app/lib/events/event-days'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 
@@ -136,7 +137,7 @@ export async function POST(req: NextRequest) {
   // Fetch event for date info
   const { data: event } = await supabaseAdmin
     .from('events')
-    .select('event_date')
+    .select('event_date, actual_start_date, actual_end_date')
     .eq('id', eventId)
     .single()
 
@@ -156,7 +157,9 @@ export async function POST(req: NextRequest) {
 
   if (mErr || !master) return NextResponse.json({ error: 'Master template not found' }, { status: 500 })
 
-  const eventDate    = event?.event_date ? new Date(event.event_date) : null
+  // Pre-event due dates count back from the real first day of the event (event days). With no event days they stay empty rather than counting back from a project start that may be months earlier.
+  const eventStartDay = event ? strictEventDays(event).start : null
+  const eventDate    = eventStartDay ? new Date(eventStartDay) : null
   const cycleStart   = config?.cycle_start_date ? new Date(config.cycle_start_date) : null
   const cycleDays    = config?.total_cycle_days ?? null
 

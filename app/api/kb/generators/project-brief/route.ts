@@ -1,3 +1,4 @@
+import { eventDateText, eventDays } from '@/app/lib/events/event-days'
 import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { readFileSync } from 'fs'
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
 
     const { data: event, error: eventErr } = await supabaseAdmin
       .from('events')
-      .select('name, type, city, client_name, description, event_date')
+      .select('name, type, city, client_name, description, event_date, actual_start_date, actual_end_date, public_dates_display')
       .eq('id', event_id)
       .single()
 
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
       `Event name: ${event.name}`,
       event.type        ? `Type: ${event.type}` : '',
       event.city         ? `City: ${event.city}` : '',
-      event.event_date   ? `Date: ${event.event_date}` : '',
+      eventDateText(event) ? `Date: ${eventDateText(event)}` : '',
       event.client_name  ? `Client: ${event.client_name}` : '',
       event.description  ? `Description: ${event.description}` : '',
     ].filter(Boolean).join('\n')

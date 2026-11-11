@@ -1,3 +1,4 @@
+import { eventDateText, eventDays } from '@/app/lib/events/event-days'
 import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -204,14 +205,14 @@ export async function POST(req: NextRequest) {
     if (assignedEventIds.length > 0) {
       const { data: briefs } = await supabaseAdmin
         .from('event_briefs')
-        .select('*, events:event_id(name, city, event_date)')
+        .select('*, events:event_id(name, city, event_date, actual_start_date, actual_end_date, public_dates_display)')
         .in('event_id', assignedEventIds.slice(0, 5))
 
       if (briefs?.length) {
         const briefSection = briefs.map((b: Record<string, unknown>) => {
-          const ev = b.events as { name: string; city: string; event_date: string } | null
+          const ev = b.events as { name: string; city: string; event_date: string; actual_start_date: string | null; actual_end_date: string | null; public_dates_display: string | null } | null
           const parts = [
-            `EVENT: ${ev?.name ?? 'Unknown'} | ${ev?.city ?? ''} | ${ev?.event_date ?? ''}`,
+            `EVENT: ${ev?.name ?? 'Unknown'} | ${ev?.city ?? ''} | ${ev ? (eventDateText(ev) ?? '') : ''}`,
             b.elevator_pitch ? `Pitch: ${b.elevator_pitch}` : '',
             b.value_proposition ? `Value Prop: ${b.value_proposition}` : '',
             b.target_audience ? `Audience: ${b.target_audience}` : '',

@@ -57,5 +57,8 @@ jobs:
       - name: Credentials registry completeness
         run: npm run check:keys
 
+      - name: Event dates (no new raw reads of project dates)
+        run: npm run check:dates
+
       - name: Build
         run: npm run build

@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { data: links } = await supabaseAdmin
     .from('crm_contact_event_links')
-    .select('id, role, created_at, events(id, name, city, event_date)')
+    .select('id, role, created_at, events(id, name, city, event_date, actual_start_date, actual_end_date)')
     .eq('contact_id', id)
     .order('created_at', { ascending: false })
 

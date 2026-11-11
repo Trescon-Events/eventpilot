@@ -1,3 +1,4 @@
+import { eventDays } from '@/app/lib/events/event-days'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 
@@ -32,9 +33,10 @@ export async function POST(req: NextRequest) {
 
   // Generate default slug from event name if not provided
   if (!body.slug) {
-    const { data: ev } = await supabaseAdmin.from('events').select('name, event_date').eq('id', body.event_id).single()
+    const { data: ev } = await supabaseAdmin.from('events').select('name, event_date, actual_start_date, actual_end_date').eq('id', body.event_id).single()
     if (ev) {
-      const year = ev.event_date ? new Date(ev.event_date).getFullYear() : new Date().getFullYear()
+      const startDay = eventDays(ev).start
+      const year = startDay ? new Date(startDay).getFullYear() : new Date().getFullYear()
       body.slug = `${ev.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}-${year}`
     }
   }

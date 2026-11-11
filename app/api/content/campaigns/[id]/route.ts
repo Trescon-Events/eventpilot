@@ -10,7 +10,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       id, name, objective, phase, status, platforms, posts_per_week,
       weeks, start_date, duration_weeks, brand_notes, created_at, updated_at,
       event_id,
-      events(id, name, city, event_date, description, type)
+      events(id, name, city, event_date, actual_start_date, actual_end_date, description, type)
     `)
     .eq('id', id)
     .single()

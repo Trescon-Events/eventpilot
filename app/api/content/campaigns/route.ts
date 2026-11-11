@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
       id, name, objective, phase, status, platforms, posts_per_week,
       start_date, duration_weeks, brand_notes, created_at, updated_at,
       event_id,
-      events(id, name, city, event_date),
+      events(id, name, city, event_date, actual_start_date, actual_end_date),
       content_posts(count)
     `)
     .order('created_at', { ascending: false })

@@ -10,7 +10,8 @@
     "lint:changed": "node .github/scripts/lint-changed.mjs",
     "typecheck": "tsc --noEmit",
     "check:nav": "tsx .github/scripts/check-nav-branding.ts",
-    "check:keys": "tsx .github/scripts/check-credentials.ts"
+    "check:keys": "tsx .github/scripts/check-credentials.ts",
+    "check:dates": "tsx .github/scripts/check-event-dates.ts"
   },
   "dependencies": {
     "@azure/identity": "^4.13.3",

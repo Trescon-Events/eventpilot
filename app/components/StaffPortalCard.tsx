@@ -33,10 +33,10 @@ type Change = { field: string; from: string | null; to: string | null }
 type RefreshResult = { refreshed_at?: string; changes: Change[]; notes: string[] }
 
 export default function StaffPortalCard({
-  title = 'From the Staff Portal', rows, refreshedAt, refreshUrl, refreshBody, canRefresh = true, linked = true, onRefreshed,
+  title = 'From the Staff Portal', rows, refreshedAt, refreshUrl, refreshBody, canRefresh = true, linked = true, unlinkedNoun = 'event', onRefreshed,
 }: {
   title?: string; rows: PortalRow[]; refreshedAt?: string | null
-  refreshUrl?: string; refreshBody?: Record<string, unknown>; canRefresh?: boolean; linked?: boolean; onRefreshed: () => void
+  refreshUrl?: string; refreshBody?: Record<string, unknown>; canRefresh?: boolean; linked?: boolean; unlinkedNoun?: string; onRefreshed: () => void
 }) {
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<RefreshResult | null>(null)
@@ -53,6 +53,18 @@ export default function StaffPortalCard({
     onRefreshed()
   }
 
+  // Not linked to a Staff Portal project: nothing here is owned by the Staff Portal, so no locked fields and no refresh. A short note says where the details are managed.
+  if (!linked) {
+    return (
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '14px 20px', marginBottom: '16px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)' }}>{title}</div>
+        <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '4px', lineHeight: 1.6 }}>
+          This {unlinkedNoun} is not linked to a Staff Portal project, so its name, client, status, type and dates are managed here in EventPilot. The event days are set in the Event Days section below.
+        </div>
+      </div>
+    )
+  }
+
   const stamp = (refreshedAt ?? result?.refreshed_at) ? new Date((refreshedAt ?? result?.refreshed_at)!).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : null
 
   return (
@@ -61,10 +73,10 @@ export default function StaffPortalCard({
         <div style={{ flex: '1 1 300px' }}>
           <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)' }}>{title}</div>
           <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '4px', lineHeight: 1.6 }}>
-            {linked ? 'These details are managed in the Staff Portal and cannot be edited here. Changed something there? Refresh to bring it in.' : 'This record is not linked to a Staff Portal project, so these details are managed here.'}
+            These details are managed in the Staff Portal and cannot be edited here. Changed something there? Refresh to bring it in.
           </div>
         </div>
-        {linked && refreshUrl && canRefresh && (
+        {refreshUrl && canRefresh && (
           <div style={{ textAlign: 'right' }}>
             <Button variant="teal" onClick={refresh} disabled={busy}>{busy ? 'Refreshing…' : 'Refresh from Staff Portal'}</Button>
             <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginTop: '4px' }}>{stamp ? `Last refreshed ${stamp}` : 'Not refreshed from here yet'}</div>

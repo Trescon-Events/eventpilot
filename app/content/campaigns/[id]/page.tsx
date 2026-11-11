@@ -13,7 +13,7 @@ type Campaign = {
   id: string; name: string; objective: string; phase: string; status: string
   platforms: string[]; start_date: string | null; duration_weeks: number
   brand_notes: string; event_id: string | null
-  events: { id: string; name: string; city: string; event_date: string | null } | null
+  events: { id: string; name: string; city: string; event_date: string | null; actual_start_date?: string | null } | null
 }
 
 // Literal hex (not var) -- platform brand colors, concatenated with alpha

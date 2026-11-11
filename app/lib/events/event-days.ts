@@ -1,4 +1,5 @@
 import { parseEventTime } from './timezones'
+import { formatPublicDates } from '@/app/lib/staff-portal/event-core'
 
 /* One place that says when an event happens (2026-11-11). Three dates exist on an event and features must not pick one at random:
      event days    actual_start_date / actual_end_date   the real event (Staff Portal "Event Start/End Date")
@@ -36,4 +37,12 @@ export function eventEnded(endDate: string | null | undefined, now: Date, timezo
   if (!end) return false
   const at = (timezone ? parseEventTime(`${nextDay(end)}T00:00`, timezone) : null) ?? new Date(`${nextDay(end)}T00:00:00Z`)
   return now.getTime() >= at.getTime()
+}
+
+/** The date wording for AI prompts and copy: the public text when set, otherwise the house format built from the real event days. Never the project dates (they can run for months), so an event with no days reads as unknown (null). */
+export function eventDateText(e: DateFields & { public_dates_display?: string | null }): string | null {
+  const pub = e.public_dates_display?.trim()
+  if (pub) return pub
+  const d = strictEventDays(e)
+  return formatPublicDates(d.start, d.end)
 }
