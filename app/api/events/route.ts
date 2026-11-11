@@ -7,6 +7,7 @@ import { umbrellasForStaff } from '@/app/lib/ops/my-umbrellas'
 import { TRACKED_EVENT_FIELDS, logEventFieldChanges } from '@/app/lib/events/detail-field-log'
 import { normalizeTimezone } from '@/app/lib/events/timezones'
 import { FEATURE_REGISTRY } from '@/app/lib/registry/feature-flags'
+import { eventDays } from '@/app/lib/events/event-days'
 import { stripPortalFields, EVENT_PORTAL_FIELDS, PORTAL_LOCK_MESSAGE } from '@/app/lib/staff-portal/event-core'
 
 /* GET /api/events — list all events with staff count and doc count */
@@ -63,7 +64,8 @@ export async function GET(req: NextRequest) {
           .order('created_at', { ascending: false })
         if (error) throw error
         const umbrellas = await umbrellasForStaff(staffId, true)
-        return NextResponse.json([...umbrellas, ...(data ?? []).map(ev => ({ ...ev, my_role: null, has_workspace_access: true }))])
+        // "My Events" shows the event's real start (event days), falling back to the project start only when none exist yet.
+        return NextResponse.json([...umbrellas, ...(data ?? []).map(ev => ({ ...ev, event_date: eventDays(ev).start, my_role: null, has_workspace_access: true }))])
       }
 
       // Events assigned to this staff member (roster, event_staff — the
@@ -74,12 +76,13 @@ export async function GET(req: NextRequest) {
       // separate check, not derived from the roster query above.
       const { data: assignments } = await supabaseAdmin
         .from('event_staff')
-        .select('event_id, role, events(id, name, type, status, event_date, venue, city, client_name, description)')
+        .select('event_id, role, events(id, name, type, status, event_date, end_date, actual_start_date, actual_end_date, venue, city, client_name, description)')
         .eq('staff_id', staffId)
       const accessibleEventIds = new Set(access.eventIds)
       const umbrellas = await umbrellasForStaff(staffId, false)
       return NextResponse.json([...umbrellas, ...(assignments ?? []).map(a => ({
         ...a.events,
+        event_date: a.events ? eventDays(a.events as never).start : null,
         my_role: a.role,
         has_workspace_access: accessibleEventIds.has(a.event_id),
       }))])
