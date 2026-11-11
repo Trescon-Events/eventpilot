@@ -786,6 +786,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     ...(can('sae.showcall.view') ? [{ href: '../showcall', label: 'Show Caller' }] : []),
     ...(mementosEnabled ? [{ href: 'mementos', label: 'Mementos' }] : []),
     { href: 'guest-invites', label: 'Guest Invites' },
+    ...(can('sae.stakeholders.edit') ? [{ href: 'emails', label: 'Emails' }] : []),
     ...(prMediaEnabled ? [{ href: 'media-interviews', label: 'Media Interviews' }] : []),
     ...(can('sae.badges.view') ? [{ href: 'badges', label: 'Badges' }] : []),
   ]

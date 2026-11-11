@@ -22,6 +22,14 @@ Spec: `docs/build_suggestions/copy-library.md`. Migration `supabase/copy_library
   2. **Workspace badge** — "N need review" shows on the Copy Library tab only, not on the event workspace home.
   Also later: press releases / invites / Konfhub / website / YouTube consume the library in their own builds.
 
+## Emails module — phase 1 (People + Lists), built 11 Nov 2026, NOT pushed; migration RUN on production
+- Spec: `docs/build_suggestions/emails-module.md` (agreed with Madhu). Phase 1 sends nothing.
+- Migration `supabase/emails_module_migration.sql` (run): `crm_contacts` do_not_email / dne_* / email_status*, `crm_contact_dne_log`, `email_lists`. HubSpot opt-outs and bounces are deliberately NOT used (marketing sends, different purpose): do-not-email comes only from a producer (source manual) or later a reply to an EventPilot email (source reply).
+- `app/lib/emails/recipients.ts` (pure, 15 tests): records → people (filters: events any/all, status, role, country, producer, "not on event X", last event older than N months), then recipients (own email + additional contacts in CC; assistant only when allowed; exclusions with reasons: do not email, bounced, no address, shared address, removed by hand). `people.ts` loads the pool (a view over event_speakers + crm_contacts + speaker_additional_contacts; nothing copied).
+- API: `POST /api/events/stakeholders/email-people` (preview; visibility limited to events the caller can access), `.../email-people/do-not-email`, `.../email-lists` CRUD. UI: Stakeholder Hub → Speakers → **Emails** (`stakeholders/emails/page.tsx`, `can('sae.stakeholders.edit')`).
+- Real-data check: 632 records = 470 people; 301 reachable with own email, 363 if assistants are allowed, 99 have no address anywhere.
+- Next: phase 2 (Compose + Sent), then Templates, Scheduling, replies/bounces (Graph Mail.ReadWrite already granted; restrict with an Exchange Application Access Policy).
+
 ## Event days everywhere + missing-days nudge + DocuHub dates (11 Nov 2026) — pushed
 - `app/lib/events/event-days.ts`: `strictEventDays` (real event days only, no fallback — anything that acts or deletes), `eventDays` (falls back to project dates, labelled, display only), `eventEnded` (timezone-aware: over once the last day has finished in the event's own timezone).
 - Post-event banner and speaker stats now read the event days only (the banner never showed because it used the project end date). Checklist generate/analyse count down to the event start.
