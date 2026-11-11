@@ -1,16 +1,12 @@
 import { cleanField } from '@/app/lib/text/clean-field'
 import { supabaseAdmin } from '@/app/lib/supabase'
-import { resolveDates, decideAutoFill, decideEventDays, formatPublicDates, portalType, type ResolvedDates } from './event-core'
+import { mapStatus, STATUS_MAP, resolveDates, decideAutoFill, decideEventDays, formatPublicDates, portalType, type ResolvedDates } from './event-core'
 import { planRetentionUpdate, applyRetentionUpdate } from '@/app/lib/events/sensitive-retention'
 import type { StaffPortalEvent, StaffPortalUmbrella, StaffPortalStaff } from './types'
 
 /* Applies the Staff Portal "core" fields of an event to EventPilot (2026-11-11): name, client, status, type, project dates, umbrella link,
    coordinator, the real event days, and the two auto-filled public fields. Shared by the full sync and the per-event refresh button so the
    two can never drift. Fields owned by the Staff Portal are written every time; the two public fields are only ever filled, never overwritten. */
-
-export const STATUS_MAP: Record<string, string> = {
-  planning: 'planning', active: 'active', on_hold: 'on_hold', completed: 'completed', cancelled: 'cancelled',
-}
 
 type Raw<T> = T & Record<string, unknown>
 
@@ -22,7 +18,7 @@ export function projectBasics(p: Raw<StaffPortalEvent>, umbrellaIdToLocalId: Rec
     name:                   cleanField(p.name),
     client_name:            cleanField(p.client_name) ?? null,
     description:            p.description ?? p.notes ?? null,
-    status:                 STATUS_MAP[p.status] ?? 'planning',
+    status:                 mapStatus(p.status),
     event_date:             d.project.start,
     end_date:               d.project.end,
     type:                   p.project_type ?? null,
@@ -39,7 +35,7 @@ export function umbrellaBasics(u: Raw<StaffPortalUmbrella>) {
     name:                     cleanField(u.name),
     client_name:              cleanField(u.client_name) ?? null,
     description:              u.notes ?? null,
-    status:                   STATUS_MAP[u.status] ?? 'planning',
+    status:                   mapStatus(u.status),
     event_date:               d.project.start,
     end_date:                 d.project.end,
   }
@@ -183,3 +179,5 @@ export async function applyUmbrellaCore(umbrellas: Raw<StaffPortalUmbrella>[], o
   }
   return out
 }
+
+export { STATUS_MAP, mapStatus }

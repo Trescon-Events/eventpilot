@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { resolveDates, formatPublicDates, decideAutoFill, decideEventDays } from './event-core'
+import { mapStatus, resolveDates, formatPublicDates, decideAutoFill, decideEventDays } from './event-core'
 
 test('resolveDates: project_* keys mean plain start/end are the event days', () => {
   const r = resolveDates({ project_start_date: '2026-06-01', project_end_date: '2026-12-31', start_date: '2026-11-03', end_date: '2026-11-05' })
@@ -48,4 +48,13 @@ test('decideEventDays: portal wins, empty portal keeps what is here, bad order r
   assert.deepEqual(decideEventDays({ start: '2026-11-03', end: '2026-11-05' }, { start: '2026-11-03', end: '2026-11-05' }).patch, {})
   assert.ok(decideEventDays({ start: null, end: null }, { start: '2026-11-05', end: '2026-11-03' }).problem)
   assert.ok(decideEventDays({ start: '2026-11-10', end: '2026-11-12' }, { start: null, end: '2026-11-05' }).problem)
+})
+test('mapStatus: Post-event stays Active, unknown falls back to Planning', () => {
+  assert.equal(mapStatus('post_event'), 'active')
+  assert.equal(mapStatus('Post-event'), 'active')
+  assert.equal(mapStatus('post event'), 'active')
+  assert.equal(mapStatus('on_hold'), 'on_hold')
+  assert.equal(mapStatus('completed'), 'completed')
+  assert.equal(mapStatus('whatever'), 'planning')
+  assert.equal(mapStatus(null), 'planning')
 })

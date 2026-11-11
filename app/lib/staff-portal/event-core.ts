@@ -88,3 +88,13 @@ export function stripPortalFields(current: Record<string, unknown>, body: Record
   }
   return { body: out, blocked }
 }
+
+export const STATUS_MAP: Record<string, string> = {
+  planning: 'planning', active: 'active', on_hold: 'on_hold', completed: 'completed', cancelled: 'cancelled',
+  // The Staff Portal's "Post-event" (added 2026-11-11) is still an open project; EventPilot has no such status, so it stays Active rather than falling back to Planning.
+  post_event: 'active',
+}
+
+/** Staff Portal status → EventPilot status. "Post-event", "post event" and "post_event" all mean the same; anything unknown falls back to Planning as before. */
+export const mapStatus = (v: string | null | undefined): string => STATUS_MAP[(v ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_')] ?? 'planning'
+
