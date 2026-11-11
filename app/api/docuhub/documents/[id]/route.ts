@@ -1,3 +1,4 @@
+import { datesForLinkedEvent, LINKED_DATES_MESSAGE } from '@/app/lib/docuhub/event-dates'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSessionStaffId } from '@/app/lib/access/session'
@@ -56,8 +57,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (event_id !== undefined)        { updates.event_id = event_id || null; changed.push('event_id') }
   if (event_label !== undefined)     { updates.event_label = event_label?.trim() || null; changed.push('event_label') }
   if (event_type !== undefined)      { updates.event_type = event_type || null; changed.push('event_type') }
-  if (event_start_date !== undefined) { updates.event_start_date = event_start_date || null; changed.push('event_start_date') }
-  if (event_end_date !== undefined)  { updates.event_end_date = event_end_date || null; changed.push('event_end_date') }
+  // Dates: a document linked to an event (already, or by this very edit) takes that event's days and cannot have them typed; an archive record keeps what is typed.
+  const finalEventId: string | null = event_id !== undefined ? (event_id || null) : ((doc as { event_id?: string | null }).event_id ?? null)
+  if (finalEventId) {
+    const linked = await datesForLinkedEvent(finalEventId)
+    if (!linked.ok) return NextResponse.json({ error: linked.error }, { status: linked.status })
+    const typedDiffers = (event_start_date !== undefined && (event_start_date || null) !== linked.start) || (event_end_date !== undefined && (event_end_date || null) !== linked.end)
+    if (typedDiffers) return NextResponse.json({ error: LINKED_DATES_MESSAGE }, { status: 400 })
+    updates.event_start_date = linked.start; updates.event_end_date = linked.end; changed.push('event_start_date', 'event_end_date')
+  } else {
+    if (event_start_date !== undefined) { updates.event_start_date = event_start_date || null; changed.push('event_start_date') }
+    if (event_end_date !== undefined)  { updates.event_end_date = event_end_date || null; changed.push('event_end_date') }
+  }
   if (event_city !== undefined)      { updates.event_city = event_city?.trim() || null; changed.push('event_city') }
   if (event_country !== undefined)   { updates.event_country = event_country?.trim() || null; changed.push('event_country') }
   if (event_venue !== undefined)     { updates.event_venue = event_venue?.trim() || null; changed.push('event_venue') }

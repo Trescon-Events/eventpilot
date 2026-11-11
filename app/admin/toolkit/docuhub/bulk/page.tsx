@@ -27,7 +27,7 @@ type StaffOption = { id: string; name: string; email: string }
 type Row = {
   file: File; title: string; doc_type_id: string
   object_key: string | null; uploading: boolean; uploadError: string | null
-  visibility: string; event_label: string; event_type: string
+  visibility: string; event_id: string; event_label: string; event_type: string
   event_start_date: string; event_end_date: string
   event_city: string; event_country: string; event_venue: string; series: string
   event_format: string; event_region: string
@@ -39,10 +39,12 @@ export default function DocuHubBulkPage() {
   const [docTypes, setDocTypes] = useState<DocType[]>([])
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([])
   const [rows, setRows] = useState<Row[]>([])
+  const [events, setEvents] = useState<{ id: string; name: string; actual_start_date?: string | null; actual_end_date?: string | null }[]>([])
   const [publishing, setPublishing] = useState(false)
 
   useEffect(() => {
     fetch('/api/docuhub/doc-types').then(r => r.json()).then(d => setDocTypes(Array.isArray(d) ? d : []))
+    fetch('/api/events').then(r => r.json()).then(d => setEvents(Array.isArray(d) ? d : [])).catch(() => {})
     fetch('/api/staff-list').then(r => r.json()).then(d => setStaffOptions(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
 
@@ -51,7 +53,7 @@ export default function DocuHubBulkPage() {
     const newRows: Row[] = Array.from(files).map(file => ({
       file, title: file.name.replace(/\.[^.]+$/, ''), doc_type_id: '',
       object_key: null, uploading: true, uploadError: null,
-      visibility: 'internal', event_label: '', event_type: '',
+      visibility: 'internal', event_id: '', event_label: '', event_type: '',
       event_start_date: '', event_end_date: '', event_city: '', event_country: '', event_venue: '', series: '',
       event_format: '', event_region: '', client_name: '', owner_staff_id: '',
       link_expires_at: '',
@@ -86,10 +88,12 @@ export default function DocuHubBulkPage() {
       return {
         doc_type_id: r.doc_type_id, title: r.title, object_key: r.object_key,
         visibility: r.visibility,
+        event_id: type?.requires_event_attribution && r.event_id ? r.event_id : undefined,
         event_label: type?.requires_event_attribution ? r.event_label : undefined,
         event_type: (type?.requires_event_attribution || type?.requires_client_attribution) ? r.event_type : undefined,
-        event_start_date: type?.requires_event_attribution ? r.event_start_date : undefined,
-        event_end_date: type?.requires_event_attribution ? r.event_end_date : undefined,
+        // A linked event supplies its own dates (the server fills them); only an archive row sends typed ones.
+        event_start_date: type?.requires_event_attribution && !r.event_id ? r.event_start_date : undefined,
+        event_end_date: type?.requires_event_attribution && !r.event_id ? r.event_end_date : undefined,
         event_city: type?.requires_event_attribution ? r.event_city : undefined,
         event_country: type?.requires_event_attribution ? r.event_country : undefined,
         event_venue: type?.requires_event_attribution ? r.event_venue : undefined,
@@ -158,6 +162,16 @@ export default function DocuHubBulkPage() {
                   </div>
                   {type?.requires_event_attribution && (
                     <div style={{ marginBottom: '8px' }}>
+                      <select value={row.event_id} onChange={e => {
+                          const ev = events.find(x => x.id === e.target.value)
+                          updateRow(i, ev
+                            ? { event_id: ev.id, event_label: ev.name, event_start_date: ev.actual_start_date ?? '', event_end_date: ev.actual_end_date ?? ev.actual_start_date ?? '' }
+                            : { event_id: '' })
+                        }}
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', marginBottom: '8px' }}>
+                        <option value="">Not in EventPilot (archive record, type the dates)</option>
+                        {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+                      </select>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                         <input value={row.event_label} onChange={e => updateRow(i, { event_label: e.target.value })} placeholder="Event name"
                           style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }} />
@@ -168,9 +182,9 @@ export default function DocuHubBulkPage() {
                         </select>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
-                        <input type="date" value={row.event_start_date} onChange={e => updateRow(i, { event_start_date: e.target.value })}
+                        <input type="date" value={row.event_start_date} disabled={!!row.event_id} onChange={e => updateRow(i, { event_start_date: e.target.value })}
                           style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }} />
-                        <input type="date" value={row.event_end_date} onChange={e => updateRow(i, { event_end_date: e.target.value })}
+                        <input type="date" value={row.event_end_date} disabled={!!row.event_id} onChange={e => updateRow(i, { event_end_date: e.target.value })}
                           style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }} />
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>

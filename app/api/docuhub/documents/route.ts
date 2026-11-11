@@ -1,3 +1,4 @@
+import { datesForLinkedEvent } from '@/app/lib/docuhub/event-dates'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSessionStaffId } from '@/app/lib/access/session'
@@ -88,6 +89,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'This document type does not support an expiry date' }, { status: 400 })
   }
 
+  // A linked event decides its own dates; typed dates are only kept on archive records with no event.
+  let startDate: string | null = event_start_date || null
+  let endDate: string | null = event_end_date || null
+  if (event_id) {
+    const linked = await datesForLinkedEvent(event_id)
+    if (!linked.ok) return NextResponse.json({ error: linked.error }, { status: linked.status })
+    startDate = linked.start; endDate = linked.end
+  }
+
   // Slug: use as given (validated) or auto-generate from title; ensure uniqueness within this doc type.
   let slug = slugify(slugInput?.trim() || title)
   // slug_exact (2026-10-16, Corporate deck variants): the link name is the variant (middle-east, global-long), so a taken name is an error
@@ -119,8 +129,8 @@ export async function POST(req: NextRequest) {
       event_id: event_id || null,
       event_label: event_label?.trim() || null,
       event_type: event_type || null,
-      event_start_date: event_start_date || null,
-      event_end_date: event_end_date || null,
+      event_start_date: startDate,
+      event_end_date: endDate,
       event_city: event_city?.trim() || null,
       event_country: event_country?.trim() || null,
       event_venue: event_venue?.trim() || null,

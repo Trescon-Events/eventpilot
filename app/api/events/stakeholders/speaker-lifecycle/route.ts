@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
-import { eventHasEnded } from '@/app/lib/speaker-lifecycle/model'
+import { strictEventDays, eventEnded } from '@/app/lib/events/event-days'
 import { loadSpeakerStats, postEventCandidates, applyPostEventOutcomes, classifyDeleted, type ClassifyOutcome } from '@/app/lib/speaker-lifecycle/server'
 
 /* Speaker lifecycle API (2026-11-10).
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   if (!session.adm && !(await hasEventPermission(session.sid, eventId, 'sae.stakeholders.edit')) && !(await hasEventPermission(session.sid, eventId, 'sae.stakeholders.view'))) {
     return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   }
-  const { data: ev } = await supabaseAdmin.from('events').select('id, name, event_date, end_date, umbrella_id').eq('id', eventId).maybeSingle()
+  const { data: ev } = await supabaseAdmin.from('events').select('id, name, umbrella_id, timezone, actual_start_date, actual_end_date').eq('id', eventId).maybeSingle()
   if (!ev) return NextResponse.json({ error: 'Event not found.' }, { status: 404 })
 
   let ids = [eventId]
@@ -30,8 +30,10 @@ export async function GET(req: NextRequest) {
     ids = (sibs ?? []).map(e => e.id as string)
   }
   const [stats, candidates] = await Promise.all([loadSpeakerStats(ids), postEventCandidates(eventId)])
-  const ended = eventHasEnded((ev.end_date as string | null) ?? (ev.event_date as string | null), new Date())
-  return NextResponse.json({ event: { id: ev.id, name: ev.name, has_umbrella: !!ev.umbrella_id }, scope_events: ids.length, ended, stats, candidates: ended ? candidates : [] })
+  // Only the real event days decide this (never the project dates, which can run for months), in the event's own timezone. No event days → nothing is offered and the page asks for them.
+  const days = strictEventDays(ev as { actual_start_date: string | null; actual_end_date: string | null })
+  const ended = eventEnded(days.end, new Date(), ev.timezone as string | null)
+  return NextResponse.json({ event: { id: ev.id, name: ev.name, has_umbrella: !!ev.umbrella_id }, scope_events: ids.length, ended, days_missing: !days.start, stats, candidates: ended ? candidates : [] })
 }
 
 export async function POST(req: NextRequest) {

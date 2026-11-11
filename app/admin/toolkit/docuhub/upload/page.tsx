@@ -12,7 +12,7 @@ type DocType = {
   requires_event_attribution: boolean; requires_client_attribution: boolean; supports_expiry: boolean
   default_visibility: string; allowed_formats: string[]
 }
-type EventOption = { id: string; name: string; event_date: string | null; venue: string | null; city: string | null }
+type EventOption = { id: string; name: string; event_date: string | null; actual_start_date?: string | null; actual_end_date?: string | null; venue: string | null; city: string | null }
 type StaffOption = { id: string; name: string; email: string }
 
 const EVENT_TYPES = [
@@ -74,10 +74,12 @@ export default function DocuHubUploadPage() {
   function pickEvent(id: string) {
     setEventId(id)
     const ev = events.find(e => e.id === id)
+    if (!id) { setEventStartDate(''); setEventEndDate('') }
     if (ev) {
       setEventLabel(ev.name)
-      setEventStartDate(ev.event_date ?? '')
-      setEventEndDate(ev.event_date ?? '')
+      // A linked event's dates are its real event days, never typed and never the project dates.
+      setEventStartDate(ev.actual_start_date ?? '')
+      setEventEndDate(ev.actual_end_date ?? ev.actual_start_date ?? '')
       setEventVenue(ev.venue ?? '')
       setEventCity(ev.city ?? '')
     }
@@ -91,6 +93,7 @@ export default function DocuHubUploadPage() {
     if (format === 'file' && !file) { setMsg('Please choose a file.'); return }
     if (format === 'link' && !externalUrl.trim()) { setMsg('Please paste a link.'); return }
     if (selectedType.requires_event_attribution && !eventLabel.trim()) { setMsg('Event name is required for this document type.'); return }
+    if (eventId && !eventStartDate) { setMsg('This event has no event days yet. Add them in the Staff Portal and refresh the event, or choose "Not in EventPilot" and type the event.'); return }
     if (selectedType.requires_client_attribution && !clientName.trim()) { setMsg('Client is required for this document type.'); return }
 
     setUploading(true); setMsg('')
@@ -222,7 +225,7 @@ export default function DocuHubUploadPage() {
                 <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '5px' }}>Event (if it already exists in EventPilot)</label>
                 <select value={eventId} onChange={e => pickEvent(e.target.value)}
                   style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', marginBottom: '10px' }}>
-                  <option value="">Not in EventPilot / historical — type it below</option>
+                  <option value="">Not in EventPilot / historical — type it below (archive record)</option>
                   {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
                 </select>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
@@ -237,15 +240,20 @@ export default function DocuHubUploadPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                   <div>
                     <label style={{ fontSize: '12px', color: 'var(--ink3)', display: 'block', marginBottom: '3px' }}>Start date</label>
-                    <input type="date" value={eventStartDate} onChange={e => setEventStartDate(e.target.value)}
+                    <input type="date" value={eventStartDate} disabled={!!eventId} onChange={e => setEventStartDate(e.target.value)}
                       style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                   </div>
                   <div>
                     <label style={{ fontSize: '12px', color: 'var(--ink3)', display: 'block', marginBottom: '3px' }}>End date</label>
-                    <input type="date" value={eventEndDate} onChange={e => setEventEndDate(e.target.value)}
+                    <input type="date" value={eventEndDate} disabled={!!eventId} onChange={e => setEventEndDate(e.target.value)}
                       style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                   </div>
                 </div>
+                {eventId && (
+                  <div style={{ fontSize: '12px', color: eventStartDate ? 'var(--ink3)' : 'var(--amber)', marginBottom: '8px', lineHeight: 1.5 }}>
+                    {eventStartDate ? 'These dates come from the event itself and cannot be edited here.' : 'This event has no event days yet. Add them in the Staff Portal and refresh the event, then link the document.'}
+                  </div>
+                )}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                   <LocationSelect value={eventCity} onChange={setEventCity} options={KNOWN_CITIES.map(c => c.city)} placeholder="City" />
                   <LocationSelect value={eventCountry} onChange={setEventCountry} options={COUNTRIES} placeholder="Country" />

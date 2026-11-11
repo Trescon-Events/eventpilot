@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
         const { data, error } = await supabaseAdmin
           .from('events')
           .select(`
-            id, name, type, status, event_date, end_date, venue, city, client_name, description, created_at,
+            id, name, type, status, event_date, end_date, actual_start_date, actual_end_date, venue, city, client_name, description, created_at,
             public_dates_display
           `)
           .order('created_at', { ascending: false })
@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from('events')
       .select(`
-        id, name, type, status, event_date, end_date, venue, city, client_name, description, created_at,
+        id, name, type, status, event_date, end_date, actual_start_date, actual_end_date, venue, city, client_name, description, created_at,
         public_dates_display,
         event_staff(count),
         documents(count),

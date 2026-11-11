@@ -26,6 +26,7 @@ type DocType = {
   default_visibility: string; allowed_formats: string[]
 }
 type StaffOption = { id: string; name: string; email: string }
+type EventOpt = { id: string; name: string; actual_start_date?: string | null; actual_end_date?: string | null }
 type DocRow = {
   id: string; title: string; slug: string; format: string
   object_key: string | null; external_url: string | null
@@ -87,6 +88,7 @@ export default function DocuHubPage() {
   const [search, setSearch] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Record<string, string>>({})
+  const [events, setEvents] = useState<EventOpt[]>([])
   const [deletingDoc, setDeletingDoc] = useState<DocRow | null>(null)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deleting, setDeleting] = useState(false)
@@ -95,6 +97,7 @@ export default function DocuHubPage() {
     fetch('/api/auth/session').then(r => r.json()).then(s => { if (s?.sid) setSid(s.sid) })
     fetch('/api/docuhub/access/me').then(r => r.json()).then(d => setTier(d.tier ?? 'none'))
     fetch('/api/docuhub/doc-types').then(r => r.json()).then(d => setDocTypes(Array.isArray(d) ? d : []))
+    fetch('/api/events').then(r => r.json()).then(d => setEvents(Array.isArray(d) ? d : [])).catch(() => {})
     fetch('/api/staff-list').then(r => r.json()).then(d => setStaffOptions(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
 
@@ -120,6 +123,7 @@ export default function DocuHubPage() {
       title: doc.title,
       description: doc.description ?? '',
       visibility: doc.visibility,
+      event_id: doc.event_id ?? '',
       event_label: doc.event_label ?? '',
       event_type: doc.event_type ?? '',
       event_start_date: doc.event_start_date ?? '',
@@ -141,8 +145,10 @@ export default function DocuHubPage() {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         title: editForm.title, description: editForm.description, visibility: editForm.visibility,
+        event_id: editForm.event_id || null,
         event_label: editForm.event_label || null, event_type: editForm.event_type || null,
-        event_start_date: editForm.event_start_date || null, event_end_date: editForm.event_end_date || null,
+        // A linked event supplies its own dates (the server fills them); only an archive record sends typed ones.
+        ...(editForm.event_id ? {} : { event_start_date: editForm.event_start_date || null, event_end_date: editForm.event_end_date || null }),
         event_city: editForm.event_city || null, event_country: editForm.event_country || null,
         event_venue: editForm.event_venue || null, series: editForm.series || null,
         event_format: editForm.event_format || null, event_region: editForm.event_region || null,
@@ -317,12 +323,27 @@ export default function DocuHubPage() {
                               {EVENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                             </select>
                           </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
-                            <input type="date" value={editForm.event_start_date} onChange={e => setEditForm(p => ({ ...p, event_start_date: e.target.value }))}
+                          <select value={editForm.event_id ?? ''} onChange={e => {
+                              const ev = events.find(x => x.id === e.target.value)
+                              setEditForm(p => ev
+                                ? { ...p, event_id: ev.id, event_label: ev.name, event_start_date: ev.actual_start_date ?? '', event_end_date: ev.actual_end_date ?? ev.actual_start_date ?? '' }
+                                : { ...p, event_id: '' })
+                            }}
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', marginBottom: '10px' }}>
+                            <option value="">Not linked to an EventPilot event (archive record)</option>
+                            {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+                          </select>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: editForm.event_id ? '4px' : '10px' }}>
+                            <input type="date" value={editForm.event_start_date} disabled={!!editForm.event_id} onChange={e => setEditForm(p => ({ ...p, event_start_date: e.target.value }))}
                               style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }} />
-                            <input type="date" value={editForm.event_end_date} onChange={e => setEditForm(p => ({ ...p, event_end_date: e.target.value }))}
+                            <input type="date" value={editForm.event_end_date} disabled={!!editForm.event_id} onChange={e => setEditForm(p => ({ ...p, event_end_date: e.target.value }))}
                               style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }} />
                           </div>
+                          {editForm.event_id && (
+                            <div style={{ fontSize: '12px', color: editForm.event_start_date ? 'var(--ink3)' : 'var(--amber)', marginBottom: '10px' }}>
+                              {editForm.event_start_date ? 'These dates come from the event itself and cannot be edited here.' : 'This event has no event days yet. Add them in the Staff Portal and refresh the event, then link the document.'}
+                            </div>
+                          )}
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                             <LocationSelect value={editForm.event_city} onChange={v => setEditForm(p => ({ ...p, event_city: v }))} options={KNOWN_CITIES.map(c => c.city)} placeholder="City" />
                             <LocationSelect value={editForm.event_country} onChange={v => setEditForm(p => ({ ...p, event_country: v }))} options={COUNTRIES} placeholder="Country" />

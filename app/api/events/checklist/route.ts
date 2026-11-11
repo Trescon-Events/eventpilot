@@ -1,3 +1,4 @@
+import { eventDays } from '@/app/lib/events/event-days'
 import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -133,11 +134,13 @@ export async function POST(req: NextRequest) {
   // Fetch event details
   const { data: event, error: evErr } = await supabaseAdmin
     .from('events')
-    .select('name, type, city, event_date, description, client_name, expected_attendance')
+    .select('name, type, city, event_date, end_date, actual_start_date, actual_end_date, description, client_name, expected_attendance')
     .eq('id', body.event_id)
     .single()
 
   if (evErr || !event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+  // The countdown runs to the real event start (event days), falling back to the project start only when no event days exist yet.
+  event.event_date = eventDays(event).start
 
   // Check if checklist already exists
   const { count } = await supabaseAdmin

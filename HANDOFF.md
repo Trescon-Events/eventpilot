@@ -22,6 +22,13 @@ Spec: `docs/build_suggestions/copy-library.md`. Migration `supabase/copy_library
   2. **Workspace badge** — "N need review" shows on the Copy Library tab only, not on the event workspace home.
   Also later: press releases / invites / Konfhub / website / YouTube consume the library in their own builds.
 
+## Event days everywhere + missing-days nudge + DocuHub dates (11 Nov 2026) — pushed
+- `app/lib/events/event-days.ts`: `strictEventDays` (real event days only, no fallback — anything that acts or deletes), `eventDays` (falls back to project dates, labelled, display only), `eventEnded` (timezone-aware: over once the last day has finished in the event's own timezone).
+- Post-event banner and speaker stats now read the event days only (the banner never showed because it used the project end date). Checklist generate/analyse count down to the event start.
+- `EventDaysNudge` (workspace layout): events with no event days get a dialog on the workspace home ("Not now" = this visit only) and a slim bar on every other workspace page; linked events get a Refresh-from-Staff-Portal button in the dialog.
+- DocuHub: a document linked to an event takes that event's days (server-enforced on POST, bulk and PATCH; locked in the upload, bulk and edit screens; an event with no days is refused). Unlinked documents are archive records and keep typed dates. All 74 existing documents are past editions with no EventPilot event, so none were linked.
+- Not yet moved to the helper: My Events sorting, KonfHub/website year, content-generation prompts, announcements text, CI guard against raw `event_date` reads. Umbrella children wait for their own days (decided).
+
 ## Staff Portal event core + Refresh button (11 Nov 2026) — pushed; migration RUN on production
 - Three dates: project dates (`events.event_date/end_date`, Staff Portal "Project Start/End"), event days (`actual_start_date/actual_end_date`, Staff Portal "Event Start/End"), public text (`public_dates_display`).
 - `app/lib/staff-portal/event-core.ts` (pure, 7 tests) reads which date layout the portal sends from the keys present (`project_*` present → plain start/end are the event days; `event_*` present → plain start/end are the project dates; neither → event days untouched). **The real portal key names were never seen** (local sync key returns 401): check the first Refresh result.

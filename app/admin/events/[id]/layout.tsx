@@ -24,6 +24,7 @@
 import { redirect } from 'next/navigation'
 import { getServerSession } from '@/app/lib/registry/access'
 import { hasAnyEventAccess } from '@/app/lib/access/event-access'
+import EventDaysNudge from './EventDaysNudge'
 
 export default async function EventWorkspaceLayout({ children, params }: { children: React.ReactNode; params: Promise<{ id: string }> }) {
   const session = await getServerSession()
@@ -34,5 +35,5 @@ export default async function EventWorkspaceLayout({ children, params }: { child
   const ok = isPlatformAdmin || (await hasAnyEventAccess(session.sid, eventId))
   if (!ok) redirect('/no-access?tool=event-workspace')
 
-  return <>{children}</>
+  return <><EventDaysNudge eventId={eventId} />{children}</>
 }

@@ -1,3 +1,4 @@
+import { datesForLinkedEvent } from '@/app/lib/docuhub/event-dates'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSessionStaffId } from '@/app/lib/access/session'
@@ -59,6 +60,14 @@ export async function POST(req: NextRequest) {
         suffix++
       }
 
+      let startDate: string | null = row.event_start_date || null
+      let endDate: string | null = row.event_end_date || null
+      if (row.event_id) {
+        const linked = await datesForLinkedEvent(row.event_id)
+        if (!linked.ok) throw new Error(linked.error)
+        startDate = linked.start; endDate = linked.end
+      }
+
       const { data: doc, error } = await supabaseAdmin
         .from('docuhub_documents')
         .insert({
@@ -68,8 +77,8 @@ export async function POST(req: NextRequest) {
           event_id: row.event_id || null,
           event_label: row.event_label?.trim() || null,
           event_type: row.event_type || null,
-          event_start_date: row.event_start_date || null,
-          event_end_date: row.event_end_date || null,
+          event_start_date: startDate,
+          event_end_date: endDate,
           event_city: row.event_city?.trim() || null,
           event_country: row.event_country?.trim() || null,
           event_venue: row.event_venue?.trim() || null,

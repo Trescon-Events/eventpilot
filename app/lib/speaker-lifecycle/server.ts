@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { buildStats, isConfirmedFamily, withdrawalProblem, isDeleteReason, CONFIRMED_FAMILY, type SpeakerStats, type StatRow, type InviteRow } from './model'
+import { strictEventDays } from '@/app/lib/events/event-days'
 
 /* Speaker lifecycle (2026-11-10) — database side. Every status change is written to speaker_lifecycle_changes (who, when, from, to, why). */
 
@@ -18,10 +19,10 @@ export async function loadSpeakerStats(eventIds: string[]): Promise<SpeakerStats
   const [sp, inv, ev] = await Promise.all([
     supabaseAdmin.from('event_speakers').select(STAT_COLS).in('event_id', eventIds),
     supabaseAdmin.from('stakeholder_invites').select('event_id, recipient_email, status').in('event_id', eventIds).eq('form_type', 'speaker'),
-    supabaseAdmin.from('events').select('id, event_date').in('id', eventIds),
+    supabaseAdmin.from('events').select('id, actual_start_date, actual_end_date').in('id', eventIds),
   ])
   const starts: Record<string, string | null> = {}
-  for (const e of ev.data ?? []) starts[e.id as string] = (e.event_date as string | null) ?? null
+  for (const e of ev.data ?? []) starts[e.id as string] = strictEventDays(e as { actual_start_date: string | null; actual_end_date: string | null }).start // real event days only: the project start can be months earlier
   return buildStats((sp.data ?? []) as StatRow[], (inv.data ?? []) as InviteRow[], starts)
 }
 
