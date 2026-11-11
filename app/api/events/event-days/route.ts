@@ -84,6 +84,14 @@ export async function PUT(req: NextRequest) {
     : (await hasScopePermission(session, scope, 'ops.event_days.manage')) || (await hasPlatformPermission(session?.sid, 'sae.messaging.umbrella_manage'))
   if (!allowed) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
 
+  // On a Staff Portal project the event days come from the Staff Portal and are not editable here (2026-11-11).
+  const { data: owner } = scope.kind === 'umbrella'
+    ? await supabaseAdmin.from('event_umbrellas').select('staff_portal_umbrella_id').eq('id', scope.id).maybeSingle()
+    : await supabaseAdmin.from('events').select('hrms_project_id').eq('id', scope.id).maybeSingle()
+  if (owner && (('staff_portal_umbrella_id' in owner && owner.staff_portal_umbrella_id) || ('hrms_project_id' in owner && owner.hrms_project_id))) {
+    return NextResponse.json({ error: 'The event days come from the Staff Portal. Update them there, then use Refresh from Staff Portal.' }, { status: 400 })
+  }
+
   // What would the new dates do to documents already on file?
   const override = scope.kind === 'umbrella' ? { umbrellaEnd: end } : { eventEnd: end }
   const plan = await planRetentionUpdate(scope.eventIds, override)

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasPlatformPermission } from '@/app/lib/access/event-access'
+import { stripPortalFields, UMBRELLA_PORTAL_FIELDS, PORTAL_LOCK_MESSAGE } from '@/app/lib/staff-portal/event-core'
 
 /* Umbrella/event separation (2026-09-11) — CRUD for event_umbrellas,
    mirroring app/api/events/route.ts's shape for the equivalent event
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
   if (id) {
     const { data, error } = await supabaseAdmin
       .from('event_umbrellas')
-      .select('id, name, client_name, status, event_date, end_date, description, type, requires_client_approval, created_at')
+      .select('id, name, client_name, status, event_date, end_date, description, type, requires_client_approval, created_at, staff_portal_umbrella_id, actual_start_date, actual_end_date, sp_refreshed_at')
       .eq('id', id)
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 404 })
@@ -69,6 +70,13 @@ export async function PATCH(req: NextRequest) {
 
   const patch: Record<string, unknown> = {}
   for (const k of EDITABLE) if (k in body) patch[k] = body[k] === '' && (k === 'event_date' || k === 'end_date') ? null : body[k]
+  // Name, client, status and project dates belong to the Staff Portal on a linked umbrella (2026-11-11); sent back unchanged they are ignored.
+  const { data: linked } = await supabaseAdmin.from('event_umbrellas').select('staff_portal_umbrella_id, name, client_name, status, event_date, end_date').eq('id', id).maybeSingle()
+  if (linked?.staff_portal_umbrella_id) {
+    const { body: allowed, blocked } = stripPortalFields(linked as Record<string, unknown>, patch, UMBRELLA_PORTAL_FIELDS)
+    if (blocked.length) return NextResponse.json({ error: PORTAL_LOCK_MESSAGE, fields: blocked }, { status: 400 })
+    for (const k of Object.keys(patch)) if (!(k in allowed)) delete patch[k]
+  }
   if (typeof patch.name === 'string' && !patch.name.trim()) return NextResponse.json({ error: 'Name cannot be empty.' }, { status: 400 })
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 })
 

@@ -7,6 +7,7 @@ import { umbrellasForStaff } from '@/app/lib/ops/my-umbrellas'
 import { TRACKED_EVENT_FIELDS, logEventFieldChanges } from '@/app/lib/events/detail-field-log'
 import { normalizeTimezone } from '@/app/lib/events/timezones'
 import { FEATURE_REGISTRY } from '@/app/lib/registry/feature-flags'
+import { stripPortalFields, EVENT_PORTAL_FIELDS, PORTAL_LOCK_MESSAGE } from '@/app/lib/staff-portal/event-core'
 
 /* GET /api/events — list all events with staff count and doc count */
 export async function GET(req: NextRequest) {
@@ -27,6 +28,7 @@ export async function GET(req: NextRequest) {
           venue_map_url, postiz_profile_key, creative_template_config,
           client_contact_name, client_contact_job_title, client_contact_email,
           umbrella_id, requires_client_approval, enabled_features,
+          hrms_project_id, actual_start_date, actual_end_date, public_dates_auto, sp_coordinator_name, sp_coordinator_staff_id, sp_refreshed_at,
           event_staff(count),
           documents(count)
         `)
@@ -196,6 +198,15 @@ export async function PATCH(req: NextRequest) {
   // Lossless clean-up of the text fields the posts are built from (NBSP, zero-width characters, repeated/edge spaces).
   Object.assign(body, cleanEventPatch(body))
   if (Object.keys(body).length === 0) return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 })
+
+  // Fields the Staff Portal owns cannot be changed here on a linked event (2026-11-11). Sent back unchanged they are simply ignored.
+  const { data: linked } = await supabaseAdmin.from('events').select('hrms_project_id, name, client_name, status, type, event_date, end_date').eq('id', id).maybeSingle()
+  if (linked?.hrms_project_id) {
+    const { body: allowed, blocked } = stripPortalFields(linked as Record<string, unknown>, body, EVENT_PORTAL_FIELDS)
+    if (blocked.length) return NextResponse.json({ error: PORTAL_LOCK_MESSAGE, fields: blocked }, { status: 400 })
+    for (const k of Object.keys(body)) if (!(k in allowed)) delete body[k]
+    if (Object.keys(body).length === 0) return NextResponse.json({ ok: true, unchanged: true })
+  }
 
   const { data: before } = await supabaseAdmin.from('events').select(TRACKED_EVENT_FIELDS.join(', ')).eq('id', id).maybeSingle() as { data: Record<string, unknown> | null }
 

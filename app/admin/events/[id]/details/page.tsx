@@ -14,6 +14,8 @@ import SetupTab from './SetupTab'
 import AffectedRulesCard from '@/app/components/rules/AffectedRulesCard'
 import type { AffectedRule } from '@/app/lib/content/edit-diff'
 import EventDaysCard from '@/app/admin/operations-shared/EventDaysCard'
+import StaffPortalCard, { fmtPortalDate, prettyWord } from '@/app/components/StaffPortalCard'
+import { formatPublicDates } from '@/app/lib/staff-portal/event-core'
 import { COMMON_TIMEZONES, normalizeTimezone, timezoneOffsetLabel } from '@/app/lib/events/timezones'
 import { FEATURE_REGISTRY, type FeatureKey, type FeatureGroup } from '@/app/lib/registry/feature-flags'
 
@@ -30,7 +32,7 @@ import { FEATURE_REGISTRY, type FeatureKey, type FeatureGroup } from '@/app/lib/
    Overview stale, so Overview offers "Sync with Messaging Doc" to re-
    derive just the fields that drifted. */
 
-type EventRow = { id: string; name: string; type: string | null; umbrella_id?: string | null; requires_client_approval: boolean | null; country?: string | null; timezone?: string | null; enabled_features?: Record<string, boolean> | null; announcement_cta_label?: string | null; announcement_attribution_line?: string | null; sae_copy_mode?: string | null } & Record<TrackedEventField, string | null>
+type EventRow = { id: string; name: string; type: string | null; status?: string | null; client_name?: string | null; event_date?: string | null; end_date?: string | null; hrms_project_id?: string | null; actual_start_date?: string | null; actual_end_date?: string | null; sp_coordinator_name?: string | null; sp_refreshed_at?: string | null; umbrella_id?: string | null; requires_client_approval: boolean | null; country?: string | null; timezone?: string | null; enabled_features?: Record<string, boolean> | null; announcement_cta_label?: string | null; announcement_attribution_line?: string | null; sae_copy_mode?: string | null } & Record<TrackedEventField, string | null>
 
 type PageLink = { form_type: string; hubspot_form_name: string | null; public_page_url: string | null }
 
@@ -931,6 +933,25 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
               </Card>
             )}
 
+            <StaffPortalCard
+              linked={!!event.hrms_project_id}
+              refreshUrl="/api/events/staff-portal-refresh" refreshBody={{ event_id: eventId }}
+              refreshedAt={event.sp_refreshed_at}
+              onRefreshed={() => { void loadAll() }}
+              rows={[
+                { label: 'Project name', value: event.name || null },
+                { label: 'Project coordinator', value: event.sp_coordinator_name ?? null },
+                { label: 'Client name', value: event.client_name ?? null },
+                { label: 'Umbrella event / business unit', value: event.umbrella_id ? (umbrella?.name ?? null) : null },
+                { label: 'Event start date', value: fmtPortalDate(event.actual_start_date) },
+                { label: 'Event end date', value: fmtPortalDate(event.actual_end_date) },
+                { label: 'Project start date', value: fmtPortalDate(event.event_date) },
+                { label: 'Project end date', value: fmtPortalDate(event.end_date) },
+                { label: 'Status', value: prettyWord(event.status) },
+                { label: 'Project type', value: prettyWord(event.type) },
+              ]}
+            />
+
             <Card padded>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                 <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)' }}>Common Details</div>
@@ -953,6 +974,16 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
                       onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
                       placeholder={key === 'public_name' ? event.name : undefined}
                     />
+                    {key === 'public_dates_display' && (() => {
+                      const suggested = formatPublicDates(event.actual_start_date, event.actual_end_date)
+                      if (!suggested || editForm.public_dates_display === suggested) return null
+                      return (
+                        <button type="button" disabled={!canManage} onClick={() => setEditForm(f => ({ ...f, public_dates_display: suggested }))}
+                          style={{ background: 'none', border: 'none', padding: '4px 0 0', fontSize: '11.5px', fontWeight: 700, color: 'var(--teal-mid)', cursor: canManage ? 'pointer' : 'default' }}>
+                          Use suggested: {suggested} (from the event days)
+                        </button>
+                      )
+                    })()}
                   </div>
                 ))}
                 <div>
@@ -999,7 +1030,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
             </Card>
 
             {/* Real event days (2026-09-25) — a separate, proper-date field from the public text dates above. */}
-            <EventDaysCard kind="event" id={eventId} canEdit={canManage} />
+            <EventDaysCard kind="event" id={eventId} canEdit={canManage && !event.hrms_project_id} />
 
             <Card padded>
               <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '4px' }}>Event timezone</div>

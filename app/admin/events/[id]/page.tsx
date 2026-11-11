@@ -1,5 +1,6 @@
 'use client'
 
+import { PortalLocked } from '@/app/components/StaffPortalCard'
 import { useState, useEffect, useRef, use } from 'react'
 import Link from 'next/link'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
@@ -104,6 +105,7 @@ type Event = {
   client_name: string | null
   description: string | null
   expected_attendance: number | null
+  hrms_project_id?: string | null
   // Public-facing overrides — what emails/announcements/other external
   // content use instead of the internal reference name/venue/dates above.
   public_name: string | null
@@ -794,8 +796,10 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                     <div style={{ gridColumn: '1/-1' }}>
                       <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>EVENT NAME</label>
-                      <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '15px', fontWeight: 700, fontFamily: 'inherit', color: 'var(--ink)', boxSizing: 'border-box' }} />
+                      {(() => { const inp = (
+                        <input value={editForm.name} disabled={!!event.hrms_project_id} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '15px', fontWeight: 700, fontFamily: 'inherit', color: 'var(--ink)', boxSizing: 'border-box', cursor: event.hrms_project_id ? 'not-allowed' : undefined }} />
+                      ); return event.hrms_project_id ? <PortalLocked>{inp}</PortalLocked> : inp })()}
                     </div>
                     {([
                       ['STATUS', 'status', null, ['planning','upcoming','active','completed','cancelled']],
@@ -809,7 +813,12 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                     ] as [string, string, string | null, string[] | null][]).map(([label, key, type, opts]) => (
                       <div key={key}>
                         <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>{label}</label>
-                        {opts ? (
+                        {event.hrms_project_id && ['status', 'type', 'event_date', 'end_date', 'client_name'].includes(key) ? (
+                          <PortalLocked>
+                            <input type="text" disabled value={String(editForm[key as keyof typeof editForm] ?? '')}
+                              style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)', boxSizing: 'border-box', cursor: 'not-allowed' }} />
+                          </PortalLocked>
+                        ) : opts ? (
                           <select value={editForm[key as keyof typeof editForm]} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
                             style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)' }}>
                             {opts.map(o => <option key={o} value={o}>{o}</option>)}

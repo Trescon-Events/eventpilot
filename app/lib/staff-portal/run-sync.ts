@@ -1,4 +1,3 @@
-import { cleanField } from '@/app/lib/text/clean-field'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { fetchAllStaffPortal } from './client'
 import { applyRoleAccessMapping } from '@/app/lib/hrms/apply-role-access-map'
@@ -8,6 +7,7 @@ import type {
   StaffPortalUmbrella, StaffPortalEvent, StaffPortalStaff, StaffPortalRole,
   StaffPortalAssignment, StaffPortalAllocation, StaffPortalTimesheet, StaffPortalLeaveBalance,
 } from './types'
+import { projectBasics, umbrellaBasics, applyEventCore } from './event-core-sync'
 
 /* Staff Portal sync v2 (2026-09-10) — replaces the old admin-login sync
    (app/api/hrms-sync, app/api/cron/hrms-sync, deleted this session) with
@@ -24,14 +24,6 @@ const LOCATION_MAP: Record<string, string> = {
   manipal:   'manipal',
   mangaluru: 'mangalore',
   dubai:     'dubai',
-}
-
-const STATUS_MAP: Record<string, string> = {
-  planning:  'planning',
-  active:    'active',
-  on_hold:   'on_hold',
-  completed: 'completed',
-  cancelled: 'cancelled',
 }
 
 // Derive job_level from Staff Portal designation — preserves existing elevated levels on re-sync
@@ -85,15 +77,7 @@ export async function runStaffPortalSync() {
   // arriving, add it here — omitting it from the upsert payload leaves
   // any manually-set value untouched rather than nulling it out.
   const { rows: umbrellas } = await fetchAllStaffPortal<StaffPortalUmbrella>('umbrellas')
-  const umbrellaRows = umbrellas.map(u => ({
-    staff_portal_umbrella_id: u.id,
-    name:                     cleanField(u.name),
-    client_name:              cleanField(u.client_name) ?? null,
-    description:              u.notes ?? null,
-    status:                   STATUS_MAP[u.status] ?? 'planning',
-    event_date:               u.start_date ?? null,
-    end_date:                 u.end_date ?? null,
-  }))
+  const umbrellaRows = umbrellas.map(u => umbrellaBasics(u as typeof u & Record<string, unknown>))
   if (umbrellaRows.length > 0) {
     const { error } = await supabaseAdmin.from('event_umbrellas')
       .upsert(umbrellaRows, { onConflict: 'staff_portal_umbrella_id', ignoreDuplicates: false })
@@ -115,19 +99,7 @@ export async function runStaffPortalSync() {
 
   // ── 2. Events (projects), including umbrella_id resolution ─────────────
   const { rows: projects } = await fetchAllStaffPortal<StaffPortalEvent>('events')
-  const eventRows = projects.map(p => ({
-    hrms_project_id:          p.id,
-    name:                     cleanField(p.name),
-    client_name:              cleanField(p.client_name) ?? null,
-    description:              p.description ?? p.notes ?? null,
-    status:                   STATUS_MAP[p.status] ?? 'planning',
-    event_date:               p.start_date ?? null,
-    end_date:                 p.end_date ?? null,
-    type:                     p.project_type ?? null,
-    priority:                 p.priority ?? null,
-    staff_portal_series_id:   p.series_id ?? null,
-    umbrella_id:              p.umbrella_event_id ? (umbrellaIdToLocalId[p.umbrella_event_id] ?? null) : null,
-  }))
+  const eventRows = projects.map(p => projectBasics(p as typeof p & Record<string, unknown>, umbrellaIdToLocalId))
   if (eventRows.length > 0) {
     // A project Staff Portal does NOT file under an umbrella keeps whatever umbrella EventPilot has set (2026-10-12: the Dubai Family
     // Wealth Summit is a separate managed-event contract in Staff Portal but sits under the DFFW umbrella in EventPilot, per DIFC's style
@@ -248,6 +220,16 @@ export async function runStaffPortalSync() {
     const { error: managerErr } = await supabaseAdmin.from('staff_members')
       .upsert(managerUpdates, { onConflict: 'email', ignoreDuplicates: false })
     if (managerErr) console.error('Manager link upsert failed:', managerErr.message)
+  }
+
+  // ── Event core: event days, coordinator link, auto-filled public name and dates (event-core-sync.ts). A failure here must not undo the rest of the sync. ──
+  let coreSummary: { changed: number; notes: string[]; error?: string } = { changed: 0, notes: [] }
+  try {
+    const core = await applyEventCore(projects as never, umbrellas as never, staffPortalStaff)
+    coreSummary = { changed: core.changes.length, notes: [...new Set(core.notes)].slice(0, 5) }
+  } catch (e) {
+    coreSummary = { changed: 0, notes: [], error: e instanceof Error ? e.message : String(e) }
+    console.error('[staff-portal-sync] event core failed:', coreSummary.error)
   }
 
   // ── 4. Assignments + allocations → event_staff (merged, as before) ─────
@@ -459,6 +441,7 @@ export async function runStaffPortalSync() {
     timesheets:        tsRows.length,
     leave_balances:    leaveBalancesSynced,
     checklists_seeded: checklistsSeeded,
+    event_core:        coreSummary,
     ...(leaveBalancesError ? { leave_balances_error: leaveBalancesError } : {}),
     access_granted:    accessMapResult.applied,
     access_removed:    accessMapResult.removed,

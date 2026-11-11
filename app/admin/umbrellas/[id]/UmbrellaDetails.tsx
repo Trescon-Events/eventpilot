@@ -6,6 +6,7 @@ import Link from 'next/link'
 import EventDaysCard from '@/app/admin/operations-shared/EventDaysCard'
 import BadgeApprovalCard from '@/app/admin/events/[id]/integrations/BadgeApprovalCard'
 import { Button, Card, Toast } from '@/app/components/ui'
+import StaffPortalCard, { fmtPortalDate, prettyWord } from '@/app/components/StaffPortalCard'
 
 /* Umbrella Event Details (2026-10-02, split out of the old single Overview page): Common Details (now with status and
    cycle dates), Content Approval, the Event Days card and each child event's dates. An umbrella is the top of the
@@ -18,6 +19,7 @@ type UmbrellaRow = {
   id: string; name: string; client_name: string | null; status: string
   event_date: string | null; end_date: string | null; description: string | null
   type: string | null; requires_client_approval: boolean | null
+  staff_portal_umbrella_id?: string | null; actual_start_date?: string | null; actual_end_date?: string | null; sp_refreshed_at?: string | null
   children: Array<{ id: string; name: string; type: string | null; status: string; client_name: string | null; event_date: string | null; end_date: string | null }>
 }
 
@@ -72,6 +74,7 @@ export default function UmbrellaDetails({ params }: { params: Promise<{ id: stri
   }
 
   if (loading) return <div style={{ padding: '40px', textAlign: 'center', color: 'var(--ink3)' }}>Loading…</div>
+  const linked = !!umbrella?.staff_portal_umbrella_id
   if (!umbrella) return <div style={{ padding: '40px', textAlign: 'center', color: 'var(--red)' }}>Umbrella event not found.</div>
 
   return (
@@ -80,9 +83,27 @@ export default function UmbrellaDetails({ params }: { params: Promise<{ id: stri
 
       <Toast message={msg} type={msgIsError ? 'error' : 'success'} onClose={() => setMsg(null)} />
 
+      {linked && (
+        <StaffPortalCard
+          title="From the Staff Portal" linked refreshUrl="/api/events/staff-portal-refresh" refreshBody={{ umbrella_id: umbrellaId }}
+          refreshedAt={umbrella.sp_refreshed_at} onRefreshed={() => { void loadAll() }}
+          rows={[
+            { label: 'Umbrella event name', value: umbrella.name || null },
+            { label: 'Client name', value: umbrella.client_name ?? null },
+            { label: 'Event start date', value: fmtPortalDate(umbrella.actual_start_date) },
+            { label: 'Event end date', value: fmtPortalDate(umbrella.actual_end_date) },
+            { label: 'Project start date', value: fmtPortalDate(umbrella.event_date) },
+            { label: 'Project end date', value: fmtPortalDate(umbrella.end_date) },
+            { label: 'Status', value: prettyWord(umbrella.status) },
+            { label: 'Project type', value: prettyWord(umbrella.type) },
+          ]}
+        />
+      )}
+
       <Card padded>
         <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '14px' }}>Common Details</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          {!linked && (<>
           <div>
             <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>Name</label>
             <input disabled={!canManage} value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
@@ -109,6 +130,7 @@ export default function UmbrellaDetails({ params }: { params: Promise<{ id: stri
               </div>
             ))}
           </div>
+          </>)}
           <div style={{ gridColumn: '1/-1' }}>
             <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>Description / Notes</label>
             <textarea disabled={!canManage} value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} rows={3}
@@ -142,7 +164,7 @@ export default function UmbrellaDetails({ params }: { params: Promise<{ id: stri
 
       <BadgeApprovalCard scope="umbrella" id={umbrella.id} />
 
-      <EventDaysCard kind="umbrella" id={umbrella.id} canEdit />
+      <EventDaysCard kind="umbrella" id={umbrella.id} canEdit={!linked} />
 
       {umbrella.children.length > 0 && (
         <Card padded>
