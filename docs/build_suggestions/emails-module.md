@@ -77,12 +77,15 @@ A **person** is a `crm_contacts` row (already deduplicated by email: 494 live sp
 - **Owner producer:** each campaign has an owner (default: the event's remembered owner, else the person who scheduled it). The owner gets a bell notification and an email: about once a day when a required field is still empty and the send is within 3 days (or overdue), once as a heads-up in the last 24 hours when everything is ready, and once with the result (sent, failed, skipped). A release that fails (for example the event has no dates) is reported to the owner at most daily and retried at the next check; if nobody matches the list at release time the email is cancelled and the owner is told.
 - Cancel works on scheduled emails; a scheduled email's time, owner and required fields can be changed from Sent.
 
-## Replies and bounces (phase 5)
+## Replies and bounces (phase 5, built)
 
-- A cron reads each sending producer's mailbox for messages in the conversations we started (by `conversation_id`), every 15 minutes, for 30 days after a send.
-- Classified as **bounce** (a delivery-failure message, with its status code), **auto-reply** (out of office), or **reply** (a person). Only the type, time and a link to the message are stored, never its text.
-- A bounce to an email EventPilot sent sets the person's `email_status` to bounced (our own sends only, never HubSpot's). An auto-reply that says the person has left is only **flagged for review**, never set to do-not-email automatically.
-- **Azure:** no new permission. The app already holds Mail.ReadWrite (Application). Recommended: Madhu restricts it to the producers' mailboxes with an Exchange Application Access Policy (one-time admin task), because the permission is tenant-wide by default. No new environment variables, so the credentials registry only gains a note.
+- A cron step (inside `/api/cron/emails`, so every 10 minutes, each mailbox read at most every ~25 minutes) reads each sending producer's **inbox** through Microsoft Graph, only for the **30 days** after a send, and only the conversations EventPilot started. A real Exchange bounce shares our conversation, which is how it is matched. A "Check for replies" button on each sent email does it on demand.
+- Each message is classified and **only the type is stored** (reply / bounce / auto-reply), never the text. The text (a 255-character preview, and for bounces the failure notice) is looked at in memory only.
+- **Hard bounce** (a permanently bad address, status 5.1.x): the person's address is marked bounced, they are left out of lists from then on ("Email bounced before"), and the owner is told. **Soft bounce** (mailbox full, a policy rejection, a temporary failure): recorded on that email only; the person is untouched.
+- **Auto-reply that says the person has left:** the address is flagged "check it" in the list preview. It never sets do-not-email.
+- **Reply that asks to stop** ("remove me", "unsubscribe", "stop emailing me"…): shown on that email with a **Confirm do not email** button and raised to the owner. Nothing changes until a producer confirms.
+- Counts under Sent: bounced, replied, auto-reply, asked to stop. Limits: only the Inbox is read (a reply moved by a mail rule into another folder is not seen), opens and clicks are not measured, and a person who replies from a different address than the one we wrote to is still matched through the conversation.
+- **Azure:** no new permission (Mail.ReadWrite, application, was already granted for sending). It is tenant-wide by default: Madhu limits it to the producers' mailboxes with an Exchange Application Access Policy (one-time, recommended). Recorded in the Keys & Credentials registry.
 
 ## Do not email
 

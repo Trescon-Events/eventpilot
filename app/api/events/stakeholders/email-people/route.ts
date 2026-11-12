@@ -11,9 +11,9 @@ import type { ListFilters, Person } from '@/app/lib/emails/recipients'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const arr = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !!x) : [])
 
-const brief = (p: Person) => ({
+const brief = (p: Person, review: (id: string | null) => boolean) => ({
   key: p.key, contact_id: p.contact_id, name: p.name, company: p.company, country: p.country, statuses: p.statuses, last_event_end: p.last_event_end,
-  company_changed: p.company_changed, producer: p.rep.producer_name,
+  company_changed: p.company_changed, producer: p.rep.producer_name, check_address: review(p.contact_id),
 })
 
 export async function POST(req: NextRequest) {
@@ -34,10 +34,11 @@ export async function POST(req: NextRequest) {
   const a = await resolveAudience(session, input)
   const overlap = body?.include_overlap ? await recentOverlap(a.recipients.map(r => r.contact_id).filter((x): x is string => !!x), await visibleEventIds(session)) : undefined
 
+  const review = (id: string | null) => !!id && a.data.flags.get(id)?.email_status === 'review'
   return NextResponse.json({
     summary: a.summary,
-    recipients: a.recipients.map(r => ({ ...brief(r), to: r.to, cc: r.cc, mode: r.mode })),
-    excluded: a.excluded.map(e => ({ ...brief(e.person), reason: e.reason })),
+    recipients: a.recipients.map(r => ({ ...brief(r, review), to: r.to, cc: r.cc, mode: r.mode })),
+    excluded: a.excluded.map(e => ({ ...brief(e.person, review), reason: e.reason })),
     facets: { events: a.data.events, producers: a.data.producers, roles: a.data.roles, countries: a.data.countries },
     overlap,
   }, { headers: { 'Cache-Control': 'no-store' } })

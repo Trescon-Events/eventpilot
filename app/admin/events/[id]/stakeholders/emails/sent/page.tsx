@@ -23,12 +23,13 @@ type Detail = {
   campaign: { id: string; name: string; subject: string; body_html: string; status: string; sender_mode: string; polished: boolean; attachments: { name: string }[]; created_at: string; sent_at: string | null; allow_assistant: boolean }
   progress: { status: string; total: number; sent: number; failed: number; skipped: number; queued: number; sending: number } | null
   schedule: { scheduled_for: string; timezone: string | null; send_at_local: string | null; owner_name: string | null; fields: { key: string; label: string; kind: string; value: string }[]; missing: string[] } | null
-  recipients: { id: string; name: string; to_email: string; cc_emails: string[]; mode: string; sender_name: string | null; status: string; skip_reason: string | null; error: string | null; sent_at: string | null; reply_type: string }[]
+  recipients: { id: string; contact_id: string | null; bounce_kind: 'hard' | 'soft' | null; stop_requested: boolean; name: string; to_email: string; cc_emails: string[]; mode: string; sender_name: string | null; status: string; skip_reason: string | null; error: string | null; sent_at: string | null; reply_type: string }[]
 }
 type Legacy = { id: string; speaker: string; subject: string | null; to: string; from: string; status: 'sent' | 'failed'; error: string | null; sent_at: string; polished: boolean; attachments: number }
 
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—')
 const STATUS_COLOR: Record<string, 'teal' | 'amber' | 'red' | 'grey' | 'purple'> = { scheduled: 'purple', sent: 'teal', sending: 'amber', cancelled: 'grey', failed: 'red', skipped: 'amber', queued: 'grey' }
+const REPLY_LABEL: Record<string, string> = { reply: 'replied', bounce: 'bounced', auto_reply: 'auto-reply' }
 const stat: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '2px', minWidth: '84px' }
 
 export default function SentPage({ params }: { params: Promise<{ id: string }> }) {
@@ -88,6 +89,22 @@ export default function SentPage({ params }: { params: Promise<{ id: string }> }
     await loadDetail(openId); void loadList()
     if (d.released) void cont()
   }
+  async function checkReplies() {
+    if (!openId) return
+    setBusy(true)
+    const r = await fetch(`/api/events/stakeholders/email-campaigns/${openId}/replies`, { method: 'POST' })
+    const d = await r.json().catch(() => ({}))
+    setBusy(false)
+    if (!r.ok) { notify(d.error ?? 'Could not read the mailbox.', 'error'); return }
+    const x = d.result
+    notify(x.problems?.length ? `Could not read: ${x.problems[0]}` : `Checked ${x.messages} messages: ${x.replies} replies, ${x.bounces_hard + x.bounces_soft} bounces, ${x.auto_replies} auto-replies${x.stop_requests ? `, ${x.stop_requests} asking to stop` : ''}.`, x.problems?.length ? 'error' : 'success')
+    await loadDetail(openId); void loadList()
+  }
+  async function confirmStop(contactId: string) {
+    const r = await fetch('/api/events/stakeholders/email-people/do-not-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact_id: contactId, on: true, reason: 'asked_to_stop', from_reply: true }) })
+    const d = await r.json().catch(() => ({}))
+    notify(r.ok ? 'Marked do not email. They will be left out of every list.' : d.error ?? 'Could not save.', r.ok ? 'success' : 'error')
+  }
   async function cancel() {
     if (!openId) return
     setBusy(true)
@@ -124,6 +141,10 @@ export default function SentPage({ params }: { params: Promise<{ id: string }> }
                   <div style={stat}><strong style={{ fontSize: '16px', color: 'var(--ink)' }}>{sent}</strong>sent</div>
                   {failed > 0 && <div style={stat}><strong style={{ fontSize: '16px', color: 'var(--red)' }}>{failed}</strong>failed</div>}
                   {skipped > 0 && <div style={stat}><strong style={{ fontSize: '16px', color: 'var(--amber)' }}>{skipped}</strong>skipped</div>}
+                  {(c.counts.reply_bounce ?? 0) > 0 && <div style={stat}><strong style={{ fontSize: '16px', color: 'var(--red)' }}>{c.counts.reply_bounce}</strong>bounced</div>}
+                  {(c.counts.reply_reply ?? 0) > 0 && <div style={stat}><strong style={{ fontSize: '16px', color: 'var(--ink)' }}>{c.counts.reply_reply}</strong>replied</div>}
+                  {(c.counts.reply_auto_reply ?? 0) > 0 && <div style={stat}><strong style={{ fontSize: '16px', color: 'var(--ink)' }}>{c.counts.reply_auto_reply}</strong>auto-reply</div>}
+                  {(c.counts.stop_requested ?? 0) > 0 && <div style={stat}><strong style={{ fontSize: '16px', color: 'var(--amber)' }}>{c.counts.stop_requested}</strong>asked to stop</div>}
                   {queued > 0 && <div style={stat}><strong style={{ fontSize: '16px', color: 'var(--ink)' }}>{queued}</strong>waiting</div>}
                 </div>
               </button>
@@ -162,6 +183,7 @@ export default function SentPage({ params }: { params: Promise<{ id: string }> }
                         <Button variant="ghost" onClick={cancel} disabled={busy}>Cancel the rest</Button>
                       </>
                     )}
+                    {detail.campaign.status !== 'scheduled' && <Button variant="ghost" onClick={checkReplies} disabled={busy}>{busy ? 'Checking…' : 'Check for replies'}</Button>}
                     <span style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>
                       {detail.campaign.sender_mode === 'me' ? 'Sent from the producer who sent it' : 'Sent from each speaker’s own producer'}{detail.campaign.polished ? ' · Polished' : ''}{detail.campaign.attachments?.length ? ` · ${detail.campaign.attachments.length} attachment(s)` : ''}
                     </span>
@@ -179,7 +201,11 @@ export default function SentPage({ params }: { params: Promise<{ id: string }> }
                           <span style={{ fontSize: '12.5px', color: 'var(--ink3)' }}> · {r.to_email}{r.cc_emails.length ? ` · cc ${r.cc_emails.length}` : ''}{r.mode === 'assistant' ? ' · via assistant' : ''}</span>
                           {(r.error || r.skip_reason) && <div style={{ fontSize: '12px', color: r.error ? 'var(--red)' : 'var(--amber)', marginTop: '2px', overflowWrap: 'anywhere' }}>{r.error ?? r.skip_reason}</div>}
                         </div>
-                        <div style={{ fontSize: '12px', color: 'var(--ink3)' }}><Badge color={STATUS_COLOR[r.status] ?? 'grey'}>{r.status}</Badge> {r.sent_at ? when(r.sent_at) : ''}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--ink3)', display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                          {r.reply_type !== 'none' && <Badge color={r.reply_type === 'bounce' ? (r.bounce_kind === 'hard' ? 'red' : 'amber') : r.reply_type === 'reply' ? 'purple' : 'grey'}>{r.reply_type === 'bounce' ? `bounced (${r.bounce_kind === 'hard' ? 'bad address' : 'temporary'})` : REPLY_LABEL[r.reply_type]}</Badge>}
+                          {r.stop_requested && r.contact_id && <Button variant="ghost" onClick={() => confirmStop(r.contact_id!)}>Asked to stop: confirm do not email</Button>}
+                          <Badge color={STATUS_COLOR[r.status] ?? 'grey'}>{r.status}</Badge> {r.sent_at ? when(r.sent_at) : ''}
+                        </div>
                       </div>
                     ))}
                   </div>

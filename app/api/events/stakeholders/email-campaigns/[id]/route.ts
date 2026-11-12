@@ -19,7 +19,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!c) return NextResponse.json({ error: 'Email not found.' }, { status: 404 })
   const denied = await requireGuestInviteAccess(req, c.event_id as string, 'view'); if (denied) return denied
   const { data: rows } = await supabaseAdmin.from('email_campaign_recipients')
-    .select('id, name, to_email, cc_emails, mode, sender_email, sender_name, status, skip_reason, error, sent_at, reply_type, reply_at').eq('campaign_id', id).order('name').limit(2000)
+    .select('id, contact_id, name, to_email, cc_emails, mode, sender_email, sender_name, status, skip_reason, error, sent_at, reply_type, reply_at, bounce_kind, stop_requested').eq('campaign_id', id).order('name').limit(2000)
 
   let schedule = null
   if (c.status === 'scheduled') {

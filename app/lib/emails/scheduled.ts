@@ -1,19 +1,17 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import type { TcsSession } from '@/app/lib/access/session'
 import { resolveSenderIdentity } from '@/app/lib/email/sender-identity'
-import { sendSystemMail } from '@/app/lib/email/system-mail'
-import { notifyStaff } from '@/app/lib/notify'
 import type { SpeakerAttachment } from '@/app/lib/speaker-emails/render'
 import { resolveAudience, loadSavedList, cleanFilters, type AudienceInput } from './audience'
 import { CONFIRM_ABOVE, FALLBACK_SENDER, checkEmailContent, prepareContent, sendBatch, campaignProgress, type Fail } from './campaigns'
 import { checkRequiredFields, missingFieldTokens, type RequiredField } from './templates'
 import { decide, formatSendTime, localToUtc, missingFields } from './schedule'
+import { notifyOwner } from './owner-notify'
+import { runReplyScan, type ReplyResult } from './replies'
 
 /* Emails module, phase 4 (2026-11-12) — scheduled emails. A scheduled campaign keeps its audience DEFINITION and works out who gets it when it is RELEASED (not when it was written),
    so a thank-you scheduled before the post-event prompt marks Spoke / No-show still reaches the right people. It is released when the send time has come AND every required field
    is filled; a late-filled field releases it at once. The owner producer is reminded (bell + email) about a missing field, told once before it goes, and told what happened. */
-
-const APP_URL = 'https://eventpilot.tresconglobal.com'
 
 /** A session for a staff member, for work the cron does on their behalf (audience visibility, sender identity). */
 export async function sessionForStaff(staffId: string | null | undefined): Promise<TcsSession> {
@@ -164,22 +162,7 @@ export async function updateScheduledCampaign(campaignId: string, patch: { field
   return { ok: true, released: await tryRelease(campaignId) }
 }
 
-// ── owner notifications ────────────────────────────────────────────────────────────────────────────────────────
-type CampLike = { id: unknown; name: unknown; event_id: unknown; owner_staff_id?: unknown; created_by?: unknown }
-
-async function notifyOwner(c: CampLike, type: string, title: string, body: string): Promise<void> {
-  const ownerId = ((c.owner_staff_id as string | null) ?? (c.created_by as string | null)) ?? null
-  if (!ownerId || ownerId === 'super-admin') return
-  const link = `/admin/events/${c.event_id}/stakeholders/emails/sent?open=${c.id}`
-  await notifyStaff([ownerId], { type: `email_${type}`, title, body, link, eventId: c.event_id as string })
-  try {
-    const { data: s } = await supabaseAdmin.from('staff_members').select('email').eq('id', ownerId).maybeSingle()
-    // eslint-disable-next-line no-restricted-syntax -- email HTML needs literal colours (mail clients cannot read CSS custom properties)
-    if (s?.email) await sendSystemMail({ to: s.email as string, subject: title, html: `<p style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6;color:#1A2530;">${body.replace(/</g, '&lt;')}</p><p style="font-family:Arial,sans-serif;font-size:15px;"><a href="${APP_URL}${link}">Open it in EventPilot</a></p>` })
-  } catch (e) { console.error('[emails] owner mail failed:', e instanceof Error ? e.message : e) }
-}
-
-export type CronResult = { released: number; reminded: number; heads_up: number; summaries: number; batches: number; problems: string[] }
+export type CronResult = { released: number; reminded: number; heads_up: number; summaries: number; batches: number; problems: string[]; replies?: ReplyResult }
 
 /** One pass of the cron: release what is due, remind owners, continue anything left half-sent, report what was sent. `budgetMs` keeps it inside the function time limit. */
 export async function runDueCampaigns(budgetMs = 45_000): Promise<CronResult> {
@@ -239,5 +222,8 @@ export async function runDueCampaigns(budgetMs = 45_000): Promise<CronResult> {
     await supabaseAdmin.from('email_campaigns').update({ summary_sent_at: new Date().toISOString() }).eq('id', c.id)
     out.summaries++
   }
+
+  // replies and bounces to what was sent (reads the producers' inboxes; never lets a Graph problem stop the rest)
+  try { out.replies = await runReplyScan({ budgetMs: Math.max(5_000, budgetMs - (Date.now() - t0)) }); out.problems.push(...out.replies.problems) } catch (e) { out.problems.push(`reply scan: ${e instanceof Error ? e.message : String(e)}`) }
   return out
 }

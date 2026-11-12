@@ -102,7 +102,7 @@ export const CREDENTIALS: Credential[] = [
   /* ── Sign-in & email ──────────────────────────────────────────────── */
   {
     id: 'microsoft-sso', platform: 'Microsoft Entra — staff sign-in & mail', group: 'Sign-in & email',
-    what: 'Microsoft 365 sign-in for everyone, and email sent as a person (Graph). Password sign-in was removed 22 Oct 2026; this is the ONLY way in.',
+    what: 'Microsoft 365 sign-in for everyone, and email sent as a person (Graph). Password sign-in was removed 22 Oct 2026; this is the ONLY way in. The Emails module also READS producers\' inboxes with the same Mail.ReadWrite application permission, only to detect replies and bounces to emails it sent (it stores the type of each reply, never its text). That permission covers every mailbox unless an Exchange Application Access Policy limits it to the producers\' mailboxes (recommended).',
     vars: ['MICROSOFT_CLIENT_ID', 'MICROSOFT_CLIENT_SECRET', 'MICROSOFT_TENANT_ID'], stores: ['railway'],
     consoleUrl: 'https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Credentials/appId/1eb65a1b-849d-414f-88f4-e0faf812fbfc',
     login: 'md@tresconglobal.com',

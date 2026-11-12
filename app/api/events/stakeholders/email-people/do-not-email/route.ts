@@ -15,7 +15,7 @@ const REASONS = ['asked_to_stop', 'bounced', 'left_company', 'client_request', '
 export async function POST(req: NextRequest) {
   const session = getSession(req)
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
-  const body = await req.json().catch(() => null) as { contact_id?: string; on?: boolean; reason?: string } | null
+  const body = await req.json().catch(() => null) as { contact_id?: string; on?: boolean; reason?: string; from_reply?: boolean } | null
   const contactId = body?.contact_id ?? ''
   if (!UUID.test(contactId) || typeof body?.on !== 'boolean') return NextResponse.json({ error: 'contact_id and on required' }, { status: 400 })
   if (body.on && !REASONS.includes(body.reason ?? '')) return NextResponse.json({ error: 'Choose a reason.' }, { status: 400 })
@@ -33,10 +33,10 @@ export async function POST(req: NextRequest) {
   const by = session.adm && !session.sid ? 'super-admin' : session.sid ?? 'super-admin'
   const now = new Date().toISOString()
   const patch = body.on
-    ? { do_not_email: true, dne_reason: body.reason, dne_source: 'manual', dne_set_by: by, dne_set_at: now, updated_at: now }
+    ? { do_not_email: true, dne_reason: body.reason, dne_source: body.from_reply ? 'reply' : 'manual', dne_set_by: by, dne_set_at: now, updated_at: now }
     : { do_not_email: false, dne_reason: null, dne_source: null, dne_set_by: by, dne_set_at: now, updated_at: now }
   const { error } = await supabaseAdmin.from('crm_contacts').update(patch).eq('id', contactId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  await supabaseAdmin.from('crm_contact_dne_log').insert({ contact_id: contactId, action: body.on ? 'set' : 'cleared', reason: body.on ? body.reason : null, source: 'manual', changed_by: by })
+  await supabaseAdmin.from('crm_contact_dne_log').insert({ contact_id: contactId, action: body.on ? 'set' : 'cleared', reason: body.on ? body.reason : null, source: body.from_reply ? 'reply' : 'manual', changed_by: by })
   return NextResponse.json({ ok: true, note: null })
 }

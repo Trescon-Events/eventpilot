@@ -23,11 +23,13 @@ export async function GET(req: NextRequest) {
   const ids = (camps ?? []).map(c => c.id as string)
   const counts = new Map<string, Record<string, number>>()
   if (ids.length) {
-    const { data: rows } = await supabaseAdmin.from('email_campaign_recipients').select('campaign_id, status, reply_type').in('campaign_id', ids)
+    const { data: rows } = await supabaseAdmin.from('email_campaign_recipients').select('campaign_id, status, reply_type, bounce_kind, stop_requested').in('campaign_id', ids)
     for (const r of rows ?? []) {
       const m = counts.get(r.campaign_id as string) ?? {}
       m[r.status as string] = (m[r.status as string] ?? 0) + 1
       if (r.reply_type && r.reply_type !== 'none') m[`reply_${r.reply_type}`] = (m[`reply_${r.reply_type}`] ?? 0) + 1
+      if (r.reply_type === 'bounce' && r.bounce_kind === 'hard') m.bounce_hard = (m.bounce_hard ?? 0) + 1
+      if (r.stop_requested) m.stop_requested = (m.stop_requested ?? 0) + 1
       counts.set(r.campaign_id as string, m)
     }
   }

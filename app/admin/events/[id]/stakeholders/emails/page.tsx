@@ -12,7 +12,7 @@ import EmailsTabs from './EmailsTabs'
 type Filters = { event_ids: string[]; statuses: string[]; match: 'any' | 'all'; roles: string[]; countries: string[]; producer_ids: string[]; not_on_event_ids: string[]; last_event_before_months?: number }
 type PersonRow = {
   key: string; contact_id: string | null; name: string; company: string | null; country: string | null; statuses: { event_name: string; status: string | null }[]
-  last_event_end: string | null; company_changed: { from: string; to: string } | null; producer: string | null
+  last_event_end: string | null; company_changed: { from: string; to: string } | null; producer: string | null; check_address?: boolean
   to?: string; cc?: string[]; mode?: 'own' | 'assistant'; reason?: string
 }
 type Preview = {
@@ -257,6 +257,7 @@ export default function EmailsPage({ params }: { params: Promise<{ id: string }>
                           {p.to}{p.cc && p.cc.length > 0 ? ` · cc ${p.cc.length}` : ''}{p.mode === 'assistant' ? ' · via assistant' : ''}
                         </div>
                       )}
+                      {p.check_address && <div style={{ fontSize: '12px', color: 'var(--amber)', marginTop: '2px' }}>An auto-reply said this person may have left. Check their address before emailing.</div>}
                       {p.company_changed && <div style={{ fontSize: '12px', color: 'var(--amber)', marginTop: '2px' }}>Moved from {p.company_changed.from} to {p.company_changed.to}</div>}
                       {tab === 'left' && p.reason && <div style={{ marginTop: '4px' }}><Badge color="amber">{p.reason}</Badge></div>}
                     </div>
