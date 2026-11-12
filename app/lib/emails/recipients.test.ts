@@ -5,7 +5,7 @@ import { buildPeople, resolveRecipients, summarize, type PoolRecord, type Contac
 const NOW = new Date('2026-11-11T00:00:00Z')
 const rec = (o: Partial<PoolRecord> & { speaker_id: string }): PoolRecord => ({
   event_id: 'bss', event_name: 'BSS 2026', event_end: '2026-11-05', contact_id: null, name: 'Name', public_name: null, company: 'Acme', country: 'India', status: 'Confirmed',
-  planned_roles: [], producer_id: null, producer_name: null, own_email: null, contact_email: null, additional: [], updated_at: '2026-11-01T00:00:00Z', archived: false, delete_reason: null, ...o,
+  planned_roles: [], pronoun_style: null, producer_id: null, producer_name: null, own_email: null, contact_email: null, additional: [], updated_at: '2026-11-01T00:00:00Z', archived: false, delete_reason: null, ...o,
 })
 const none = new Map<string, ContactFlags>()
 
@@ -88,4 +88,12 @@ test('hand-removed people are left out; summary counts reasons', () => {
 test('a record with no CRM link joins the person who has the same address', () => {
   const pool = [rec({ speaker_id: '1', contact_id: null, own_email: 'z@x.com', event_id: 'bss' }), rec({ speaker_id: '2', contact_id: null, own_email: 'Z@x.com', event_id: 'dfs' })]
   assert.equal(buildPeople(pool, {}, NOW).length, 1)
+})
+test('assistant mode greets the assistant by name, or "Team" when unnamed; own mode keeps the speaker pronoun style', () => {
+  const pool = [rec({ speaker_id: '1', contact_id: 'A', name: 'Asha', pronoun_style: 'his_excellency', additional: [{ email: 'pa@x.com', name: 'Priya' }] }), rec({ speaker_id: '2', contact_id: 'B', additional: [{ email: 'o@x.com', name: null }] }), rec({ speaker_id: '3', contact_id: 'C', name: 'Chen', own_email: 'c@x.com', pronoun_style: 'honble' })]
+  const r = resolveRecipients(buildPeople(pool, {}, NOW), none, { allowAssistant: true })
+  const by = (id: string) => r.recipients.find(x => x.contact_id === id)!
+  assert.equal(by('A').greeting_name, 'Priya'); assert.equal(by('A').pronoun_style, null)
+  assert.equal(by('B').greeting_name, 'Team')
+  assert.equal(by('C').greeting_name, 'Chen'); assert.equal(by('C').pronoun_style, 'honble')
 })

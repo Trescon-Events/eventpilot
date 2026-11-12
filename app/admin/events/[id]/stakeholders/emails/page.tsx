@@ -4,6 +4,7 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import { Badge, Button, Card, Input, Toast } from '@/app/components/ui'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
+import EmailsTabs from './EmailsTabs'
 
 /* Emails → Lists (2026-11-11, phase 1 of docs/build_suggestions/emails-module.md). The list builder: choose who an email should reach across all the events you have access
    to, see exactly who would receive it and who is left out (and why), set do-not-email, and save the list. Nothing is sent from here yet — Compose comes next. */
@@ -134,10 +135,11 @@ export default function EmailsPage({ params }: { params: Promise<{ id: string }>
       <PageHeader
         eyebrow="Stakeholder Hub"
         title="Emails"
-        description="Build a list of speakers from any of your events, see exactly who it would reach and who is left out, then save it. Sending comes next; nothing is sent from this page."
+        description="Build a list of speakers from any of your events, see exactly who it would reach and who is left out, then save it. Nothing is sent from this page: use Compose to write and send."
         backHref={`/admin/events/${eventId}/stakeholders`}
         backLabel="Back to Stakeholder Hub"
       />
+      <EmailsTabs eventId={eventId} />
       <Toast message={toast?.text ?? null} type={toast?.type} onClose={() => setToast(null)} />
       <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', padding: '20px 32px 48px', maxWidth: '1380px', flexWrap: 'wrap' }}>
         <div style={{ width: '320px', flexShrink: 0 }}>

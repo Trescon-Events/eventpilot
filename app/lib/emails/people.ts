@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { strictEventDays } from '@/app/lib/events/event-days'
+import { speakerEmailOf } from '@/app/lib/guest-invites/access'
 import type { PoolRecord, ContactFlags } from './recipients'
 
 /* Emails module, phase 1 — loads the speaker pool from the database: each event's own speaker records joined to the CRM person, their additional
@@ -29,7 +30,7 @@ export async function loadPool(eventIds: string[] | null): Promise<PoolData> {
   const eventById = new Map(events.map(e => [e.id, e]))
   if (!events.length) return { pool: [], flags: new Map(), events, producers: [], roles: [], countries: [] }
 
-  const cols = 'id, event_id, name, public_name, company, country, confirmation_status, planned_roles, producer_staff_id, email, crm_contact_id, updated_at, announcement_status, delete_reason'
+  const cols = 'id, event_id, name, public_name, company, country, confirmation_status, planned_roles, pronoun_style, producer_staff_id, email, custom_fields, crm_contact_id, updated_at, announcement_status, delete_reason'
   const speakers: Record<string, unknown>[] = []
   for (let from = 0; ; from += 1000) {
     const { data } = await supabaseAdmin.from('event_speakers').select(cols).in('event_id', events.map(e => e.id)).order('id').range(from, from + 999)
@@ -58,8 +59,9 @@ export async function loadPool(eventIds: string[] | null): Promise<PoolData> {
       speaker_id: s.id as string, event_id: s.event_id as string, event_name: ev?.name ?? '', event_end: ev?.end ?? null,
       contact_id: (s.crm_contact_id as string | null) ?? null, name: (s.name as string) ?? '', public_name: (s.public_name as string | null) ?? null,
       company: (s.company as string | null) ?? null, country: (s.country as string | null) ?? null, status: (s.confirmation_status as string | null) ?? null,
-      planned_roles: (s.planned_roles as string[] | null) ?? [], producer_id: (s.producer_staff_id as string | null) ?? null, producer_name: s.producer_staff_id ? staffName.get(s.producer_staff_id as string) ?? null : null,
-      own_email: (s.email as string | null) ?? null, contact_email: (c?.email as string | null) ?? null, additional: extrasBy.get(s.id as string) ?? [],
+      planned_roles: (s.planned_roles as string[] | null) ?? [], pronoun_style: (s.pronoun_style as string | null) ?? null, producer_id: (s.producer_staff_id as string | null) ?? null, producer_name: s.producer_staff_id ? staffName.get(s.producer_staff_id as string) ?? null : null,
+      // custom_fields.email is the canonical, maintained speaker email; the legacy email column is only a fallback (same rule as every other speaker send)
+      own_email: speakerEmailOf(s.custom_fields as Record<string, unknown> | null, (s.email as string | null) ?? null) || null, contact_email: (c?.email as string | null) ?? null, additional: extrasBy.get(s.id as string) ?? [],
       updated_at: (s.updated_at as string | null) ?? null, archived: s.announcement_status === 'archived', delete_reason: (s.delete_reason as string | null) ?? null,
     }
   })

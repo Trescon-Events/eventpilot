@@ -13,6 +13,7 @@ export type PoolRecord = {
   country: string | null
   status: string | null               // confirmation_status; null = no status yet
   planned_roles: string[]
+  pronoun_style: string | null
   producer_id: string | null
   producer_name: string | null
   own_email: string | null            // email on the speaker record itself
@@ -48,7 +49,7 @@ export type Person = {
   company_changed: { from: string; to: string } | null
 }
 
-export type Recipient = Person & { to: string; cc: string[]; mode: 'own' | 'assistant' }
+export type Recipient = Person & { to: string; cc: string[]; mode: 'own' | 'assistant'; greeting_name: string; pronoun_style: string | null }
 export type Excluded = { person: Person; reason: string }
 
 const norm = (s: string | null | undefined) => (s ?? '').trim().toLowerCase()
@@ -133,16 +134,19 @@ export function resolveRecipients(
     if (fl && (fl.email_status === 'bounced' || fl.email_status === 'invalid')) { excluded.push({ person: p, reason: fl.email_status === 'bounced' ? 'Email bounced before' : 'Email address marked invalid' }); continue }
 
     const own = [p.rep.own_email, p.rep.contact_email, ...p.records.flatMap(r => [r.own_email, r.contact_email])].map(cleanEmail).find(Boolean) ?? null
-    const extras = [...new Map(p.records.flatMap(r => r.additional).map(a => [norm(cleanEmail(a.email)), cleanEmail(a.email)] as const).filter(([k]) => k)).values()] as string[]
-    let to: string | null = null; let cc: string[] = []; let mode: 'own' | 'assistant' = 'own'
+    const extraMap = new Map<string, { email: string; name: string | null }>()
+    for (const a of p.records.flatMap(r => r.additional)) { const e = cleanEmail(a.email); if (e && !extraMap.has(norm(e))) extraMap.set(norm(e), { email: e, name: a.name?.trim() || null }) }
+    const extraList = [...extraMap.values()]
+    const extras = extraList.map(x => x.email)
+    let to: string | null = null; let cc: string[] = []; let mode: 'own' | 'assistant' = 'own'; let greeting = p.name
     if (own) { to = own; cc = extras.filter(e => norm(e) !== norm(own)) }
-    else if (extras.length && opts.allowAssistant) { to = extras[0]; cc = extras.slice(1); mode = 'assistant' }
+    else if (extras.length && opts.allowAssistant) { to = extras[0]; cc = extras.slice(1); mode = 'assistant'; greeting = extraList[0].name || 'Team' }
     else { excluded.push({ person: p, reason: extras.length ? 'Only reachable through an assistant or office contact (not allowed for this email)' : 'No email address' }); continue }
 
     const prior = takenBy.get(norm(to))
     if (prior) { excluded.push({ person: p, reason: `Same address as ${prior}` }); continue }
     takenBy.set(norm(to), p.name)
-    recipients.push({ ...p, to, cc, mode })
+    recipients.push({ ...p, to, cc, mode, greeting_name: greeting, pronoun_style: mode === 'own' ? p.rep.pronoun_style : null })
   }
   return { recipients, excluded }
 }

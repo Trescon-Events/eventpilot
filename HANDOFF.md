@@ -22,6 +22,14 @@ Spec: `docs/build_suggestions/copy-library.md`. Migration `supabase/copy_library
   2. **Workspace badge** — "N need review" shows on the Copy Library tab only, not on the event workspace home.
   Also later: press releases / invites / Konfhub / website / YouTube consume the library in their own builds.
 
+## Emails module — phase 2 (Compose + Sent), built 12 Nov 2026, NOT pushed; migration RUN on production
+- Migration `supabase/emails_campaigns_migration.sql` (run; the first attempt was classifier-blocked, the retry passed): `email_campaigns`, `email_campaign_recipients`.
+- `app/lib/emails/campaigns.ts`: `createCampaign` (content checks incl. event content rules; freezes the audience into one row per person; >20 people needs `confirmed`), `sendBatch` (8 per call, claims rows, re-checks do-not-email just before sending, new Outlook conversation with the campaign subject, stores message/conversation ids), `cancelCampaign`, `sendTest` ([TEST] copy to the sender's own mailbox). `audience.ts` is shared by the list preview and campaign creation (+ 30-day overlap warning).
+- API: `/api/events/stakeholders/email-campaigns` (GET list, POST create), `/[id]` (detail), `/[id]/send`, `/[id]/cancel`, `/test`, `/sender`. UI: Emails now has tabs Lists | Compose | Sent (`emails/compose`, `emails/sent`); Sent also shows the older Speaker Emails sends read-only. The old Speaker Emails page is untouched.
+- **Phase 1 fix:** speaker emails live in `custom_fields.email` (canonical, via `speakerEmailOf`), not the legacy `email` column. The pool loader now uses it: everyone = 398 reachable on their own email (was 301), 45 with no address anywhere (was 99).
+- Acceptance (real Graph, throwaway event, Madhu's md+ep-test-* addresses, cleaned up, 0 left): 6 people → 5 in the frozen audience (one already do-not-email excluded); one marked do-not-email after creation was skipped at send; one forced failure recorded with its Graph error; assistant person greeted "Priya Assistant"; campaign ended `sent` with 3 sent / 1 failed / 1 skipped; overlap warning showed the same people; test send worked.
+- Next: phase 3 (Templates on the extended `email_templates` + builder + thank-you template), phase 4 scheduling + owner reminders, phase 5 replies/bounces.
+
 ## Emails module — phase 1 (People + Lists), built 11 Nov 2026, NOT pushed; migration RUN on production
 - Spec: `docs/build_suggestions/emails-module.md` (agreed with Madhu). Phase 1 sends nothing.
 - Migration `supabase/emails_module_migration.sql` (run): `crm_contacts` do_not_email / dne_* / email_status*, `crm_contact_dne_log`, `email_lists`. HubSpot opt-outs and bounces are deliberately NOT used (marketing sends, different purpose): do-not-email comes only from a producer (source manual) or later a reply to an EventPilot email (source reply).

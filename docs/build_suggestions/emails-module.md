@@ -56,8 +56,8 @@ A **person** is a `crm_contacts` row (already deduplicated by email: 494 live sp
 ## Compose and sending (phase 2)
 
 - Freestyle compose with Polish (existing Gemini Polish, event guidelines, `checkEmailCompliance` before send) plus the campaign name, subject and list.
-- Test send to yourself; real-email preview; extra confirmation above 20 recipients; warning when the same template went to an overlapping list in the last 30 days.
-- **Sending** is a queue processed in small batches by the existing GitHub Actions cron pattern (`/api/cron/emails`), well inside Graph's per-mailbox limits. A failure on one recipient never stops the rest.
+- Test send to yourself; real-email preview; extra confirmation above 20 recipients (a ticked box saying the list, the email and a test copy were checked; the server refuses without it); warning when the same template went to an overlapping list in the last 30 days.
+- **Sending** works through one row per person in small batches (8 per call, with a short pause between emails, well inside Graph's per-mailbox limits). The Compose page keeps calling until the queue is empty. If the page is closed part-way, the email stays under Sent with a **Continue sending** button, and a person claimed but never finished is put back in the queue after 5 minutes. A failure on one recipient never stops the rest. (Phase 4's cron will also finish anything left over.) Just before each email goes out the person is re-checked for do-not-email, so a request that arrives after the list was built is honoured and shown as skipped.
 - Subject: a bulk or cross-event email starts a **new thread** with the campaign's own subject. `thread_mode = speaker_thread` is available for sends that should land in the per-speaker thread.
 - **Sent** screen: each campaign with name, subject, content, list, sender, status and counts: sent, failed, skipped, and (phase 5) bounced, replied, auto-replied. Click through to the per-person rows.
 
