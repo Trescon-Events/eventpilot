@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { requireGuestInviteAccess } from '@/app/lib/guest-invites/access'
-import { campaignProgress } from '@/app/lib/emails/campaigns'
+import { campaignProgress, displayText } from '@/app/lib/emails/campaigns'
 import { updateScheduledCampaign } from '@/app/lib/emails/scheduled'
 import { missingFields, utcToLocalInput } from '@/app/lib/emails/schedule'
 import type { RequiredField } from '@/app/lib/emails/templates'
@@ -33,7 +33,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       fields: fields.map(f => ({ ...f, value: ((c.field_values as Record<string, string>) ?? {})[f.key] ?? '' })), missing: missingFields(fields, c.field_values as Record<string, unknown>).map(f => f.label),
     }
   }
-  return NextResponse.json({ campaign: c, progress: await campaignProgress(id), recipients: rows ?? [], schedule }, { headers: { 'Cache-Control': 'no-store' } })
+  // an email that has not been released yet still holds {{placeholders}}: show the event's real values (person placeholders are filled by the page with a sample name)
+  const unreleased = c.status === 'scheduled' || c.status === 'cancelled'
+  const shown = unreleased ? { ...c, subject: await displayText(c.event_id as string, c.subject as string, c.field_values as Record<string, unknown>, true), body_html: await displayText(c.event_id as string, c.body_html as string, c.field_values as Record<string, unknown>) } : c
+  return NextResponse.json({ campaign: shown, progress: await campaignProgress(id), recipients: rows ?? [], schedule }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

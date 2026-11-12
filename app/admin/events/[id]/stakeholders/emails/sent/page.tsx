@@ -190,7 +190,7 @@ export default function SentPage({ params }: { params: Promise<{ id: string }> }
                   </div>
 
                   <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '6px' }}>The email</div>
-                  <iframe title="What was sent" sandbox="" srcDoc={renderSpeakerEmail({ bodyHtml: applyTokens(detail.campaign.body_html, personValues(detail.recipients[0]?.name ?? 'Name')), publicName: detail.recipients[0]?.name ?? 'Name', producerName: detail.recipients[0]?.sender_name ?? 'Sender' })} style={{ width: '100%', height: '260px', border: '1px solid var(--border)', borderRadius: '10px', background: 'white' }} />
+                  <iframe title="What was sent" sandbox="" srcDoc={renderSpeakerEmail({ bodyHtml: applyTokens(detail.campaign.body_html, personValues(detail.recipients[0]?.name ?? 'Speaker name')), publicName: detail.recipients[0]?.name ?? 'Speaker name', producerName: detail.recipients[0]?.sender_name ?? 'The sender' })} style={{ width: '100%', height: '260px', border: '1px solid var(--border)', borderRadius: '10px', background: 'white' }} />
 
                   {!detail.schedule && <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--ink3)', margin: '16px 0 6px' }}>People ({detail.recipients.length})</div>}
                   <div style={{ maxHeight: '380px', overflowY: 'auto' }}>

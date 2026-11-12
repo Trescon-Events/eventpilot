@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { requireGuestInviteAccess } from '@/app/lib/guest-invites/access'
-import { createCampaign } from '@/app/lib/emails/campaigns'
+import { createCampaign, displayText } from '@/app/lib/emails/campaigns'
 import { createScheduledCampaign } from '@/app/lib/emails/scheduled'
 import type { SpeakerAttachment } from '@/app/lib/speaker-emails/render'
 import type { AudienceInput } from '@/app/lib/emails/audience'
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   const eventId = req.nextUrl.searchParams.get('event_id') ?? ''
   if (!UUID.test(eventId)) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
   const denied = await requireGuestInviteAccess(req, eventId, 'view'); if (denied) return denied
-  const { data: camps } = await supabaseAdmin.from('email_campaigns').select('id, name, subject, status, recipient_count, created_by, created_at, sent_at, sender_mode, polished, scheduled_for, timezone').eq('event_id', eventId).order('created_at', { ascending: false }).limit(200)
+  const { data: camps } = await supabaseAdmin.from('email_campaigns').select('id, name, subject, status, recipient_count, created_by, created_at, sent_at, sender_mode, polished, scheduled_for, timezone, field_values').eq('event_id', eventId).order('created_at', { ascending: false }).limit(200)
   const ids = (camps ?? []).map(c => c.id as string)
   const counts = new Map<string, Record<string, number>>()
   if (ids.length) {
@@ -36,9 +36,13 @@ export async function GET(req: NextRequest) {
   const staffIds = [...new Set((camps ?? []).map(c => c.created_by as string | null).filter((x): x is string => !!x && UUID.test(x)))]
   const { data: staff } = staffIds.length ? await supabaseAdmin.from('staff_members').select('id, name').in('id', staffIds) : { data: [] }
   const who = new Map((staff ?? []).map(s => [s.id as string, s.name as string]))
-  return NextResponse.json({
-    campaigns: (camps ?? []).map(c => ({ ...c, created_by_name: who.get(c.created_by as string) ?? null, counts: counts.get(c.id as string) ?? {} })),
-  }, { headers: { 'Cache-Control': 'no-store' } })
+  // an email that has not been released yet still holds {{placeholders}} in its subject: show the event's real values
+  const campaigns = await Promise.all((camps ?? []).map(async c => {
+    const { field_values, ...rest } = c
+    const unreleased = c.status === 'scheduled' || c.status === 'cancelled'
+    return { ...rest, subject: unreleased ? await displayText(eventId, c.subject as string, field_values as Record<string, unknown>, true) : c.subject, created_by_name: who.get(c.created_by as string) ?? null, counts: counts.get(c.id as string) ?? {} }
+  }))
+  return NextResponse.json({ campaigns }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
 export async function POST(req: NextRequest) {

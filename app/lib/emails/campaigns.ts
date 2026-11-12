@@ -30,6 +30,25 @@ type Finding = { message: string; match: string }
 const finding = (x: Finding): Finding => ({ message: x.message, match: x.match })
 
 
+/** The values of the event tokens ({{event_name}}, {{event_dates}}, {{event_venue}}) for an event; a token the event has no value for is simply absent. */
+export async function eventTokenValues(eventId: string): Promise<Record<string, string>> {
+  const { data: ev } = await supabaseAdmin.from('events').select('name, public_name, public_dates_display, public_venue_display, actual_start_date, actual_end_date').eq('id', eventId).maybeSingle()
+  const values: Record<string, string> = {}
+  if (!ev) return values
+  values.event_name = ((ev.public_name as string) || (ev.name as string) || '').trim()
+  const dates = eventDateText(ev as never); if (dates) values.event_dates = dates
+  const venue = ((ev.public_venue_display as string) || '').trim(); if (venue) values.event_venue = venue
+  return values
+}
+
+/** What to SHOW for an email that has not been released yet (its stored text still holds {{placeholders}}): the event's values and the required fields filled in where known. */
+export async function displayText(eventId: string, text: string, fieldValues: Record<string, unknown> | null | undefined, plain = false): Promise<string> {
+  const values: Record<string, string> = {}
+  for (const [k, v] of Object.entries(fieldValues ?? {})) if (typeof v === 'string' && v.trim()) values[k] = v.trim()
+  Object.assign(values, await eventTokenValues(eventId))
+  return plain ? applyTokensPlain(text, values) : applyTokens(text, values)
+}
+
 const TOKEN_HELP: Record<string, string> = {
   event_dates: 'the event has no dates yet. Set the event days or the public dates on Event Details first',
   event_venue: 'the event has no public venue yet. Set it on Event Details first',
@@ -52,13 +71,7 @@ export async function prepareContent(eventId: string, subject: string, bodyHtml:
   const missing = missingFieldTokens(fields, subject, bodyHtml)
   if (missing.length) return { ok: false, error: `The email no longer includes the ${missing.map(f => f.label.toLowerCase()).join(' and the ')}. Put {{${missing[0].key}}} back where it belongs.`, status: 422 }
 
-  const { data: ev } = await supabaseAdmin.from('events').select('name, public_name, public_dates_display, public_venue_display, actual_start_date, actual_end_date').eq('id', eventId).maybeSingle()
-  const values: Record<string, string> = { ...checked.values }
-  if (ev) {
-    values.event_name = ((ev.public_name as string) || (ev.name as string) || '').trim()
-    const dates = eventDateText(ev as never); if (dates) values.event_dates = dates
-    const venue = ((ev.public_venue_display as string) || '').trim(); if (venue) values.event_venue = venue
-  }
+  const values: Record<string, string> = { ...checked.values, ...(await eventTokenValues(eventId)) }
   const outBody = applyTokens(bodyHtml, values)
   const outSubject = applyTokensPlain(subject, values)
   const left = [...new Set([...unresolvedTokens(outBody), ...unresolvedTokens(outSubject)])]
