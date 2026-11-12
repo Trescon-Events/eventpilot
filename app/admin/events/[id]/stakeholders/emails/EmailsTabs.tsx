@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation'
 export default function EmailsTabs({ eventId }: { eventId: string }) {
   const path = usePathname()
   const base = `/admin/events/${eventId}/stakeholders/emails`
-  const tabs = [{ href: base, label: 'Lists' }, { href: `${base}/compose`, label: 'Compose' }, { href: `${base}/sent`, label: 'Sent' }]
+  const tabs = [{ href: base, label: 'Lists' }, { href: `${base}/compose`, label: 'Compose' }, { href: `${base}/templates`, label: 'Templates' }, { href: `${base}/sent`, label: 'Sent' }]
   return (
     <nav aria-label="Emails sections" style={{ display: 'flex', gap: '4px', padding: '0 32px', borderBottom: '1px solid var(--border-light)' }}>
       {tabs.map(t => {

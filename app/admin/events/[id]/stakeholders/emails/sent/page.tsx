@@ -7,6 +7,7 @@ import { Badge, Button, Card } from '@/app/components/ui'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import { notify } from '@/app/lib/ui/notify'
 import { renderSpeakerEmail } from '@/app/lib/speaker-emails/render'
+import { applyTokens, personValues } from '@/app/lib/emails/templates'
 import EmailsTabs from '../EmailsTabs'
 
 /* Emails → Sent (2026-11-12, phase 2). Every email sent from this event as a named record: its subject, content, sender, the numbers (sent / failed / skipped, and later bounced
@@ -124,7 +125,7 @@ export default function SentPage({ params }: { params: Promise<{ id: string }> }
                   </div>
 
                   <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '6px' }}>The email</div>
-                  <iframe title="What was sent" sandbox="" srcDoc={renderSpeakerEmail({ bodyHtml: detail.campaign.body_html, publicName: 'Name', producerName: 'Sender' })} style={{ width: '100%', height: '260px', border: '1px solid var(--border)', borderRadius: '10px', background: 'white' }} />
+                  <iframe title="What was sent" sandbox="" srcDoc={renderSpeakerEmail({ bodyHtml: applyTokens(detail.campaign.body_html, personValues(detail.recipients[0]?.name ?? 'Name')), publicName: detail.recipients[0]?.name ?? 'Name', producerName: detail.recipients[0]?.sender_name ?? 'Sender' })} style={{ width: '100%', height: '260px', border: '1px solid var(--border)', borderRadius: '10px', background: 'white' }} />
 
                   <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--ink3)', margin: '16px 0 6px' }}>People ({detail.recipients.length})</div>
                   <div style={{ maxHeight: '380px', overflowY: 'auto' }}>

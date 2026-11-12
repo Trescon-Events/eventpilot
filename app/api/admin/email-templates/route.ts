@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
   const { data, error } = await supabaseAdmin
     .from('email_templates')
     .select('*')
+    .is('audience_type', null) // templates made for the Emails module are managed there (Stakeholder Hub → Emails → Templates)
     .order('category')
     .order('name')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

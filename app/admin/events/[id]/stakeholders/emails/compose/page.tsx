@@ -9,6 +9,7 @@ import { Button, Card, Input } from '@/app/components/ui'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import { notify } from '@/app/lib/ui/notify'
 import { hasContent, wordCount, renderSpeakerEmail, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS } from '@/app/lib/speaker-emails/render'
+import { applyTokens, applyTokensPlain, personValues, type RequiredField } from '@/app/lib/emails/templates'
 import EmailsTabs from '../EmailsTabs'
 
 /* Emails → Compose (2026-11-12, phase 2). Choose who (a saved list, or everyone confirmed / who spoke at this event), write the email (Polish and attachments as on the old
@@ -23,12 +24,14 @@ type Preview = {
   overlap?: { campaign_id: string; name: string; sent_at: string; overlap: number; total: number }[]
 }
 type SavedList = { id: string; name: string; event_id: string | null }
+type Tpl = { id: string; name: string; subject: string; body_html: string; required_fields: RequiredField[]; allow_assistant: boolean; default_sender_mode: 'me' | 'speaker_producer' | null; default_audience: 'confirmed' | 'spoke' | 'confirmed_or_spoke' | null; event_id: string | null }
 type Progress = { status: string; total: number; sent: number; failed: number; skipped: number; queued: number; sending: number }
 
 const CONFIRM_ABOVE = 20
 const QUICK: Record<string, { label: string; statuses: string[] }> = {
   confirmed: { label: 'Everyone confirmed at this event', statuses: ['Confirmed', 'New Confirmed', 'Reconfirmed'] },
   spoke: { label: 'Everyone who spoke at this event', statuses: ['Spoke'] },
+  both: { label: 'Everyone confirmed or who spoke at this event', statuses: ['Confirmed', 'New Confirmed', 'Reconfirmed', 'Spoke'] },
 }
 const kb = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`)
 const fmt = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
@@ -58,6 +61,10 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
   const [progress, setProgress] = useState<Progress | null>(null)
   const [done, setDone] = useState<{ id: string; progress: Progress } | null>(null)
   const [myName, setMyName] = useState('')
+  const [tpls, setTpls] = useState<Tpl[]>([])
+  const [tplId, setTplId] = useState('')
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
+  const [ev, setEv] = useState<Record<string, string | null>>({})
 
   const editor = useEditor({
     extensions: [StarterKit.configure({ heading: false, blockquote: false, codeBlock: false, code: false, horizontalRule: false, strike: false, link: { openOnClick: false } })],
@@ -67,7 +74,8 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
   })
 
   useEffect(() => {
-    fetch(`/api/events?id=${eventId}`).then(r => r.json()).then(d => setEventName((Array.isArray(d) ? d[0] : d)?.name ?? null)).catch(() => {})
+    fetch(`/api/events?id=${eventId}`).then(r => r.json()).then(d => { const e = Array.isArray(d) ? d[0] : d; setEventName(e?.name ?? null); setEv(e ?? {}) }).catch(() => {})
+    fetch(`/api/events/stakeholders/email-templates?event_id=${eventId}`).then(r => r.json()).then(d => setTpls(d.templates ?? [])).catch(() => {})
     fetch(`/api/events/stakeholders/email-lists?event_id=${eventId}`).then(r => r.json()).then(d => setLists(d.lists ?? [])).catch(() => {})
     fetch('/api/events/stakeholders/email-campaigns/sender').then(r => r.json()).then(s => setMyName(s?.name ?? '')).catch(() => {})
   }, [eventId])
@@ -88,7 +96,21 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
 
   const count = preview?.summary.will_receive ?? 0
   const html = () => editor?.getHTML() ?? ''
-  const ready = hasContent(html()) && !!subject.trim() && !!name.trim() && count > 0
+  const tpl = tpls.find(t => t.id === tplId) ?? null
+  const fieldsFilled = !tpl || tpl.required_fields.every(f => (fieldValues[f.key] ?? '').trim())
+  const ready = hasContent(html()) && !!subject.trim() && !!name.trim() && count > 0 && fieldsFilled
+
+  function chooseTemplate(id: string) {
+    setTplId(id); setFieldValues({}); setPolish(null); setFirstOriginal(null)
+    const t = tpls.find(x => x.id === id)
+    if (!t) return
+    setSubject(t.subject); editor?.commands.setContent(t.body_html); setWords(wordCount(t.body_html))
+    if (!name.trim()) setName(t.name)
+    if (t.default_sender_mode) setSenderMode(t.default_sender_mode)
+    const a = t.default_audience === 'spoke' ? 'quick:spoke' : t.default_audience === 'confirmed_or_spoke' ? 'quick:both' : t.default_audience === 'confirmed' ? 'quick:confirmed' : null
+    if (a) setAudience(a)
+    if (t.allow_assistant) setAllowAssistant(true)
+  }
 
   async function addFiles(files: FileList | null) {
     if (!files?.length) return
@@ -130,7 +152,7 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
 
   async function sendTest() {
     setBusy('test'); setFindings(null)
-    const res = await fetch('/api/events/stakeholders/email-campaigns/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, subject, body_html: html(), attachments, sample_name: preview?.recipients[0]?.name ?? '' }) })
+    const res = await fetch('/api/events/stakeholders/email-campaigns/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, subject, body_html: html(), attachments, sample_name: preview?.recipients[0]?.name ?? '', template_id: tplId || undefined, field_values: fieldValues }) })
     const d = await res.json().catch(() => ({}))
     setBusy(null)
     if (res.ok) notify(`A test copy was sent to ${d.to}. It starts with “[TEST]”.`, 'success')
@@ -141,7 +163,7 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
     setBusy('send'); setFindings(null)
     const res = await fetch('/api/events/stakeholders/email-campaigns', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event_id: eventId, name, subject, body_html: html(), attachments, polished: firstOriginal !== null, original_html: firstOriginal, sender_mode: senderMode, confirmed, ...audienceBody() }),
+      body: JSON.stringify({ event_id: eventId, name, subject, body_html: html(), attachments, polished: firstOriginal !== null, original_html: firstOriginal, sender_mode: senderMode, confirmed, template_id: tplId || undefined, field_values: fieldValues, ...audienceBody() }),
     })
     const d = await res.json().catch(() => ({}))
     if (!res.ok) { setBusy(null); notify(d.error ?? 'Could not start the send.', 'error'); if (d.errors) setFindings({ errors: d.errors, warnings: [] }); if (d.needs_confirmation) setConfirmed(false); return }
@@ -158,9 +180,16 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
     if (p) setDone({ id: d.campaign_id, progress: p })
   }
 
-  const rendered = useMemo(() => renderSpeakerEmail({ bodyHtml: html(), publicName: preview?.recipients[0]?.name ?? 'Speaker name', producerName: senderMode === 'me' ? (myName || 'Your name') : 'Their producer' }),
+  const eventValues = useMemo(() => {
+    const v: Record<string, string> = { event_name: (ev.public_name || ev.name || '') as string, ...fieldValues }
+    if (ev.public_dates_display) v.event_dates = ev.public_dates_display as string
+    if (ev.public_venue_display) v.event_venue = ev.public_venue_display as string
+    return v
+  }, [ev, fieldValues])
+  const sampleName = preview?.recipients[0]?.name ?? 'Speaker name'
+  const rendered = useMemo(() => renderSpeakerEmail({ bodyHtml: applyTokens(html(), { ...eventValues, ...personValues(sampleName) }), publicName: preview?.recipients[0]?.name ?? 'Speaker name', producerName: senderMode === 'me' ? (myName || 'Your name') : 'Their producer' }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the editor content changes with `words`
-    [words, preview, senderMode, myName, reviewing])
+    [words, preview, senderMode, myName, reviewing, eventValues])
   const needsConfirm = count > CONFIRM_ABOVE
 
   if (done) {
@@ -214,6 +243,25 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
         <Card padded>
           <div style={label}>2 · Write</div>
           <div style={{ display: 'grid', gap: '10px', marginTop: '10px' }}>
+            <div>
+              <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px' }}>Start from a template (or write your own below)</div>
+              <select value={tplId} onChange={e => chooseTemplate(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '14px' }}>
+                <option value="">No template</option>
+                {tpls.map(t => <option key={t.id} value={t.id}>{t.name}{t.event_id ? ' (this event)' : ''}</option>)}
+              </select>
+              {tpl && <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '4px' }}>The text below is the template. Change anything you like; {'{{placeholders}}'} are filled in when you send. <Link href={`/admin/events/${eventId}/stakeholders/emails/templates`} style={{ color: 'var(--teal-mid)', fontWeight: 700 }}>Manage templates</Link></div>}
+            </div>
+            {tpl && tpl.required_fields.length > 0 && (
+              <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'var(--surface)', border: `1px solid ${fieldsFilled ? 'var(--border)' : 'var(--amber)'}` }}>
+                <div style={{ fontSize: '12.5px', fontWeight: 800, color: 'var(--ink)', marginBottom: '8px' }}>This template needs {tpl.required_fields.length === 1 ? 'one thing' : 'these'} before it can be sent</div>
+                {tpl.required_fields.map(f => (
+                  <div key={f.key} style={{ marginBottom: '8px' }}>
+                    <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px' }}>{f.label}{f.kind === 'url' ? ' (a full link starting with https://)' : ''}</div>
+                    <Input value={fieldValues[f.key] ?? ''} onChange={e => setFieldValues(v => ({ ...v, [f.key]: e.target.value }))} placeholder={f.kind === 'url' ? 'https://…' : ''} />
+                  </div>
+                ))}
+              </div>
+            )}
             <div>
               <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px' }}>Name (only you see this, it is how you find the email under Sent)</div>
               <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Invite BSS speakers to DFS 2027" />
@@ -282,7 +330,7 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
             <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--ink)' }}>Review and send</div>
             <div style={{ fontSize: '13.5px', color: 'var(--ink2)', marginTop: '8px', lineHeight: 1.7 }}>
               <strong>{count}</strong> people · from {senderMode === 'me' ? `you (${myName || 'your mailbox'})` : 'each speaker’s own producer'}<br />
-              Subject: <strong>{subject}</strong>{attachments.length ? <><br />{attachments.length} attachment{attachments.length === 1 ? '' : 's'}</> : null}
+              Subject: <strong>{applyTokensPlain(subject, { ...eventValues, ...personValues(sampleName) })}</strong>{attachments.length ? <><br />{attachments.length} attachment{attachments.length === 1 ? '' : 's'}</> : null}
               {preview && preview.summary.via_assistant > 0 && <><br />{preview.summary.via_assistant} reached through an assistant (greeted by the assistant’s name)</>}
             </div>
             <div style={{ fontSize: '12px', color: 'var(--ink3)', margin: '12px 0 4px' }}>What {preview?.recipients[0]?.name ?? 'the first person'} will see</div>

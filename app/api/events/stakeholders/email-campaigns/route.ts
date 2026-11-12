@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
     eventId, name: b.name, subject: b.subject, bodyHtml: b.body_html, attachments: (Array.isArray(b.attachments) ? b.attachments : []) as SpeakerAttachment[],
     polished: !!b.polished, originalHtml: typeof b.original_html === 'string' ? b.original_html : null,
     listId: typeof b.list_id === 'string' && UUID.test(b.list_id) ? b.list_id : null, audience, senderMode: b.sender_mode === 'speaker_producer' ? 'speaker_producer' : 'me', confirmed: !!b.confirmed,
+    templateId: typeof b.template_id === 'string' && UUID.test(b.template_id) ? b.template_id : null, fieldValues: (b.field_values && typeof b.field_values === 'object' ? b.field_values : {}) as Record<string, unknown>,
   })
   if (!r.ok) return NextResponse.json({ error: r.error, errors: r.errors, needs_confirmation: r.needs_confirmation, recipients: r.recipients }, { status: r.status })
   return NextResponse.json({ campaign_id: r.campaign_id, count: r.count, warnings: r.warnings })

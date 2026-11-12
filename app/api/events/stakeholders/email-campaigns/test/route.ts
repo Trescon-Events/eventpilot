@@ -12,10 +12,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export async function POST(req: NextRequest) {
   const session = getSession(req)
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
-  const b = await req.json().catch(() => null) as { event_id?: string; subject?: string; body_html?: string; attachments?: SpeakerAttachment[]; sample_name?: string } | null
+  const b = await req.json().catch(() => null) as { event_id?: string; subject?: string; body_html?: string; attachments?: SpeakerAttachment[]; sample_name?: string; template_id?: string; field_values?: Record<string, unknown> } | null
   if (!b?.event_id || !UUID.test(b.event_id) || typeof b.subject !== 'string' || typeof b.body_html !== 'string') return NextResponse.json({ error: 'event_id, subject and body_html are required' }, { status: 400 })
   const denied = await requireGuestInviteAccess(req, b.event_id, 'edit'); if (denied) return denied
-  const r = await sendTest(session, { eventId: b.event_id, subject: b.subject, bodyHtml: b.body_html, attachments: Array.isArray(b.attachments) ? b.attachments : [], sampleName: (b.sample_name ?? '').slice(0, 120) })
+  const r = await sendTest(session, { eventId: b.event_id, subject: b.subject, bodyHtml: b.body_html, attachments: Array.isArray(b.attachments) ? b.attachments : [], sampleName: (b.sample_name ?? '').slice(0, 120), templateId: b.template_id && UUID.test(b.template_id) ? b.template_id : null, fieldValues: b.field_values && typeof b.field_values === 'object' ? b.field_values : {} })
   if (!r.ok) return NextResponse.json({ error: r.error, errors: r.errors }, { status: r.status })
   return NextResponse.json({ ok: true, to: r.to })
 }
