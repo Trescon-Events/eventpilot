@@ -10,6 +10,7 @@ import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import { notify } from '@/app/lib/ui/notify'
 import { hasContent, wordCount, renderSpeakerEmail, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS } from '@/app/lib/speaker-emails/render'
 import { applyTokens, applyTokensPlain, personValues, type RequiredField } from '@/app/lib/emails/templates'
+import { formatSendTime, localToUtc } from '@/app/lib/emails/schedule'
 import EmailsTabs from '../EmailsTabs'
 
 /* Emails → Compose (2026-11-12, phase 2). Choose who (a saved list, or everyone confirmed / who spoke at this event), write the email (Polish and attachments as on the old
@@ -25,6 +26,7 @@ type Preview = {
 }
 type SavedList = { id: string; name: string; event_id: string | null }
 type Tpl = { id: string; name: string; subject: string; body_html: string; required_fields: RequiredField[]; allow_assistant: boolean; default_sender_mode: 'me' | 'speaker_producer' | null; default_audience: 'confirmed' | 'spoke' | 'confirmed_or_spoke' | null; event_id: string | null }
+type Defaults = { timezone: string | null; event_end: string | null; default_send_at_local: string | null; default_in_past: boolean; owner_staff_id: string | null; remembered_owner: boolean; staff: { id: string; name: string }[] }
 type Progress = { status: string; total: number; sent: number; failed: number; skipped: number; queued: number; sending: number }
 
 const CONFIRM_ABOVE = 20
@@ -59,7 +61,12 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
   const [confirmed, setConfirmed] = useState(false)
   const [busy, setBusy] = useState<'test' | 'send' | null>(null)
   const [progress, setProgress] = useState<Progress | null>(null)
-  const [done, setDone] = useState<{ id: string; progress: Progress } | null>(null)
+  const [done, setDone] = useState<{ id: string; progress: Progress | null; scheduled?: { when: string; waiting: string[] } } | null>(null)
+  const [when, setWhen] = useState<'now' | 'schedule'>('now')
+  const [sendAt, setSendAt] = useState('')
+  const [defaults, setDefaults] = useState<Defaults | null>(null)
+  const [ownerId, setOwnerId] = useState('')
+  const [rememberOwner, setRememberOwner] = useState(false)
   const [myName, setMyName] = useState('')
   const [tpls, setTpls] = useState<Tpl[]>([])
   const [tplId, setTplId] = useState('')
@@ -77,6 +84,7 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
     fetch(`/api/events?id=${eventId}`).then(r => r.json()).then(d => { const e = Array.isArray(d) ? d[0] : d; setEventName(e?.name ?? null); setEv(e ?? {}) }).catch(() => {})
     fetch(`/api/events/stakeholders/email-templates?event_id=${eventId}`).then(r => r.json()).then(d => setTpls(d.templates ?? [])).catch(() => {})
     fetch(`/api/events/stakeholders/email-lists?event_id=${eventId}`).then(r => r.json()).then(d => setLists(d.lists ?? [])).catch(() => {})
+    fetch(`/api/events/stakeholders/email-campaigns/schedule-defaults?event_id=${eventId}`).then(r => r.json()).then((d: Defaults) => { setDefaults(d); setOwnerId(d.owner_staff_id ?? '') }).catch(() => {})
     fetch('/api/events/stakeholders/email-campaigns/sender').then(r => r.json()).then(s => setMyName(s?.name ?? '')).catch(() => {})
   }, [eventId])
 
@@ -98,7 +106,9 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
   const html = () => editor?.getHTML() ?? ''
   const tpl = tpls.find(t => t.id === tplId) ?? null
   const fieldsFilled = !tpl || tpl.required_fields.every(f => (fieldValues[f.key] ?? '').trim())
-  const ready = hasContent(html()) && !!subject.trim() && !!name.trim() && count > 0 && fieldsFilled
+  const scheduling = when === 'schedule'
+  const sendAtDate = scheduling ? localToUtc(sendAt, defaults?.timezone) : null
+  const ready = hasContent(html()) && !!subject.trim() && !!name.trim() && count > 0 && (scheduling ? !!sendAtDate : fieldsFilled)
 
   function chooseTemplate(id: string) {
     setTplId(id); setFieldValues({}); setPolish(null); setFirstOriginal(null)
@@ -110,6 +120,12 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
     const a = t.default_audience === 'spoke' ? 'quick:spoke' : t.default_audience === 'confirmed_or_spoke' ? 'quick:both' : t.default_audience === 'confirmed' ? 'quick:confirmed' : null
     if (a) setAudience(a)
     if (t.allow_assistant) setAllowAssistant(true)
+    if (t.required_fields.length > 0) chooseWhen('schedule')
+  }
+
+  function chooseWhen(w: 'now' | 'schedule') {
+    setWhen(w)
+    if (w === 'schedule' && !sendAt && defaults?.default_send_at_local) setSendAt(defaults.default_send_at_local)
   }
 
   async function addFiles(files: FileList | null) {
@@ -163,11 +179,16 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
     setBusy('send'); setFindings(null)
     const res = await fetch('/api/events/stakeholders/email-campaigns', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event_id: eventId, name, subject, body_html: html(), attachments, polished: firstOriginal !== null, original_html: firstOriginal, sender_mode: senderMode, confirmed, template_id: tplId || undefined, field_values: fieldValues, ...audienceBody() }),
+      body: JSON.stringify({ event_id: eventId, name, subject, body_html: html(), attachments, polished: firstOriginal !== null, original_html: firstOriginal, sender_mode: senderMode, confirmed, template_id: tplId || undefined, field_values: fieldValues, ...(scheduling ? { send_at_local: sendAt, owner_staff_id: ownerId || undefined, remember_owner: rememberOwner } : {}), ...audienceBody() }),
     })
     const d = await res.json().catch(() => ({}))
     if (!res.ok) { setBusy(null); notify(d.error ?? 'Could not start the send.', 'error'); if (d.errors) setFindings({ errors: d.errors, warnings: [] }); if (d.needs_confirmation) setConfirmed(false); return }
     setFindings(d.warnings?.length ? { errors: [], warnings: d.warnings } : null)
+    if (d.scheduled && !d.released) {
+      setBusy(null); setReviewing(false)
+      setDone({ id: d.campaign_id, progress: null, scheduled: { when: formatSendTime(sendAtDate ?? new Date(), defaults?.timezone), waiting: d.waiting_for ?? [] } })
+      return
+    }
     let p: Progress | null = null
     for (let guard = 0; guard < 400; guard++) {
       const r = await fetch(`/api/events/stakeholders/email-campaigns/${d.campaign_id}/send`, { method: 'POST' })
@@ -192,7 +213,29 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
     [words, preview, senderMode, myName, reviewing, eventValues])
   const needsConfirm = count > CONFIRM_ABOVE
 
-  if (done) {
+  if (done && !done.progress && done.scheduled) {
+    return (
+      <div>
+        <PageHeader eyebrow="Stakeholder Hub" title="Emails" description="Scheduled." backHref={`/admin/events/${eventId}/stakeholders`} backLabel="Back to Stakeholder Hub" />
+        <EmailsTabs eventId={eventId} />
+        <div style={{ padding: '24px 32px', maxWidth: '720px' }}>
+          <Card padded>
+            <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ink)' }}>Scheduled for {done.scheduled.when}</div>
+            <div style={{ fontSize: '13.5px', color: 'var(--ink2)', marginTop: '6px', lineHeight: 1.7 }}>
+              “{name}” is saved under Sent. The list is worked out again at that moment, so it reaches the people who are Confirmed or Spoke by then.
+              {done.scheduled.waiting.length > 0 ? <> <strong>It is still waiting for the {done.scheduled.waiting.join(' and the ').toLowerCase()}.</strong> It will not go out until that is added; the owner is reminded, and once it is added after the send time it goes out straight away.</> : ' Everything it needs is in place.'}
+            </div>
+            <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
+              <Link href={`/admin/events/${eventId}/stakeholders/emails/sent?open=${done.id}`}><Button variant="teal">Open it under Sent</Button></Link>
+              <Button variant="ghost" onClick={() => { setDone(null); setName(''); setSubject(''); editor?.commands.setContent(''); setWords(0); setAttachments([]); setPolish(null); setFirstOriginal(null); setTplId(''); setFieldValues({}); setWhen('now'); setSendAt('') }}>Write another</Button>
+            </div>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  if (done && done.progress) {
     const p = done.progress
     return (
       <div>
@@ -308,6 +351,33 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
         <Card padded>
           <div style={label}>3 · Send</div>
           <div style={{ display: 'grid', gap: '6px', marginTop: '10px', fontSize: '13.5px', color: 'var(--ink)' }}>
+            <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink3)' }}>When</div>
+            <label style={{ display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer' }}><input type="radio" name="when" checked={!scheduling} onChange={() => chooseWhen('now')} /> Send now</label>
+            <label style={{ display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer' }}><input type="radio" name="when" checked={scheduling} onChange={() => chooseWhen('schedule')} /> Schedule it</label>
+            {scheduling && (
+              <div style={{ margin: '2px 0 8px 24px', padding: '12px 14px', borderRadius: '10px', background: 'var(--surface)', border: '1px solid var(--border)', display: 'grid', gap: '10px' }}>
+                <div>
+                  <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px' }}>Send at ({defaults?.timezone ?? 'UTC'} time)</div>
+                  <input type="datetime-local" value={sendAt} onChange={e => setSendAt(e.target.value)} style={{ padding: '9px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '14px' }} />
+                  <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '4px', lineHeight: 1.6 }}>
+                    {defaults?.default_send_at_local
+                      ? <>The default is the day after the event&rsquo;s last day at 09:00. {defaults.default_in_past ? <strong style={{ color: 'var(--amber)' }}>That time has already passed, so it goes out as soon as everything it needs is in place.</strong> : null}</>
+                      : <>This event has no event days yet, so there is no default time. Choose one.</>}
+                    {' '}If a required field is still empty at that time, it waits and is never sent without it.
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px' }}>Owner: gets the reminders (a missing link, a heads-up, the result)</div>
+                  <select value={ownerId} onChange={e => setOwnerId(e.target.value)} style={{ padding: '9px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '14px', minWidth: '240px' }}>
+                    <option value="">Me</option>
+                    {(defaults?.staff ?? []).map(st => <option key={st.id} value={st.id}>{st.name}</option>)}
+                  </select>
+                  <label style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '6px', fontSize: '12.5px', color: 'var(--ink2)', cursor: 'pointer' }}><input type="checkbox" checked={rememberOwner} onChange={() => setRememberOwner(v => !v)} /> Remember this person as the owner of post-event emails for this event</label>
+                </div>
+                {tpl && !fieldsFilled && <div style={{ fontSize: '12.5px', color: 'var(--amber)' }}>The {tpl.required_fields.map(f => f.label.toLowerCase()).join(' and the ')} is not filled yet. You can schedule it now and add it later from Sent.</div>}
+              </div>
+            )}
+            <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink3)', marginTop: '6px' }}>From</div>
             <label style={{ display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer' }}><input type="radio" name="sender" checked={senderMode === 'me'} onChange={() => setSenderMode('me')} /> From me{myName ? ` (${myName})` : ''}: the producer sending it</label>
             <label style={{ display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer' }}><input type="radio" name="sender" checked={senderMode === 'speaker_producer'} onChange={() => setSenderMode('speaker_producer')} /> Each from the speaker’s own producer (me when they have none)</label>
           </div>
@@ -319,7 +389,7 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
           )}
           <div style={{ display: 'flex', gap: '10px', marginTop: '14px', flexWrap: 'wrap' }}>
             <Button variant="ghost" onClick={sendTest} disabled={busy !== null || !hasContent(html()) || !subject.trim()}>{busy === 'test' ? 'Sending test…' : 'Send me a test'}</Button>
-            <Button variant="teal" onClick={() => { setConfirmed(false); setReviewing(true) }} disabled={!ready || busy !== null}>{count ? `Review and send to ${count}` : 'Review and send'}</Button>
+            <Button variant="teal" onClick={() => { setConfirmed(false); setReviewing(true) }} disabled={!ready || busy !== null}>{scheduling ? (count ? `Review and schedule for ${count}` : 'Review and schedule') : (count ? `Review and send to ${count}` : 'Review and send')}</Button>
           </div>
         </Card>
       </div>
@@ -327,9 +397,10 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
       {reviewing && (
         <div role="dialog" aria-modal="true" aria-label="Review and send" style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'var(--overlay-scrim)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
           <div style={{ width: '100%', maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '20px 22px' }}>
-            <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--ink)' }}>Review and send</div>
+            <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--ink)' }}>{scheduling ? 'Review and schedule' : 'Review and send'}</div>
             <div style={{ fontSize: '13.5px', color: 'var(--ink2)', marginTop: '8px', lineHeight: 1.7 }}>
-              <strong>{count}</strong> people · from {senderMode === 'me' ? `you (${myName || 'your mailbox'})` : 'each speaker’s own producer'}<br />
+              {scheduling && sendAtDate && <><strong>Scheduled for {formatSendTime(sendAtDate, defaults?.timezone)}</strong><br />The list is worked out again at that moment (about {count} people now).<br /></>}
+              {!scheduling && <><strong>{count}</strong> people · </>}from {senderMode === 'me' ? `you (${myName || 'your mailbox'})` : 'each speaker’s own producer'}<br />
               Subject: <strong>{applyTokensPlain(subject, { ...eventValues, ...personValues(sampleName) })}</strong>{attachments.length ? <><br />{attachments.length} attachment{attachments.length === 1 ? '' : 's'}</> : null}
               {preview && preview.summary.via_assistant > 0 && <><br />{preview.summary.via_assistant} reached through an assistant (greeted by the assistant’s name)</>}
             </div>
@@ -343,7 +414,7 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
             {busy === 'send' && progress && <div style={{ marginTop: '12px', fontSize: '13.5px', color: 'var(--ink)' }}>Sending… {progress.sent + progress.failed + progress.skipped} of {progress.total}</div>}
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
               <Button variant="ghost" onClick={() => setReviewing(false)} disabled={busy === 'send'}>Back</Button>
-              <Button variant="teal" onClick={send} disabled={busy === 'send' || (needsConfirm && !confirmed)}>{busy === 'send' ? 'Sending…' : `Send to ${count}`}</Button>
+              <Button variant="teal" onClick={send} disabled={busy === 'send' || (needsConfirm && !confirmed)}>{busy === 'send' ? (scheduling ? 'Scheduling…' : 'Sending…') : (scheduling ? 'Schedule it' : `Send to ${count}`)}</Button>
             </div>
           </div>
         </div>

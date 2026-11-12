@@ -68,9 +68,14 @@ A **person** is a `crm_contacts` row (already deduplicated by email: 494 live sp
 - The existing users of `email_templates` (guest invites, outstanding-items requests, announcements) keep working unchanged; they simply appear in the same library.
 - **Thank-you template**: required field "Gallery link", sent from each speaker's own producer, subject different from the thread, recipients = Confirmed or Spoke, scheduled for a time after the event end day (event days, event timezone). One **owner producer** per event gets the reminders and presses go; no link, no send. If the scheduled time has passed when the link is added, it sends immediately.
 
-## Scheduling and reminders (phase 4)
+## Scheduling and reminders (phase 4, built)
 
-`scheduled_for` plus a cron that moves due campaigns into the queue. Owner reminders through `notifyStaff` (bell + email): "paste the gallery link", "scheduled send is tomorrow", "sent: 41 delivered, 2 failed". A scheduled campaign with a missing required field reminds the owner daily and never sends.
+- **Schedule it** in Compose: the default time is the **day after the event's last day at 09:00 in the event's own timezone**; it can be changed (on Compose, or later from Sent). With no event days there is no default and a time must be chosen.
+- A scheduled email keeps its audience **definition** (list or filters, hand-removed and hand-picked people) and works out who receives it **when it is released**, not when it was written. So a thank-you scheduled before the post-event prompt marks Spoke / No-show still reaches only those who spoke. The count shown while it waits is an estimate. (Immediate sends still freeze the audience when you press Send.)
+- **Required fields can be filled later.** A scheduled thank-you may be created without its gallery link. It is **never sent without it**. When the link is pasted (on the email under Sent) and the send time has already passed, it is released straight away; if the time has not come, it waits for it.
+- A **cron** (`/api/cron/emails`, GitHub Actions every 10 minutes) releases due emails, continues any send left half-done, and handles the owner notifications.
+- **Owner producer:** each campaign has an owner (default: the event's remembered owner, else the person who scheduled it). The owner gets a bell notification and an email: about once a day when a required field is still empty and the send is within 3 days (or overdue), once as a heads-up in the last 24 hours when everything is ready, and once with the result (sent, failed, skipped). A release that fails (for example the event has no dates) is reported to the owner at most daily and retried at the next check; if nobody matches the list at release time the email is cancelled and the owner is told.
+- Cancel works on scheduled emails; a scheduled email's time, owner and required fields can be changed from Sent.
 
 ## Replies and bounces (phase 5)
 

@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { requireGuestInviteAccess } from '@/app/lib/guest-invites/access'
 import { createCampaign } from '@/app/lib/emails/campaigns'
+import { createScheduledCampaign } from '@/app/lib/emails/scheduled'
 import type { SpeakerAttachment } from '@/app/lib/speaker-emails/render'
 import type { AudienceInput } from '@/app/lib/emails/audience'
 
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
   const eventId = req.nextUrl.searchParams.get('event_id') ?? ''
   if (!UUID.test(eventId)) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
   const denied = await requireGuestInviteAccess(req, eventId, 'view'); if (denied) return denied
-  const { data: camps } = await supabaseAdmin.from('email_campaigns').select('id, name, subject, status, recipient_count, created_by, created_at, sent_at, sender_mode, polished').eq('event_id', eventId).order('created_at', { ascending: false }).limit(200)
+  const { data: camps } = await supabaseAdmin.from('email_campaigns').select('id, name, subject, status, recipient_count, created_by, created_at, sent_at, sender_mode, polished, scheduled_for, timezone').eq('event_id', eventId).order('created_at', { ascending: false }).limit(200)
   const ids = (camps ?? []).map(c => c.id as string)
   const counts = new Map<string, Record<string, number>>()
   if (ids.length) {
@@ -49,6 +50,17 @@ export async function POST(req: NextRequest) {
   if (b.body_html.length > 80_000) return NextResponse.json({ error: 'That email is too long.' }, { status: 400 })
 
   const audience: AudienceInput = { filters: b.filters as AudienceInput['filters'], pinned: arr(b.pinned_contact_ids), excluded: arr(b.excluded_contact_ids), allowAssistant: !!b.allow_assistant }
+  if (typeof b.send_at_local === 'string' && b.send_at_local) {
+    const sr = await createScheduledCampaign(session, {
+      eventId, name: b.name, subject: b.subject, bodyHtml: b.body_html, attachments: (Array.isArray(b.attachments) ? b.attachments : []) as SpeakerAttachment[],
+      polished: !!b.polished, originalHtml: typeof b.original_html === 'string' ? b.original_html : null,
+      listId: typeof b.list_id === 'string' && UUID.test(b.list_id) ? b.list_id : null, audience, senderMode: b.sender_mode === 'speaker_producer' ? 'speaker_producer' : 'me', confirmed: !!b.confirmed,
+      templateId: typeof b.template_id === 'string' && UUID.test(b.template_id) ? b.template_id : null, fieldValues: (b.field_values && typeof b.field_values === 'object' ? b.field_values : {}) as Record<string, unknown>,
+      sendAtLocal: b.send_at_local, ownerStaffId: typeof b.owner_staff_id === 'string' && UUID.test(b.owner_staff_id) ? b.owner_staff_id : null, rememberOwner: !!b.remember_owner,
+    })
+    if (!sr.ok) return NextResponse.json({ error: sr.error, errors: sr.errors, needs_confirmation: sr.needs_confirmation, recipients: sr.recipients }, { status: sr.status })
+    return NextResponse.json({ campaign_id: sr.campaign_id, count: sr.count, scheduled: true, released: sr.released, waiting_for: sr.waiting_for })
+  }
   const r = await createCampaign(session, {
     eventId, name: b.name, subject: b.subject, bodyHtml: b.body_html, attachments: (Array.isArray(b.attachments) ? b.attachments : []) as SpeakerAttachment[],
     polished: !!b.polished, originalHtml: typeof b.original_html === 'string' ? b.original_html : null,

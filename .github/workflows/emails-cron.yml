@@ -1,0 +1,22 @@
+name: Emails scheduler
+
+# Fires /api/cron/emails every 10 minutes. Releases scheduled emails (for example the post-event thank-you) when their send time has come and every required field is filled,
+# reminds the owner producer about anything missing, and finishes any send that was left half-done. See app/lib/emails/scheduled.ts.
+# Uses the Railway direct URL: the primary host is behind Cloudflare, which challenges GitHub Actions IPs.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Call the emails endpoint
+        run: |
+          curl --fail-with-body --silent --show-error --max-time 120 \
+            -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://eventpilot-production-90c6.up.railway.app/api/cron/emails"

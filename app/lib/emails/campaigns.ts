@@ -188,10 +188,10 @@ export async function sendBatch(campaignId: string, max = BATCH_SIZE): Promise<P
   return campaignProgress(campaignId)
 }
 
-/** Stops a campaign that is still sending: whoever has not been emailed yet is marked skipped. */
+/** Stops a campaign that is scheduled or still sending: whoever has not been emailed yet is marked skipped. */
 export async function cancelCampaign(campaignId: string): Promise<Progress | null> {
   await supabaseAdmin.from('email_campaign_recipients').update({ status: 'skipped', skip_reason: 'Cancelled before it was sent', claimed_at: null }).eq('campaign_id', campaignId).eq('status', 'queued')
-  await supabaseAdmin.from('email_campaigns').update({ status: 'cancelled', sent_at: new Date().toISOString() }).eq('id', campaignId).eq('status', 'sending')
+  await supabaseAdmin.from('email_campaigns').update({ status: 'cancelled', sent_at: new Date().toISOString() }).eq('id', campaignId).in('status', ['sending', 'scheduled'])
   return campaignProgress(campaignId)
 }
 
