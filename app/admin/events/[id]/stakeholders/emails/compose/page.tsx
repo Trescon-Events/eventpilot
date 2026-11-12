@@ -9,6 +9,7 @@ import PageHeader from '@/app/components/PageHeader'
 import { Badge, Button, Card, Input } from '@/app/components/ui'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import { notify } from '@/app/lib/ui/notify'
+import { ReviewPanel, type ReviewInfo } from '../ReviewPanel'
 import { hasContent, wordCount, renderSpeakerEmail, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS } from '@/app/lib/speaker-emails/render'
 import { PERSON_TOKENS, EVENT_TOKENS, applyTokens, applyTokensPlain, dataTokensUsed, personValues, type RequiredField } from '@/app/lib/emails/templates'
 import { formatSendTime, localToUtc } from '@/app/lib/emails/schedule'
@@ -22,7 +23,7 @@ type Finding = { message: string; match: string }
 type Person = { key: string; name: string; company: string | null; role: string | null; to: string; cc: string[]; mode: 'own' | 'assistant'; producer: string | null; last_emailed: string | null }
 type Preview = { summary: { will_receive: number; excluded: number; reasons: Record<string, number>; via_contact: number }; recipients: Person[]; overlap?: { campaign_id: string; name: string; sent_at: string; overlap: number; total: number }[] }
 type ListOpt = { id: string; name: string; type: 'static' | 'active'; will_receive: number; event_id: string | null }
-type Tpl = { id: string; name: string; description: string | null; subject: string; body_html: string; required_fields: RequiredField[]; default_sender_mode: 'me' | 'speaker_producer' | null; event_id: string | null }
+type Tpl = { id: string; name: string; description: string | null; subject: string; body_html: string; required_fields: RequiredField[]; default_sender_mode: 'me' | 'speaker_producer' | null; event_id: string | null; review?: ReviewInfo | null }
 type Defaults = { timezone: string | null; default_send_at_local: string | null; default_in_past: boolean; owner_staff_id: string | null; staff: { id: string; name: string }[] }
 type Progress = { sent: number; failed: number; skipped: number; queued: number; sending: number; total: number }
 
@@ -181,6 +182,12 @@ function CreateEmail({ params }: { params: Promise<{ id: string }> }) {
     if (ev.public_venue_display) v.event_venue = ev.public_venue_display as string
     return v
   }, [ev, fieldValues])
+  async function reloadTpls(keepId?: string) {
+    const d = await fetch(`/api/events/stakeholders/email-templates?event_id=${eventId}`).then(r => r.json()).catch(() => null)
+    const next: Tpl[] = d?.templates ?? []
+    setTpls(next)
+    if (keepId) setPickPreview(next.find(t => t.id === keepId) ?? null)
+  }
   function applyTemplate(t: Tpl) {
     setTplId(t.id); setFieldValues({}); setPolish(null); setFirstOriginal(null)
     setSubject(t.subject); editor?.commands.setContent(t.body_html); setWords(wordCount(t.body_html))
@@ -547,8 +554,9 @@ function CreateEmail({ params }: { params: Promise<{ id: string }> }) {
                 <div style={{ fontSize: '13px', color: 'var(--ink2)', margin: '10px 0 6px' }}>Subject: <strong>{applyTokensPlain(pickPreview.subject, { ...eventValues, ...personValues('Asha Rao', { company: 'Company', role: 'Job title' }) })}</strong></div>
                 <iframe title="Template preview" sandbox="" srcDoc={renderSpeakerEmail({ bodyHtml: applyTokens(pickPreview.body_html, { ...eventValues, ...personValues('Asha Rao', { company: 'Company', role: 'Job title' }), ...Object.fromEntries(pickPreview.required_fields.map(f => [f.key, f.kind === 'url' ? 'https://example.com/your-link' : `[${f.label}]`])) }), publicName: 'Asha Rao', producerName: 'Sender name' })} style={{ width: '100%', height: '340px', border: '1px solid var(--border)', borderRadius: '10px', background: 'white' }} />
                 {pickPreview.required_fields.length > 0 && <div style={{ fontSize: '12.5px', color: 'var(--ink2)', marginTop: '8px' }}>This template needs: {pickPreview.required_fields.map(f => f.label).join(', ')}.</div>}
+                <div style={{ marginTop: '10px' }}><ReviewPanel eventId={eventId} templateId={pickPreview.id} review={pickPreview.review ?? null} onChanged={() => { void reloadTpls(pickPreview.id) }} /></div>
                 <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '6px' }}>Using it copies the text into your email. Your edits never change the template.</div>
-                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '14px' }}><Button variant="ghost" onClick={() => setPickPreview(null)}>Back</Button><Button variant="teal" onClick={() => applyTemplate(pickPreview)}>Use this template</Button></div>
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '14px' }}><Button variant="ghost" onClick={() => setPickPreview(null)}>Back</Button><Button variant="teal" disabled={pickPreview.review?.state === 'stale'} onClick={() => applyTemplate(pickPreview)}>Use this template</Button></div>
               </>
             )}
           </div>

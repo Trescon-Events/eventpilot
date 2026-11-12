@@ -8,6 +8,7 @@ import { attachmentUrlOk, loadAttachmentBytes } from '@/app/lib/speaker-emails/s
 import { resolveAudience, loadSavedList, audienceOfList, cleanFilters, type AudienceInput } from './audience'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { eventDateText } from '@/app/lib/events/event-days'
+import { templateGate } from './template-review'
 import { applyTokens, applyTokensPlain, checkRequiredFields, dataTokensUsed, missingFieldTokens, personValues, unresolvedTokens, type RequiredField } from './templates'
 
 /* Emails module, phase 2 (2026-11-12) — one named email to a list. Creating a campaign FREEZES the audience into one row per person; sending then works through those
@@ -31,7 +32,7 @@ export type CampaignInput = {
   paceHours?: number | null            // spread a big send over this many hours (the cron drips it out)
   skipUnpersonalisable?: boolean       // leave out people who lack the company / job title the email uses
 }
-export type Fail = { ok: false; error: string; status: number; errors?: { message: string; match: string }[]; needs_confirmation?: boolean; recipients?: number; unpersonalisable?: { count: number; names: string[]; fields: string[] } }
+export type Fail = { ok: false; error: string; status: number; needs_review?: boolean; reasons?: string[]; errors?: { message: string; match: string }[]; needs_confirmation?: boolean; recipients?: number; unpersonalisable?: { count: number; names: string[]; fields: string[] } }
 type Finding = { message: string; match: string }
 const finding = (x: Finding): Finding => ({ message: x.message, match: x.match })
 
@@ -105,6 +106,8 @@ export async function createCampaign(session: TcsSession, input: CampaignInput):
   if (!input.name.trim()) return { ok: false, error: 'Give this email a name, so you can find it later in Sent.', status: 422 }
   const prepared = await prepareContent(input.eventId, input.subject, input.bodyHtml, { templateId: input.templateId, fieldValues: input.fieldValues })
   if (!prepared.ok) return prepared
+  const gate = await templateGate(input.eventId, prepared.templateId)
+  if (!gate.ok) return gate
   const content = await checkEmailContent(input.eventId, prepared.subject, prepared.bodyHtml, input.attachments)
   if (!content.ok) return content
 
@@ -133,7 +136,7 @@ export async function createCampaign(session: TcsSession, input: CampaignInput):
   const me = await resolveSenderIdentity(session, FALLBACK_SENDER, null)
   const now = new Date().toISOString()
   const { data: camp, error } = await supabaseAdmin.from('email_campaigns').insert({
-    name: input.name.trim(), event_id: input.eventId, audience_type: 'speaker', template_id: prepared.templateId, field_values: prepared.fieldValues, subject: prepared.subject.trim(), body_html: content.bodyHtml, polished: !!input.polished,
+    name: input.name.trim(), event_id: input.eventId, audience_type: 'speaker', template_id: prepared.templateId, field_values: prepared.fieldValues, template_review: gate.review, subject: prepared.subject.trim(), body_html: content.bodyHtml, polished: !!input.polished,
     original_html: input.polished ? (input.originalHtml ?? null) : null, attachments: input.attachments, list_id: input.listId ?? null, list_filters: listFilters,
     allow_assistant: false, pace_hours: input.paceHours ?? null, released_at: input.paceHours ? now : null, sender_mode: input.senderMode, sender_staff_id: session.sid && session.sid !== 'super-admin' ? session.sid : null,
     owner_staff_id: session.sid && session.sid !== 'super-admin' ? session.sid : null, status: 'sending', recipient_count: a.recipients.length, created_by: session.sid ?? null, created_at: now,

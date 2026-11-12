@@ -5,6 +5,7 @@ import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { cleanBodyHtml } from '@/app/lib/speaker-emails/render'
 import { validateTemplate } from '@/app/lib/emails/templates'
+import { reviewStates } from '@/app/lib/emails/template-review'
 
 /* Emails → Templates (2026-11-12, phase 3). Templates for the Emails module live in email_templates with audience_type 'speaker'. A shared template (event_id NULL) is edited by
    admins; a producer customises a COPY for their own event, or makes a new one for it. Archiving hides a template; nothing is ever hard-deleted, so past emails keep their record.
@@ -37,7 +38,9 @@ export async function GET(req: NextRequest) {
     supabaseAdmin.from('email_templates').select(COLS).eq('audience_type', 'speaker').eq('is_active', true).or(`event_id.is.null,event_id.eq.${eventId}`).order('name'),
     supabaseAdmin.from('email_templates').select('id, name, category, description').is('audience_type', null).is('event_id', null).eq('is_active', true).order('category').order('name'),
   ])
-  return NextResponse.json({ templates: mine ?? [], others: others ?? [], can_edit_shared: !!session.adm, can_edit_event: await canEditEvent(session, eventId) }, { headers: { 'Cache-Control': 'no-store' } })
+  const reviews = await reviewStates(eventId, (mine ?? []).map(t => ({ id: t.id as string, updated_at: (t.updated_at as string | null) ?? null }))).catch(() => new Map())
+  const templates = (mine ?? []).map(t => ({ ...t, review: reviews.get(t.id as string) ?? null }))
+  return NextResponse.json({ templates, others: others ?? [], can_edit_shared: !!session.adm, can_edit_event: await canEditEvent(session, eventId) }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
 export async function POST(req: NextRequest) {

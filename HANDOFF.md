@@ -22,7 +22,16 @@ Spec: `docs/build_suggestions/copy-library.md`. Migration `supabase/copy_library
   2. **Workspace badge** — "N need review" shows on the Copy Library tab only, not on the event workspace home.
   Also later: press releases / invites / Konfhub / website / YouTube consume the library in their own builds.
 
-## Emails module — restructure (HubSpot-style), built 12 Nov 2026, NOT pushed; migration RUN on production
+## Emails module — template review (12 Nov 2026) — built, NOT pushed; migration RUN on production
+A template must be confirmed "still accurate for this event" before it is used. Stale = never reviewed for the event, template text edited after the review, the event's `event_compiled_reference` version changed (a messaging doc/style guide approved), or review older than 90 days.
+- `supabase/emails_template_review_migration.sql` (RUN): `email_template_reviews`, `email_campaigns.template_review` + `template_nudged_at`.
+- `app/lib/emails/review-rules.ts` (+test) pure rules; `template-review.ts` server (`reviewStates`, `templateGate`, `confirmReview`); gate called in `createCampaign` and `createScheduledCampaign` only (not test send, not release); owner nudge in `runDueCampaigns` (weekly max).
+- Routes: `email-templates/review` (POST confirm, needs `sae.stakeholders.edit`), `email-templates/suggest` (polish-based, saves nothing); `GET email-templates` now returns `review` per template. `polishEmail` gained optional `extraRules`.
+- UI: `emails/ReviewPanel.tsx` used on Templates (badge + panel) and in the Create-email picker (Use this template locked while stale).
+- Verified: 49 email tests, tsc, lint, check:nav/keys, and a throwaway-event run of all states (never/confirm/new reference/re-approved/91 days/other event) — cleaned up. NOT exercised in the browser UI or the cron nudge.
+- Defaults chosen, not confirmed by Madhu: any event producer may confirm; admins edit shared templates; same rule for event copies.
+
+## Emails module — restructure (HubSpot-style), built 12 Nov 2026, PUSHED (b6dffac); migration RUN on production
 - Asked for by Madhu: recipients always addressed to the speaker (own address + additional contacts in Cc; no own address → first additional contact in To, rest Cc; assistant mode removed); a left side panel (Emails landing / Lists / Templates); static and active lists; template picker pop-up; email named + assigned to an event; plus all recommended extras. Full description in `docs/build_suggestions/emails-module.md` ("Restructure").
 - Migration `supabase/emails_restructure_migration.sql` (run): `email_lists.list_type/members/description`, `email_campaign_recipients.company/role`, `email_campaigns.pace_hours/draft_state`, permission `sae.emails.send_bulk` granted to roles that hold `sae.stakeholders.edit` (2 roles), registered in `access-permissions.ts`.
 - Pages (all under `stakeholders/emails/`): `layout.tsx`+`EmailsShell.tsx` (side panel), `page.tsx` (Emails landing), `lists/page.tsx`+`FilterPanel.tsx` (index, builder, detail), `compose/page.tsx` (Create email: drafts autosave, template pop-up, preview-as, checks, pacing), `templates/page.tsx` (assistant checkbox and default-audience removed), `sent/page.tsx` (redirect to `/emails?open=` so old links work), `[stakeholderId]/EmailsTab.tsx` (speaker record timeline). Old `EmailsTabs.tsx` deleted.

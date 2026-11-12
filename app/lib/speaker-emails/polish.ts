@@ -27,7 +27,7 @@ export function parsePolishResponse(raw: string): { polished_html: string; chang
   } catch { return null }
 }
 
-export async function polishEmail(args: { eventId: string; eventName: string; bodyHtml: string; pronounStyles: string[] }): Promise<PolishResult | { error: string }> {
+export async function polishEmail(args: { eventId: string; eventName: string; bodyHtml: string; pronounStyles: string[]; extraRules?: string }): Promise<PolishResult | { error: string }> {
   if (!hasContent(args.bodyHtml)) return { error: 'Write something first — Polish tidies what you have written.' }
   const guidelines = await getEventGuidelines(args.eventId).catch(() => null)
   const guideText = guidelines ? clip(renderGuidelinesMarkdown(guidelines, ['style_guide', 'messaging']), 60_000) : ''
@@ -50,7 +50,7 @@ WHAT TO DO
 - Use plain English with no jargon, no exclamation marks and no emoji. Output simple HTML only: <p>, <strong>, <em>, <ul>, <ol>, <li>, <a href>.
 ${honorifics.length ? `- If speakers are referred to in the third person, use their required form of address: ${honorifics.join('; ')}.\n` : ''}
 ${guideText ? `EVENT GUIDELINES (follow these)\n${guideText}\n` : ''}
-THE PRODUCER'S DRAFT
+${args.extraRules ? `EXTRA RULES\n${args.extraRules}\n\n` : ''}THE PRODUCER'S DRAFT
 ${htmlToPlainText(args.bodyHtml)}
 
 Return JSON only, no markdown fences: { "polished_html": "<p>…</p>", "changes": ["short plain-English note of what you changed", "…"] }

@@ -1,3 +1,4 @@
+import { reviewStates, templateGate } from './template-review'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import type { TcsSession } from '@/app/lib/access/session'
 import { resolveSenderIdentity } from '@/app/lib/email/sender-identity'
@@ -56,6 +57,8 @@ export async function createScheduledCampaign(session: TcsSession, input: Schedu
   const at = localToUtc(input.sendAtLocal, tz)
   if (!at) return { ok: false, error: 'Choose a valid send date and time.', status: 422 }
 
+  const gate = await templateGate(input.eventId, input.templateId)
+  if (!gate.ok) return gate
   let fields: RequiredField[] = []
   if (input.templateId) {
     const { data: t } = await supabaseAdmin.from('email_templates').select('id, required_fields, event_id, audience_type, is_active').eq('id', input.templateId).maybeSingle()
@@ -85,7 +88,7 @@ export async function createScheduledCampaign(session: TcsSession, input: Schedu
   const sid = session.sid && session.sid !== 'super-admin' ? session.sid : null
   const owner = input.ownerStaffId || sid
   const { data: camp, error } = await supabaseAdmin.from('email_campaigns').insert({
-    name: input.name.trim(), event_id: input.eventId, audience_type: 'speaker', template_id: input.templateId ?? null, field_values: given.values,
+    name: input.name.trim(), event_id: input.eventId, audience_type: 'speaker', template_id: input.templateId ?? null, template_review: gate.review, field_values: given.values,
     subject: input.subject.trim(), body_html: content.bodyHtml, polished: !!input.polished, original_html: input.polished ? (input.originalHtml ?? null) : null, attachments: input.attachments,
     list_id: input.listId ?? null, list_filters: cleanFilters(audience.filters), audience_pinned: audience.pinned ?? [], audience_excluded: audience.excluded ?? [], allow_assistant: false,
     sender_mode: input.senderMode, sender_staff_id: sid, owner_staff_id: owner, status: 'scheduled', scheduled_for: at.toISOString(), timezone: tz, recipient_count: estimate.recipients.length, created_by: session.sid ?? null,
@@ -204,6 +207,18 @@ export async function runDueCampaigns(budgetMs = 45_000): Promise<CronResult> {
         await notifyOwner(c, 'heads_up', `“${c.name}” goes out soon`, `It is scheduled for ${when}, to about ${c.recipient_count} people. The list is worked out again at that moment. Check the wording under Emails → Sent if you need to.`)
         await supabaseAdmin.from('email_campaigns').update({ heads_up_sent_at: now.toISOString() }).eq('id', c.id)
         out.heads_up++
+      }
+      // the template this email was made from has gone stale since it was scheduled: tell the owner, at most once a week
+      if (!d.release && c.template_id) {
+        const last = c.template_nudged_at ? new Date(c.template_nudged_at as string).getTime() : 0
+        if (now.getTime() - last > 7 * 24 * 3_600_000) {
+          const { data: t } = await supabaseAdmin.from('email_templates').select('id, name, updated_at').eq('id', c.template_id as string).maybeSingle()
+          const st = t ? (await reviewStates(c.event_id as string, [{ id: t.id as string, updated_at: t.updated_at as string | null }], now)).get(t.id as string) : null
+          if (t && st?.state === 'stale') {
+            await notifyOwner(c, 'template_review', `Check the wording of “${c.name}”`, `It is scheduled for ${when}, and the “${t.name}” template it came from needs checking for this event: ${st.reasons[0] ?? 'the event’s messaging docs changed.'} Open the email under Emails → Sent and compare it with the messaging doc.`)
+            await supabaseAdmin.from('email_campaigns').update({ template_nudged_at: now.toISOString() }).eq('id', c.id)
+          }
+        }
       }
     } catch (e) { out.problems.push(`${c.name}: ${e instanceof Error ? e.message : String(e)}`) }
   }

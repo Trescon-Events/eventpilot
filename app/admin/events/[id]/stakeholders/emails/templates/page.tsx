@@ -8,6 +8,7 @@ import PageHeader from '@/app/components/PageHeader'
 import { Badge, Button, Card, Input } from '@/app/components/ui'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import { notify } from '@/app/lib/ui/notify'
+import { ReviewPanel, type ReviewInfo } from '../ReviewPanel'
 import { renderSpeakerEmail } from '@/app/lib/speaker-emails/render'
 import { EVENT_TOKENS, PERSON_TOKENS, applyTokens, applyTokensPlain, personValues, type RequiredField } from '@/app/lib/emails/templates'
 
@@ -16,7 +17,7 @@ import { EVENT_TOKENS, PERSON_TOKENS, applyTokens, applyTokensPlain, personValue
 
 type Template = {
   id: string; name: string; description: string | null; subject: string; body_html: string; required_fields: RequiredField[]; allow_assistant: boolean
-  default_sender_mode: 'me' | 'speaker_producer' | null; default_audience: 'confirmed' | 'spoke' | 'confirmed_or_spoke' | null; event_id: string | null; parent_template_id: string | null; is_shared: boolean
+  default_sender_mode: 'me' | 'speaker_producer' | null; default_audience: 'confirmed' | 'spoke' | 'confirmed_or_spoke' | null; event_id: string | null; parent_template_id: string | null; is_shared: boolean; review?: ReviewInfo | null
 }
 type Other = { id: string; name: string; category: string; description: string | null }
 type Draft = Omit<Template, 'id'> & { id: string | null }
@@ -108,7 +109,7 @@ export default function TemplatesPage({ params }: { params: Promise<{ id: string
             <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '8px' }}>Shared templates</div>
             {shared.map(t => (
               <button key={t.id} type="button" onClick={() => open(t)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: '8px', border: `1px solid ${draft?.id === t.id ? 'var(--teal-mid)' : 'transparent'}`, background: draft?.id === t.id ? 'var(--teal-light)' : 'none', cursor: 'pointer', marginBottom: '2px' }}>
-                <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>{t.name}</div>
+                <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>{t.name} {t.review?.state === 'stale' && <Badge color="amber">Needs review</Badge>}</div>
                 {t.required_fields.length > 0 && <div style={{ fontSize: '11.5px', color: 'var(--ink3)' }}>Needs: {t.required_fields.map(f => f.label).join(', ')}</div>}
               </button>
             ))}
@@ -119,7 +120,7 @@ export default function TemplatesPage({ params }: { params: Promise<{ id: string
             {mine.length === 0 && <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '8px' }}>None yet. Customise a shared one, or start your own.</div>}
             {mine.map(t => (
               <button key={t.id} type="button" onClick={() => open(t)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: '8px', border: `1px solid ${draft?.id === t.id ? 'var(--teal-mid)' : 'transparent'}`, background: draft?.id === t.id ? 'var(--teal-light)' : 'none', cursor: 'pointer', marginBottom: '2px' }}>
-                <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>{t.name}</div>
+                <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>{t.name} {t.review?.state === 'stale' && <Badge color="amber">Needs review</Badge>}</div>
               </button>
             ))}
             {canEvent && <Button variant="ghost" onClick={() => open(blank(false))}>+ New template for this event</Button>}
@@ -146,6 +147,7 @@ export default function TemplatesPage({ params }: { params: Promise<{ id: string
               {draft.id && !draft.event_id && canShared && (
                 <div style={{ marginBottom: '12px', fontSize: '12.5px', color: 'var(--ink3)' }}>Shared: changes here apply to every event that uses it from now on. <button type="button" onClick={() => copy(draft as Template)} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--teal-mid)', fontWeight: 700, cursor: 'pointer' }}>Customise a copy for this event instead</button></div>
               )}
+              {draft.id && <div style={{ marginBottom: '12px' }}><ReviewPanel eventId={eventId} templateId={draft.id} review={templates.find(t => t.id === draft.id)?.review ?? null} onChanged={() => { void load() }} onApply={h => { editor?.commands.setContent(h); setTick(x => x + 1) }} /></div>}
               <div style={{ display: 'grid', gap: '12px' }}>
                 <div><div style={label}>Name</div><Input value={draft.name} disabled={readOnly} onChange={e => set({ name: e.target.value })} placeholder="e.g. Thank you after the event" /></div>
                 <div><div style={label}>What it is for (only producers see this)</div><Input value={draft.description ?? ''} disabled={readOnly} onChange={e => set({ description: e.target.value })} /></div>
