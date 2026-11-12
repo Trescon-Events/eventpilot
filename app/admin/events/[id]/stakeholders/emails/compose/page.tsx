@@ -1,77 +1,94 @@
 'use client'
 
-import { use, useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, use, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import PageHeader from '@/app/components/PageHeader'
-import { Button, Card, Input } from '@/app/components/ui'
+import { Badge, Button, Card, Input } from '@/app/components/ui'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import { notify } from '@/app/lib/ui/notify'
 import { hasContent, wordCount, renderSpeakerEmail, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS } from '@/app/lib/speaker-emails/render'
-import { applyTokens, applyTokensPlain, personValues, type RequiredField } from '@/app/lib/emails/templates'
+import { PERSON_TOKENS, EVENT_TOKENS, applyTokens, applyTokensPlain, dataTokensUsed, personValues, type RequiredField } from '@/app/lib/emails/templates'
 import { formatSendTime, localToUtc } from '@/app/lib/emails/schedule'
-import EmailsTabs from '../EmailsTabs'
 
-/* Emails → Compose (2026-11-12, phase 2). Choose who (a saved list, or everyone confirmed / who spoke at this event), write the email (Polish and attachments as on the old
-   Speaker Emails page), send yourself a test, then review and send. The audience is frozen when you press Send; each person gets the body with their own greeting and the
-   sender's sign-off, from the sender's own mailbox, as a new conversation with your subject. Named and saved under Sent with its numbers. */
+/* Create email (2026-11-12). Name it, choose the event it belongs to and the LIST it goes to, start from a template (searchable, previewed in a pop-up, then copied into this email so
+   your edits never change the template), write, check it per person, then send now, spread a big send over hours, or schedule it. Autosaves as a draft; "Duplicate" and "Follow up"
+   on the Emails page open here too. */
 
 type Attachment = { name: string; url: string; size: number; type: string }
 type Finding = { message: string; match: string }
-type Preview = {
-  summary: { will_receive: number; excluded: number; reasons: Record<string, number>; via_assistant: number }
-  recipients: { key: string; name: string; to: string; cc: string[]; mode: 'own' | 'assistant'; company: string | null }[]
-  overlap?: { campaign_id: string; name: string; sent_at: string; overlap: number; total: number }[]
-}
-type SavedList = { id: string; name: string; event_id: string | null }
-type Tpl = { id: string; name: string; subject: string; body_html: string; required_fields: RequiredField[]; allow_assistant: boolean; default_sender_mode: 'me' | 'speaker_producer' | null; default_audience: 'confirmed' | 'spoke' | 'confirmed_or_spoke' | null; event_id: string | null }
-type Defaults = { timezone: string | null; event_end: string | null; default_send_at_local: string | null; default_in_past: boolean; owner_staff_id: string | null; remembered_owner: boolean; staff: { id: string; name: string }[] }
-type Progress = { status: string; total: number; sent: number; failed: number; skipped: number; queued: number; sending: number }
+type Person = { key: string; name: string; company: string | null; role: string | null; to: string; cc: string[]; mode: 'own' | 'assistant'; producer: string | null; last_emailed: string | null }
+type Preview = { summary: { will_receive: number; excluded: number; reasons: Record<string, number>; via_contact: number }; recipients: Person[]; overlap?: { campaign_id: string; name: string; sent_at: string; overlap: number; total: number }[] }
+type ListOpt = { id: string; name: string; type: 'static' | 'active'; will_receive: number; event_id: string | null }
+type Tpl = { id: string; name: string; description: string | null; subject: string; body_html: string; required_fields: RequiredField[]; default_sender_mode: 'me' | 'speaker_producer' | null; event_id: string | null }
+type Defaults = { timezone: string | null; default_send_at_local: string | null; default_in_past: boolean; owner_staff_id: string | null; staff: { id: string; name: string }[] }
+type Progress = { sent: number; failed: number; skipped: number; queued: number; sending: number; total: number }
 
 const CONFIRM_ABOVE = 20
-const QUICK: Record<string, { label: string; statuses: string[] }> = {
-  confirmed: { label: 'Everyone confirmed at this event', statuses: ['Confirmed', 'New Confirmed', 'Reconfirmed'] },
-  spoke: { label: 'Everyone who spoke at this event', statuses: ['Spoke'] },
-  both: { label: 'Everyone confirmed or who spoke at this event', statuses: ['Confirmed', 'New Confirmed', 'Reconfirmed', 'Spoke'] },
-}
-const kb = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`)
+const MAILBOX_WARN = 200
 const fmt = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+const kb = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`)
 const label: React.CSSProperties = { fontSize: '11px', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--ink3)' }
+const sub: React.CSSProperties = { fontSize: '12.5px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px' }
+const sel: React.CSSProperties = { width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '14px' }
 
-export default function ComposePage({ params }: { params: Promise<{ id: string }> }) {
-  const { id: eventId } = use(params)
-  const [eventName, setEventName] = useState<string | null>(null)
-  useBreadcrumbLabel(eventId, eventName)
-  const [lists, setLists] = useState<SavedList[]>([])
-  const [audience, setAudience] = useState('quick:confirmed')
-  const [allowAssistant, setAllowAssistant] = useState(false)
-  const [preview, setPreview] = useState<Preview | null>(null)
+export default function CreateEmailPage({ params }: { params: Promise<{ id: string }> }) {
+  return <Suspense fallback={null}><CreateEmail params={params} /></Suspense>
+}
+
+function CreateEmail({ params }: { params: Promise<{ id: string }> }) {
+  const { id: workspaceEventId } = use(params)
+  const router = useRouter()
+  const search = useSearchParams()
+  const base = `/admin/events/${workspaceEventId}/stakeholders/emails`
+  const [workspaceName, setWorkspaceName] = useState<string | null>(null)
+  useBreadcrumbLabel(workspaceEventId, workspaceName)
+
+  const [eventId, setEventId] = useState(workspaceEventId)
+  const [events, setEvents] = useState<{ id: string; name: string }[]>([])
+  const [ev, setEv] = useState<Record<string, string | null>>({})
   const [name, setName] = useState('')
+  const [listId, setListId] = useState(search.get('list') ?? '')
+  const [lists, setLists] = useState<ListOpt[]>([])
+  const [preview, setPreview] = useState<Preview | null>(null)
+  const [tpls, setTpls] = useState<Tpl[]>([])
+  const [tplId, setTplId] = useState('')
+  const [pickOpen, setPickOpen] = useState(false)
+  const [pickQ, setPickQ] = useState('')
+  const [pickPreview, setPickPreview] = useState<Tpl | null>(null)
   const [subject, setSubject] = useState('')
-  const [senderMode, setSenderMode] = useState<'me' | 'speaker_producer'>('me')
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [uploading, setUploading] = useState(false)
   const [words, setWords] = useState(0)
   const [polishing, setPolishing] = useState(false)
   const [polish, setPolish] = useState<{ before: string; changes: string[]; errors: Finding[]; warnings: Finding[] } | null>(null)
   const [firstOriginal, setFirstOriginal] = useState<string | null>(null)
-  const [findings, setFindings] = useState<{ errors: Finding[]; warnings: Finding[] } | null>(null)
-  const [reviewing, setReviewing] = useState(false)
-  const [confirmed, setConfirmed] = useState(false)
-  const [busy, setBusy] = useState<'test' | 'send' | null>(null)
-  const [progress, setProgress] = useState<Progress | null>(null)
-  const [done, setDone] = useState<{ id: string; progress: Progress | null; scheduled?: { when: string; waiting: string[] } } | null>(null)
+  const [senderMode, setSenderMode] = useState<'me' | 'speaker_producer'>('me')
   const [when, setWhen] = useState<'now' | 'schedule'>('now')
   const [sendAt, setSendAt] = useState('')
+  const [pace, setPace] = useState(0)
   const [defaults, setDefaults] = useState<Defaults | null>(null)
   const [ownerId, setOwnerId] = useState('')
   const [rememberOwner, setRememberOwner] = useState(false)
+  const [previewAs, setPreviewAs] = useState(0)
+  const [findings, setFindings] = useState<{ errors: Finding[]; warnings: Finding[] } | null>(null)
+  const [reviewing, setReviewing] = useState(false)
+  const [confirmed, setConfirmed] = useState(false)
+  const [skipLacking, setSkipLacking] = useState(false)
+  const [lacking, setLacking] = useState<{ count: number; names: string[]; fields: string[] } | null>(null)
+  const [busy, setBusy] = useState<'test' | 'send' | null>(null)
+  const [progress, setProgress] = useState<Progress | null>(null)
+  const [done, setDone] = useState<{ id: string; progress: Progress | null; scheduled?: { when: string; waiting: string[] }; paced?: number } | null>(null)
   const [myName, setMyName] = useState('')
-  const [tpls, setTpls] = useState<Tpl[]>([])
-  const [tplId, setTplId] = useState('')
-  const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
-  const [ev, setEv] = useState<Record<string, string | null>>({})
+  const [draftId, setDraftId] = useState<string | null>(search.get('draft'))
+  const [savedAt, setSavedAt] = useState<string | null>(null)
+  const [loadingDraft, setLoadingDraft] = useState(!!search.get('draft'))
+  const [ready, setReady] = useState(false)
+  const draftRef = useRef<string | null>(draftId)
+  useEffect(() => { draftRef.current = draftId }, [draftId])
 
   const editor = useEditor({
     extensions: [StarterKit.configure({ heading: false, blockquote: false, codeBlock: false, code: false, horizontalRule: false, strike: false, link: { openOnClick: false } })],
@@ -79,55 +96,125 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
     editorProps: { attributes: { 'aria-label': 'Email message', style: 'min-height:240px;outline:none;' } },
     onUpdate: ({ editor: ed }) => setWords(wordCount(ed.getHTML())),
   })
+  const html = () => editor?.getHTML() ?? ''
 
+  // ── loading ────────────────────────────────────────────────────────────────
   useEffect(() => {
-    fetch(`/api/events?id=${eventId}`).then(r => r.json()).then(d => { const e = Array.isArray(d) ? d[0] : d; setEventName(e?.name ?? null); setEv(e ?? {}) }).catch(() => {})
-    fetch(`/api/events/stakeholders/email-templates?event_id=${eventId}`).then(r => r.json()).then(d => setTpls(d.templates ?? [])).catch(() => {})
-    fetch(`/api/events/stakeholders/email-lists?event_id=${eventId}`).then(r => r.json()).then(d => setLists(d.lists ?? [])).catch(() => {})
-    fetch(`/api/events/stakeholders/email-campaigns/schedule-defaults?event_id=${eventId}`).then(r => r.json()).then((d: Defaults) => { setDefaults(d); setOwnerId(d.owner_staff_id ?? '') }).catch(() => {})
+    fetch(`/api/events?id=${workspaceEventId}`).then(r => r.json()).then(d => setWorkspaceName((Array.isArray(d) ? d[0] : d)?.name ?? null)).catch(() => {})
+    fetch(`/api/events/stakeholders/email-campaigns?event_id=${workspaceEventId}&scope=all`).then(r => r.json()).then(d => setEvents(d.events ?? [])).catch(() => {})
     fetch('/api/events/stakeholders/email-campaigns/sender').then(r => r.json()).then(s => setMyName(s?.name ?? '')).catch(() => {})
+  }, [workspaceEventId])
+  useEffect(() => {
+    fetch(`/api/events?id=${eventId}`).then(r => r.json()).then(d => setEv((Array.isArray(d) ? d[0] : d) ?? {})).catch(() => {})
+    fetch(`/api/events/stakeholders/email-lists?event_id=${eventId}`).then(r => r.json()).then(d => setLists(d.lists ?? [])).catch(() => {})
+    fetch(`/api/events/stakeholders/email-templates?event_id=${eventId}`).then(r => r.json()).then(d => setTpls(d.templates ?? [])).catch(() => {})
+    fetch(`/api/events/stakeholders/email-campaigns/schedule-defaults?event_id=${eventId}`).then(r => r.json()).then((d: Defaults) => { setDefaults(d); setOwnerId(o => o || d.owner_staff_id || '') }).catch(() => {})
   }, [eventId])
 
-  const audienceBody = useCallback(() => (audience.startsWith('list:')
-    ? { list_id: audience.slice(5) }
-    : { filters: { event_ids: [eventId], statuses: QUICK[audience.slice(6)]?.statuses ?? [] }, allow_assistant: allowAssistant }), [audience, allowAssistant, eventId])
-
+  // an existing draft (continue editing, duplicate, follow-up) fills the form
   useEffect(() => {
+    const id = search.get('draft')
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- nothing to load: the form is ready straight away
+    if (!id || !editor) { if (!id) setReady(true); return }
     let live = true
     void (async () => {
-      const r = await fetch('/api/events/stakeholders/email-people', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, include_overlap: true, ...audienceBody() }) })
+      const r = await fetch(`/api/events/stakeholders/email-campaigns/${id}`)
       const d = await r.json().catch(() => null)
-      if (live && r.ok) setPreview(d)
+      if (!live) return
+      if (r.ok && d?.campaign?.status === 'draft') {
+        const c = d.campaign
+        setEventId(c.event_id); setName(c.name === 'Untitled email' ? '' : c.name); setSubject(c.subject ?? ''); setListId(c.list_id ?? ''); setTplId(c.template_id ?? '')
+        setFieldValues(c.field_values ?? {}); setAttachments(c.attachments ?? []); setSenderMode(c.sender_mode === 'speaker_producer' ? 'speaker_producer' : 'me')
+        editor.commands.setContent(c.body_html || ''); setWords(wordCount(c.body_html || ''))
+        const st = c.draft_state ?? {}
+        if (st.when === 'schedule') setWhen('schedule'); if (typeof st.sendAt === 'string') setSendAt(st.sendAt); if (typeof st.pace === 'number') setPace(st.pace); if (st.ownerId) setOwnerId(st.ownerId)
+        setDraftId(c.id)
+      } else notify('That draft no longer exists.', 'error')
+      setLoadingDraft(false); setReady(true)
     })()
     return () => { live = false }
-  }, [eventId, audienceBody])
+  }, [search, editor])
 
-  const count = preview?.summary.will_receive ?? 0
-  const html = () => editor?.getHTML() ?? ''
+  // who the chosen list reaches right now
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- no list chosen: nothing to preview
+    if (!listId) { setPreview(null); return }
+    let live = true
+    void (async () => {
+      const r = await fetch('/api/events/stakeholders/email-people', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, list_id: listId, include_overlap: true }) })
+      const d = await r.json().catch(() => null)
+      if (live && r.ok) { setPreview(d); setPreviewAs(0) }
+    })()
+    return () => { live = false }
+  }, [eventId, listId])
+
   const tpl = tpls.find(t => t.id === tplId) ?? null
-  const fieldsFilled = !tpl || tpl.required_fields.every(f => (fieldValues[f.key] ?? '').trim())
   const scheduling = when === 'schedule'
   const sendAtDate = scheduling ? localToUtc(sendAt, defaults?.timezone) : null
-  const ready = hasContent(html()) && !!subject.trim() && !!name.trim() && count > 0 && (scheduling ? !!sendAtDate : fieldsFilled)
+  const count = preview?.summary.will_receive ?? 0
+  const fieldsFilled = !tpl || tpl.required_fields.every(f => (fieldValues[f.key] ?? '').trim())
 
-  function chooseTemplate(id: string) {
-    setTplId(id); setFieldValues({}); setPolish(null); setFirstOriginal(null)
-    const t = tpls.find(x => x.id === id)
-    if (!t) return
+  // ── autosave as a draft ────────────────────────────────────────────────────
+  const snapshot = JSON.stringify([eventId, name, subject, listId, tplId, fieldValues, attachments, senderMode, when, sendAt, pace, ownerId, words])
+  const lastSaved = useRef('')
+  useEffect(() => {
+    if (!ready || done || !editor) return
+    if (!name.trim() && !subject.trim() && !hasContent(html())) return
+    if (snapshot === lastSaved.current) return
+    const t = setTimeout(async () => {
+      const r = await fetch('/api/events/stakeholders/email-campaigns/draft', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: draftRef.current ?? undefined, event_id: eventId, name, subject, body_html: html(), list_id: listId || undefined, template_id: tplId || undefined, field_values: fieldValues, attachments, sender_mode: senderMode, polished: firstOriginal !== null, original_html: firstOriginal, draft_state: { when, sendAt, pace, ownerId } }),
+      })
+      const d = await r.json().catch(() => ({}))
+      if (r.ok) { lastSaved.current = snapshot; if (!draftRef.current) { setDraftId(d.id); draftRef.current = d.id } setSavedAt(new Date().toISOString()) }
+    }, 1800)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `snapshot` summarises every field that is saved
+  }, [snapshot, ready, done])
+
+  // ── template picker ────────────────────────────────────────────────────────
+  const matches = useMemo(() => tpls.filter(t => `${t.name} ${t.description ?? ''} ${t.subject}`.toLowerCase().includes(pickQ.toLowerCase())), [tpls, pickQ])
+  const eventValues = useMemo(() => {
+    const v: Record<string, string> = { event_name: (ev.public_name || ev.name || '') as string, ...fieldValues }
+    if (ev.public_dates_display) v.event_dates = ev.public_dates_display as string
+    if (ev.public_venue_display) v.event_venue = ev.public_venue_display as string
+    return v
+  }, [ev, fieldValues])
+  function applyTemplate(t: Tpl) {
+    setTplId(t.id); setFieldValues({}); setPolish(null); setFirstOriginal(null)
     setSubject(t.subject); editor?.commands.setContent(t.body_html); setWords(wordCount(t.body_html))
     if (!name.trim()) setName(t.name)
     if (t.default_sender_mode) setSenderMode(t.default_sender_mode)
-    const a = t.default_audience === 'spoke' ? 'quick:spoke' : t.default_audience === 'confirmed_or_spoke' ? 'quick:both' : t.default_audience === 'confirmed' ? 'quick:confirmed' : null
-    if (a) setAudience(a)
-    if (t.allow_assistant) setAllowAssistant(true)
-    if (t.required_fields.length > 0) chooseWhen('schedule')
+    if (t.required_fields.length > 0) { setWhen('schedule'); if (!sendAt && defaults?.default_send_at_local) setSendAt(defaults.default_send_at_local) }
+    setPickOpen(false); setPickPreview(null)
   }
+  function chooseWhen(w: 'now' | 'schedule') { setWhen(w); if (w === 'schedule' && !sendAt && defaults?.default_send_at_local) setSendAt(defaults.default_send_at_local) }
+  const insertToken = (key: string) => editor?.chain().focus().insertContent(`{{${key}}}`).run()
 
-  function chooseWhen(w: 'now' | 'schedule') {
-    setWhen(w)
-    if (w === 'schedule' && !sendAt && defaults?.default_send_at_local) setSendAt(defaults.default_send_at_local)
-  }
+  // ── per-person preview and the checks before sending ───────────────────────
+  const person = preview?.recipients[previewAs] ?? null
+  const personVals = personValues(person?.name ?? 'Speaker name', { company: person?.company ?? 'Company', role: person?.role ?? 'Job title' })
+  const bodyNow = html()
+  const rendered = useMemo(() => renderSpeakerEmail({ bodyHtml: applyTokens(bodyNow, { ...eventValues, ...personVals }), publicName: person?.name ?? 'Speaker name', producerName: senderMode === 'me' ? (myName || 'Your name') : (person?.producer ?? 'Their producer') }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `words` stands for the editor content
+    [words, person, eventValues, senderMode, myName])
+  const needData = dataTokensUsed(`${subject}\n${bodyNow}`)
+  const lackingPeople = (preview?.recipients ?? []).filter(r => needData.some(k => !(k === 'company' ? r.company : r.role)?.trim()))
+  const volume = useMemo(() => {
+    const by = new Map<string, number>()
+    for (const r of preview?.recipients ?? []) { const k = senderMode === 'me' ? 'me' : (r.producer ?? 'me'); by.set(k, (by.get(k) ?? 0) + 1) }
+    const worst = [...by.entries()].sort((a, b) => b[1] - a[1])[0]
+    return worst && worst[1] > MAILBOX_WARN ? { who: worst[0] === 'me' ? 'one mailbox' : worst[0], n: worst[1] } : null
+  }, [preview, senderMode])
+  const problems: string[] = []
+  if (!listId) problems.push('Choose the list this email goes to.')
+  if (listId && preview && count === 0) problems.push('Nobody on that list would receive it.')
+  if (!fieldsFilled && !scheduling) problems.push(`Fill in the ${tpl!.required_fields.map(f => f.label.toLowerCase()).join(' and the ')}.`)
+  if (scheduling && !sendAtDate) problems.push('Choose when to send it.')
+  const ok = hasContent(bodyNow) && !!subject.trim() && !!name.trim() && problems.length === 0
 
+  // ── attachments, polish ────────────────────────────────────────────────────
   async function addFiles(files: FileList | null) {
     if (!files?.length) return
     setUploading(true)
@@ -144,7 +231,6 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
       }
     } finally { setUploading(false) }
   }
-
   async function runPolish() {
     if (!editor) return
     const before = editor.getHTML()
@@ -166,88 +252,80 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
     setPolish(null)
   }
 
+  // ── test, send, schedule ───────────────────────────────────────────────────
   async function sendTest() {
     setBusy('test'); setFindings(null)
-    const res = await fetch('/api/events/stakeholders/email-campaigns/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, subject, body_html: html(), attachments, sample_name: preview?.recipients[0]?.name ?? '', template_id: tplId || undefined, field_values: fieldValues }) })
+    const res = await fetch('/api/events/stakeholders/email-campaigns/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, subject, body_html: html(), attachments, sample_name: person?.name ?? '', template_id: tplId || undefined, field_values: fieldValues }) })
     const d = await res.json().catch(() => ({}))
     setBusy(null)
     if (res.ok) notify(`A test copy was sent to ${d.to}. It starts with “[TEST]”.`, 'success')
     else { notify(d.error ?? 'Could not send the test.', 'error'); if (d.errors) setFindings({ errors: d.errors, warnings: [] }) }
   }
 
-  async function send() {
-    setBusy('send'); setFindings(null)
+  async function send(skip = skipLacking) {
+    setBusy('send'); setFindings(null); setLacking(null)
     const res = await fetch('/api/events/stakeholders/email-campaigns', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event_id: eventId, name, subject, body_html: html(), attachments, polished: firstOriginal !== null, original_html: firstOriginal, sender_mode: senderMode, confirmed, template_id: tplId || undefined, field_values: fieldValues, ...(scheduling ? { send_at_local: sendAt, owner_staff_id: ownerId || undefined, remember_owner: rememberOwner } : {}), ...audienceBody() }),
+      body: JSON.stringify({
+        event_id: eventId, name, subject, body_html: html(), attachments, polished: firstOriginal !== null, original_html: firstOriginal, sender_mode: senderMode, confirmed, list_id: listId, draft_id: draftId ?? undefined,
+        template_id: tplId || undefined, field_values: fieldValues, skip_unpersonalisable: skip, pace_hours: !scheduling && pace > 0 ? pace : undefined,
+        ...(scheduling ? { send_at_local: sendAt, owner_staff_id: ownerId || undefined, remember_owner: rememberOwner } : {}),
+      }),
     })
     const d = await res.json().catch(() => ({}))
-    if (!res.ok) { setBusy(null); notify(d.error ?? 'Could not start the send.', 'error'); if (d.errors) setFindings({ errors: d.errors, warnings: [] }); if (d.needs_confirmation) setConfirmed(false); return }
-    setFindings(d.warnings?.length ? { errors: [], warnings: d.warnings } : null)
+    if (!res.ok) {
+      setBusy(null)
+      notify(d.error ?? 'Could not start the send.', 'error')
+      if (d.errors) setFindings({ errors: d.errors, warnings: [] })
+      if (d.unpersonalisable) setLacking(d.unpersonalisable)
+      if (d.needs_confirmation) setConfirmed(false)
+      return
+    }
+    setDraftId(null); draftRef.current = null
     if (d.scheduled && !d.released) {
       setBusy(null); setReviewing(false)
       setDone({ id: d.campaign_id, progress: null, scheduled: { when: formatSendTime(sendAtDate ?? new Date(), defaults?.timezone), waiting: d.waiting_for ?? [] } })
       return
     }
+    if (d.paced) { setBusy(null); setReviewing(false); setDone({ id: d.campaign_id, progress: null, paced: pace }); return }
     let p: Progress | null = null
     for (let guard = 0; guard < 400; guard++) {
       const r = await fetch(`/api/events/stakeholders/email-campaigns/${d.campaign_id}/send`, { method: 'POST' })
       const j = await r.json().catch(() => ({}))
-      if (!r.ok) { notify(j.error ?? 'Sending stopped. Open it under Sent and press Continue.', 'error'); break }
+      if (!r.ok) { notify(j.error ?? 'Sending stopped. Open it under Emails and press Continue.', 'error'); break }
       p = j.progress as Progress; setProgress(p)
       if (!p || (p.queued === 0 && p.sending === 0)) break
     }
     setBusy(null); setReviewing(false); setProgress(null)
-    if (p) setDone({ id: d.campaign_id, progress: p })
+    setDone({ id: d.campaign_id, progress: p })
   }
 
-  const eventValues = useMemo(() => {
-    const v: Record<string, string> = { event_name: (ev.public_name || ev.name || '') as string, ...fieldValues }
-    if (ev.public_dates_display) v.event_dates = ev.public_dates_display as string
-    if (ev.public_venue_display) v.event_venue = ev.public_venue_display as string
-    return v
-  }, [ev, fieldValues])
-  const sampleName = preview?.recipients[0]?.name ?? 'Speaker name'
-  const rendered = useMemo(() => renderSpeakerEmail({ bodyHtml: applyTokens(html(), { ...eventValues, ...personValues(sampleName) }), publicName: preview?.recipients[0]?.name ?? 'Speaker name', producerName: senderMode === 'me' ? (myName || 'Your name') : 'Their producer' }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- the editor content changes with `words`
-    [words, preview, senderMode, myName, reviewing, eventValues])
   const needsConfirm = count > CONFIRM_ABOVE
+  const listLabel = (l: ListOpt) => `${l.name} · ${l.type === 'active' ? 'Active' : 'Static'} · ${l.will_receive}`
 
-  if (done && !done.progress && done.scheduled) {
-    return (
-      <div>
-        <PageHeader eyebrow="Stakeholder Hub" title="Emails" description="Scheduled." backHref={`/admin/events/${eventId}/stakeholders`} backLabel="Back to Stakeholder Hub" />
-        <EmailsTabs eventId={eventId} />
-        <div style={{ padding: '24px 32px', maxWidth: '720px' }}>
-          <Card padded>
-            <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ink)' }}>Scheduled for {done.scheduled.when}</div>
-            <div style={{ fontSize: '13.5px', color: 'var(--ink2)', marginTop: '6px', lineHeight: 1.7 }}>
-              “{name}” is saved under Sent. The list is worked out again at that moment, so it reaches the people who are Confirmed or Spoke by then.
-              {done.scheduled.waiting.length > 0 ? <> <strong>It is still waiting for the {done.scheduled.waiting.join(' and the ').toLowerCase()}.</strong> It will not go out until that is added; the owner is reminded, and once it is added after the send time it goes out straight away.</> : ' Everything it needs is in place.'}
-            </div>
-            <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
-              <Link href={`/admin/events/${eventId}/stakeholders/emails/sent?open=${done.id}`}><Button variant="teal">Open it under Sent</Button></Link>
-              <Button variant="ghost" onClick={() => { setDone(null); setName(''); setSubject(''); editor?.commands.setContent(''); setWords(0); setAttachments([]); setPolish(null); setFirstOriginal(null); setTplId(''); setFieldValues({}); setWhen('now'); setSendAt('') }}>Write another</Button>
-            </div>
-          </Card>
-        </div>
-      </div>
-    )
-  }
-
-  if (done && done.progress) {
+  if (done) {
     const p = done.progress
     return (
       <div>
-        <PageHeader eyebrow="Stakeholder Hub" title="Emails" description="Sent." backHref={`/admin/events/${eventId}/stakeholders`} backLabel="Back to Stakeholder Hub" />
-        <EmailsTabs eventId={eventId} />
+        <PageHeader eyebrow="Stakeholder Hub" title="Emails" description={done.scheduled ? 'Scheduled.' : done.paced ? 'On its way.' : 'Sent.'} backHref={base} backLabel="Back to Emails" />
         <div style={{ padding: '24px 32px', maxWidth: '720px' }}>
           <Card padded>
-            <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ink)' }}>{p.sent} sent{p.failed ? ` · ${p.failed} failed` : ''}{p.skipped ? ` · ${p.skipped} skipped` : ''}</div>
-            <div style={{ fontSize: '13.5px', color: 'var(--ink2)', marginTop: '6px', lineHeight: 1.6 }}>“{name}” is saved under Sent with every recipient and its outcome.{p.failed ? ' Failed emails list their error there.' : ''}</div>
+            {done.scheduled && <>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ink)' }}>Scheduled for {done.scheduled.when}</div>
+              <div style={{ fontSize: '13.5px', color: 'var(--ink2)', marginTop: '6px', lineHeight: 1.7 }}>“{name}” is saved under Emails. The list is worked out again at that moment, so it reaches whoever is on it by then.
+                {done.scheduled.waiting.length > 0 ? <> <strong>It is still waiting for the {done.scheduled.waiting.join(' and the ').toLowerCase()}.</strong> It will not go out until that is added; the owner is reminded, and once it is added after the send time it goes out straight away.</> : ' Everything it needs is in place.'}</div>
+            </>}
+            {done.paced && <>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ink)' }}>Going out gradually over {done.paced} hours</div>
+              <div style={{ fontSize: '13.5px', color: 'var(--ink2)', marginTop: '6px', lineHeight: 1.7 }}>“{name}” is sent a few at a time so no mailbox is throttled and nothing looks like bulk mail. Follow it under Emails; you can cancel what has not gone yet.</div>
+            </>}
+            {p && <>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ink)' }}>{p.sent} sent{p.failed ? ` · ${p.failed} failed` : ''}{p.skipped ? ` · ${p.skipped} skipped` : ''}</div>
+              <div style={{ fontSize: '13.5px', color: 'var(--ink2)', marginTop: '6px', lineHeight: 1.6 }}>“{name}” is saved under Emails with every recipient and its outcome.{p.failed ? ' Failed emails list their error there.' : ''}</div>
+            </>}
             <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
-              <Link href={`/admin/events/${eventId}/stakeholders/emails/sent?open=${done.id}`}><Button variant="teal">See it under Sent</Button></Link>
-              <Button variant="ghost" onClick={() => { setDone(null); setName(''); setSubject(''); editor?.commands.setContent(''); setWords(0); setAttachments([]); setPolish(null); setFirstOriginal(null) }}>Write another</Button>
+              <Link href={`${base}?open=${done.id}`}><Button variant="teal">Open it under Emails</Button></Link>
+              <Button variant="ghost" onClick={() => router.push(`${base}/compose`)}>Create another</Button>
             </div>
           </Card>
         </div>
@@ -257,64 +335,82 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
 
   return (
     <div>
-      <PageHeader eyebrow="Stakeholder Hub" title="Emails" description="Write one email to a group of speakers. Each person gets their own greeting and your sign-off, from your mailbox, as a new conversation." backHref={`/admin/events/${eventId}/stakeholders`} backLabel="Back to Stakeholder Hub" />
-      <EmailsTabs eventId={eventId} />
-      <div style={{ padding: '20px 32px 56px', maxWidth: '900px', display: 'grid', gap: '16px' }}>
+      <PageHeader eyebrow="Stakeholder Hub" title="Create email" description="Name it, pick the list it goes to, start from a template if you like, check it for each person, then send or schedule it." backHref={base} backLabel="Back to Emails" />
+      <div style={{ padding: '4px 32px 56px', maxWidth: '900px', display: 'grid', gap: '16px' }}>
+        {loadingDraft && <div style={{ color: 'var(--ink3)', fontSize: '13px' }}>Opening your draft…</div>}
+
         <Card padded>
-          <div style={label}>1 · Who</div>
-          <select value={audience} onChange={e => setAudience(e.target.value)} style={{ width: '100%', marginTop: '8px', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '14px' }}>
-            {Object.entries(QUICK).map(([k, q]) => <option key={k} value={`quick:${k}`}>{q.label}</option>)}
-            {lists.length > 0 && <optgroup label="Saved lists">{lists.map(l => <option key={l.id} value={`list:${l.id}`}>{l.name}{l.event_id === null ? ' (any event)' : ''}</option>)}</optgroup>}
-          </select>
-          {audience.startsWith('quick:') && (
-            <label style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '8px', fontSize: '13px', color: 'var(--ink2)', cursor: 'pointer' }}>
-              <input type="checkbox" checked={allowAssistant} onChange={() => setAllowAssistant(v => !v)} /> Reach people without their own email through an assistant or office contact (greeted as “Dear {'<'}their name{'>'}”)
-            </label>
-          )}
-          <div style={{ marginTop: '10px', fontSize: '14px', color: 'var(--ink)' }}>
-            <strong>{count}</strong> will receive it{preview && preview.summary.excluded > 0 ? <span style={{ color: 'var(--ink3)' }}> · {preview.summary.excluded} left out ({Object.entries(preview.summary.reasons).map(([k, n]) => `${n} ${k.toLowerCase()}`).join(', ')})</span> : null}
-            {' · '}<Link href={`/admin/events/${eventId}/stakeholders/emails`} style={{ color: 'var(--teal-mid)', fontWeight: 700 }}>Build or change a list</Link>
-          </div>
-          {!!preview?.overlap?.length && (
-            <div role="status" style={{ marginTop: '10px', padding: '10px 12px', borderRadius: '10px', background: 'var(--amber-light)', border: '1px solid var(--amber)', fontSize: '13px', color: 'var(--ink)', lineHeight: 1.6 }}>
-              <strong>Some of these people were emailed in the last 30 days:</strong>
-              {preview.overlap.map(o => <div key={o.campaign_id}>{o.overlap} of them got “{o.name}” on {fmt(o.sent_at)}.</div>)}
+          <div style={label}>1 · Details</div>
+          <div style={{ display: 'grid', gap: '12px', marginTop: '10px' }}>
+            <div><div style={sub}>Email name (only you see this: it is how you find it under Emails)</div><Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Invite BSS speakers to DFS 2027" /></div>
+            <div style={{ display: 'grid', gap: '12px', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
+              <div>
+                <div style={sub}>Event this email belongs to</div>
+                <select value={eventId} onChange={e => { setEventId(e.target.value); setListId(''); setTplId('') }} style={sel}>
+                  {(events.length ? events : [{ id: workspaceEventId, name: workspaceName ?? 'This event' }]).map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={sub}>List: who it goes to</div>
+                <select value={listId} onChange={e => { if (e.target.value === '__new') { router.push(`${base}/lists`); return } setListId(e.target.value) }} style={sel}>
+                  <option value="">Choose a list…</option>
+                  {lists.map(l => <option key={l.id} value={l.id}>{listLabel(l)}</option>)}
+                  <option value="__new">+ Create a new list…</option>
+                </select>
+              </div>
             </div>
-          )}
+            {preview && listId && (
+              <div style={{ fontSize: '13.5px', color: 'var(--ink)' }}>
+                <strong>{count}</strong> will receive it{preview.summary.excluded > 0 && <span style={{ color: 'var(--ink3)' }}> · {preview.summary.excluded} left out ({Object.entries(preview.summary.reasons).map(([k, n]) => `${n} ${k.toLowerCase()}`).join(', ')})</span>}
+                {preview.summary.via_contact > 0 && <span style={{ color: 'var(--ink3)' }}> · {preview.summary.via_contact} go to their additional contacts, addressed to the speaker</span>}
+              </div>
+            )}
+            {!!preview?.overlap?.length && (
+              <div role="status" style={{ padding: '10px 12px', borderRadius: '10px', background: 'var(--amber-light)', border: '1px solid var(--amber)', fontSize: '13px', color: 'var(--ink)', lineHeight: 1.6 }}>
+                <strong>Some of these people were emailed in the last 30 days:</strong>
+                {preview.overlap.map(o => <div key={o.campaign_id}>{o.overlap} of them got “{o.name}” on {fmt(o.sent_at)}.</div>)}
+              </div>
+            )}
+          </div>
         </Card>
 
         <Card padded>
           <div style={label}>2 · Write</div>
-          <div style={{ display: 'grid', gap: '10px', marginTop: '10px' }}>
+          <div style={{ display: 'grid', gap: '12px', marginTop: '10px' }}>
             <div>
-              <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px' }}>Start from a template (or write your own below)</div>
-              <select value={tplId} onChange={e => chooseTemplate(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '14px' }}>
-                <option value="">No template</option>
-                {tpls.map(t => <option key={t.id} value={t.id}>{t.name}{t.event_id ? ' (this event)' : ''}</option>)}
-              </select>
-              {tpl && <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '4px' }}>The text below is the template. Change anything you like; {'{{placeholders}}'} are filled in when you send. <Link href={`/admin/events/${eventId}/stakeholders/emails/templates`} style={{ color: 'var(--teal-mid)', fontWeight: 700 }}>Manage templates</Link></div>}
+              <div style={sub}>Template</div>
+              {tpl ? (
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--teal-mid)', background: 'var(--teal-light)' }}>
+                  <div style={{ flex: '1 1 260px', fontSize: '13.5px', color: 'var(--ink)' }}><strong>{tpl.name}</strong><div style={{ fontSize: '12px', color: 'var(--ink2)', marginTop: '2px' }}>This is your own copy of the template. Edit the text below as you like; the template itself never changes.</div></div>
+                  <Button variant="ghost" onClick={() => setPickOpen(true)}>Change</Button>
+                  <Button variant="ghost" onClick={() => { setTplId(''); setFieldValues({}) }}>Remove</Button>
+                </div>
+              ) : (
+                <Button variant="ghost" onClick={() => setPickOpen(true)}>Choose a template…</Button>
+              )}
+              {!tpl && <span style={{ fontSize: '12.5px', color: 'var(--ink3)', marginLeft: '8px' }}>or write your own below.</span>}
             </div>
+
             {tpl && tpl.required_fields.length > 0 && (
               <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'var(--surface)', border: `1px solid ${fieldsFilled ? 'var(--border)' : 'var(--amber)'}` }}>
-                <div style={{ fontSize: '12.5px', fontWeight: 800, color: 'var(--ink)', marginBottom: '8px' }}>This template needs {tpl.required_fields.length === 1 ? 'one thing' : 'these'} before it can be sent</div>
+                <div style={{ fontSize: '12.5px', fontWeight: 800, color: 'var(--ink)', marginBottom: '8px' }}>This template needs {tpl.required_fields.length === 1 ? 'one thing' : 'these'} before it can be sent{scheduling ? ' (you can add it later from Emails)' : ''}</div>
                 {tpl.required_fields.map(f => (
                   <div key={f.key} style={{ marginBottom: '8px' }}>
-                    <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px' }}>{f.label}{f.kind === 'url' ? ' (a full link starting with https://)' : ''}</div>
+                    <div style={sub}>{f.label}{f.kind === 'url' ? ' (a full link starting with https://)' : ''}</div>
                     <Input value={fieldValues[f.key] ?? ''} onChange={e => setFieldValues(v => ({ ...v, [f.key]: e.target.value }))} placeholder={f.kind === 'url' ? 'https://…' : ''} />
                   </div>
                 ))}
               </div>
             )}
+
+            <div><div style={sub}>Subject (what they see)</div><Input value={subject} onChange={e => setSubject(e.target.value)} placeholder="One line. Placeholders such as {{event_name}} work here too." /></div>
             <div>
-              <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px' }}>Name (only you see this, it is how you find the email under Sent)</div>
-              <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Invite BSS speakers to DFS 2027" />
-            </div>
-            <div>
-              <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px' }}>Subject (what they see)</div>
-              <Input value={subject} onChange={e => setSubject(e.target.value)} placeholder="One line" />
-            </div>
-            <div>
-              <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px' }}>Message. The greeting and your sign-off are added for you.</div>
+              <div style={sub}>Message. The greeting and the sender’s sign-off are added for you.</div>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                {[...EVENT_TOKENS, ...PERSON_TOKENS, ...(tpl?.required_fields ?? []).map(f => ({ key: f.key, label: f.label }))].map(t => (
+                  <button key={t.key} type="button" onClick={() => insertToken(t.key)} title={`Insert {{${t.key}}}`} style={{ fontSize: '11.5px', fontWeight: 700, padding: '3px 9px', borderRadius: '999px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink2)', cursor: 'pointer' }}>+ {t.label}</button>
+                ))}
+              </div>
               <div style={{ border: '1px solid var(--border)', borderRadius: '10px', background: 'var(--card)', padding: '12px 14px', fontSize: '15px', lineHeight: 1.65 }}><EditorContent editor={editor} /></div>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '8px', flexWrap: 'wrap' }}>
                 <Button variant="teal" onClick={runPolish} disabled={polishing}>{polishing ? 'Polishing…' : '✨ Polish'}</Button>
@@ -332,7 +428,7 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
             )}
             <div>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink3)' }}>Attachments (PDF, Word, Excel, PowerPoint or images, up to {MAX_ATTACHMENT_BYTES / 1048576} MB in total)</span>
+                <span style={sub}>Attachments (PDF, Word, Excel, PowerPoint or images, up to {MAX_ATTACHMENT_BYTES / 1048576} MB in total)</span>
                 <label style={{ cursor: uploading ? 'default' : 'pointer' }}>
                   <input type="file" multiple hidden disabled={uploading} onChange={e => { void addFiles(e.target.files); e.target.value = '' }} />
                   <span style={{ display: 'inline-block', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontWeight: 700, background: 'var(--card)', color: 'var(--ink2)' }}>{uploading ? 'Uploading…' : '+ Add files'}</span>
@@ -349,36 +445,66 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
         </Card>
 
         <Card padded>
-          <div style={label}>3 · Send</div>
+          <div style={label}>3 · Check it for each person</div>
+          {!listId || !preview || preview.recipients.length === 0 ? <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '8px' }}>Choose a list to preview the email as one of its people.</div> : (
+            <div style={{ display: 'grid', gap: '10px', marginTop: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={sub}>Preview as</span>
+                <select value={previewAs} onChange={e => setPreviewAs(Number(e.target.value))} style={{ ...sel, width: 'auto', minWidth: '260px' }}>
+                  {preview.recipients.slice(0, 200).map((r, i) => <option key={r.key} value={i}>{r.name}{r.company ? ` · ${r.company}` : ''}</option>)}
+                </select>
+                {person && <span style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>to {person.to}{person.cc.length ? ` · cc ${person.cc.length}` : ''}{person.mode === 'assistant' ? ' (additional contact)' : ''}</span>}
+              </div>
+              <div style={{ fontSize: '12.5px', color: 'var(--ink2)' }}>Subject: <strong>{applyTokensPlain(subject, { ...eventValues, ...personVals }) || '(no subject yet)'}</strong></div>
+              <iframe title="Email preview" srcDoc={rendered} sandbox="" style={{ width: '100%', height: '300px', border: '1px solid var(--border)', borderRadius: '10px', background: 'white' }} />
+              {lackingPeople.length > 0 && (
+                <div role="alert" style={{ padding: '10px 12px', borderRadius: '10px', background: 'var(--amber-light)', border: '1px solid var(--amber)', fontSize: '13px', color: 'var(--ink)', lineHeight: 1.6 }}>
+                  <strong>{lackingPeople.length} {lackingPeople.length === 1 ? 'person has' : 'people have'} no {needData.map(k => (k === 'company' ? 'company' : 'job title')).join(' or ')} on record</strong>, which this email uses: {lackingPeople.slice(0, 6).map(r => r.name).join(', ')}{lackingPeople.length > 6 ? '…' : ''}. Remove the placeholder, fix their records, or leave them out when you send.
+                </div>
+              )}
+              {volume && (
+                <div role="status" style={{ padding: '10px 12px', borderRadius: '10px', background: 'var(--amber-light)', border: '1px solid var(--amber)', fontSize: '13px', color: 'var(--ink)', lineHeight: 1.6 }}>
+                  <strong>{volume.n} emails would leave {volume.who} at once.</strong> Microsoft throttles a mailbox and a burst of similar emails can be flagged as spam. Spread it over a few hours below, or send from each speaker’s own producer.
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+
+        <Card padded>
+          <div style={label}>4 · Send</div>
           <div style={{ display: 'grid', gap: '6px', marginTop: '10px', fontSize: '13.5px', color: 'var(--ink)' }}>
-            <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink3)' }}>When</div>
+            <div style={sub}>When</div>
             <label style={{ display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer' }}><input type="radio" name="when" checked={!scheduling} onChange={() => chooseWhen('now')} /> Send now</label>
+            {!scheduling && count > 100 && (
+              <div style={{ margin: '0 0 4px 24px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '12.5px', color: 'var(--ink2)' }}>Pace:</span>
+                <select value={pace} onChange={e => setPace(Number(e.target.value))} style={{ ...sel, width: 'auto' }}>
+                  <option value={0}>All at once</option>{[2, 4, 8, 12, 24].map(h => <option key={h} value={h}>Spread over {h} hours</option>)}
+                </select>
+              </div>
+            )}
             <label style={{ display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer' }}><input type="radio" name="when" checked={scheduling} onChange={() => chooseWhen('schedule')} /> Schedule it</label>
             {scheduling && (
               <div style={{ margin: '2px 0 8px 24px', padding: '12px 14px', borderRadius: '10px', background: 'var(--surface)', border: '1px solid var(--border)', display: 'grid', gap: '10px' }}>
                 <div>
-                  <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px' }}>Send at ({defaults?.timezone ?? 'UTC'} time)</div>
+                  <div style={sub}>Send at ({defaults?.timezone ?? 'UTC'} time)</div>
                   <input type="datetime-local" value={sendAt} onChange={e => setSendAt(e.target.value)} style={{ padding: '9px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '14px' }} />
                   <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '4px', lineHeight: 1.6 }}>
-                    {defaults?.default_send_at_local
-                      ? <>The default is the day after the event&rsquo;s last day at 09:00. {defaults.default_in_past ? <strong style={{ color: 'var(--amber)' }}>That time has already passed, so it goes out as soon as everything it needs is in place.</strong> : null}</>
-                      : <>This event has no event days yet, so there is no default time. Choose one.</>}
-                    {' '}If a required field is still empty at that time, it waits and is never sent without it.
+                    {defaults?.default_send_at_local ? <>The default is the day after the event’s last day at 09:00. {defaults.default_in_past ? <strong style={{ color: 'var(--amber)' }}>That time has already passed, so it goes out as soon as everything it needs is in place.</strong> : null}</> : <>This event has no event days yet, so there is no default time. Choose one.</>}
+                    {' '}If a required field is still empty at that time, it waits and is never sent without it. The list is worked out again when it is sent.
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px' }}>Owner: gets the reminders (a missing link, a heads-up, the result)</div>
-                  <select value={ownerId} onChange={e => setOwnerId(e.target.value)} style={{ padding: '9px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '14px', minWidth: '240px' }}>
-                    <option value="">Me</option>
-                    {(defaults?.staff ?? []).map(st => <option key={st.id} value={st.id}>{st.name}</option>)}
-                  </select>
+                  <div style={sub}>Owner: gets the reminders (a missing link, a heads-up, the result)</div>
+                  <select value={ownerId} onChange={e => setOwnerId(e.target.value)} style={{ ...sel, width: 'auto', minWidth: '240px' }}><option value="">Me</option>{(defaults?.staff ?? []).map(st => <option key={st.id} value={st.id}>{st.name}</option>)}</select>
                   <label style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '6px', fontSize: '12.5px', color: 'var(--ink2)', cursor: 'pointer' }}><input type="checkbox" checked={rememberOwner} onChange={() => setRememberOwner(v => !v)} /> Remember this person as the owner of post-event emails for this event</label>
                 </div>
-                {tpl && !fieldsFilled && <div style={{ fontSize: '12.5px', color: 'var(--amber)' }}>The {tpl.required_fields.map(f => f.label.toLowerCase()).join(' and the ')} is not filled yet. You can schedule it now and add it later from Sent.</div>}
+                {tpl && !fieldsFilled && <div style={{ fontSize: '12.5px', color: 'var(--amber)' }}>The {tpl.required_fields.map(f => f.label.toLowerCase()).join(' and the ')} is not filled yet. You can schedule it now and add it later from Emails.</div>}
               </div>
             )}
-            <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink3)', marginTop: '6px' }}>From</div>
-            <label style={{ display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer' }}><input type="radio" name="sender" checked={senderMode === 'me'} onChange={() => setSenderMode('me')} /> From me{myName ? ` (${myName})` : ''}: the producer sending it</label>
+            <div style={{ ...sub, marginTop: '6px' }}>From</div>
+            <label style={{ display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer' }}><input type="radio" name="sender" checked={senderMode === 'me'} onChange={() => setSenderMode('me')} /> Me{myName ? ` (${myName})` : ''}: the producer sending it</label>
             <label style={{ display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer' }}><input type="radio" name="sender" checked={senderMode === 'speaker_producer'} onChange={() => setSenderMode('speaker_producer')} /> Each from the speaker’s own producer (me when they have none)</label>
           </div>
           {findings && (
@@ -387,12 +513,47 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
               {findings.warnings.length > 0 && <div style={{ color: 'var(--amber)' }}>Worth a look: {findings.warnings.map(f => f.message).join(' · ')}</div>}
             </div>
           )}
-          <div style={{ display: 'flex', gap: '10px', marginTop: '14px', flexWrap: 'wrap' }}>
-            <Button variant="ghost" onClick={sendTest} disabled={busy !== null || !hasContent(html()) || !subject.trim()}>{busy === 'test' ? 'Sending test…' : 'Send me a test'}</Button>
-            <Button variant="teal" onClick={() => { setConfirmed(false); setReviewing(true) }} disabled={!ready || busy !== null}>{scheduling ? (count ? `Review and schedule for ${count}` : 'Review and schedule') : (count ? `Review and send to ${count}` : 'Review and send')}</Button>
+          {problems.length > 0 && <div style={{ marginTop: '10px', fontSize: '12.5px', color: 'var(--ink3)' }}>{problems.join(' ')}</div>}
+          <div style={{ display: 'flex', gap: '10px', marginTop: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <Button variant="ghost" onClick={sendTest} disabled={busy !== null || !hasContent(bodyNow) || !subject.trim() || (!!tpl && !fieldsFilled)}>{busy === 'test' ? 'Sending test…' : 'Send me a test'}</Button>
+            <Button variant="teal" onClick={() => { setConfirmed(false); setLacking(null); setSkipLacking(false); setReviewing(true) }} disabled={!ok || busy !== null}>{scheduling ? (count ? `Review and schedule for ${count}` : 'Review and schedule') : (count ? `Review and send to ${count}` : 'Review and send')}</Button>
+            <span style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>{savedAt ? `Draft saved ${new Date(savedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : 'Saved automatically as a draft'}</span>
           </div>
         </Card>
       </div>
+
+      {pickOpen && (
+        <div role="dialog" aria-modal="true" aria-label="Choose a template" style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'var(--overlay-scrim)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <div style={{ width: '100%', maxWidth: '760px', maxHeight: '90vh', overflowY: 'auto', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '20px 22px' }}>
+            {!pickPreview ? (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}><div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--ink)' }}>Choose a template</div><Button variant="ghost" onClick={() => setPickOpen(false)}>Close</Button></div>
+                <Input value={pickQ} onChange={e => setPickQ(e.target.value)} placeholder="Search templates…" autoFocus />
+                <div style={{ display: 'grid', gap: '8px', marginTop: '12px' }}>
+                  {matches.length === 0 && <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>No template matches. You can write your own instead.</div>}
+                  {matches.map(t => (
+                    <button key={t.id} type="button" onClick={() => setPickPreview(t)} style={{ textAlign: 'left', padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--card)', cursor: 'pointer' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)' }}>{t.name}{t.event_id ? <> <Badge color="purple">this event</Badge></> : null}</div>
+                      {t.description && <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '2px' }}>{t.description}</div>}
+                      <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '4px' }}>Subject: {t.subject}{t.required_fields.length ? ` · needs ${t.required_fields.map(f => f.label.toLowerCase()).join(', ')}` : ''}</div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--ink)' }}>{pickPreview.name}</div>
+                {pickPreview.description && <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '2px' }}>{pickPreview.description}</div>}
+                <div style={{ fontSize: '13px', color: 'var(--ink2)', margin: '10px 0 6px' }}>Subject: <strong>{applyTokensPlain(pickPreview.subject, { ...eventValues, ...personValues('Asha Rao', { company: 'Company', role: 'Job title' }) })}</strong></div>
+                <iframe title="Template preview" sandbox="" srcDoc={renderSpeakerEmail({ bodyHtml: applyTokens(pickPreview.body_html, { ...eventValues, ...personValues('Asha Rao', { company: 'Company', role: 'Job title' }), ...Object.fromEntries(pickPreview.required_fields.map(f => [f.key, f.kind === 'url' ? 'https://example.com/your-link' : `[${f.label}]`])) }), publicName: 'Asha Rao', producerName: 'Sender name' })} style={{ width: '100%', height: '340px', border: '1px solid var(--border)', borderRadius: '10px', background: 'white' }} />
+                {pickPreview.required_fields.length > 0 && <div style={{ fontSize: '12.5px', color: 'var(--ink2)', marginTop: '8px' }}>This template needs: {pickPreview.required_fields.map(f => f.label).join(', ')}.</div>}
+                <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '6px' }}>Using it copies the text into your email. Your edits never change the template.</div>
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '14px' }}><Button variant="ghost" onClick={() => setPickPreview(null)}>Back</Button><Button variant="teal" onClick={() => applyTemplate(pickPreview)}>Use this template</Button></div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {reviewing && (
         <div role="dialog" aria-modal="true" aria-label="Review and send" style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'var(--overlay-scrim)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
@@ -400,12 +561,17 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
             <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--ink)' }}>{scheduling ? 'Review and schedule' : 'Review and send'}</div>
             <div style={{ fontSize: '13.5px', color: 'var(--ink2)', marginTop: '8px', lineHeight: 1.7 }}>
               {scheduling && sendAtDate && <><strong>Scheduled for {formatSendTime(sendAtDate, defaults?.timezone)}</strong><br />The list is worked out again at that moment (about {count} people now).<br /></>}
-              {!scheduling && <><strong>{count}</strong> people · </>}from {senderMode === 'me' ? `you (${myName || 'your mailbox'})` : 'each speaker’s own producer'}<br />
-              Subject: <strong>{applyTokensPlain(subject, { ...eventValues, ...personValues(sampleName) })}</strong>{attachments.length ? <><br />{attachments.length} attachment{attachments.length === 1 ? '' : 's'}</> : null}
-              {preview && preview.summary.via_assistant > 0 && <><br />{preview.summary.via_assistant} reached through an assistant (greeted by the assistant’s name)</>}
+              {!scheduling && <><strong>{count}</strong> people{pace > 0 ? `, spread over ${pace} hours` : ''} · </>}from {senderMode === 'me' ? `you (${myName || 'your mailbox'})` : 'each speaker’s own producer'}<br />
+              Subject: <strong>{applyTokensPlain(subject, { ...eventValues, ...personVals })}</strong>{attachments.length ? <><br />{attachments.length} attachment{attachments.length === 1 ? '' : 's'}</> : null}
             </div>
-            <div style={{ fontSize: '12px', color: 'var(--ink3)', margin: '12px 0 4px' }}>What {preview?.recipients[0]?.name ?? 'the first person'} will see</div>
-            <iframe title="Email preview" srcDoc={rendered} sandbox="" style={{ width: '100%', height: '280px', border: '1px solid var(--border)', borderRadius: '10px', background: 'white' }} />
+            <div style={{ fontSize: '12px', color: 'var(--ink3)', margin: '12px 0 4px' }}>What {person?.name ?? 'the first person'} will see</div>
+            <iframe title="Email preview" srcDoc={rendered} sandbox="" style={{ width: '100%', height: '260px', border: '1px solid var(--border)', borderRadius: '10px', background: 'white' }} />
+            {lacking && (
+              <div role="alert" style={{ marginTop: '12px', padding: '10px 12px', borderRadius: '10px', background: 'var(--amber-light)', border: '1px solid var(--amber)', fontSize: '13px', color: 'var(--ink)', lineHeight: 1.6 }}>
+                {lacking.count} {lacking.count === 1 ? 'person has' : 'people have'} no {lacking.fields.map(k => (k === 'company' ? 'company' : 'job title')).join(' or ')} on record, which this email uses ({lacking.names.join(', ')}{lacking.count > lacking.names.length ? '…' : ''}).
+                <div style={{ marginTop: '8px' }}><Button variant="teal" onClick={() => { setSkipLacking(true); void send(true) }} disabled={busy === 'send'}>Leave them out and send to the rest</Button></div>
+              </div>
+            )}
             {needsConfirm && (
               <label style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', marginTop: '12px', fontSize: '13.5px', color: 'var(--ink)', cursor: 'pointer' }}>
                 <input type="checkbox" checked={confirmed} onChange={() => setConfirmed(v => !v)} style={{ marginTop: '3px' }} /> This goes to {count} people. I have checked the list and the email, and sent myself a test.
@@ -414,7 +580,7 @@ export default function ComposePage({ params }: { params: Promise<{ id: string }
             {busy === 'send' && progress && <div style={{ marginTop: '12px', fontSize: '13.5px', color: 'var(--ink)' }}>Sending… {progress.sent + progress.failed + progress.skipped} of {progress.total}</div>}
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
               <Button variant="ghost" onClick={() => setReviewing(false)} disabled={busy === 'send'}>Back</Button>
-              <Button variant="teal" onClick={send} disabled={busy === 'send' || (needsConfirm && !confirmed)}>{busy === 'send' ? (scheduling ? 'Scheduling…' : 'Sending…') : (scheduling ? 'Schedule it' : `Send to ${count}`)}</Button>
+              <Button variant="teal" onClick={() => send()} disabled={busy === 'send' || (needsConfirm && !confirmed)}>{busy === 'send' ? (scheduling ? 'Scheduling…' : 'Sending…') : (scheduling ? 'Schedule it' : pace > 0 ? `Start sending to ${count}` : `Send to ${count}`)}</Button>
             </div>
           </div>
         </div>

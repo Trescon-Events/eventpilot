@@ -2,9 +2,9 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import type { TcsSession } from '@/app/lib/access/session'
 import { resolveSenderIdentity } from '@/app/lib/email/sender-identity'
 import type { SpeakerAttachment } from '@/app/lib/speaker-emails/render'
-import { resolveAudience, loadSavedList, cleanFilters, type AudienceInput } from './audience'
-import { CONFIRM_ABOVE, FALLBACK_SENDER, checkEmailContent, prepareContent, sendBatch, campaignProgress, type Fail } from './campaigns'
-import { checkRequiredFields, missingFieldTokens, type RequiredField } from './templates'
+import { resolveAudience, loadSavedList, audienceOfList, cleanFilters, type AudienceInput } from './audience'
+import { BULK_ABOVE, CONFIRM_ABOVE, FALLBACK_SENDER, checkEmailContent, mayBulkSend, prepareContent, sendBatch, campaignProgress, type Fail } from './campaigns'
+import { checkRequiredFields, dataTokensUsed, missingFieldTokens, type RequiredField } from './templates'
 import { decide, formatSendTime, localToUtc, missingFields } from './schedule'
 import { notifyOwner } from './owner-notify'
 import { runReplyScan, type ReplyResult } from './replies'
@@ -73,7 +73,7 @@ export async function createScheduledCampaign(session: TcsSession, input: Schedu
   if (input.listId) {
     const l = await loadSavedList(input.listId)
     if (!l) return { ok: false, error: 'That list no longer exists.', status: 404 }
-    audience = { filters: l.filters, pinned: l.pinned, excluded: l.excluded, allowAssistant: l.allowAssistant }
+    audience = audienceOfList(l)
   }
   const estimate = await resolveAudience(session, audience)
   if (!estimate.recipients.length) return { ok: false, error: 'Nobody would receive this email right now. Check the list. (The audience is worked out again when the email is sent.)', status: 422 }
@@ -81,12 +81,13 @@ export async function createScheduledCampaign(session: TcsSession, input: Schedu
     return { ok: false, error: `This is likely to go to about ${estimate.recipients.length} people. Confirm that you have checked the list and the email.`, status: 409, needs_confirmation: true, recipients: estimate.recipients.length }
   }
 
+  if (estimate.recipients.length > BULK_ABOVE && !(await mayBulkSend(session, input.eventId))) return { ok: false, error: `Sending to more than ${BULK_ABOVE} people needs the “send an email to many people” permission. Ask an admin, or use a smaller list.`, status: 403 }
   const sid = session.sid && session.sid !== 'super-admin' ? session.sid : null
   const owner = input.ownerStaffId || sid
   const { data: camp, error } = await supabaseAdmin.from('email_campaigns').insert({
     name: input.name.trim(), event_id: input.eventId, audience_type: 'speaker', template_id: input.templateId ?? null, field_values: given.values,
     subject: input.subject.trim(), body_html: content.bodyHtml, polished: !!input.polished, original_html: input.polished ? (input.originalHtml ?? null) : null, attachments: input.attachments,
-    list_id: input.listId ?? null, list_filters: cleanFilters(audience.filters), audience_pinned: audience.pinned ?? [], audience_excluded: audience.excluded ?? [], allow_assistant: !!audience.allowAssistant,
+    list_id: input.listId ?? null, list_filters: cleanFilters(audience.filters), audience_pinned: audience.pinned ?? [], audience_excluded: audience.excluded ?? [], allow_assistant: false,
     sender_mode: input.senderMode, sender_staff_id: sid, owner_staff_id: owner, status: 'scheduled', scheduled_for: at.toISOString(), timezone: tz, recipient_count: estimate.recipients.length, created_by: session.sid ?? null,
   }).select('id').single()
   if (error || !camp) return { ok: false, error: 'Could not schedule the email.', status: 500 }
@@ -120,7 +121,10 @@ export async function releaseCampaign(campaignId: string): Promise<{ ok: true; c
 
   const owner = (claimed.created_by as string | null) ?? null
   const session = await sessionForStaff(owner && owner !== 'super-admin' ? owner : null)
-  const a = await resolveAudience(session, { filters: claimed.list_filters as AudienceInput['filters'], pinned: (claimed.audience_pinned as string[]) ?? [], excluded: (claimed.audience_excluded as string[]) ?? [], allowAssistant: !!claimed.allow_assistant })
+  // a list is a living thing: use it as it stands NOW (an active list's criteria, a static list's members); if it was deleted, fall back to what was stored with the email
+  const savedList = claimed.list_id ? await loadSavedList(claimed.list_id as string) : null
+  const audienceNow: AudienceInput = savedList ? audienceOfList(savedList) : { filters: claimed.list_filters as AudienceInput['filters'], pinned: (claimed.audience_pinned as string[]) ?? [], excluded: (claimed.audience_excluded as string[]) ?? [] }
+  const a = await resolveAudience(session, audienceNow)
   if (!a.recipients.length) {
     await supabaseAdmin.from('email_campaigns').update({ status: 'cancelled', sent_at: new Date().toISOString(), recipient_count: 0 }).eq('id', campaignId)
     await notifyOwner(claimed, 'cancelled', 'Nobody to send to', `“${claimed.name}” was due, but nobody matched its list at the time (for example no one is marked Confirmed or Spoke). It was cancelled and nothing was sent.`)
@@ -130,7 +134,10 @@ export async function releaseCampaign(campaignId: string): Promise<{ ok: true; c
   const rows = []
   for (const r of a.recipients) {
     const sender = claimed.sender_mode === 'speaker_producer' ? await resolveSenderIdentity(session, FALLBACK_SENDER, r.rep.producer_id) : me
-    rows.push({ campaign_id: campaignId, contact_id: r.contact_id, speaker_id: r.rep.speaker_id, name: r.name, greeting_name: r.greeting_name, pronoun_style: r.pronoun_style, mode: r.mode, to_email: r.to, cc_emails: r.cc, sender_email: sender.email, sender_name: sender.name, status: 'queued' })
+    // someone with no company / job title that the email uses cannot be personalised: they are recorded as skipped, with the reason, instead of getting a blank
+    const need = dataTokensUsed(`${prepared.subject}\n${content.bodyHtml}`)
+    const lacks = need.find(k => !(k === 'company' ? r.company : r.role)?.trim())
+    rows.push({ campaign_id: campaignId, contact_id: r.contact_id, speaker_id: r.rep.speaker_id, name: r.name, greeting_name: r.greeting_name, pronoun_style: r.pronoun_style, mode: r.mode, to_email: r.to, cc_emails: r.cc, sender_email: sender.email, sender_name: sender.name, company: r.company, role: r.role, status: lacks ? 'skipped' : 'queued', skip_reason: lacks ? `No ${lacks === 'company' ? 'company' : 'job title'} on record, which this email uses` : null })
   }
   for (let i = 0; i < rows.length; i += 200) {
     const { error } = await supabaseAdmin.from('email_campaign_recipients').insert(rows.slice(i, i + 200))
@@ -202,13 +209,17 @@ export async function runDueCampaigns(budgetMs = 45_000): Promise<CronResult> {
   }
 
   // anything released (or abandoned mid-send) that still has people waiting
-  const { data: sending } = await supabaseAdmin.from('email_campaigns').select('id, created_at, released_at').eq('status', 'sending').limit(20)
+  const { data: sending } = await supabaseAdmin.from('email_campaigns').select('id, created_at, released_at, pace_hours, recipient_count').eq('status', 'sending').limit(20)
   for (const c of sending ?? []) {
     const idle = !c.released_at && now.getTime() - new Date(c.created_at as string).getTime() < 10 * 60_000   // a page is probably still driving a fresh send
     if (idle) continue
-    for (let i = 0; i < 40 && Date.now() - t0 < budgetMs; i++) {
-      const p = await sendBatch(c.id as string)
+    // a paced send is spread evenly over its hours: this run (every 10 minutes) sends only its share
+    const paced = c.pace_hours ? Math.max(1, Math.ceil(((c.recipient_count as number) || 1) / ((c.pace_hours as number) * 6))) : null
+    let left = paced ?? Infinity
+    for (let i = 0; i < 40 && left > 0 && Date.now() - t0 < budgetMs; i++) {
+      const p = await sendBatch(c.id as string, Math.min(8, left))
       out.batches++
+      left -= Math.min(8, left)
       if (!p || (p.queued === 0 && p.sending === 0)) break
     }
   }

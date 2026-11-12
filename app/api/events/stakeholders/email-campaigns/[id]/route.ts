@@ -55,3 +55,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status })
   return NextResponse.json({ ok: true, released: r.released })
 }
+
+/* DELETE — removes a DRAFT (an email that was never sent). A sent or scheduled email is never deleted: cancel it instead, so the record stays. */
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  if (!UUID.test(id)) return NextResponse.json({ error: 'id required' }, { status: 400 })
+  const { data: c } = await supabaseAdmin.from('email_campaigns').select('event_id, status').eq('id', id).maybeSingle()
+  if (!c) return NextResponse.json({ error: 'Email not found.' }, { status: 404 })
+  const denied = await requireGuestInviteAccess(req, c.event_id as string, 'edit'); if (denied) return denied
+  if (c.status !== 'draft') return NextResponse.json({ error: 'Only a draft can be deleted. Cancel a scheduled email instead.' }, { status: 409 })
+  await supabaseAdmin.from('email_campaigns').delete().eq('id', id).eq('status', 'draft')
+  return NextResponse.json({ ok: true })
+}

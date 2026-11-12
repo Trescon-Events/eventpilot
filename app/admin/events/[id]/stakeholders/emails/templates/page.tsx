@@ -10,7 +10,6 @@ import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import { notify } from '@/app/lib/ui/notify'
 import { renderSpeakerEmail } from '@/app/lib/speaker-emails/render'
 import { EVENT_TOKENS, PERSON_TOKENS, applyTokens, applyTokensPlain, personValues, type RequiredField } from '@/app/lib/emails/templates'
-import EmailsTabs from '../EmailsTabs'
 
 /* Emails → Templates (2026-11-12, phase 3). A template is the BODY of an email with {{placeholders}}; the greeting and sign-off are added per person. Shared templates are edited
    by admins; a producer customises a copy for this event, or makes a new one. A required field (for example the photo gallery link) blocks sending until it is filled. */
@@ -102,8 +101,7 @@ export default function TemplatesPage({ params }: { params: Promise<{ id: string
 
   return (
     <div>
-      <PageHeader eyebrow="Stakeholder Hub" title="Emails" description="Reusable emails with placeholders. Pick one in Compose, fill in what it needs, and send." backHref={`/admin/events/${eventId}/stakeholders`} backLabel="Back to Stakeholder Hub" />
-      <EmailsTabs eventId={eventId} />
+      <PageHeader eyebrow="Stakeholder Hub" title="Emails" description="Reusable emails with placeholders. In Create email, search for one, preview it, and use it as the starting point: your edits there never change the template." backHref={`/admin/events/${eventId}/stakeholders`} backLabel="Back to Stakeholder Hub" />
       <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', padding: '20px 32px 56px', maxWidth: '1300px', flexWrap: 'wrap' }}>
         <div style={{ width: '300px', flexShrink: 0, display: 'grid', gap: '12px' }}>
           <Card padded>
@@ -137,7 +135,7 @@ export default function TemplatesPage({ params }: { params: Promise<{ id: string
 
         <div style={{ flex: '1 1 560px', minWidth: 0 }}>
           {!draft ? (
-            <Card padded><div style={{ fontSize: '14px', color: 'var(--ink2)', lineHeight: 1.7 }}>Choose a template on the left to read or edit it. To use one, go to <Link href={`/admin/events/${eventId}/stakeholders/emails/compose`} style={{ color: 'var(--teal-mid)', fontWeight: 700 }}>Compose</Link> and pick it under “Start from a template”.</div></Card>
+            <Card padded><div style={{ fontSize: '14px', color: 'var(--ink2)', lineHeight: 1.7 }}>Choose a template on the left to read or edit it. To use one, go to <Link href={`/admin/events/${eventId}/stakeholders/emails/compose`} style={{ color: 'var(--teal-mid)', fontWeight: 700 }}>Create email</Link> and choose it under “Template”.</div></Card>
           ) : (
             <Card padded>
               {draft.id && !draft.event_id && !canShared && (
@@ -177,19 +175,12 @@ export default function TemplatesPage({ params }: { params: Promise<{ id: string
                   {!readOnly && draft.required_fields.length < 5 && <Button variant="ghost" onClick={() => set({ required_fields: [...draft.required_fields, { key: '', label: '', kind: 'text' }] })}>+ Add a required field</Button>}
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-                  <div><div style={label}>Compose starts with this sender</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
+                  <div><div style={label}>Create email starts with this sender</div>
                     <select value={draft.default_sender_mode ?? ''} disabled={readOnly} onChange={e => set({ default_sender_mode: (e.target.value || null) as Draft['default_sender_mode'] })} style={select}>
                       <option value="">No preference</option><option value="me">The producer sending it</option><option value="speaker_producer">Each speaker’s own producer</option>
                     </select></div>
-                  <div><div style={label}>Compose starts with this audience</div>
-                    <select value={draft.default_audience ?? ''} disabled={readOnly} onChange={e => set({ default_audience: (e.target.value || null) as Draft['default_audience'] })} style={select}>
-                      <option value="">No preference</option><option value="confirmed">Confirmed at this event</option><option value="spoke">Spoke at this event</option><option value="confirmed_or_spoke">Confirmed or spoke at this event</option>
-                    </select></div>
                 </div>
-                <label style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '13px', color: 'var(--ink)', cursor: readOnly ? 'default' : 'pointer' }}>
-                  <input type="checkbox" disabled={readOnly} checked={draft.allow_assistant} onChange={() => set({ allow_assistant: !draft.allow_assistant })} /> Written so it also works for an assistant (people without their own email are reached through an assistant)
-                </label>
 
                 <div>
                   <div style={label}>How it will look (sample name and values)</div>

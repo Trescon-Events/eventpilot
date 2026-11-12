@@ -11,7 +11,7 @@ export type CampLike = { id: unknown; name: unknown; event_id: unknown; owner_st
 export async function notifyOwner(c: CampLike, type: string, title: string, body: string): Promise<void> {
   const ownerId = ((c.owner_staff_id as string | null) ?? (c.created_by as string | null)) ?? null
   if (!ownerId || ownerId === 'super-admin') return
-  const link = `/admin/events/${c.event_id}/stakeholders/emails/sent?open=${c.id}`
+  const link = `/admin/events/${c.event_id}/stakeholders/emails?open=${c.id}`
   await notifyStaff([ownerId], { type: `email_${type}`, title, body, link, eventId: c.event_id as string })
   try {
     const { data: s } = await supabaseAdmin.from('staff_members').select('email').eq('id', ownerId).maybeSingle()

@@ -24,6 +24,7 @@ import AnnouncementsTab from './AnnouncementsTab'
 import SensitiveDocumentsTab from './SensitiveDocumentsTab'
 import CommunicationsTab from './CommunicationsTab'
 import GuestInviteTab from './GuestInviteTab'
+import EmailsTab from './EmailsTab'
 import SessionsTab, { type SessionsInfo } from './SessionsTab'
 import DeleteSensitiveDocumentModal from './DeleteSensitiveDocumentModal'
 import type { Speaker as SaeSpeaker, Partner as SaePartner } from '../../creative-templates/page'
@@ -233,7 +234,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   // Announcements tab (2026-08-18, SAE-into-Hub merge) — ?tab=announcements
   // (+ optional ?announcement=X) is how Queue's "Open" links land directly
   // on one creative's review panel, same deep-link idea SAE's own page used.
-  const activeTab: 'overview' | 'sessions' | 'registration' | 'secondary' | 'documents' | 'communications' | 'guest' | 'announcements' =
+  const activeTab: 'overview' | 'sessions' | 'registration' | 'secondary' | 'documents' | 'communications' | 'guest' | 'emails' | 'announcements' =
     searchParams.get('tab') === 'announcements' ? 'announcements'
     : searchParams.get('tab') === 'sessions' ? 'sessions'
     : searchParams.get('tab') === 'registration' ? 'registration'
@@ -241,6 +242,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     : searchParams.get('tab') === 'documents' ? 'documents'
     : searchParams.get('tab') === 'communications' ? 'communications'
     : searchParams.get('tab') === 'guest' ? 'guest'
+    : searchParams.get('tab') === 'emails' ? 'emails'
     : 'overview'
   const initialAnnouncementId = searchParams.get('announcement')
 
@@ -1119,7 +1121,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     setStatus(data.announcement_status)
   }
 
-  function setTab(tab: 'overview' | 'sessions' | 'registration' | 'secondary' | 'documents' | 'communications' | 'guest' | 'announcements') {
+  function setTab(tab: 'overview' | 'sessions' | 'registration' | 'secondary' | 'documents' | 'communications' | 'guest' | 'emails' | 'announcements') {
     const params = new URLSearchParams(searchParams.toString())
     params.set('tab', tab)
     if (tab === 'overview') params.delete('announcement')
@@ -1336,7 +1338,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
               "don't even reveal it exists" treatment as every other
               permission-gated surface in this app. */}
           {(kind === 'speaker'
-            ? (['overview', 'sessions', 'registration', 'secondary', ...(can('sae.sensitive_documents.view') && sensitiveDocsEnabled ? ['documents' as const] : []), 'communications', 'guest', 'announcements'] as const)
+            ? (['overview', 'sessions', 'registration', 'secondary', ...(can('sae.sensitive_documents.view') && sensitiveDocsEnabled ? ['documents' as const] : []), 'communications', 'guest', 'emails', 'announcements'] as const)
             : (['overview', 'announcements'] as const)
           ).map(t => (
             <button key={t} onClick={() => setTab(t)}
@@ -1345,7 +1347,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                 background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: 700,
                 color: activeTab === t ? 'var(--ink)' : 'var(--ink3)', marginBottom: '-1px',
               }}>
-              {t === 'overview' ? 'Overview' : t === 'sessions' ? `Sessions${sessionsInfo ? ` (${sessionsInfo.sessions.length})` : ''}` : t === 'registration' ? 'Registration' : t === 'secondary' ? 'Additional Roles' : t === 'documents' ? 'Documents' : t === 'communications' ? 'Communications' : t === 'guest' ? 'Guest Invite' : 'Announcements'}
+              {t === 'overview' ? 'Overview' : t === 'sessions' ? `Sessions${sessionsInfo ? ` (${sessionsInfo.sessions.length})` : ''}` : t === 'registration' ? 'Registration' : t === 'secondary' ? 'Additional Roles' : t === 'documents' ? 'Documents' : t === 'communications' ? 'Communications' : t === 'guest' ? 'Guest Invite' : t === 'emails' ? 'Emails' : 'Announcements'}
             </button>
           ))}
         </div>
@@ -1537,6 +1539,8 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       {activeTab === 'guest' && kind === 'speaker' && (
         <GuestInviteTab speakerId={stakeholderId} eventId={eventId} stakeholderName={publicName || name || 'this speaker'} canEdit={canEdit} />
       )}
+
+      {activeTab === 'emails' && kind === 'speaker' && <EmailsTab speakerId={stakeholderId} eventId={eventId} stakeholderName={publicName || name || 'this speaker'} />}
 
       {activeTab === 'overview' && (
       <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '24px 32px' }}>

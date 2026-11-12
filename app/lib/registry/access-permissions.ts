@@ -34,6 +34,7 @@ export const ACCESS_REGISTRY: AccessModule[] = [
       { key: 'sae.submissions.process',    label: 'Process a submission into a stakeholder record',  enforced: true },
       { key: 'sae.submissions.reject',     label: 'Reject a submission',                             enforced: true },
       { key: 'sae.approvals.approve',      label: 'Approve a record for announcement',               enforced: true },
+      { key: 'sae.emails.send_bulk',       label: 'Send one email to more than 50 people (Emails)',    enforced: true },
       { key: 'sae.announcements.generate', label: 'Generate announcement creatives',                 enforced: false },
       // Deliberately distinct from sae.approvals.approve above — that one
       // gates approving a STAKEHOLDER RECORD's data as ready for SAE to

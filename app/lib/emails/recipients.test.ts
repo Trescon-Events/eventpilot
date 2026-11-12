@@ -5,7 +5,7 @@ import { buildPeople, resolveRecipients, summarize, type PoolRecord, type Contac
 const NOW = new Date('2026-11-11T00:00:00Z')
 const rec = (o: Partial<PoolRecord> & { speaker_id: string }): PoolRecord => ({
   event_id: 'bss', event_name: 'BSS 2026', event_end: '2026-11-05', contact_id: null, name: 'Name', public_name: null, company: 'Acme', country: 'India', status: 'Confirmed',
-  planned_roles: [], pronoun_style: null, producer_id: null, producer_name: null, own_email: null, contact_email: null, additional: [], updated_at: '2026-11-01T00:00:00Z', archived: false, delete_reason: null, ...o,
+  planned_roles: [], role: null, pronoun_style: null, producer_id: null, producer_name: null, own_email: null, contact_email: null, additional: [], updated_at: '2026-11-01T00:00:00Z', archived: false, delete_reason: null, ...o,
 })
 const none = new Map<string, ContactFlags>()
 
@@ -57,14 +57,13 @@ test('recipients: the email may live on the CRM contact', () => {
   const pool = [rec({ speaker_id: '1', contact_id: 'A', own_email: null, contact_email: 'crm@x.com' })]
   assert.equal(resolveRecipients(buildPeople(pool, {}, NOW), none).recipients[0].to, 'crm@x.com')
 })
-test('no own email: assistant only when allowed, otherwise a named reason', () => {
-  const pool = [rec({ speaker_id: '1', contact_id: 'A', additional: [{ email: 'pa@x.com', name: 'PA' }] }), rec({ speaker_id: '2', contact_id: 'B' })]
-  const off = resolveRecipients(buildPeople(pool, {}, NOW), none)
-  assert.equal(off.recipients.length, 0)
-  assert.match(off.excluded.find(e => e.person.contact_id === 'A')!.reason, /assistant or office/)
-  assert.equal(off.excluded.find(e => e.person.contact_id === 'B')!.reason, 'No email address')
-  const on = resolveRecipients(buildPeople(pool, {}, NOW), none, { allowAssistant: true })
-  assert.equal(on.recipients[0].to, 'pa@x.com'); assert.equal(on.recipients[0].mode, 'assistant')
+test('no own email: the email still goes to the speaker via their additional contacts (first in To, the rest in Cc); with no contact either they are left out', () => {
+  const pool = [rec({ speaker_id: '1', contact_id: 'A', name: 'Asha', additional: [{ email: 'pa@x.com', name: 'Priya' }, { email: 'office@x.com', name: null }] }), rec({ speaker_id: '2', contact_id: 'B' })]
+  const r = resolveRecipients(buildPeople(pool, {}, NOW), none)
+  assert.equal(r.recipients.length, 1)
+  assert.equal(r.recipients[0].to, 'pa@x.com'); assert.deepEqual(r.recipients[0].cc, ['office@x.com']); assert.equal(r.recipients[0].mode, 'assistant')
+  assert.equal(r.recipients[0].greeting_name, 'Asha')                       // greeted as the speaker, never the assistant
+  assert.equal(r.excluded.find(e => e.person.contact_id === 'B')!.reason, 'No email address')
 })
 test('do not email and bounced addresses are excluded with the reason', () => {
   const pool = [rec({ speaker_id: '1', contact_id: 'A', own_email: 'a@x.com' }), rec({ speaker_id: '2', contact_id: 'B', own_email: 'b@x.com' }), rec({ speaker_id: '3', contact_id: 'C', own_email: 'c@x.com' })]
@@ -74,10 +73,13 @@ test('do not email and bounced addresses are excluded with the reason', () => {
   assert.match(r.excluded.find(e => e.person.contact_id === 'A')!.reason, /Do not email \(asked to stop\)/)
   assert.equal(r.excluded.find(e => e.person.contact_id === 'B')!.reason, 'Email bounced before')
 })
-test('two people sharing an address: the second is left out and says why', () => {
-  const pool = [rec({ speaker_id: '1', contact_id: 'A', name: 'Asha', own_email: 'office@x.com' }), rec({ speaker_id: '2', contact_id: 'B', name: 'Bela', own_email: 'OFFICE@x.com' })]
-  const r = resolveRecipients(buildPeople(pool, {}, NOW), none)
+test('two people sharing one OWN address: the second is left out; an assistant looking after two speakers gets one email each', () => {
+  const dup = [rec({ speaker_id: '1', contact_id: 'A', name: 'Asha', own_email: 'office@x.com' }), rec({ speaker_id: '2', contact_id: 'B', name: 'Bela', own_email: 'OFFICE@x.com' })]
+  const r = resolveRecipients(buildPeople(dup, {}, NOW), none)
   assert.equal(r.recipients.length, 1); assert.match(r.excluded[0].reason, /Same address as Asha/)
+  const pa = [rec({ speaker_id: '3', contact_id: 'C', name: 'Chen', additional: [{ email: 'pa@x.com', name: 'Priya' }] }), rec({ speaker_id: '4', contact_id: 'D', name: 'Dev', additional: [{ email: 'pa@x.com', name: 'Priya' }] })]
+  const r2 = resolveRecipients(buildPeople(pa, {}, NOW), none)
+  assert.equal(r2.recipients.length, 2); assert.deepEqual(r2.recipients.map(x => x.greeting_name).sort(), ['Chen', 'Dev'])
 })
 test('hand-removed people are left out; summary counts reasons', () => {
   const pool = [rec({ speaker_id: '1', contact_id: 'A', own_email: 'a@x.com' }), rec({ speaker_id: '2', contact_id: 'B', own_email: 'b@x.com' }), rec({ speaker_id: '3', contact_id: 'C' })]
@@ -89,11 +91,16 @@ test('a record with no CRM link joins the person who has the same address', () =
   const pool = [rec({ speaker_id: '1', contact_id: null, own_email: 'z@x.com', event_id: 'bss' }), rec({ speaker_id: '2', contact_id: null, own_email: 'Z@x.com', event_id: 'dfs' })]
   assert.equal(buildPeople(pool, {}, NOW).length, 1)
 })
-test('assistant mode greets the assistant by name, or "Team" when unnamed; own mode keeps the speaker pronoun style', () => {
-  const pool = [rec({ speaker_id: '1', contact_id: 'A', name: 'Asha', pronoun_style: 'his_excellency', additional: [{ email: 'pa@x.com', name: 'Priya' }] }), rec({ speaker_id: '2', contact_id: 'B', additional: [{ email: 'o@x.com', name: null }] }), rec({ speaker_id: '3', contact_id: 'C', name: 'Chen', own_email: 'c@x.com', pronoun_style: 'honble' })]
-  const r = resolveRecipients(buildPeople(pool, {}, NOW), none, { allowAssistant: true })
+test('every recipient is greeted as the speaker, with their honorific style, company and role kept for placeholders', () => {
+  const pool = [rec({ speaker_id: '1', contact_id: 'A', name: 'Asha', pronoun_style: 'his_excellency', company: 'Acme', role: 'CEO', additional: [{ email: 'pa@x.com', name: 'Priya' }] }), rec({ speaker_id: '3', contact_id: 'C', name: 'Chen', own_email: 'c@x.com', pronoun_style: 'honble' })]
+  const r = resolveRecipients(buildPeople(pool, {}, NOW), none)
   const by = (id: string) => r.recipients.find(x => x.contact_id === id)!
-  assert.equal(by('A').greeting_name, 'Priya'); assert.equal(by('A').pronoun_style, null)
-  assert.equal(by('B').greeting_name, 'Team')
+  assert.equal(by('A').greeting_name, 'Asha'); assert.equal(by('A').pronoun_style, 'his_excellency'); assert.equal(by('A').company, 'Acme'); assert.equal(by('A').role, 'CEO')
   assert.equal(by('C').greeting_name, 'Chen'); assert.equal(by('C').pronoun_style, 'honble')
+})
+test('not emailed in the last N days leaves out people emailed recently', () => {
+  const pool = [rec({ speaker_id: '1', contact_id: 'A' }), rec({ speaker_id: '2', contact_id: 'B' }), rec({ speaker_id: '3', contact_id: 'C' })]
+  const last = new Map([['A', '2026-11-08T00:00:00Z'], ['B', '2026-09-01T00:00:00Z']])   // NOW is 11 Nov: A 3 days ago, B 71 days ago, C never
+  assert.deepEqual(buildPeople(pool, { not_emailed_days: 14 }, NOW, last).map(p => p.contact_id), ['B', 'C'])
+  assert.equal(buildPeople(pool, {}, NOW, last).find(p => p.contact_id === 'A')!.last_emailed, '2026-11-08T00:00:00Z')
 })

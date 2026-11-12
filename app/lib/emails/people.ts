@@ -14,6 +14,7 @@ export type PoolData = {
   producers: { id: string; name: string }[]
   roles: string[]
   countries: string[]
+  lastEmailed: Map<string, string>   // CRM contact → when an EventPilot email last went to them
 }
 
 async function inChunks<T>(ids: string[], size: number, fn: (chunk: string[]) => Promise<T[]>): Promise<T[]> {
@@ -28,9 +29,9 @@ export async function loadPool(eventIds: string[] | null): Promise<PoolData> {
   const { data: evRows } = eventIds ? await evQuery.in('id', eventIds.length ? eventIds : ['00000000-0000-0000-0000-000000000000']) : await evQuery
   const events = (evRows ?? []).map(e => { const d = strictEventDays(e as { actual_start_date: string | null; actual_end_date: string | null }); return { id: e.id as string, name: e.name as string, start: d.start, end: d.end } })
   const eventById = new Map(events.map(e => [e.id, e]))
-  if (!events.length) return { pool: [], flags: new Map(), events, producers: [], roles: [], countries: [] }
+  if (!events.length) return { pool: [], flags: new Map(), events, producers: [], roles: [], countries: [], lastEmailed: new Map() }
 
-  const cols = 'id, event_id, name, public_name, company, country, confirmation_status, planned_roles, pronoun_style, producer_staff_id, email, custom_fields, crm_contact_id, updated_at, announcement_status, delete_reason'
+  const cols = 'id, event_id, name, public_name, company, role, country, confirmation_status, planned_roles, pronoun_style, producer_staff_id, email, custom_fields, crm_contact_id, updated_at, announcement_status, delete_reason'
   const speakers: Record<string, unknown>[] = []
   for (let from = 0; ; from += 1000) {
     const { data } = await supabaseAdmin.from('event_speakers').select(cols).in('event_id', events.map(e => e.id)).order('id').range(from, from + 999)
@@ -58,7 +59,7 @@ export async function loadPool(eventIds: string[] | null): Promise<PoolData> {
     return {
       speaker_id: s.id as string, event_id: s.event_id as string, event_name: ev?.name ?? '', event_end: ev?.end ?? null,
       contact_id: (s.crm_contact_id as string | null) ?? null, name: (s.name as string) ?? '', public_name: (s.public_name as string | null) ?? null,
-      company: (s.company as string | null) ?? null, country: (s.country as string | null) ?? null, status: (s.confirmation_status as string | null) ?? null,
+      company: (s.company as string | null) ?? null, role: (s.role as string | null) ?? null, country: (s.country as string | null) ?? null, status: (s.confirmation_status as string | null) ?? null,
       planned_roles: (s.planned_roles as string[] | null) ?? [], pronoun_style: (s.pronoun_style as string | null) ?? null, producer_id: (s.producer_staff_id as string | null) ?? null, producer_name: s.producer_staff_id ? staffName.get(s.producer_staff_id as string) ?? null : null,
       // custom_fields.email is the canonical, maintained speaker email; the legacy email column is only a fallback (same rule as every other speaker send)
       own_email: speakerEmailOf(s.custom_fields as Record<string, unknown> | null, (s.email as string | null) ?? null) || null, contact_email: (c?.email as string | null) ?? null, additional: extrasBy.get(s.id as string) ?? [],
@@ -66,8 +67,15 @@ export async function loadPool(eventIds: string[] | null): Promise<PoolData> {
     }
   })
 
+  // when an EventPilot email last went to each person (for "last emailed" and the "not emailed in the last N days" criterion)
+  const lastEmailed = new Map<string, string>()
+  if (contactIds.length) {
+    const sent = await inChunks(contactIds, 200, async ids => (await supabaseAdmin.from('email_campaign_recipients').select('contact_id, sent_at').in('contact_id', ids).eq('status', 'sent').not('sent_at', 'is', null).order('sent_at', { ascending: false }).limit(2000)).data ?? [])
+    for (const r of sent) { const k = r.contact_id as string; const at = r.sent_at as string; if (!lastEmailed.has(k) || at > lastEmailed.get(k)!) lastEmailed.set(k, at) }
+  }
+
   return {
-    pool, flags, events: events.sort((a, b) => a.name.localeCompare(b.name)),
+    pool, lastEmailed, flags, events: events.sort((a, b) => a.name.localeCompare(b.name)),
     producers: [...staffName].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name)),
     roles: [...new Set(pool.flatMap(r => r.planned_roles))].sort(),
     countries: [...new Set(pool.map(r => r.country?.trim()).filter((x): x is string => !!x))].sort(),

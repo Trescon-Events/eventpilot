@@ -13,6 +13,8 @@ export const EVENT_TOKENS = [
 export const PERSON_TOKENS = [
   { key: 'speaker_name', label: 'Speaker’s name' },
   { key: 'first_name', label: 'Speaker’s first name' },
+  { key: 'company', label: 'Company' },
+  { key: 'role', label: 'Job title' },
 ] as const
 export const RESERVED_KEYS: string[] = [...EVENT_TOKENS, ...PERSON_TOKENS].map(t => t.key)
 
@@ -41,8 +43,14 @@ export function applyTokensPlain(text: string, values: Record<string, string | n
 
 export const firstNameOf = (name: string) => name.trim().split(/\s+/)[0] ?? ''
 
-export function personValues(name: string): Record<string, string> {
-  return { speaker_name: name.trim(), first_name: firstNameOf(name) }
+export function personValues(name: string, extra: { company?: string | null; role?: string | null } = {}): Record<string, string> {
+  return { speaker_name: name.trim(), first_name: firstNameOf(name), company: (extra.company ?? '').trim(), role: (extra.role ?? '').trim() }
+}
+
+/** The person placeholders that need data a speaker may not have (company, job title): which of them an email uses. */
+export function dataTokensUsed(text: string): ('company' | 'role')[] {
+  const used = extractTokens(text)
+  return (['company', 'role'] as const).filter(k => used.includes(k))
 }
 
 /** Checks the required fields a producer filled in; returns the cleaned values or the first problem. */

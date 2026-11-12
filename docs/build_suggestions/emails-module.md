@@ -118,3 +118,18 @@ Open and click tracking, an unsubscribe link, writing back to HubSpot, importing
 1. Phase 2 test uses a throwaway event with Madhu's own addresses as recipients. **Yes.**
 2. Extra confirmation above **20** recipients (was 50); repeat-send warning on an overlapping list within 30 days.
 3. HubSpot opt-outs and bounces: **not used** (Madhu, 11 Nov): they come from marketing sends. Only requests to stop received through EventPilot's own Outlook emails count.
+
+
+## Restructure (12 Nov 2026): HubSpot-style layout, static and active lists, drafts and more
+
+Decided with Madhu after using phases 1-5. This supersedes the earlier "Lists / Compose / Templates / Sent" tab layout and the assistant mode.
+
+- **Recipients:** an email is always addressed to the speaker. It goes to their own address with every additional contact in Cc; with no own address it goes to the first additional contact (the rest in Cc), still greeting the speaker. The "reach through an assistant" option and the separate assistant greeting are gone. One assistant looking after several speakers gets one email per speaker; two different people sharing one OWN address are still treated as a duplicate.
+- **Layout:** a left side panel (Emails, Lists, Templates, plus Create email). **Emails** is the landing page: every email (drafts, scheduled, sending, sent, cancelled) with its event, umbrella, owner and numbers; filter by status, "This event / All my events", event, umbrella; search by name or subject. Open one to see what it said, who got it and what happened.
+- **Each email belongs to one event** (chosen when it is written, default the workspace event). Lists can belong to an event or be usable from any event.
+- **Lists** (`email_lists.list_type`): **Active** keeps only its criteria and is worked out again every time it is used (grows by itself). **Static** copies the people matching at creation into `members` (person keys c:/e:/s:) and stays; individuals can be added (search, or "everyone matching some criteria") and removed afterwards. The Lists page opens on a table (name, type, size, used in N emails, updated) with Create list, Export CSV and Delete (refused while a scheduled or sending email uses the list). A list shows where each person qualifies, the emails that used it and, for active lists, who joined since the last email. A scheduled email uses its list as it stands at release.
+- **Create email:** name, event, list (a dropdown showing each list's type and size, with "+ Create a new list"), template (a searchable picker; clicking one previews it in a pop-up; "Use this template" copies it into the email, so edits never change the template), subject, text, attachments, Polish. **Per-person check:** "preview as" any recipient, placeholders `{{company}}` and `{{role}}`, and a warning for people who lack the data the email uses (leave them out on send). **Drafts** autosave; **Duplicate** and **Follow up with the people who have not replied** (a static list + a draft) open here.
+- **Sending safeguards:** a warning when one mailbox would send more than 200 emails in one email; "spread over N hours" (`pace_hours`, the cron drips it out); sending to more than 50 people needs the `sae.emails.send_bulk` permission (granted to every role that can edit speakers, so nothing changes until an admin removes it from a role); the existing confirmation above 20 and 30-day overlap warning stay.
+- **Criteria:** a list can leave out anyone emailed in the last N days; each person shows "last emailed".
+- **Speaker record:** a new **Emails** tab on each speaker lists every Emails-module email sent to that person across events with its outcome.
+- **Export:** CSV of an email's recipients and outcomes, and of a list's people.

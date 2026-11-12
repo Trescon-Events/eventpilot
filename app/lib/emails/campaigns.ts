@@ -5,9 +5,10 @@ import { sendGraphMailNewThread } from '@/app/lib/email/graph-mail'
 import { checkEmailCompliance, htmlToPlainText } from '@/app/lib/guest-invites/template'
 import { attachmentProblem, cleanBodyHtml, hasContent, renderSpeakerEmail, type SpeakerAttachment } from '@/app/lib/speaker-emails/render'
 import { attachmentUrlOk, loadAttachmentBytes } from '@/app/lib/speaker-emails/server'
-import { resolveAudience, loadSavedList, cleanFilters, type AudienceInput } from './audience'
+import { resolveAudience, loadSavedList, audienceOfList, cleanFilters, type AudienceInput } from './audience'
+import { hasEventPermission } from '@/app/lib/access/event-access'
 import { eventDateText } from '@/app/lib/events/event-days'
-import { applyTokens, applyTokensPlain, checkRequiredFields, missingFieldTokens, personValues, unresolvedTokens, type RequiredField } from './templates'
+import { applyTokens, applyTokensPlain, checkRequiredFields, dataTokensUsed, missingFieldTokens, personValues, unresolvedTokens, type RequiredField } from './templates'
 
 /* Emails module, phase 2 (2026-11-12) — one named email to a list. Creating a campaign FREEZES the audience into one row per person; sending then works through those
    rows in small batches (the page calls "send" until nothing is queued, and a left-over batch can always be continued). Each person gets the body the producer wrote with
@@ -15,6 +16,8 @@ import { applyTokens, applyTokensPlain, checkRequiredFields, missingFieldTokens,
 
 export const FALLBACK_SENDER = { sender_name: 'Event producer', sender_email: 'noreply@eventpilot.tresconglobal.com' }
 export const CONFIRM_ABOVE = 20          // more recipients than this needs an explicit confirmation
+export const BULK_ABOVE = 50              // sending to more than this many people needs the sae.emails.send_bulk permission
+export const MAILBOX_WARN_ABOVE = 200     // one mailbox sending more than this in one email risks Microsoft throttling and spam filtering
 export const BATCH_SIZE = 8              // emails sent per call (a call must finish inside the 60 s function limit)
 const STALE_CLAIM_MS = 5 * 60_000        // a recipient claimed but never finished (the page closed mid-send) is put back in the queue after this
 
@@ -24,8 +27,11 @@ export type CampaignInput = {
   listId?: string | null; audience?: AudienceInput
   senderMode: 'me' | 'speaker_producer'; confirmed?: boolean
   templateId?: string | null; fieldValues?: Record<string, unknown>
+  draftId?: string | null
+  paceHours?: number | null            // spread a big send over this many hours (the cron drips it out)
+  skipUnpersonalisable?: boolean       // leave out people who lack the company / job title the email uses
 }
-export type Fail = { ok: false; error: string; status: number; errors?: { message: string; match: string }[]; needs_confirmation?: boolean; recipients?: number }
+export type Fail = { ok: false; error: string; status: number; errors?: { message: string; match: string }[]; needs_confirmation?: boolean; recipients?: number; unpersonalisable?: { count: number; names: string[]; fields: string[] } }
 type Finding = { message: string; match: string }
 const finding = (x: Finding): Finding => ({ message: x.message, match: x.match })
 
@@ -95,7 +101,7 @@ export async function checkEmailContent(eventId: string, subject: string, bodyHt
 }
 
 /** Freezes the audience and creates the campaign. Nothing is sent yet. */
-export async function createCampaign(session: TcsSession, input: CampaignInput): Promise<Fail | { ok: true; campaign_id: string; count: number; warnings: Finding[] }> {
+export async function createCampaign(session: TcsSession, input: CampaignInput): Promise<Fail | { ok: true; campaign_id: string; count: number; warnings: Finding[]; paced: boolean }> {
   if (!input.name.trim()) return { ok: false, error: 'Give this email a name, so you can find it later in Sent.', status: 422 }
   const prepared = await prepareContent(input.eventId, input.subject, input.bodyHtml, { templateId: input.templateId, fieldValues: input.fieldValues })
   if (!prepared.ok) return prepared
@@ -106,10 +112,20 @@ export async function createCampaign(session: TcsSession, input: CampaignInput):
   if (input.listId) {
     const l = await loadSavedList(input.listId)
     if (!l) return { ok: false, error: 'That list no longer exists.', status: 404 }
-    audience = { filters: l.filters, pinned: l.pinned, excluded: l.excluded, allowAssistant: l.allowAssistant }; listFilters = l.filters
+    audience = audienceOfList(l); listFilters = l.filters
   }
   const a = await resolveAudience(session, audience ?? {})
+  // people who lack the company / job title this email uses cannot be personalised: leave them out on request, otherwise say who they are
+  const need = dataTokensUsed(`${prepared.subject}\n${content.bodyHtml}`)
+  if (need.length) {
+    const lacking = a.recipients.filter(r => need.some(k => !(k === 'company' ? r.company : r.role)?.trim()))
+    if (lacking.length) {
+      if (!input.skipUnpersonalisable) return { ok: false, error: `${lacking.length} ${lacking.length === 1 ? 'person has' : 'people have'} no ${need.map(k => (k === 'company' ? 'company' : 'job title')).join(' or ')} on record, which this email uses.`, status: 422, unpersonalisable: { count: lacking.length, names: lacking.slice(0, 8).map(r => r.name), fields: need } }
+      const drop = new Set(lacking.map(r => r.key)); a.recipients = a.recipients.filter(r => !drop.has(r.key))
+    }
+  }
   if (!a.recipients.length) return { ok: false, error: 'Nobody would receive this email. Check the list.', status: 422 }
+  if (a.recipients.length > BULK_ABOVE && !(await mayBulkSend(session, input.eventId))) return { ok: false, error: `Sending to more than ${BULK_ABOVE} people needs the “send an email to many people” permission. Ask an admin, or send to a smaller list.`, status: 403 }
   if (a.recipients.length > CONFIRM_ABOVE && !input.confirmed) {
     return { ok: false, error: `This goes to ${a.recipients.length} people. Confirm that you have checked the list and the email.`, status: 409, needs_confirmation: true, recipients: a.recipients.length }
   }
@@ -119,7 +135,7 @@ export async function createCampaign(session: TcsSession, input: CampaignInput):
   const { data: camp, error } = await supabaseAdmin.from('email_campaigns').insert({
     name: input.name.trim(), event_id: input.eventId, audience_type: 'speaker', template_id: prepared.templateId, field_values: prepared.fieldValues, subject: prepared.subject.trim(), body_html: content.bodyHtml, polished: !!input.polished,
     original_html: input.polished ? (input.originalHtml ?? null) : null, attachments: input.attachments, list_id: input.listId ?? null, list_filters: listFilters,
-    allow_assistant: !!audience?.allowAssistant, sender_mode: input.senderMode, sender_staff_id: session.sid && session.sid !== 'super-admin' ? session.sid : null,
+    allow_assistant: false, pace_hours: input.paceHours ?? null, released_at: input.paceHours ? now : null, sender_mode: input.senderMode, sender_staff_id: session.sid && session.sid !== 'super-admin' ? session.sid : null,
     owner_staff_id: session.sid && session.sid !== 'super-admin' ? session.sid : null, status: 'sending', recipient_count: a.recipients.length, created_by: session.sid ?? null, created_at: now,
   }).select('id').single()
   if (error || !camp) return { ok: false, error: 'Could not create the email.', status: 500 }
@@ -129,14 +145,21 @@ export async function createCampaign(session: TcsSession, input: CampaignInput):
     const sender = input.senderMode === 'speaker_producer' ? await resolveSenderIdentity(session, FALLBACK_SENDER, r.rep.producer_id) : me
     rows.push({
       campaign_id: camp.id, contact_id: r.contact_id, speaker_id: r.rep.speaker_id, name: r.name, greeting_name: r.greeting_name, pronoun_style: r.pronoun_style, mode: r.mode,
-      to_email: r.to, cc_emails: r.cc, sender_email: sender.email, sender_name: sender.name, status: 'queued',
+      to_email: r.to, cc_emails: r.cc, sender_email: sender.email, sender_name: sender.name, company: r.company, role: r.role, status: 'queued',
     })
   }
   for (let i = 0; i < rows.length; i += 200) {
     const { error: e } = await supabaseAdmin.from('email_campaign_recipients').insert(rows.slice(i, i + 200))
     if (e) { await supabaseAdmin.from('email_campaigns').delete().eq('id', camp.id); return { ok: false, error: 'Could not save the recipients.', status: 500 } }
   }
-  return { ok: true, campaign_id: camp.id as string, count: rows.length, warnings: content.warnings }
+  // a draft this email was written from is no longer needed
+  if (input.draftId) await supabaseAdmin.from('email_campaigns').delete().eq('id', input.draftId).eq('status', 'draft')
+  return { ok: true, campaign_id: camp.id as string, count: rows.length, warnings: content.warnings, paced: !!input.paceHours }
+}
+
+/** May this session send one email to more than BULK_ABOVE people? Admins always; others need sae.emails.send_bulk on the event. */
+export async function mayBulkSend(session: TcsSession, eventId: string): Promise<boolean> {
+  return !!session.adm || (await hasEventPermission(session.sid, eventId, 'sae.emails.send_bulk'))
 }
 
 export type Progress = { status: string; total: number; sent: number; failed: number; skipped: number; queued: number; sending: number }
@@ -181,7 +204,7 @@ export async function sendBatch(campaignId: string, max = BATCH_SIZE): Promise<P
       if (r.contact_id && stopped.has(r.contact_id as string)) { await supabaseAdmin.from('email_campaign_recipients').update({ status: 'skipped', skip_reason: 'Marked do not email after the list was built', claimed_at: null }).eq('id', id); continue }
       if (attachError) { await supabaseAdmin.from('email_campaign_recipients').update({ status: 'failed', error: attachError, claimed_at: null }).eq('id', id); continue }
       try {
-        const person = personValues((r.name as string) || '')
+        const person = personValues((r.name as string) || '', { company: r.company as string | null, role: r.role as string | null })
         const html = renderSpeakerEmail({ bodyHtml: applyTokens(c.body_html as string, person), publicName: (r.greeting_name as string) || (r.name as string), pronounStyle: r.pronoun_style as string | null, producerName: (r.sender_name as string) || '' })
         const cc = (r.cc_emails as string[]) ?? []
         const sent = await sendGraphMailNewThread({

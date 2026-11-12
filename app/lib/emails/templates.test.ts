@@ -13,7 +13,7 @@ test('subject lines are filled as plain text', () => {
   assert.equal(applyTokensPlain('Thanks for {{event_name}}', { event_name: 'A & B' }), 'Thanks for A & B')
 })
 test('person values', () => {
-  assert.deepEqual(personValues('  Asha  Rao '), { speaker_name: 'Asha  Rao', first_name: 'Asha' })
+  assert.deepEqual(personValues('  Asha  Rao ', { company: ' Acme ', role: null }), { speaker_name: 'Asha  Rao', first_name: 'Asha', company: 'Acme', role: '' })
 })
 test('required fields: empty, wrong link, good link', () => {
   const f = [{ key: 'gallery_link', label: 'Photo gallery link', kind: 'url' as const }]
