@@ -22,6 +22,9 @@ Spec: `docs/build_suggestions/copy-library.md`. Migration `supabase/copy_library
   2. **Workspace badge** — "N need review" shows on the Copy Library tab only, not on the event workspace home.
   Also later: press releases / invites / Konfhub / website / YouTube consume the library in their own builds.
 
+## Public figures review v2 (13 Nov 2026) — branch `feat/figures-review-v2`, built, NOT pushed; migration `supabase/figures_review_v2_migration.sql` RUN on production
+Replaces the open internal link and the single client link. Rounds go to NAMED people and run in sequence: draft, internal round (assigned staff, signed in, `/public/figures-review/team/<round>`), producer closes and edits, client round (post-event approvers, each with a personal token link `/public/figures-review/<token>`), producer closes and takes the final action (`finalApprove`; route 'client' only if a client approved exactly the wording, else the producer must override). Answers save at once, are shown to every reviewer in the round (polls every 6 s), and keep the value each reviewer saw. Code: `public-figures-review.ts` (rounds, reviewers, approvers), `FiguresReviewView.tsx`, `PostEventTab.tsx` (stepper, RoundBar, SendPanel, ApproversCard, FeedbackList, DecisionCard). Acceptance `.scratch/figures-v2-acceptance.ts` 43/43 on a throwaway event with fake staff and no email. UI not yet checked in a browser. Not built: reminders to non-responders.
+
 ## Public figures (13 Nov 2026) — branch `feat/public-figures`, built, NOT pushed; migration NOT run
 Spec: `docs/build_suggestions/public-figures.md` (incl. "Step 0 outcome and decisions"). Public only: internal actuals/targets are out of scope and must never share these tables.
 - Migration `supabase/public_figures_migration.sql` (6 new tables, nothing existing changed). Madhu runs it by hand.

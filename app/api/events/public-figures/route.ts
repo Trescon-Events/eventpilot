@@ -4,18 +4,17 @@ import { hasEventPermission } from '@/app/lib/access/event-access'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { canManageRules } from '@/app/lib/content/rule-admin'
 import {
-  FigureError, acceptSuggestion, addCustom, addFromCatalogue, addGroup, approveInternally, eventOfFigure, listFigures, removeAfterReview, removeAllEmpty, removeItem, reopen, reviseAndResend,
-  sendReview, startFromTemplate, updateItem,
+  FigureError, acceptSuggestion, addCustom, addFromCatalogue, addGroup, approveInternally, eventOfFigure, finalApprove, listFigures, removeAfterReview, removeAllEmpty, removeItem, reopen, reviseAndResend,
+  startFromTemplate, updateItem,
 } from '@/app/lib/content/public-figures'
+import { addApprover, closeRound, eventStaffChoices, importApprovers, removeApprover, sendRound } from '@/app/lib/content/public-figures-review'
 import { FIGURE_CATALOGUE, FIGURE_CATEGORIES, GROUPABLE_CATEGORIES } from '@/app/lib/content/public-figures-catalogue'
 
 /* Public figures API (docs/build_suggestions/public-figures.md). Public only: internal actuals and targets are not here.
    GET  ?event_id=…   the event's items, with checks, the last decision and "update available"
-   POST { action, … } start_from_template | add_from_catalogue | add_custom | add_group | remove_all_empty | update | remove | approve | send_review | accept_suggestion | revise | remove_after_review | reopen
+   POST { action, … } start_from_template | add_from_catalogue | add_custom | add_group | remove_all_empty | update | remove | approve | send_review | close_round | final_approve
+                       | accept_suggestion | revise | remove_after_review | reopen | add_approver | remove_approver | import_approvers
    Permission: sae.forms.manage on the event (the same as the rules screen and the Copy Library). Read needs view access. Every write is audited. */
-
-/** Behind Railway and the Cloudflare worker `req.nextUrl.origin` is localhost, so links for outside people come from the configured site URL (same as every other review link). */
-const siteOrigin = () => (process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com').replace(/\/$/, '')
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -27,13 +26,14 @@ export async function GET(req: NextRequest) {
   const can = await canManageRules(req, { kind: 'event', id: eventId })
   if (!can.ok && !(await hasEventPermission(session.sid, eventId, 'sae.stakeholders.view'))) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   try {
-    const [lib, ev, copy] = await Promise.all([
+    const [lib, staff, ev, copy] = await Promise.all([
       listFigures(eventId),
+      eventStaffChoices(eventId),
       supabaseAdmin.from('events').select('name, public_name, content_phase').eq('id', eventId).maybeSingle(),
       supabaseAdmin.from('copy_library_items').select('id, asset_key, variant_length, variant_phase, status, approved_version').eq('event_id', eventId).eq('variant_phase', 'post').order('asset_key'),
     ])
     return NextResponse.json({
-      ...lib, can_edit: can.ok, categories: FIGURE_CATEGORIES, catalogue: FIGURE_CATALOGUE.map(e => ({ key: e.key, category: e.category, kind: e.kind, label: e.label, help: e.help })), groupable: [...GROUPABLE_CATEGORIES],
+      ...lib, staff_choices: staff, can_edit: can.ok, categories: FIGURE_CATEGORIES, catalogue: FIGURE_CATALOGUE.map(e => ({ key: e.key, category: e.category, kind: e.kind, label: e.label, help: e.help })), groupable: [...GROUPABLE_CATEGORIES],
       event_name: ev.data?.public_name || ev.data?.name || null, copy_post_items: copy.data ?? [],
     }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : 'Could not load.' }, { status: 500 }) }
@@ -65,10 +65,15 @@ export async function POST(req: NextRequest) {
       case 'approve': return NextResponse.json(await approveInternally(eventId, Array.isArray(body.ids) ? (body.ids as string[]).filter(i => UUID.test(i)) : 'all', sid))
       case 'send_review': {
         if (body.audience !== 'internal' && body.audience !== 'client') return NextResponse.json({ error: 'audience internal|client required.' }, { status: 400 })
-        const r = await sendReview(eventId, body.audience, Array.isArray(body.ids) ? (body.ids as string[]).filter(i => UUID.test(i)) : null, sid)
-        return NextResponse.json({ ...r, url: `${siteOrigin()}/public/figures-review/${r.token}` })
+        const reviewerIds = Array.isArray(body.reviewer_ids) ? (body.reviewer_ids as string[]).filter(i => UUID.test(i)) : []
+        return NextResponse.json(await sendRound(eventId, body.audience, { ids: Array.isArray(body.ids) ? (body.ids as string[]).filter(i => UUID.test(i)) : null, reviewerIds, message: str('message') || null }, sid))
       }
-      case 'accept_suggestion': return NextResponse.json({ item: await acceptSuggestion(need(), sid) })
+      case 'close_round': return NextResponse.json(await closeRound(eventId, str('round_id'), sid))
+      case 'final_approve': return NextResponse.json(await finalApprove(eventId, Array.isArray(body.ids) ? (body.ids as string[]).filter(i => UUID.test(i)) : [], body.override === true, sid))
+      case 'add_approver': return NextResponse.json({ approver: await addApprover(eventId, str('name'), str('email'), sid) })
+      case 'remove_approver': await removeApprover(eventId, str('approver_id'), sid); return NextResponse.json({ ok: true })
+      case 'import_approvers': return NextResponse.json(await importApprovers(eventId, sid))
+      case 'accept_suggestion': return NextResponse.json({ item: await acceptSuggestion(need(), str('decision_id'), sid) })
       case 'revise': return NextResponse.json({ item: await reviseAndResend(need(), { label: typeof body.label === 'string' ? body.label : undefined, payload: body.payload }, sid) })
       case 'remove_after_review': await removeAfterReview(need(), sid); return NextResponse.json({ ok: true })
       case 'reopen': return NextResponse.json({ item: await reopen(need(), str('reason'), sid) })

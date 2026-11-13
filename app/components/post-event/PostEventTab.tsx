@@ -12,16 +12,19 @@ import { categoryLabel } from '@/app/lib/content/public-figures-catalogue'
 type Row = { label: string; display: string; percent?: number }
 type Payload = { display?: string; title?: string; rows?: Row[]; text?: string }
 type Finding = { message: string; match?: string }
-type Decision = { decision: 'approve' | 'reject' | 'suggest'; suggested_label: string | null; suggested_payload: Payload | null; comment: string | null; audience: 'internal' | 'client'; reviewer_name: string | null; resolved_at: string | null }
+type Answer = { id: string; reviewer_id: string | null; reviewer_name: string; decision: 'approve' | 'reject' | 'suggest'; suggested_label: string | null; suggested_payload: Payload | null; comment: string | null; seen_label: string | null; seen_payload: Payload | null; decided_at: string; resolved_at: string | null }
+type ItemRound = { round_id: string; audience: 'internal' | 'client'; status: 'open' | 'closed'; closed_at: string | null; answers: Answer[]; waiting: string[] }
 type Item = {
   id: string; kind: 'figure' | 'breakdown' | 'outcome'; catalogue_key: string | null; category: string; group_label: string | null; label: string; working_payload: Payload; approved_payload: Payload | null
-  approved_version: number; status: string; source: string | null; evidence_file_name: string | null; evidence_file_path: string | null; basis: 'measured' | 'estimate'; notes: string | null
-  errors: Finding[]; warnings: Finding[]; decision: Decision | null; update_available: number; usage_count: number
+  approved_version: number; status: string; updated_at: string; source: string | null; evidence_file_name: string | null; evidence_file_path: string | null; basis: 'measured' | 'estimate'; notes: string | null
+  errors: Finding[]; warnings: Finding[]; feedback: ItemRound[]; update_available: number; usage_count: number
 }
 type CopyItem = { id: string; asset_key: string; variant_length: string; variant_phase: string; status: string; approved_version: number }
+type Person = { id: string; name: string; email: string }
+type RoundSummary = { id: string; audience: 'internal' | 'client'; status: 'open' | 'closed'; sent_at: string; closed_at: string | null; items: number; reviewers: Array<{ id: string; name: string; email: string; kind: string; done: boolean; answered: number; last_opened_at: string | null; notified_at: string | null }> }
 type Payloadd = {
   items: Item[]; requires_client_approval: boolean; can_edit: boolean; categories: Array<{ key: string; label: string }>; catalogue: Array<{ key: string; category: string; kind: string; label: string; help: string }>
-  groupable: string[]; event_name: string | null; copy_post_items: CopyItem[]
+  groupable: string[]; event_name: string | null; copy_post_items: CopyItem[]; approvers: Person[]; staff_choices: Person[]; rounds: { internal: RoundSummary | null; client: RoundSummary | null }
 }
 
 const STATUS: Record<string, { label: string; color: string }> = {
@@ -35,7 +38,8 @@ export default function PostEventTab({ eventId }: { eventId: string }) {
   const [data, setData] = useState<Payloadd | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
-  const [link, setLink] = useState<{ url: string; audience: string; count: number } | null>(null)
+  const [sending, setSending] = useState<'internal' | 'client' | null>(null)
+  const [sent, setSent] = useState<{ audience: string; reviewers: Array<{ name: string; email: string; link: string; emailed: boolean }> } | null>(null)
   const [reload, setReload] = useState(0)
   const load = useCallback(() => setReload(k => k + 1), [])
 
@@ -73,10 +77,15 @@ export default function PostEventTab({ eventId }: { eventId: string }) {
   const can = data.can_edit
   const items = data.items
   const count = (f: (i: Item) => boolean) => items.filter(f).length
-  const awaiting = items.filter(i => i.status === 'client_suggested' || i.status === 'client_rejected')
+  // the client round counts only while the item is as it was when the round closed (a revision needs a new round)
+  const clientClosed = (i: Item) => i.feedback.some(f => f.audience === 'client' && f.status === 'closed' && !!f.closed_at && new Date(i.updated_at).getTime() <= new Date(f.closed_at).getTime() + 1000)
+  const needsDecision = items.filter(i => ['in_internal_review', 'client_suggested', 'client_rejected'].includes(i.status) && clientClosed(i))
   const draftReady = count(i => (i.status === 'draft' || i.status === 'edited_since_approval') && isFilled(i))
+  const readyForClient = count(i => i.status === 'in_internal_review' && !clientClosed(i))
   const inReview = count(i => i.status === 'in_internal_review' || i.status === 'pending_client')
   const approved = count(i => i.status === 'approved')
+  const internalRound = data.rounds.internal, clientRound = data.rounds.client
+  const finalisable = needsDecision.filter(i => i.status === 'in_internal_review')
 
   return (
     <div style={{ display: 'grid', gap: '16px' }}>
@@ -86,34 +95,44 @@ export default function PostEventTab({ eventId }: { eventId: string }) {
         <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '2px' }}>Internal actuals and targets are not kept here. Tools only ever read the approved value of an item; a draft, an item in review or a reopened item never goes out.</div>
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', margin: '12px 0', fontSize: '12.5px' }}>
           <Counter n={count(i => i.status === 'draft' || i.status === 'edited_since_approval')} label="draft" /><Counter n={inReview} label="in review" />
-          <Counter n={awaiting.length} label="awaiting you" hot /><Counter n={approved} label="approved" />
+          <Counter n={needsDecision.length} label="need your decision" hot /><Counter n={approved} label="approved" />
           <span style={{ color: 'var(--ink3)' }}>{data.requires_client_approval ? 'Client approval is required for this event.' : 'Client approval is not required for this event.'} <Link href={`/admin/events/${eventId}/details?tab=copy`} style={{ color: 'var(--teal-mid)', fontWeight: 800 }}>Change in Copy Library</Link></span>
         </div>
+        <Steps requires={data.requires_client_approval} draft={count(i => i.status === 'draft' || i.status === 'edited_since_approval')} internal={internalRound} client={clientRound} ready={readyForClient} deciding={needsDecision.length} approved={approved} />
         {can && (
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginTop: '12px' }}>
             {items.length === 0 && <Button disabled={!!busy} onClick={async () => { const j = await act('start_from_template', {}, 'tpl'); if (j) notify(`Created ${j.created} empty items from the starter template.`, 'success') }}>{busy === 'tpl' ? 'Creating…' : 'Start from template'}</Button>}
             {items.length > 0 && <Button variant="ghost" disabled={!!busy} onClick={async () => { const j = await act('remove_all_empty', {}, 'empty'); if (j) notify(`Removed ${j.removed} empty item${j.removed === 1 ? '' : 's'}.`, 'success') }}>Remove all empty</Button>}
-            <Button variant="ghost" disabled={!!busy || draftReady === 0} onClick={async () => { const j = await act('send_review', { audience: 'internal' }, 'int'); if (j) setLink({ url: j.url, audience: 'colleagues', count: j.count }) }}>Send for internal review{draftReady ? ` (${draftReady})` : ''}</Button>
+            <Button variant="ghost" disabled={!!busy || draftReady === 0 || internalRound?.status === 'open'} onClick={() => setSending(sending === 'internal' ? null : 'internal')}>Send for internal review{draftReady ? ` (${draftReady})` : ''}</Button>
             <Button variant="ghost" disabled={!!busy || draftReady === 0} onClick={async () => {
               const j = await act('approve', {}, 'appr')
               if (j) notify(`${j.approved} approved${j.moved_to_client ? `, ${j.moved_to_client} ready for the client` : ''}${j.blocked.length ? `. ${j.blocked.length} blocked: ${j.blocked[0].label} (${j.blocked[0].reason})` : ''}.`, j.blocked.length ? 'error' : 'success')
             }}>Approve internally{draftReady ? ` (${draftReady})` : ''}</Button>
-            {data.requires_client_approval && <Button disabled={!!busy || count(i => i.status === 'in_internal_review') === 0} onClick={async () => { const j = await act('send_review', { audience: 'client' }, 'cli'); if (j) setLink({ url: j.url, audience: 'the client', count: j.count }) }}>Send for client approval{count(i => i.status === 'in_internal_review') ? ` (${count(i => i.status === 'in_internal_review')})` : ''}</Button>}
+            {data.requires_client_approval && <Button disabled={!!busy || readyForClient === 0 || clientRound?.status === 'open'} onClick={() => setSending(sending === 'client' ? null : 'client')}>Send for client approval{readyForClient ? ` (${readyForClient})` : ''}</Button>}
+            {finalisable.length > 0 && <Button disabled={!!busy} onClick={async () => {
+              const j = await act('final_approve', { ids: finalisable.map(i => i.id) }, 'final')
+              if (j) notify(`${j.approved} approved${j.blocked.length ? `. ${j.blocked.length} held back: ${j.blocked[0].label} (${j.blocked[0].reason})` : ''}.`, j.blocked.length ? 'error' : 'success')
+            }}>Approve what the client approved ({finalisable.length})</Button>}
           </div>
         )}
-        {can && <AddBar data={data} act={act} busy={busy} />}
-        {link && (
-          <div style={{ marginTop: '10px', fontSize: '12.5px', background: 'var(--surface)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '8px 10px' }}>
-            Review link for {link.audience} ({link.count} item{link.count === 1 ? '' : 's'}; it works without a login): <a href={link.url} target="_blank" rel="noreferrer" style={{ wordBreak: 'break-all' }}>{link.url}</a>
-            <button onClick={() => { navigator.clipboard?.writeText(link.url); notify('Link copied.') }} style={{ ...linkBtn, marginLeft: '8px' }}>Copy</button>
+        {can && sending && <SendPanel key={sending} audience={sending} data={data} act={act} busy={busy} onDone={r => { setSending(null); setSent(r) }} onCancel={() => setSending(null)} />}
+        {can && internalRound?.status === 'open' && <RoundBar round={internalRound} act={act} busy={busy} />}
+        {can && clientRound?.status === 'open' && <RoundBar round={clientRound} act={act} busy={busy} />}
+        {sent && (
+          <div style={{ marginTop: '10px', fontSize: '12.5px', background: 'var(--surface)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '8px 10px', display: 'grid', gap: '4px' }}>
+            <div><strong>Sent to {sent.audience}.</strong> {sent.reviewers.every(r => r.emailed) ? 'Each person has been emailed their link.' : 'Some emails could not be sent. Copy those links and send them yourself.'} <button onClick={() => setSent(null)} style={{ ...linkBtn, marginLeft: '6px' }}>Dismiss</button></div>
+            {sent.reviewers.map(r => <div key={r.email}>{r.name} · {r.emailed ? 'emailed' : <strong style={{ color: 'var(--red)' }}>not emailed</strong>} <button onClick={() => { navigator.clipboard?.writeText(r.link); notify('Link copied.') }} style={linkBtn}>Copy link</button></div>)}
           </div>
         )}
+        {can && items.length > 0 && <AddBar data={data} act={act} busy={busy} />}
       </Card>
 
-      {awaiting.length > 0 && can && (
+      {can && <ApproversCard data={data} act={act} busy={busy} />}
+
+      {needsDecision.length > 0 && can && (
         <Card padded>
-          <div style={{ fontSize: '13px', fontWeight: 800, marginBottom: '8px', color: 'var(--red)' }}>Awaiting you ({awaiting.length})</div>
-          <div style={{ display: 'grid', gap: '12px' }}>{awaiting.map(i => <AwaitingCard key={i.id} item={i} act={act} busy={busy} />)}</div>
+          <div style={{ fontSize: '13px', fontWeight: 800, marginBottom: '8px', color: 'var(--red)' }}>Need your decision ({needsDecision.length})</div>
+          <div style={{ display: 'grid', gap: '12px' }}>{needsDecision.map(i => <DecisionCard key={i.id} item={i} act={act} busy={busy} />)}</div>
         </Card>
       )}
 
@@ -186,36 +205,155 @@ function ValueView({ kind, payload }: { kind: Item['kind']; payload: Payload }) 
   return <span>{(payload.rows ?? []).map(r => `${r.label} ${r.display}`).join(' · ') || '–'}</span>
 }
 
-function AwaitingCard({ item, act, busy }: { item: Item; act: Act; busy: string | null }) {
-  const d = item.decision
+const VERBS = { approve: ['approved', 'var(--teal-mid)'], reject: ['rejected', 'var(--red)'], suggest: ['suggested', 'var(--amber)'] } as const
+const shown = (kind: Item['kind'], p: Payload) => (kind === 'figure' ? (p.display || '–') : kind === 'outcome' ? (p.text || '–') : (p.rows ?? []).map(r => `${r.label} ${r.display}`).join(' · ') || '–')
+
+/** Every reviewer's answer on one item, in one place: who said what, the value they saw, and who has not answered yet. */
+function FeedbackList({ item, act, busy, canEdit }: { item: Item; act: Act; busy: string | null; canEdit: boolean }) {
+  if (!item.feedback.length) return null
+  return (
+    <div style={{ display: 'grid', gap: '8px' }}>
+      {item.feedback.map(fr => (
+        <div key={fr.round_id} style={{ borderLeft: '3px solid var(--border)', paddingLeft: '10px', display: 'grid', gap: '4px', fontSize: '12.5px' }}>
+          <div style={{ fontSize: '11.5px', fontWeight: 800, color: 'var(--ink3)' }}>{fr.audience === 'internal' ? 'Colleagues' : 'Client'} · round {fr.status === 'open' ? 'open' : 'closed'}</div>
+          {fr.answers.map(a => {
+            const stale = !!a.seen_payload && JSON.stringify(a.seen_payload) !== JSON.stringify(item.working_payload)
+            const canUse = canEdit && a.decision === 'suggest' && !a.resolved_at && (fr.audience === 'internal' ? !['approved', 'pending_client'].includes(item.status) : fr.status === 'closed' && item.status === 'client_suggested')
+            return (
+              <div key={a.id} style={{ lineHeight: 1.5, opacity: a.resolved_at ? 0.6 : 1 }}>
+                <strong>{a.reviewer_name}</strong> <span style={{ color: VERBS[a.decision][1], fontWeight: 700 }}>{VERBS[a.decision][0]}</span>
+                {a.decision === 'suggest' && a.suggested_payload && <>: <strong>{shown(item.kind, a.suggested_payload)}</strong>{a.suggested_label && a.suggested_label !== item.label ? ` (as “${a.suggested_label}”)` : ''}</>}
+                {a.comment && <span style={{ color: 'var(--ink2)' }}> — “{a.comment}”</span>}
+                {stale && a.seen_payload && <span style={{ color: 'var(--ink3)' }}> · saw “{shown(item.kind, a.seen_payload)}”</span>}
+                {canUse && <> <button type="button" disabled={!!busy} onClick={() => act('accept_suggestion', { figure_id: item.id, decision_id: a.id }, 'acc')} style={linkBtn}>{fr.audience === 'internal' ? 'Use this value' : 'Accept (approves it)'}</button></>}
+              </div>
+            )
+          })}
+          {fr.status === 'open' && fr.waiting.length > 0 && <div style={{ color: 'var(--ink3)' }}>Waiting on {fr.waiting.join(', ')}</div>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function DecisionCard({ item, act, busy }: { item: Item; act: Act; busy: string | null }) {
   const [counter, setCounter] = useState(false)
-  const base = d?.decision === 'suggest' && d.suggested_payload ? d.suggested_payload : item.working_payload
-  const [label, setLabel] = useState(d?.suggested_label || item.label)
-  const [payload, setPayload] = useState<Payload>(base)
+  const [label, setLabel] = useState(item.label)
+  const [payload, setPayload] = useState<Payload>(item.working_payload)
+  const [needsOverride, setNeedsOverride] = useState<string | null>(null)
+  const state = item.status === 'client_rejected' ? 'was rejected' : item.status === 'client_suggested' ? 'has a suggestion' : 'was reviewed by the client'
+  async function approve(override: boolean) {
+    const j = await act('final_approve', { ids: [item.id], override }, 'final')
+    if (j?.blocked?.length) { const b = j.blocked[0]; if (b.needs_override) setNeedsOverride(b.reason); else notify(b.reason, 'error') }
+  }
   return (
     <div style={{ border: '1px solid var(--border-light)', borderRadius: '10px', padding: '10px 12px', display: 'grid', gap: '8px', fontSize: '13px' }}>
-      <div style={{ fontWeight: 800 }}>{item.label} <span style={{ fontWeight: 600, color: 'var(--ink3)' }}>· {d?.audience === 'internal' ? 'colleague' : 'client'}{d?.reviewer_name ? ` (${d.reviewer_name})` : ''} {item.status === 'client_rejected' ? 'rejected it' : 'suggested a change'}</span></div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '10px' }}>
-        <div><div style={{ fontSize: '11.5px', color: 'var(--ink3)' }}>Ours</div><ValueView kind={item.kind} payload={item.working_payload} /></div>
-        {d?.decision === 'suggest' && d.suggested_payload && <div><div style={{ fontSize: '11.5px', color: 'var(--ink3)' }}>Their suggestion{d.suggested_label && d.suggested_label !== item.label ? ` (“${d.suggested_label}”)` : ''}</div><ValueView kind={item.kind} payload={d.suggested_payload} /></div>}
-      </div>
-      {d?.comment && <div style={{ color: 'var(--ink2)' }}>“{d.comment}”</div>}
+      <div style={{ fontWeight: 800 }}>{item.label} <span style={{ fontWeight: 600, color: 'var(--ink3)' }}>· {state}</span></div>
+      <div><div style={{ fontSize: '11.5px', color: 'var(--ink3)' }}>Ours</div><ValueView kind={item.kind} payload={item.working_payload} /></div>
+      <FeedbackList item={item} act={act} busy={busy} canEdit />
+      {needsOverride && <div style={{ color: 'var(--red)', fontSize: '12.5px' }}>{needsOverride} <button type="button" onClick={() => { setNeedsOverride(null); void approve(true) }} style={linkBtn}>Approve anyway</button></div>}
       {counter ? (
         <div style={{ display: 'grid', gap: '6px' }}>
           <PayloadEditor kind={item.kind} label={label} setLabel={setLabel} payload={payload} setPayload={setPayload} />
           <div style={{ display: 'flex', gap: '6px' }}>
-            <Button disabled={!!busy} onClick={async () => { if (await act('revise', { figure_id: item.id, label, payload }, 'rev')) setCounter(false) }}>{busy === 'rev' ? 'Saving…' : item.status === 'client_rejected' ? 'Save revision' : 'Send counter'}</Button>
+            <Button disabled={!!busy} onClick={async () => { if (await act('revise', { figure_id: item.id, label, payload }, 'rev')) setCounter(false) }}>{busy === 'rev' ? 'Saving…' : 'Save for the next client round'}</Button>
             <Button variant="ghost" onClick={() => setCounter(false)}>Cancel</Button>
           </div>
         </div>
       ) : (
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-          {item.status === 'client_suggested' && <Button disabled={!!busy} onClick={() => act('accept_suggestion', { figure_id: item.id }, 'acc')}>{busy === 'acc' ? 'Approving…' : 'Accept as suggested'}</Button>}
-          <Button variant="ghost" disabled={!!busy} onClick={() => setCounter(true)}>{item.status === 'client_rejected' ? 'Revise' : 'Counter'}</Button>
+          <Button disabled={!!busy} onClick={() => approve(false)}>{busy === 'final' ? 'Approving…' : 'Approve as it stands'}</Button>
+          {item.status !== 'in_internal_review' && <Button variant="ghost" disabled={!!busy} onClick={() => setCounter(true)}>{item.status === 'client_rejected' ? 'Revise' : 'Counter'}</Button>}
           <Button variant="ghost" disabled={!!busy} onClick={() => act('remove_after_review', { figure_id: item.id }, 'rm')}>Remove from public set</Button>
         </div>
       )}
     </div>
+  )
+}
+
+/** Where the event is in the sequence: draft, internal review, ready for the client, client review, final. */
+function Steps({ requires, draft, internal, client, ready, deciding, approved }: { requires: boolean; draft: number; internal: RoundSummary | null; client: RoundSummary | null; ready: number; deciding: number; approved: number }) {
+  const roundText = (r: RoundSummary | null) => (!r ? 'not sent' : r.status === 'open' ? `open · ${r.reviewers.filter(v => v.done).length} of ${r.reviewers.length} done` : 'closed')
+  const steps: Array<{ n: number; title: string; text: string; on: boolean }> = [
+    { n: 1, title: 'Draft', text: `${draft} to finish`, on: draft > 0 && internal?.status !== 'open' },
+    { n: 2, title: 'Internal review', text: roundText(internal), on: internal?.status === 'open' },
+    ...(requires ? [
+      { n: 3, title: 'Ready for client', text: `${ready} item${ready === 1 ? '' : 's'}`, on: ready > 0 && client?.status !== 'open' },
+      { n: 4, title: 'Client review', text: roundText(client), on: client?.status === 'open' },
+      { n: 5, title: 'Your decision', text: `${deciding} to decide`, on: deciding > 0 },
+    ] : []),
+    { n: requires ? 6 : 3, title: 'Approved', text: `${approved} approved`, on: false },
+  ]
+  return (
+    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+      {steps.map(s => (
+        <div key={s.n} style={{ border: `1px solid ${s.on ? 'var(--teal-mid)' : 'var(--border-light)'}`, background: s.on ? 'var(--surface)' : 'transparent', borderRadius: '8px', padding: '6px 10px', fontSize: '12px', minWidth: '110px' }}>
+          <div style={{ fontWeight: 800, color: s.on ? 'var(--teal-mid)' : 'var(--ink2)' }}>{s.n}. {s.title}</div>
+          <div style={{ color: 'var(--ink3)' }}>{s.text}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** Who has answered, live, and the button that closes the round. */
+function RoundBar({ round, act, busy }: { round: RoundSummary; act: Act; busy: string | null }) {
+  return (
+    <div style={{ marginTop: '10px', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '8px 10px', fontSize: '12.5px', display: 'grid', gap: '6px' }}>
+      <div style={{ fontWeight: 800 }}>{round.audience === 'internal' ? 'Internal review is open' : 'Client review is open'} · {round.items} item{round.items === 1 ? '' : 's'}</div>
+      {round.reviewers.map(v => <div key={v.id}>{v.name} · {v.answered} of {round.items} answered{v.done ? ' · done' : ''}{!v.last_opened_at ? <span style={{ color: 'var(--ink3)' }}> · not opened yet</span> : ''}</div>)}
+      <div><Button variant="ghost" disabled={!!busy} onClick={async () => {
+        const j = await act('close_round', { round_id: round.id }, 'close')
+        if (j) notify(round.audience === 'client' ? `Round closed. ${j.ready} ready for your decision${j.suggested ? `, ${j.suggested} with a suggestion` : ''}${j.rejected ? `, ${j.rejected} rejected` : ''}.` : 'Internal round closed. Everyone’s answers stay on each item.', 'success')
+      }}>{busy === 'close' ? 'Closing…' : 'Close this round'}</Button></div>
+    </div>
+  )
+}
+
+/** Choose who to send the round to. Colleagues are the event's assigned staff; the client side are the post-event approvers. */
+function SendPanel({ audience, data, act, busy, onDone, onCancel }: { audience: 'internal' | 'client'; data: Payloadd; act: Act; busy: string | null; onDone: (r: { audience: string; reviewers: Array<{ name: string; email: string; link: string; emailed: boolean }> }) => void; onCancel: () => void }) {
+  const pool = audience === 'internal' ? data.staff_choices : data.approvers
+  const [picked, setPicked] = useState<string[]>([])
+  const [message, setMessage] = useState('')
+  return (
+    <div style={{ marginTop: '10px', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '10px 12px', display: 'grid', gap: '8px', fontSize: '12.5px' }}>
+      <div style={{ fontWeight: 800 }}>{audience === 'internal' ? 'Send for internal review to:' : 'Send for client approval to:'}</div>
+      {pool.length === 0 && <div style={{ color: 'var(--ink3)' }}>{audience === 'internal' ? 'No staff are assigned to this event yet.' : 'No client approvers yet. Add them under Post-event approvers below.'}</div>}
+      <div style={{ display: 'grid', gap: '4px' }}>
+        {pool.map(p => (
+          <label key={p.id} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <input type="checkbox" checked={picked.includes(p.id)} onChange={e => setPicked(e.target.checked ? [...picked, p.id] : picked.filter(x => x !== p.id))} /> {p.name} <span style={{ color: 'var(--ink3)' }}>{p.email}</span>
+          </label>
+        ))}
+      </div>
+      <textarea value={message} onChange={e => setMessage(e.target.value)} rows={2} placeholder="A note for them (optional)" style={fieldStyle} />
+      <div style={{ display: 'flex', gap: '6px' }}>
+        <Button disabled={!!busy || picked.length === 0} onClick={async () => { const j = await act('send_review', { audience, reviewer_ids: picked, message }, 'send'); if (j) onDone({ audience: audience === 'internal' ? 'your colleagues' : 'the client approvers', reviewers: j.reviewers }) }}>{busy === 'send' ? 'Sending…' : `Send to ${picked.length || ''} ${picked.length === 1 ? 'person' : 'people'}`}</Button>
+        <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+      </div>
+    </div>
+  )
+}
+
+/** The client people who approve this event's post-event figures. Separate from the badge and announcement contacts, but they can be copied in. */
+function ApproversCard({ data, act, busy }: { data: Payloadd; act: Act; busy: string | null }) {
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  if (!data.requires_client_approval && data.approvers.length === 0) return null
+  return (
+    <Card padded>
+      <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '6px' }}>Post-event approvers (client)</div>
+      {data.approvers.length === 0 && <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '6px' }}>No approvers yet. Each person you add gets their own personal link when you send the figures to the client.</div>}
+      <div style={{ display: 'grid', gap: '4px', fontSize: '12.5px' }}>
+        {data.approvers.map(a => <div key={a.id}>{a.name} <span style={{ color: 'var(--ink3)' }}>{a.email}</span> <button type="button" disabled={!!busy} onClick={() => act('remove_approver', { approver_id: a.id }, 'rmapp')} style={{ ...linkBtn, color: 'var(--red)' }}>Remove</button></div>)}
+      </div>
+      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px', alignItems: 'center' }}>
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="Name" style={{ ...fieldStyle, width: '180px' }} />
+        <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" style={{ ...fieldStyle, width: '240px' }} />
+        <Button variant="ghost" disabled={!!busy || !name.trim() || !email.trim()} onClick={async () => { if (await act('add_approver', { name, email }, 'addapp')) { setName(''); setEmail('') } }}>Add approver</Button>
+        <Button variant="ghost" disabled={!!busy} onClick={async () => { const j = await act('import_approvers', {}, 'impapp'); if (j) notify(j.added ? `Copied ${j.added} from the client approval contacts.` : 'Nothing new to copy.', 'success') }}>Copy from client approval contacts</Button>
+      </div>
+    </Card>
   )
 }
 
@@ -282,6 +420,7 @@ function ItemCard({ item, act, busy, canEdit, eventId }: { item: Item; act: Act;
       </div>
       {item.errors.map((f, i) => <div key={i} style={{ fontSize: '12px' }}><strong style={{ color: 'var(--red)' }}>error</strong> · {f.match ? `“${f.match}” — ` : ''}{f.message}</div>)}
       {item.warnings.map((f, i) => <div key={i} style={{ fontSize: '12px' }}><strong style={{ color: 'var(--amber)' }}>warning</strong> · {f.match ? `“${f.match}” — ` : ''}{f.message}</div>)}
+      <FeedbackList item={item} act={act} busy={busy} canEdit={canEdit} />
       {open && (
         <div style={{ display: 'grid', gap: '8px' }}>
           {item.status === 'edited_since_approval' && item.approved_payload && <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>Reopened. Tools keep using version {item.approved_version} (<ValueView kind={item.kind} payload={item.approved_payload} />) until the new wording is approved.</div>}
@@ -295,7 +434,6 @@ function ItemCard({ item, act, busy, canEdit, eventId }: { item: Item; act: Act;
             {item.evidence_file_name ? <><button type="button" onClick={download} style={linkBtn}>Evidence: {item.evidence_file_name}</button>{canEdit && <button type="button" style={{ ...linkBtn, color: 'var(--red)' }} onClick={async () => { await fetch(`/api/events/public-figures/evidence?figure_id=${item.id}`, { method: 'DELETE' }); await act('update', { figure_id: item.id, patch: {} }, 'refresh') }}>Remove file</button>}</> : <span style={{ color: 'var(--ink3)' }}>No evidence file.</span>}
             {canEdit && <label style={{ ...linkBtn, cursor: 'pointer' }}>{item.evidence_file_name ? 'Replace' : 'Attach evidence'}<input type="file" hidden onChange={e => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = '' }} /></label>}
           </div>
-          {item.decision && <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>Last decision: {item.decision.decision === 'approve' ? 'approved' : item.decision.decision === 'reject' ? 'rejected' : 'suggested a change'} by {item.decision.audience === 'internal' ? 'a colleague' : 'the client'}{item.decision.reviewer_name ? ` (${item.decision.reviewer_name})` : ''}{item.decision.comment ? `: “${item.decision.comment}”` : ''}</div>}
           {canEdit && (
             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
               {!locked && <Button disabled={!!busy || !dirty} onClick={save}>{busy === 'save' ? 'Saving…' : 'Save'}</Button>}

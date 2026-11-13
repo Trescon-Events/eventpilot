@@ -101,3 +101,31 @@ export function unsupportedNumbers(text: string, allowed: string): string[] {
 export function clientView(i: { id: string; kind: FigureKind; category: string; group_label: string | null; label: string; working_payload: FigurePayload; basis: string }) {
   return { id: i.id, kind: i.kind, category: i.category, group_label: i.group_label, label: i.label, payload: i.working_payload, basis: i.basis }
 }
+
+// ── Review rounds v2 (named reviewers, producer decides) ────────────────────
+
+export type DecisionKind = 'approve' | 'reject' | 'suggest'
+
+/** The status an item takes when its client round is closed: any suggestion wins, then any rejection; otherwise it waits for the producer's final approval. */
+export function statusAfterClientRound(decisions: DecisionKind[]): FigureStatus {
+  if (decisions.includes('suggest')) return 'client_suggested'
+  if (decisions.includes('reject')) return 'client_rejected'
+  return 'in_internal_review'
+}
+
+/** Is this exactly what the reviewer was looking at? (label and wording, ignoring spacing) */
+export function sameWording(kind: FigureKind, aLabel: string, aPayload: FigurePayload, bLabel: string | null, bPayload: FigurePayload | null): boolean {
+  if (!bPayload) return false
+  return aLabel.replace(/\s+/g, ' ').trim() === (bLabel ?? '').replace(/\s+/g, ' ').trim() && samePayload(kind, aPayload, bPayload)
+}
+
+/** Final approval route: 'client' only when a client approver approved exactly the wording now being approved; anything else is the producer's own call. */
+export function finalRoute(kind: FigureKind, label: string, payload: FigurePayload, decisions: Array<{ decision: DecisionKind; seen_label: string | null; seen_payload: FigurePayload | null }>): 'client' | 'internal' {
+  return decisions.some(d => d.decision === 'approve' && sameWording(kind, label, payload, d.seen_label, d.seen_payload)) ? 'client' : 'internal'
+}
+
+/** One line per reviewer who has not answered an item yet ("waiting on Priya, Rahul"). */
+export function waitingOn(reviewers: Array<{ id: string; name: string }>, answeredBy: string[]): string[] {
+  const done = new Set(answeredBy)
+  return reviewers.filter(r => !done.has(r.id)).map(r => r.name)
+}

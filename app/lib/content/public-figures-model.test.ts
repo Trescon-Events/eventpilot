@@ -77,3 +77,23 @@ test('source refs: a ref with no type is a doc section; public_figure refs are s
   assert.equal(docRefs(refs).length, 1); assert.equal(figureRefs(refs).length, 1)
   assert.equal(docRefs(null).length, 0)
 })
+
+import { statusAfterClientRound, sameWording, finalRoute, waitingOn } from './public-figures-model'
+test('statusAfterClientRound: suggestion wins, then rejection, else waits for the producer', () => {
+  assert.equal(statusAfterClientRound(['approve', 'suggest', 'reject']), 'client_suggested')
+  assert.equal(statusAfterClientRound(['approve', 'reject']), 'client_rejected')
+  assert.equal(statusAfterClientRound(['approve', 'approve']), 'in_internal_review')
+  assert.equal(statusAfterClientRound([]), 'in_internal_review')
+})
+test('sameWording / finalRoute: client route only when they approved exactly this', () => {
+  assert.equal(sameWording('figure', 'Footfall', { display: '9,756' }, ' Footfall ', { display: '9,756' }), true)
+  assert.equal(sameWording('figure', 'Footfall', { display: '9,800' }, 'Footfall', { display: '9,756' }), false)
+  assert.equal(sameWording('figure', 'Footfall', { display: '9,756' }, null, null), false)
+  const seen = { seen_label: 'Footfall', seen_payload: { display: '9,756' } }
+  assert.equal(finalRoute('figure', 'Footfall', { display: '9,756' }, [{ decision: 'approve', ...seen }]), 'client')
+  assert.equal(finalRoute('figure', 'Footfall', { display: '9,800' }, [{ decision: 'approve', ...seen }]), 'internal')
+  assert.equal(finalRoute('figure', 'Footfall', { display: '9,756' }, [{ decision: 'suggest', ...seen }]), 'internal')
+})
+test('waitingOn lists reviewers with no answer', () => {
+  assert.deepEqual(waitingOn([{ id: 'a', name: 'Priya' }, { id: 'b', name: 'Rahul' }], ['a']), ['Rahul'])
+})

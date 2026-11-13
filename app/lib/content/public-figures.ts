@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import type { ContentOwnerRef } from './owner'
 import { clientApprovalRequired } from './copy-model'
@@ -6,7 +5,7 @@ import { findingsFor, flagItemsForFigure } from './copy-library'
 import type { ValidationFinding } from './validate'
 import { FIGURE_CATALOGUE, FIGURE_CATALOGUE_BY_KEY, entriesForCategory, type FigureKind } from './public-figures-catalogue'
 import {
-  breakdownSumWarning, clientView, figureChangePairs, isFilled, normalizePayload, samePayload, statusAfterFigureEdit, textsToCheck, type FigurePayload, type FigureStatus,
+  breakdownSumWarning, figureChangePairs, finalRoute, isFilled, normalizePayload, samePayload, statusAfterFigureEdit, textsToCheck, type DecisionKind, type FigurePayload, type FigureStatus,
 } from './public-figures-model'
 
 /* Public figures, write side (docs/build_suggestions/public-figures.md §4–§6). Every write is audited (§3.5). Tools read ONLY through public-figures-read.ts (approved_payload
@@ -31,7 +30,7 @@ export async function logFigureChange(e: { event_id: string; figure_id: string |
   if (error) throw new Error(`Could not record the public figures change: ${error.message}`)
 }
 
-async function loadFigure(id: string): Promise<FigureRow> {
+export async function loadFigure(id: string): Promise<FigureRow> {
   const { data } = await supabaseAdmin.from('event_public_figures').select(FIGURE_COLS).eq('id', id).maybeSingle()
   if (!data) throw new FigureError('Item not found.', 404)
   return data as FigureRow
@@ -63,25 +62,50 @@ export async function checkItems(eventId: string, items: Array<{ id: string; kin
 
 // ── Listing ─────────────────────────────────────────────────────────────────
 
-export type Decision = { review_id: string; figure_id: string; decision: 'approve' | 'reject' | 'suggest'; suggested_label: string | null; suggested_payload: FigurePayload | null; comment: string | null; decided_at: string; resolved_at: string | null; audience: 'internal' | 'client'; reviewer_name: string | null }
+export type Feedback = {
+  id: string; reviewer_id: string | null; reviewer_name: string; decision: DecisionKind; suggested_label: string | null; suggested_payload: FigurePayload | null; comment: string | null
+  seen_label: string | null; seen_payload: FigurePayload | null; decided_at: string; resolved_at: string | null
+}
+export type ItemRound = { round_id: string; audience: 'internal' | 'client'; status: 'open' | 'closed'; closed_at: string | null; answers: Feedback[]; waiting: string[] }
+export type RoundSummary = {
+  id: string; audience: 'internal' | 'client'; status: 'open' | 'closed'; sent_at: string; closed_at: string | null; items: number
+  reviewers: Array<{ id: string; name: string; email: string; kind: 'staff' | 'client'; done: boolean; answered: number; last_opened_at: string | null; notified_at: string | null }>
+}
 
 export async function listFigures(eventId: string) {
   const { data } = await supabaseAdmin.from('event_public_figures').select(FIGURE_COLS).eq('event_id', eventId).eq('is_active', true).order('sort_order').order('label')
   const rows = (data ?? []) as FigureRow[]
   const ids = rows.map(r => r.id)
-  const [checks, decisionsRes, usagesRes, requires] = await Promise.all([
+  const [checks, usagesRes, requires, roundsRes, approversRes] = await Promise.all([
     checkItems(eventId, rows.map(r => ({ id: r.id, kind: r.kind, label: r.label, working_payload: r.working_payload }))),
-    ids.length ? supabaseAdmin.from('event_public_figure_decisions').select('review_id, figure_id, decision, suggested_label, suggested_payload, comment, decided_at, resolved_at, event_public_figure_reviews(audience, reviewer_name, status)').in('figure_id', ids).order('decided_at', { ascending: false }) : Promise.resolve({ data: [] }),
     ids.length ? supabaseAdmin.from('event_public_figure_usages').select('figure_id, version, mode, consumer_type').in('figure_id', ids) : Promise.resolve({ data: [] }),
     requiresClientApproval(eventId),
+    supabaseAdmin.from('event_public_figure_reviews').select('id, audience, status, sent_at, closed_at, item_ids, event_public_figure_reviewers(id, name, email, kind, done_at, last_opened_at, notified_at)').eq('event_id', eventId).order('sent_at', { ascending: false }),
+    supabaseAdmin.from('event_public_figure_approvers').select('id, name, email').eq('event_id', eventId).order('created_at'),
   ])
-  // only decisions from a round that has been submitted count
-  const latest = new Map<string, Decision>()
-  for (const d of (decisionsRes.data ?? []) as unknown as Array<Decision & { event_public_figure_reviews: { audience: 'internal' | 'client'; reviewer_name: string | null; status: string } | null }>) {
-    const rv = d.event_public_figure_reviews
-    if (!rv || rv.status !== 'closed' || latest.has(d.figure_id)) continue
-    latest.set(d.figure_id, { ...d, audience: rv.audience, reviewer_name: rv.reviewer_name })
+  type RoundRowDb = { id: string; audience: 'internal' | 'client'; status: 'open' | 'closed'; sent_at: string; closed_at: string | null; item_ids: string[]; event_public_figure_reviewers: Array<{ id: string; name: string; email: string; kind: 'staff' | 'client'; done_at: string | null; last_opened_at: string | null; notified_at: string | null }> }
+  const rounds = (roundsRes.data ?? []) as unknown as RoundRowDb[]
+  const roundIds = rounds.map(r => r.id)
+  const { data: decs } = roundIds.length
+    ? await supabaseAdmin.from('event_public_figure_decisions').select('id, review_id, figure_id, reviewer_id, decision, suggested_label, suggested_payload, comment, seen_label, seen_payload, decided_at, resolved_at').in('review_id', roundIds).order('decided_at')
+    : { data: [] }
+  const decisions = (decs ?? []) as Array<{ id: string; review_id: string; figure_id: string; reviewer_id: string | null } & Omit<Feedback, 'id' | 'reviewer_id' | 'reviewer_name'>>
+  const nameOf = new Map<string, string>(); for (const r of rounds) for (const v of r.event_public_figure_reviewers ?? []) nameOf.set(v.id, v.name)
+
+  // for every item: the latest internal round and the latest client round that included it, with each reviewer's answer (and who has not answered)
+  const rounds_by_item = new Map<string, ItemRound[]>()
+  for (const f of rows) {
+    const out: ItemRound[] = []
+    for (const audience of ['internal', 'client'] as const) {
+      const rv = rounds.find(r => r.audience === audience && (r.item_ids ?? []).includes(f.id))
+      if (!rv) continue
+      const answers = decisions.filter(d => d.review_id === rv.id && d.figure_id === f.id).map(d => ({ ...d, reviewer_name: d.reviewer_id ? (nameOf.get(d.reviewer_id) ?? 'Reviewer') : 'Reviewer' }))
+      const waiting = (rv.event_public_figure_reviewers ?? []).filter(v => !answers.some(a => a.reviewer_id === v.id)).map(v => v.name)
+      out.push({ round_id: rv.id, audience, status: rv.status, closed_at: rv.closed_at, answers, waiting })
+    }
+    rounds_by_item.set(f.id, out)
   }
+
   const alerts = new Map<string, number>()
   for (const u of (usagesRes.data ?? []) as Array<{ figure_id: string; version: number; mode: string }>) {
     const fig = rows.find(r => r.id === u.figure_id)
@@ -89,9 +113,16 @@ export async function listFigures(eventId: string) {
   }
   const usageCount = new Map<string, number>()
   for (const u of (usagesRes.data ?? []) as Array<{ figure_id: string }>) usageCount.set(u.figure_id, (usageCount.get(u.figure_id) ?? 0) + 1)
+
+  const summarise = (rv: RoundRowDb): RoundSummary => ({
+    id: rv.id, audience: rv.audience, status: rv.status, sent_at: rv.sent_at, closed_at: rv.closed_at, items: (rv.item_ids ?? []).length,
+    reviewers: (rv.event_public_figure_reviewers ?? []).map(v => ({ id: v.id, name: v.name, email: v.email, kind: v.kind, done: !!v.done_at, answered: decisions.filter(d => d.review_id === rv.id && d.reviewer_id === v.id).length, last_opened_at: v.last_opened_at, notified_at: v.notified_at })),
+  })
   return {
     requires_client_approval: requires,
-    items: rows.map(r => ({ ...r, errors: checks.get(r.id)?.errors ?? [], warnings: checks.get(r.id)?.warnings ?? [], decision: latest.get(r.id) ?? null, update_available: alerts.get(r.id) ?? 0, usage_count: usageCount.get(r.id) ?? 0 })),
+    approvers: (approversRes.data ?? []) as Array<{ id: string; name: string; email: string }>,
+    rounds: { internal: rounds.filter(r => r.audience === 'internal').slice(0, 1).map(summarise)[0] ?? null, client: rounds.filter(r => r.audience === 'client').slice(0, 1).map(summarise)[0] ?? null },
+    items: rows.map(r => ({ ...r, errors: checks.get(r.id)?.errors ?? [], warnings: checks.get(r.id)?.warnings ?? [], feedback: rounds_by_item.get(r.id) ?? [], update_available: alerts.get(r.id) ?? 0, usage_count: usageCount.get(r.id) ?? 0 })),
   }
 }
 
@@ -203,7 +234,7 @@ export async function setEvidence(id: string, path: string | null, name: string 
 type Route = 'internal' | 'client' | 'client_suggestion_accepted'
 
 /** The one place an approved version is made. Locks the item, records the version, and tells the Copy Library when an existing figure changed. */
-async function writeApproved(f: FigureRow, payload: FigurePayload, label: string, route: Route, by: string | null): Promise<FigureRow> {
+export async function writeApproved(f: FigureRow, payload: FigurePayload, label: string, route: Route, by: string | null): Promise<FigureRow> {
   const version = f.approved_version + 1
   const now = new Date().toISOString()
   const { data, error } = await supabaseAdmin.from('event_public_figures').update({
@@ -245,155 +276,38 @@ export async function approveInternally(eventId: string, ids: string[] | 'all', 
   return { approved, moved_to_client: toClient, blocked }
 }
 
-// ── Review rounds (§6.2, §6.3) ──────────────────────────────────────────────
+// ── Acting on feedback (the producer decides) ────────────────────────────────
 
-export async function sendReview(eventId: string, audience: 'internal' | 'client', ids: string[] | null, by: string | null): Promise<{ review_id: string; token: string; count: number }> {
-  const { data } = await supabaseAdmin.from('event_public_figures').select(FIGURE_COLS).eq('event_id', eventId).eq('is_active', true)
-  const all = (data ?? []) as FigureRow[]
-  const wanted = audience === 'client'
-    ? all.filter(r => r.status === 'in_internal_review')
-    : all.filter(r => (r.status === 'draft' || r.status === 'edited_since_approval') && isFilled(r.kind, r.working_payload))
-  const rows = ids ? wanted.filter(r => ids.includes(r.id)) : wanted
-  if (!rows.length) throw new FigureError(audience === 'client' ? 'No items are waiting for client approval. Approve items internally first.' : 'No filled-in draft items to send. Fill in values first.', 409)
-  if (audience === 'internal') {
-    const checks = await checkItems(eventId, rows)
-    const bad = rows.find(r => checks.get(r.id)?.errors.length)
-    if (bad) throw new FigureError(`“${bad.label}” breaks the event’s rules: ${checks.get(bad.id)!.errors[0].message}`, 409)
-  }
-  const token = randomBytes(24).toString('base64url')
-  const { data: rv, error } = await supabaseAdmin.from('event_public_figure_reviews').insert({ event_id: eventId, audience, review_token: token, item_ids: rows.map(r => r.id), sent_by: actor(by) }).select('id').single()
-  if (error) throw new FigureError(error.message, 500)
-  if (audience === 'client') await supabaseAdmin.from('event_public_figures').update({ status: 'pending_client', updated_at: new Date().toISOString() }).in('id', rows.map(r => r.id))
-  await logFigureChange({ event_id: eventId, figure_id: null, action: audience === 'client' ? 'send_client_review' : 'send_internal_review', after: { review_id: rv.id, items: rows.map(r => r.label) }, by })
-  return { review_id: rv.id as string, token, count: rows.length }
+async function resolveFigureDecisions(figureId: string): Promise<void> {
+  await supabaseAdmin.from('event_public_figure_decisions').update({ resolved_at: new Date().toISOString() }).eq('figure_id', figureId).is('resolved_at', null)
 }
 
-export type ReviewView = {
-  status: 'open' | 'closed'; audience: 'internal' | 'client'; event_name: string | null; reviewer_name: string | null
-  items: Array<ReturnType<typeof clientView> & { decision: { decision: 'approve' | 'reject' | 'suggest'; suggested_label: string | null; suggested_payload: FigurePayload | null; comment: string | null } | null }>
-}
-
-async function loadReview(token: string) {
-  const { data: rv } = await supabaseAdmin.from('event_public_figure_reviews').select('*').eq('review_token', token).maybeSingle()
-  return rv
-}
-
-/** What the reviewer sees. Never the source, the notes, the evidence or the owner. */
-export async function loadReviewForReviewer(token: string): Promise<ReviewView | null> {
-  const rv = await loadReview(token)
-  if (!rv) return null
-  const [{ data: figs }, { data: decs }, { data: ev }] = await Promise.all([
-    supabaseAdmin.from('event_public_figures').select('id, kind, category, group_label, label, working_payload, basis, sort_order').in('id', rv.item_ids as string[]).order('sort_order'),
-    supabaseAdmin.from('event_public_figure_decisions').select('figure_id, decision, suggested_label, suggested_payload, comment').eq('review_id', rv.id),
-    supabaseAdmin.from('events').select('name, public_name').eq('id', rv.event_id).maybeSingle(),
-  ])
-  const dec = new Map((decs ?? []).map(d => [d.figure_id as string, d]))
-  return {
-    status: rv.status, audience: rv.audience, event_name: (ev?.public_name as string | null) || (ev?.name as string | null) || null, reviewer_name: rv.reviewer_name ?? null,
-    items: (figs ?? []).map(f => ({ ...clientView(f as never), decision: dec.get(f.id as string) ? { decision: dec.get(f.id as string)!.decision as 'approve', suggested_label: (dec.get(f.id as string)!.suggested_label as string | null) ?? null, suggested_payload: (dec.get(f.id as string)!.suggested_payload as FigurePayload | null) ?? null, comment: (dec.get(f.id as string)!.comment as string | null) ?? null } : null })),
-  }
-}
-
-/** Partial progress saves; nothing changes on the item until Submit. */
-export async function saveDecision(token: string, input: { figure_id: string; decision: 'approve' | 'reject' | 'suggest'; suggested_label?: string; suggested_payload?: unknown; comment?: string }): Promise<void> {
-  const rv = await loadReview(token)
-  if (!rv) throw new FigureError('This review link is not valid.', 404)
-  if (rv.status !== 'open') throw new FigureError('This review has already been submitted.', 409)
-  if (!(rv.item_ids as string[]).includes(input.figure_id)) throw new FigureError('That item is not part of this review.', 400)
-  const comment = (input.comment ?? '').trim()
-  if (input.decision === 'reject' && !comment) throw new FigureError('Please say why you are rejecting it.', 400)
-  let suggestedPayload: FigurePayload | null = null
-  if (input.decision === 'suggest') {
-    const f = await loadFigure(input.figure_id)
-    suggestedPayload = normalizePayload(f.kind, input.suggested_payload)
-    if (!isFilled(f.kind, suggestedPayload)) throw new FigureError('Type the wording you would like instead.', 400)
-  }
-  const { error } = await supabaseAdmin.from('event_public_figure_decisions').upsert({
-    review_id: rv.id, figure_id: input.figure_id, decision: input.decision, suggested_label: input.decision === 'suggest' ? ((input.suggested_label ?? '').replace(/\s+/g, ' ').trim() || null) : null,
-    suggested_payload: suggestedPayload, comment: comment || null, decided_at: new Date().toISOString(), resolved_at: null,
-  }, { onConflict: 'review_id,figure_id' })
-  if (error) throw new FigureError(error.message, 500)
-}
-
-export async function approveAllRemaining(token: string): Promise<number> {
-  const rv = await loadReview(token)
-  if (!rv) throw new FigureError('This review link is not valid.', 404)
-  if (rv.status !== 'open') throw new FigureError('This review has already been submitted.', 409)
-  const { data: have } = await supabaseAdmin.from('event_public_figure_decisions').select('figure_id').eq('review_id', rv.id)
-  const done = new Set((have ?? []).map(d => d.figure_id as string))
-  const rest = (rv.item_ids as string[]).filter(id => !done.has(id))
-  if (rest.length) { const { error } = await supabaseAdmin.from('event_public_figure_decisions').insert(rest.map(id => ({ review_id: rv.id, figure_id: id, decision: 'approve' }))); if (error) throw new FigureError(error.message, 500) }
-  return rest.length
-}
-
-/** Closes the round and applies every decision. An item changed after the round was sent is left alone (it is no longer what was reviewed). */
-export async function submitReview(token: string, reviewer: { name: string; email: string }): Promise<{ approved: number; suggested: number; rejected: number; undecided: number }> {
-  const rv = await loadReview(token)
-  if (!rv) throw new FigureError('This review link is not valid.', 404)
-  if (rv.status !== 'open') throw new FigureError('This review has already been submitted.', 409)
-  const name = reviewer.name.trim(), email = reviewer.email.trim()
-  if (!name || !/^\S+@\S+\.\S+$/.test(email)) throw new FigureError('Please enter your name and a valid email address.', 400)
-  const eventId = rv.event_id as string
-  const requires = await requiresClientApproval(eventId)
-  const [{ data: figs }, { data: decs }] = await Promise.all([
-    supabaseAdmin.from('event_public_figures').select(FIGURE_COLS).in('id', rv.item_ids as string[]),
-    supabaseAdmin.from('event_public_figure_decisions').select('figure_id, decision').eq('review_id', rv.id),
-  ])
-  const dec = new Map((decs ?? []).map(d => [d.figure_id as string, d.decision as string]))
-  const sentAt = new Date(rv.sent_at as string).getTime()
-  const out = { approved: 0, suggested: 0, rejected: 0, undecided: 0 }
-  const waiting: FigureStatus[] = rv.audience === 'client' ? ['pending_client'] : ['draft', 'edited_since_approval', 'in_internal_review']
-  const setStatus = async (f: FigureRow, status: FigureStatus, action: string) => {
-    await supabaseAdmin.from('event_public_figures').update({ status, updated_at: new Date().toISOString() }).eq('id', f.id)
-    await logFigureChange({ event_id: eventId, figure_id: f.id, action, before: { status: f.status }, after: { status }, reason: `${name} <${email}>`, by: null })
-  }
-  for (const f of (figs ?? []) as FigureRow[]) {
-    const changedSince = new Date(f.updated_at).getTime() > sentAt + 1000 && rv.audience === 'internal'
-    if (!waiting.includes(f.status) || changedSince) continue
-    const d = dec.get(f.id)
-    if (d === 'approve') {
-      if (rv.audience === 'client') await writeApproved(f, f.working_payload, f.label, 'client', null)
-      else await internalApprove(f, requires, null)
-      out.approved++
-    } else if (d === 'suggest') { await setStatus(f, 'client_suggested', `${rv.audience}_suggested`); out.suggested++ }
-    else if (d === 'reject') { await setStatus(f, 'client_rejected', `${rv.audience}_rejected`); out.rejected++ }
-    else { if (rv.audience === 'client') await setStatus(f, 'in_internal_review', 'client_left_undecided'); out.undecided++ }
-  }
-  await supabaseAdmin.from('event_public_figure_reviews').update({ status: 'closed', closed_at: new Date().toISOString(), reviewer_name: name, reviewer_email: email }).eq('id', rv.id)
-  await logFigureChange({ event_id: eventId, figure_id: null, action: `${rv.audience}_review_submitted`, after: { review_id: rv.id, ...out }, reason: `${name} <${email}>`, by: null })
-  return out
-}
-
-// ── Resolving a round (§6.4) ────────────────────────────────────────────────
-
-async function openDecision(figureId: string) {
-  const { data } = await supabaseAdmin.from('event_public_figure_decisions').select('review_id, decision, suggested_label, suggested_payload, comment, resolved_at, event_public_figure_reviews!inner(status)').eq('figure_id', figureId).is('resolved_at', null).order('decided_at', { ascending: false })
-  return (data ?? []).find(d => (d as unknown as { event_public_figure_reviews: { status: string } }).event_public_figure_reviews.status === 'closed') ?? null
-}
-async function resolveDecision(figureId: string, reviewId: string) {
-  await supabaseAdmin.from('event_public_figure_decisions').update({ resolved_at: new Date().toISOString() }).eq('figure_id', figureId).eq('review_id', reviewId)
-}
-
-/** Accept the reviewer's suggestion exactly: approved at once, no second round (§6.4). Rule errors in the suggestion block it; the producer counters instead. */
-export async function acceptSuggestion(id: string, by: string | null): Promise<FigureRow> {
+/** Use one reviewer's suggestion. From the client (round closed): approved exactly as suggested, no second round. From a colleague: it only fills in the working copy, which the producer then approves. */
+export async function acceptSuggestion(id: string, decisionId: string, by: string | null): Promise<FigureRow> {
   const f = await loadFigure(id)
-  if (f.status !== 'client_suggested') throw new FigureError('There is no suggestion to accept on this item.', 409)
-  const d = await openDecision(id)
-  if (!d || d.decision !== 'suggest' || !d.suggested_payload) throw new FigureError('There is no suggestion to accept on this item.', 409)
+  const { data: d } = await supabaseAdmin.from('event_public_figure_decisions').select('id, figure_id, decision, suggested_label, suggested_payload, event_public_figure_reviews!inner(audience, status)').eq('id', decisionId).eq('figure_id', id).maybeSingle()
+  const rv = (d as unknown as { event_public_figure_reviews: { audience: 'internal' | 'client'; status: string } } | null)?.event_public_figure_reviews
+  if (!d || !rv || d.decision !== 'suggest' || !d.suggested_payload) throw new FigureError('There is no suggestion to accept on this item.', 409)
   const payload = normalizePayload(f.kind, d.suggested_payload)
   const label = (d.suggested_label as string | null) || f.label
   const c = (await checkItems(f.event_id, [{ id, kind: f.kind, label, working_payload: payload }])).get(id)
   if (c?.errors.length) throw new FigureError(`The suggestion breaks the event’s rules (${c.errors[0].message}). Counter it with your own wording instead.`, 409, { findings: c.errors })
-  const out = await writeApproved(f, payload, label, 'client_suggestion_accepted', by)
-  await resolveDecision(id, d.review_id as string)
+  let out: FigureRow
+  if (rv.audience === 'client') {
+    if (rv.status !== 'closed') throw new FigureError('Close the client round first.', 409)
+    if (f.status !== 'client_suggested') throw new FigureError('There is no suggestion to accept on this item.', 409)
+    out = await writeApproved(f, payload, label, 'client_suggestion_accepted', by)
+  } else {
+    out = await updateItem(id, { label, payload }, by)
+  }
+  await supabaseAdmin.from('event_public_figure_decisions').update({ resolved_at: new Date().toISOString() }).eq('id', decisionId)
   return out
 }
 
-/** Counter a suggestion, or revise a rejected item: the producer's own wording. With client approval required it joins the next client round. */
+/** Counter a suggestion, or revise a rejected item: the producer's own wording. With client approval required it is ready for the next client round. */
 export async function reviseAndResend(id: string, patch: { label?: string; payload?: unknown }, by: string | null): Promise<FigureRow> {
   const f = await loadFigure(id)
   if (f.status !== 'client_suggested' && f.status !== 'client_rejected') throw new FigureError('Only an item with a suggestion or a rejection can be revised here.', 409)
-  const d = await openDecision(id)
   const label = patch.label !== undefined ? patch.label.replace(/\s+/g, ' ').trim() : f.label
   const payload = patch.payload !== undefined ? normalizePayload(f.kind, patch.payload) : f.working_payload
   if (!label || !isFilled(f.kind, payload)) throw new FigureError('Fill in the wording first.', 400)
@@ -404,15 +318,39 @@ export async function reviseAndResend(id: string, patch: { label?: string; paylo
   const { data, error } = await supabaseAdmin.from('event_public_figures').update({ label, working_payload: payload, status, updated_at: new Date().toISOString() }).eq('id', id).select(FIGURE_COLS).single()
   if (error) throw new FigureError(error.message.includes('uq_') ? 'An item with that name already exists in this group.' : error.message, 500)
   await logFigureChange({ event_id: f.event_id, figure_id: id, action: 'revise_after_review', before: { label: f.label, working_payload: f.working_payload, status: f.status }, after: { label, working_payload: payload, status }, by })
-  if (d) await resolveDecision(id, d.review_id as string)
+  await resolveFigureDecisions(id)
   return data as FigureRow
 }
 
-/** Remove an item the reviewer rejected from the public set (kept for the audit trail). */
+/** Remove an item the reviewers rejected from the public set (kept for the audit trail). */
 export async function removeAfterReview(id: string, by: string | null): Promise<void> {
-  const d = await openDecision(id)
   await removeItem(id, by)
-  if (d) await resolveDecision(id, d.review_id as string)
+  await resolveFigureDecisions(id)
+}
+
+/** The producer's final approval after the client round. The route is 'client' only when a client approver approved exactly the wording being approved; otherwise it is the
+    producer's own decision and, when the event needs the client, they must say so (override). Items the client has never seen are blocked. */
+export async function finalApprove(eventId: string, ids: string[], override: boolean, by: string | null): Promise<{ approved: number; blocked: Array<{ id: string; label: string; reason: string; needs_override?: boolean }> }> {
+  const { data } = await supabaseAdmin.from('event_public_figures').select(FIGURE_COLS).eq('event_id', eventId).eq('is_active', true).in('id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000'])
+  const rows = ((data ?? []) as FigureRow[]).filter(r => ['in_internal_review', 'client_suggested', 'client_rejected'].includes(r.status))
+  const requires = await requiresClientApproval(eventId)
+  const checks = await checkItems(eventId, rows)
+  const blocked: Array<{ id: string; label: string; reason: string; needs_override?: boolean }> = []
+  let approved = 0
+  for (const r of rows) {
+    const c = checks.get(r.id)
+    if (c?.errors.length) { blocked.push({ id: r.id, label: r.label, reason: c.errors[0].message }); continue }
+    const { data: rv } = await supabaseAdmin.from('event_public_figure_reviews').select('id').eq('event_id', eventId).eq('audience', 'client').eq('status', 'closed').contains('item_ids', [r.id]).order('closed_at', { ascending: false }).limit(1)
+    const roundId = rv?.[0]?.id as string | undefined
+    if (requires && !roundId) { blocked.push({ id: r.id, label: r.label, reason: 'The client has not reviewed this yet. Send it for client approval first.' }); continue }
+    const { data: decs } = roundId ? await supabaseAdmin.from('event_public_figure_decisions').select('decision, seen_label, seen_payload').eq('review_id', roundId).eq('figure_id', r.id) : { data: [] }
+    const route = finalRoute(r.kind, r.label, r.working_payload, (decs ?? []) as Array<{ decision: DecisionKind; seen_label: string | null; seen_payload: FigurePayload | null }>)
+    if (requires && route === 'internal' && !override) { blocked.push({ id: r.id, label: r.label, reason: 'No client approver has approved this exact wording.', needs_override: true }); continue }
+    await writeApproved(r, r.working_payload, r.label, route, by)
+    await resolveFigureDecisions(r.id)
+    approved++
+  }
+  return { approved, blocked }
 }
 
 // ── Reopen (§6.5) ───────────────────────────────────────────────────────────
