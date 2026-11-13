@@ -3,43 +3,34 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/app/components/ui'
 
-/* Post-event prompt (2026-11-10). Once an event has ended, a producer opening the Speakers tab is asked, once, whether the confirmed speakers actually spoke.
+/* Post-event prompt (2026-11-10; made persistent 2026-11-12). Once an event has ended, a producer opening the Speakers tab is asked, every time until it is done, whether the confirmed speakers actually spoke.
    Nothing changes until they press Apply: every speaker defaults to "Spoke", and a no-show can be set (or left alone) before applying.
    Why a prompt and not automatic: a confirmed speaker who did not turn up would otherwise be counted as having spoken. Applied changes are logged by name and time. */
 
 type Candidate = { id: string; name: string; company: string | null; status: string }
 type Choice = 'Spoke' | 'No-show' | 'leave'
 
-const dismissKey = (eventId: string) => `post-event-banner:${eventId}`
-
 export default function PostEventBanner({ eventId, canEdit, onApplied }: { eventId: string; canEdit: boolean; onApplied: () => void }) {
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [open, setOpen] = useState(false)
   const [choice, setChoice] = useState<Record<string, Choice>>({})
-  const [dismissed, setDismissed] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let gone = false
-    try { if (window.sessionStorage.getItem(dismissKey(eventId))) return } catch { /* private window: just show it */ }
     fetch(`/api/events/stakeholders/speaker-lifecycle?event_id=${eventId}`).then(r => r.json()).then(d => {
       if (gone || !Array.isArray(d?.candidates) || d.candidates.length === 0) return
-      setCandidates(d.candidates); setDismissed(false)
+      setCandidates(d.candidates)
     }).catch(() => {})
     return () => { gone = true }
   }, [eventId])
 
-  if (dismissed || !canEdit || candidates.length === 0) return null
+  if (!canEdit || candidates.length === 0) return null
 
   const get = (id: string): Choice => choice[id] ?? 'Spoke'
   const spoke = candidates.filter(c => get(c.id) === 'Spoke').length
   const noShow = candidates.filter(c => get(c.id) === 'No-show').length
-
-  function dismiss() {
-    try { window.sessionStorage.setItem(dismissKey(eventId), '1') } catch { /* ignore */ }
-    setDismissed(true)
-  }
 
   async function apply() {
     setBusy(true); setError(null)
@@ -49,7 +40,7 @@ export default function PostEventBanner({ eventId, canEdit, onApplied }: { event
     })
     setBusy(false)
     if (!res.ok) { setError((await res.json().catch(() => ({}))).error || 'Could not save.'); return }
-    dismiss(); onApplied()
+    setCandidates([]); onApplied()
   }
 
   const seg = (active: boolean): React.CSSProperties => ({
@@ -64,7 +55,6 @@ export default function PostEventBanner({ eventId, canEdit, onApplied }: { event
           <strong>The event has ended.</strong> {candidates.length} speaker{candidates.length === 1 ? ' is' : 's are'} still marked Confirmed. Did they speak? Marking them keeps the speaker statistics and the thank-you note accurate.
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <Button variant="ghost" onClick={dismiss}>Not now</Button>
           <Button variant="teal" onClick={() => setOpen(o => !o)}>{open ? 'Hide list' : 'Review and mark'}</Button>
         </div>
       </div>
