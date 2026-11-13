@@ -22,6 +22,15 @@ Spec: `docs/build_suggestions/copy-library.md`. Migration `supabase/copy_library
   2. **Workspace badge** — "N need review" shows on the Copy Library tab only, not on the event workspace home.
   Also later: press releases / invites / Konfhub / website / YouTube consume the library in their own builds.
 
+## Copy Library fixes from the first BSS review (13 Nov 2026) — branch `fix/copy-library-bss-review`, committed locally, NOT pushed; no migration
+- **Not used for this event:** `markNotUsed` / `restoreUse` (API actions `mark_not_used`, `use_again`). Stored as approved with EMPTY text (`approved_text = ''`); `pickItem` returns null for it (stops at that level, so an umbrella's wording is not picked up either) and every consumer falls back to today's behaviour. Readiness treats it as a decision. Edit/regenerate are blocked until "Use it again".
+- **attribution_line:** an event with an empty `announcement_attribution_line` gets it created as "not used" on generate, never generated.
+- **cta (before the event):** copied from Common Details (label + registration link) as a draft; only the after-event one is generated. Regenerate on it re-copies.
+- **approved_quotes:** `cleanMirroredText` strips `**`, `__`, `#`, list markers and curls quotes. Re-mirror leaves it a draft.
+- **Lengths:** `organiser_line` short is a real short form; `lengthViolations` (a shorter variant must have fewer words than the longer one of the same phase) is checked on generate (one retry) and on regenerate against the siblings. `press_release_ending` now has pre and post variants (the old n/a/any BSS item is left in place as a fallback). `figures_block` guidance uses the document's own framing; a `forbidden` word list on the catalogue entry refuses "target(s)".
+- **BSS 2026 re-run (done on production, no person-edited items existed):** attribution_line marked not used; cta/pre re-seeded; approved_quotes re-mirrored (draft); organiser_line short regenerated; all four figures_block variants regenerated; press_release_ending pre + post created. Everything is still DRAFT.
+- **Open:** the post-event `figures_block` presents the doc's pre-event figures as results ("concluded with… 6,500+ footfall"). That is the gap `docs/build_suggestions/public-figures.md` closes; do not approve it before then.
+
 ## Emails module — template review (12 Nov 2026) — built, NOT pushed; migration RUN on production
 A template must be confirmed "still accurate for this event" before it is used. Stale = never reviewed for the event, template text edited after the review, the event's `event_compiled_reference` version changed (a messaging doc/style guide approved), or review older than 90 days.
 - `supabase/emails_template_review_migration.sql` (RUN): `email_template_reviews`, `email_campaigns.template_review` + `template_nudged_at`.
