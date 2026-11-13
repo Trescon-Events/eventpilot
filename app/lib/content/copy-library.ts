@@ -9,7 +9,7 @@ import { resolveEffectiveRulesForOwner } from './resolve-validation-rules'
 import { validateText, type ValidationFinding } from './validate'
 import { contentText } from './edit-diff'
 import { COPY_CATALOGUE, CATALOGUE_BY_KEY, isValidVariant, starterVariants, type VariantLength, type VariantPhase } from './copy-catalogue'
-import { applyPairs, clientApprovalRequired, ctaLabelFromLibrary, pickItem, reviewFinding, sectionHash, statusAfterEdit, type ItemStatus, type OwnerLevel, type SourceRef } from './copy-model'
+import { applyPairs, cleanMirroredText, clientApprovalRequired, ctaLabelFromLibrary, forbiddenHits, isNotUsed, lengthViolations, pickItem, seedCtaText, reviewFinding, sectionHash, statusAfterEdit, type ItemStatus, type OwnerLevel, type SourceRef } from './copy-model'
 import { getEffectiveStyleNotes } from './style-notes'
 
 /* Copy Library, server side (docs/build_suggestions/copy-library.md). Tools read ONLY approved_text (§2.2). Every write is audited (§2.7).
@@ -100,10 +100,11 @@ export async function libraryReadiness(eventId: string): Promise<{ has_cta: bool
     if (ev.umbrella_id) ors.push(`umbrella_id.eq.${ev.umbrella_id}`)
     const { data, error } = await supabaseAdmin.from('copy_library_items').select('asset_key, variant_length, variant_phase, approved_text').or(ors.join(','))
     if (error) return null
-    const approved = (data ?? []).filter(r => (r.approved_text ?? '').trim())
-    const has = (k: string) => approved.some(r => r.asset_key === k)
-    const missing = COPY_CATALOGUE.filter(e => !e.fromDoc).filter(e => !approved.some(r => r.asset_key === e.key)).map(e => e.label)
-    return { has_cta: has('cta'), has_attribution: has('attribution_line'), missing }
+    // an item approved as "not used for this event" (empty text) is a decision, so it is not "missing" and it stops the attribution warning
+    const decided = (data ?? []).filter(r => typeof r.approved_text === 'string')
+    const approved = decided.filter(r => (r.approved_text ?? '').trim())
+    const missing = COPY_CATALOGUE.filter(e => !e.fromDoc).filter(e => !decided.some(r => r.asset_key === e.key)).map(e => e.label)
+    return { has_cta: approved.some(r => r.asset_key === 'cta'), has_attribution: decided.some(r => r.asset_key === 'attribution_line'), missing }
   } catch { return null }
 }
 
@@ -185,13 +186,13 @@ async function buildContext(owner: ContentOwnerRef): Promise<GenContext> {
   return { messaging, docBlock, noteBlock, facts }
 }
 
-/** approved_quotes: verbatim from the document, never generated. */
+/** approved_quotes: the document's words, never generated. Markdown markers are stripped and quote marks made curly (cleanMirroredText); the words are untouched. */
 function quotesFromDoc(ctx: GenContext): { text: string; refs: SourceRef[] } | null {
   const secs = ctx.messaging.filter(s => /quote/i.test(s.title))
-  return secs.length ? { text: secs.map(s => s.text.trim()).join('\n\n'), refs: secs.map(toRef) } : null
+  return secs.length ? { text: cleanMirroredText(secs.map(s => s.text.trim()).join('\n\n')), refs: secs.map(toRef) } : null
 }
 
-async function draftEntry(ctx: GenContext, entry: typeof COPY_CATALOGUE[number], wanted: Array<{ length: VariantLength; phase: VariantPhase }>): Promise<Draft[]> {
+async function draftEntry(ctx: GenContext, entry: typeof COPY_CATALOGUE[number], wanted: Array<{ length: VariantLength; phase: VariantPhase }>, feedback = ''): Promise<Draft[]> {
   const variantSpec = wanted.map((v, i) => `${i + 1}. length="${v.length}" phase="${v.phase}"${entry.wordTarget?.[v.length] ? ` — ${entry.wordTarget[v.length]}` : ''}`).join('\n')
   const prompt = `You write ready-to-use event copy for Trescon, an event organiser. You are building one reusable "${entry.label}" item from the event's approved documents.
 
@@ -214,7 +215,7 @@ HARD RULES
 - Spell every name exactly as the documents spell it.
 - Do not use em dashes. Plain, specific language; no filler such as "excited to announce".
 - "pre" means the event has not happened yet (future tense); "post" means it has concluded (past tense); "any" must read correctly in both cases.
-- Return JSON only: {"variants":[{"length":"...","phase":"...","text":"...","used_section_ids":["id", ...]}]}. used_section_ids lists the MESSAGING DOC sections the text relies on.`
+${feedback ? `\nFIX THESE PROBLEMS FROM YOUR LAST ATTEMPT\n${feedback}\n` : ''}- Return JSON only: {"variants":[{"length":"...","phase":"...","text":"...","used_section_ids":["id", ...]}]}. used_section_ids lists the MESSAGING DOC sections the text relies on.`
   const model = gemini().getGenerativeModel({ model: GEMINI_FLASH_MODEL, generationConfig: COPY_GENERATION_CONFIG })
   const raw = await generateCopy(model, prompt, `copy-library:${entry.key}`)
   const parsed = JSON.parse(raw.replace(/^```json\s*|\s*```$/g, '')) as { variants?: Array<{ length: string; phase: string; text: string; used_section_ids?: string[] }> }
@@ -229,18 +230,38 @@ HARD RULES
   return out
 }
 
+/** Drafts an entry and checks it: a shorter variant must be shorter than a longer one, and no forbidden word may appear. One retry with the problems named. */
+async function draftChecked(ctx: GenContext, entry: typeof COPY_CATALOGUE[number], wanted: Array<{ length: VariantLength; phase: VariantPhase }>): Promise<Draft[]> {
+  let feedback = ''
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const drafts = await draftEntry(ctx, entry, wanted, feedback)
+    const problems = [...lengthViolations(drafts), ...drafts.flatMap(d => forbiddenHits(d.text, entry.forbidden).map(w => `The ${d.length}/${d.phase} text uses the word "${w}". Do not use it.`))]
+    if (!problems.length) return drafts
+    if (attempt === 1) throw new Error(problems.join(' '))
+    feedback = problems.join('\n')
+  }
+  return []
+}
+
+/** The event's Common Details, which seed the before-event call to action and decide whether an attribution line applies. */
+async function commonDetails(owner: ContentOwnerRef): Promise<{ cta_label: string | null; registration_url: string | null; attribution: string | null } | null> {
+  if (owner.kind !== 'event') return null
+  const { data } = await supabaseAdmin.from('events').select('announcement_cta_label, registration_url, announcement_attribution_line').eq('id', owner.id).maybeSingle()
+  return data ? { cta_label: data.announcement_cta_label ?? null, registration_url: data.registration_url ?? null, attribution: data.announcement_attribution_line ?? null } : null
+}
+
 /** "Generate starter set": creates the items that do not exist yet (never overwrites an existing item). One model call per catalogue key. */
 export async function generateStarterSet(owner: ContentOwnerRef, by: string | null, onlyKeys?: string[]): Promise<GenerateResult> {
   if (owner.kind === 'org') throw new Error('Copy is generated for an event or an umbrella, not Trescon-wide.')
   const { column, value } = ownerColumn(owner)
-  const [ctx, existing] = await Promise.all([buildContext(owner), supabaseAdmin.from('copy_library_items').select('asset_key, variant_length, variant_phase').eq(column, value)])
+  const [ctx, existing, details] = await Promise.all([buildContext(owner), supabaseAdmin.from('copy_library_items').select('asset_key, variant_length, variant_phase').eq(column, value), commonDetails(owner)])
   const have = new Set((existing.data ?? []).map(r => `${r.asset_key}|${r.variant_length}|${r.variant_phase}`))
   const result: GenerateResult = { created: [], skipped: [], failed: [] }
 
-  const insert = async (key: string, v: { length: VariantLength; phase: VariantPhase }, text: string, refs: SourceRef[], source: 'generated' | 'from_doc') => {
+  const insert = async (key: string, v: { length: VariantLength; phase: VariantPhase }, text: string, refs: SourceRef[], source: 'generated' | 'from_doc' | 'manual') => {
     const { data, error } = await supabaseAdmin.from('copy_library_items').insert({ ...ownerInsertColumns(owner), asset_key: key, variant_length: v.length, variant_phase: v.phase, working_text: text, status: source === 'from_doc' ? 'in_internal_review' : 'draft', source, source_refs: refs }).select(ITEM_COLS).single()
     if (error) throw new Error(error.message)
-    await logCopyChange({ item_id: data.id, owner, asset_key: key, action: source === 'from_doc' ? 'create_from_doc' : 'create_generated', before: null, after: data, by })
+    await logCopyChange({ item_id: data.id, owner, asset_key: key, action: source === 'from_doc' ? 'create_from_doc' : source === 'manual' ? 'create_seeded' : 'create_generated', before: null, after: data, by })
   }
 
   const run = async (entry: typeof COPY_CATALOGUE[number]) => {
@@ -253,9 +274,30 @@ export async function generateStarterSet(owner: ContentOwnerRef, by: string | nu
         await insert(entry.key, wanted[0], q.text, q.refs, 'from_doc')
         result.created.push(entry.key); return
       }
-      const drafts = await draftEntry(ctx, entry, wanted)
-      for (const d of drafts) await insert(entry.key, d, d.text, d.refs, 'generated')
-      if (drafts.length) result.created.push(entry.key); else result.failed.push({ key: entry.key, error: 'The model returned no usable text.' })
+      let toDraft = wanted
+      let made = 0
+      // attribution line: an event with no attribution line in Common Details does not use one. Recorded as a decision (approved as "not used"), never generated.
+      if (entry.key === 'attribution_line' && details && !(details.attribution ?? '').trim()) {
+        for (const v of wanted) { await insertNotUsed(owner, entry.key, v, by, 'default_not_used', 'The event has no attribution line in Common Details.'); made++ }
+        toDraft = []
+      }
+      // call to action, before the event: copied from Common Details so it matches what is live today. Only the after-event one is generated.
+      if (entry.key === 'cta' && details) {
+        const pre = wanted.find(v => v.phase === 'pre')
+        if (pre) {
+          const seed = seedCtaText(details.cta_label, details.registration_url)
+          if (seed) { await insert(entry.key, pre, seed, [], 'manual'); made++ }
+          else result.failed.push({ key: 'cta (before the event)', error: 'Common Details has no call-to-action label to copy.' })
+          toDraft = toDraft.filter(v => v !== pre)
+        }
+      }
+      if (toDraft.length) {
+        const drafts = await draftChecked(ctx, entry, toDraft)
+        for (const d of drafts) await insert(entry.key, d, d.text, d.refs, 'generated')
+        made += drafts.length
+        if (!drafts.length) result.failed.push({ key: entry.key, error: 'The model returned no usable text.' })
+      }
+      if (made) result.created.push(entry.key)
     } catch (e) { result.failed.push({ key: entry.key, error: e instanceof Error ? e.message : String(e) }) }
   }
   const entries = COPY_CATALOGUE.filter(e => !onlyKeys || onlyKeys.includes(e.key))
@@ -280,6 +322,7 @@ export async function editItem(id: string, text: string, by: string | null): Pro
   const { item, owner } = await loadItem(id)
   if (item.source === 'from_doc') throw new CopyError('This item mirrors the messaging document and cannot be edited here. Change the document instead.', 409)
   if (item.status === 'pending_client') throw new CopyError('This item is with the client for approval. Wait for the decision, or ask them to request changes.', 409)
+  if (isNotUsed(item.approved_text)) throw new CopyError('This item is marked “Not used for this event”. Use it again before editing it.', 409)
   const status = statusAfterEdit(item.status, !!item.approved_text)
   const { data, error } = await supabaseAdmin.from('copy_library_items').update({ working_text: text, status, updated_at: new Date().toISOString() }).eq('id', id).select(ITEM_COLS).single()
   if (error) throw new CopyError(error.message, 500)
@@ -311,6 +354,13 @@ export async function applyReviewChange(id: string, mode: 'apply' | 'dismiss', b
 export async function regenerateItem(id: string, by: string | null): Promise<ItemRow> {
   const { item, owner } = await loadItem(id)
   if (owner.kind === 'org') throw new CopyError('Not available at this level.', 409)
+  if (isNotUsed(item.approved_text)) throw new CopyError('This item is marked “Not used for this event”. Use it again first.', 409)
+  const details = await commonDetails(owner)
+  if (item.asset_key === 'cta' && item.variant_phase === 'pre' && details) {
+    const seed = seedCtaText(details.cta_label, details.registration_url)
+    if (!seed) throw new CopyError('Common Details has no call-to-action label to copy.', 409)
+    return setWorkingText(item, owner, seed, [], by, 'reseed_from_common_details')
+  }
   const ctx = await buildContext(owner).catch(e => { throw new CopyError(e instanceof Error ? e.message : String(e), 409) })
   let text: string, refs: SourceRef[]
   if (item.source === 'from_doc') {
@@ -320,15 +370,64 @@ export async function regenerateItem(id: string, by: string | null): Promise<Ite
   } else {
     const entry = CATALOGUE_BY_KEY.get(item.asset_key)
     if (!entry) throw new CopyError('Unknown catalogue item.', 409)
-    const [d] = await draftEntry(ctx, entry, [{ length: item.variant_length, phase: item.variant_phase }]).catch(e => { throw new CopyError(`Regeneration failed; the previous text was kept. ${e instanceof Error ? e.message : ''}`.trim(), 502) })
+    const [d] = await draftChecked(ctx, entry, [{ length: item.variant_length, phase: item.variant_phase }]).catch(e => { throw new CopyError(`Regeneration failed; the previous text was kept. ${e instanceof Error ? e.message : ''}`.trim(), 502) })
     if (!d) throw new CopyError('The model returned no usable text; the previous text was kept.', 502)
+    // against its siblings: a short must stay shorter than the long of the same phase
+    const { data: sib } = await supabaseAdmin.from('copy_library_items').select('variant_length, variant_phase, working_text, id').eq('asset_key', item.asset_key).eq(item.event_id ? 'event_id' : item.umbrella_id ? 'umbrella_id' : 'org_scope', item.event_id ?? item.umbrella_id ?? item.org_scope).neq('id', item.id)
+    const bad = lengthViolations([{ length: item.variant_length, phase: item.variant_phase, text: d.text }, ...(sib ?? []).filter(x => x.working_text?.trim()).map(x => ({ length: x.variant_length as string, phase: x.variant_phase as string, text: x.working_text as string }))])
+      .filter(m => m.includes(`${item.variant_length.replace('_', '-')} version`))
+    if (bad.length) throw new CopyError(`Regeneration failed; the previous text was kept. ${bad[0]}`, 502)
     text = d.text; refs = d.refs
   }
   // The approved text stays in force until the new text is approved.
-  const status: ItemStatus = item.approved_text ? 'edited_since_approval' : item.source === 'from_doc' ? 'in_internal_review' : 'draft'
+  const status: ItemStatus = item.approved_text ? 'edited_since_approval' : 'draft'
   const { data, error } = await supabaseAdmin.from('copy_library_items').update({ working_text: text, source_refs: refs, status, review_reason: null, updated_at: new Date().toISOString() }).eq('id', id).select(ITEM_COLS).single()
   if (error) throw new CopyError(error.message, 500)
   await logCopyChange({ item_id: id, owner, asset_key: item.asset_key, action: 'regenerate', before: { working_text: item.working_text, status: item.status }, after: { working_text: text, status }, by })
+  return data as ItemRow
+}
+
+async function setWorkingText(item: ItemRow, owner: ContentOwnerRef, text: string, refs: SourceRef[], by: string | null, action: string): Promise<ItemRow> {
+  const status: ItemStatus = item.approved_text ? 'edited_since_approval' : 'draft'
+  const { data, error } = await supabaseAdmin.from('copy_library_items').update({ working_text: text, source_refs: refs, status, review_reason: null, updated_at: new Date().toISOString() }).eq('id', item.id).select(ITEM_COLS).single()
+  if (error) throw new CopyError(error.message, 500)
+  await logCopyChange({ item_id: item.id, owner, asset_key: item.asset_key, action, before: { working_text: item.working_text, status: item.status }, after: { working_text: text, status }, by })
+  return data as ItemRow
+}
+
+/** Creates an item that is already approved as "not used for this event" (empty approved text). Consumers then fall back to what they do today. */
+async function insertNotUsed(owner: ContentOwnerRef, key: string, v: { length: VariantLength; phase: VariantPhase }, by: string | null, action: string, why: string): Promise<void> {
+  const now = new Date().toISOString()
+  const { data, error } = await supabaseAdmin.from('copy_library_items').insert({
+    ...ownerInsertColumns(owner), asset_key: key, variant_length: v.length, variant_phase: v.phase, working_text: '', approved_text: '', approved_version: 1, status: 'approved', source: 'manual', source_refs: [], approved_by: actor(by), approved_at: now,
+  }).select(ITEM_COLS).single()
+  if (error) throw new Error(error.message)
+  await supabaseAdmin.from('copy_library_versions').insert({ item_id: data.id, version: 1, text: '', approved_by: actor(by), approved_at: now })
+  await logCopyChange({ item_id: data.id, owner, asset_key: key, action, before: null, after: { ...data, reason: why }, by })
+}
+
+/** "Not used for this event": approved as empty. Tools that read this item fall back to today's behaviour; the previous text is kept so it can be used again. */
+export async function markNotUsed(id: string, by: string | null): Promise<ItemRow> {
+  const { item, owner } = await loadItem(id)
+  if (item.status === 'pending_client') throw new CopyError('This item is with the client for approval. Wait for the decision first.', 409)
+  if (isNotUsed(item.approved_text)) throw new CopyError('Already marked as not used.', 409)
+  const version = item.approved_version + 1
+  const now = new Date().toISOString()
+  const { data, error } = await supabaseAdmin.from('copy_library_items').update({ approved_text: '', approved_version: version, status: 'approved', approved_by: actor(by), approved_at: now, client_bundle_id: null, review_reason: null, updated_at: now }).eq('id', id).select(ITEM_COLS).single()
+  if (error) throw new CopyError(error.message, 500)
+  const v = await supabaseAdmin.from('copy_library_versions').insert({ item_id: id, version, text: '', approved_by: actor(by), approved_at: now })
+  if (v.error) throw new CopyError(`Marked, but the version record failed: ${v.error.message}`, 500)
+  await logCopyChange({ item_id: id, owner, asset_key: item.asset_key, action: 'mark_not_used', before: { approved_text: item.approved_text, approved_version: item.approved_version, status: item.status }, after: { approved_text: '', approved_version: version, status: 'approved' }, by })
+  return data as ItemRow
+}
+
+/** Undo "not used": the item goes back to a draft with no approved text, so tools keep today's behaviour until it is approved. */
+export async function restoreUse(id: string, by: string | null): Promise<ItemRow> {
+  const { item, owner } = await loadItem(id)
+  if (!isNotUsed(item.approved_text)) throw new CopyError('This item is not marked as not used.', 409)
+  const { data, error } = await supabaseAdmin.from('copy_library_items').update({ approved_text: null, status: 'draft', approved_by: null, approved_at: null, updated_at: new Date().toISOString() }).eq('id', id).select(ITEM_COLS).single()
+  if (error) throw new CopyError(error.message, 500)
+  await logCopyChange({ item_id: id, owner, asset_key: item.asset_key, action: 'use_again', before: { approved_text: '', status: item.status }, after: { approved_text: null, status: 'draft' }, by })
   return data as ItemRow
 }
 

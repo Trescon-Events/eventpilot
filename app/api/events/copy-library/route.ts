@@ -3,7 +3,7 @@ import { getSession } from '@/app/lib/access/session'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { canManageRules, parseOwner } from '@/app/lib/content/rule-admin'
 import {
-  CopyError, applyReviewChange, approveInternally, editItem, findingsFor, generateStarterSet, loadLibrary, ownerOfItem, regenerateItem, sendBundle, setContentPhase, usageCounts, logCopyChange,
+  CopyError, applyReviewChange, approveInternally, editItem, findingsFor, generateStarterSet, loadLibrary, markNotUsed, ownerOfItem, regenerateItem, restoreUse, sendBundle, setContentPhase, usageCounts, logCopyChange,
 } from '@/app/lib/content/copy-library'
 import { getApprovedText } from '@/app/lib/content/trescon-profile'
 import { COPY_CATALOGUE } from '@/app/lib/content/copy-catalogue'
@@ -11,7 +11,7 @@ import { clientApprovalRequired, datesLookPast } from '@/app/lib/content/copy-mo
 
 /* Copy Library API (docs/build_suggestions/copy-library.md).
    GET  ?owner_type=event|umbrella|org&owner_id=…   — the catalogue, the items (own + inherited), findings, usage, phase.
-   POST { action, … }  generate | edit | approve | send_bundle | apply_change | dismiss_change | regenerate | set_phase | set_client_approval
+   POST { action, … }  generate | edit | approve | send_bundle | apply_change | dismiss_change | regenerate | mark_not_used | use_again | set_phase | set_client_approval
    Permissions are the rules screen's: sae.forms.manage on the event, sae.messaging.umbrella_manage on an umbrella. Every write is audited. */
 
 export const maxDuration = 120
@@ -71,6 +71,8 @@ export async function POST(req: NextRequest) {
       case 'apply_change': return NextResponse.json({ item: await applyReviewChange(need(itemId), 'apply', sid) })
       case 'dismiss_change': return NextResponse.json({ item: await applyReviewChange(need(itemId), 'dismiss', sid) })
       case 'regenerate': return NextResponse.json({ item: await regenerateItem(need(itemId), sid) })
+      case 'mark_not_used': return NextResponse.json({ item: await markNotUsed(need(itemId), sid) })
+      case 'use_again': return NextResponse.json({ item: await restoreUse(need(itemId), sid) })
       case 'set_phase': {
         if (owner.kind !== 'event' || (body.phase !== 'pre' && body.phase !== 'post')) return NextResponse.json({ error: 'An event and phase pre|post required.' }, { status: 400 })
         await setContentPhase(owner.id, body.phase, sid); return NextResponse.json({ ok: true })

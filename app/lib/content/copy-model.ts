@@ -15,7 +15,12 @@ export function sectionHash(content: unknown): string {
   return createHash('sha256').update(text).digest('hex').slice(0, 16)
 }
 
-/** Most specific wins: event, then umbrella, then org. `items` carry their level; returns the winning one for the wanted key/length/phase. */
+/** An item approved with EMPTY text means "not used for this event": the owner has decided this piece of copy does not apply. Null means never approved. */
+export const isNotUsed = (approved: string | null | undefined): boolean => approved === ''
+
+/** Most specific wins: event, then umbrella, then org. `items` carry their level; returns the winning one for the wanted key/length/phase.
+    An item approved as "not used" (empty text) at a more specific level stops the search and returns null, so a consumer falls back to today's behaviour
+    instead of picking up the umbrella's wording for something this event decided not to say. */
 export function pickItem<T extends { level: OwnerLevel; asset_key: string; variant_length: string; variant_phase: string; approved_text: string | null }>(
   items: T[], assetKey: string, opts: { length?: string; phase: 'pre' | 'post' },
 ): T | null {
@@ -23,11 +28,47 @@ export function pickItem<T extends { level: OwnerLevel; asset_key: string; varia
   const lengthOf = (it: T) => (opts.length ? it.variant_length === opts.length : true)
   for (const level of order) {
     for (const phase of [opts.phase, 'any']) {
-      const hit = items.find(it => it.level === level && it.asset_key === assetKey && lengthOf(it) && it.variant_phase === phase && !!it.approved_text?.trim())
-      if (hit) return hit
+      const hit = items.find(it => it.level === level && it.asset_key === assetKey && lengthOf(it) && it.variant_phase === phase && typeof it.approved_text === 'string' && (it.approved_text.trim() !== '' || isNotUsed(it.approved_text)))
+      if (hit) return isNotUsed(hit.approved_text) ? null : hit
     }
   }
   return null
+}
+
+/** Cleans text copied out of a messaging document before it is mirrored: markdown markers removed, straight quotes made curly. */
+export function cleanMirroredText(text: string): string {
+  let t = text.replace(/\r\n?/g, '\n')
+  t = t.replace(/\*\*|__/g, '')                                   // bold markers
+  t = t.replace(/^[ \t]*#{1,6}[ \t]+/gm, '')                       // heading markers
+  t = t.replace(/^[ \t]*(?:[-*\u2022][ \t]+|\d{1,2}[.)][ \t]+)/gm, '') // list markers
+  t = t.replace(/(^|[\s(\[{\u2014\u2013-])"/g, '$1\u201c').replace(/"/g, '\u201d')
+  t = t.replace(/(^|[\s(\[{\u2014\u2013\u201c-])'(?=\w)/g, '$1\u2018').replace(/'/g, '\u2019')
+  return t.split('\n').map(l => l.replace(/[ \t]+$/g, '')).join('\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
+const LENGTH_RANK: Record<string, number> = { one_liner: 0, short: 1, medium: 2, long: 3 }
+const wordsOf = (t: string) => t.trim().split(/\s+/).filter(Boolean).length
+/** A shorter variant must really be shorter than a longer one in the same phase. Returns one message per violation (empty = fine). */
+export function lengthViolations(variants: Array<{ length: string; phase: string; text: string }>): string[] {
+  const out: string[] = []
+  for (const a of variants) for (const b of variants) {
+    if (a.phase !== b.phase || !(a.length in LENGTH_RANK) || !(b.length in LENGTH_RANK)) continue
+    if (LENGTH_RANK[a.length] < LENGTH_RANK[b.length] && wordsOf(a.text) >= wordsOf(b.text)) out.push(`The ${a.length.replace('_', '-')} version (${wordsOf(a.text)} words) must be shorter than the ${b.length.replace('_', '-')} version (${wordsOf(b.text)} words).`)
+  }
+  return out
+}
+
+/** Words an item must never contain (whole word, any case). Returns the ones found. */
+export function forbiddenHits(text: string, words: string[] | undefined): string[] {
+  return (words ?? []).filter(w => new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(text))
+}
+
+/** The call to action as the event record already holds it: the label, then the registration link. Null when there is no label to seed from. */
+export function seedCtaText(label: string | null | undefined, registrationUrl: string | null | undefined): string | null {
+  const l = (label ?? '').trim()
+  if (!l) return null
+  const u = (registrationUrl ?? '').trim()
+  return u && !l.includes(u) ? `${l} ${u}` : l
 }
 
 export type SectionSnapshot = { doc_id: string; section_id: string; content: unknown } | null

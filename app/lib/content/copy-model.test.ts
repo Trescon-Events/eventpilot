@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { sectionHash, datesLookPast, pickItem, reviewFinding, applyPairs, statusAfterEdit, clientApprovalRequired, ctaLabelFromLibrary } from './copy-model'
+import { sectionHash, datesLookPast, pickItem, reviewFinding, applyPairs, statusAfterEdit, clientApprovalRequired, ctaLabelFromLibrary, cleanMirroredText, lengthViolations, forbiddenHits, seedCtaText, isNotUsed } from './copy-model'
 import { COPY_CATALOGUE, starterVariants, isValidVariant } from './copy-catalogue'
 
 const it = (level: 'event' | 'umbrella' | 'org', phase: string, text: string | null, length = 'short') =>
@@ -65,4 +65,40 @@ test('datesLookPast is only a suggestion: reads the end of a free-text date', ()
   assert.equal(datesLookPast('3-5 November 2099'), false)
   assert.equal(datesLookPast(null), false)
   assert.equal(datesLookPast('To be announced'), false)
+})
+
+test('"not used for this event": an empty approval stops the search, never-approved is skipped', () => {
+  const it = (level: 'event' | 'umbrella', approved: string | null) => ({ level, asset_key: 'attribution_line', variant_length: 'n/a', variant_phase: 'any', approved_text: approved })
+  assert.equal(isNotUsed(''), true); assert.equal(isNotUsed(null), false); assert.equal(isNotUsed('x'), false)
+  assert.equal(pickItem([it('event', ''), it('umbrella', 'Series wording')], 'attribution_line', { phase: 'pre' }), null) // the event decided not to use it: no umbrella wording either
+  assert.equal(pickItem([it('event', null), it('umbrella', 'Series wording')], 'attribution_line', { phase: 'pre' })?.approved_text, 'Series wording')
+  assert.equal(pickItem([it('event', '  ')], 'attribution_line', { phase: 'pre' }), null)
+})
+
+test('cleanMirroredText strips markdown and curls quotes without touching the words', () => {
+  assert.equal(cleanMirroredText('**"We will build skills," said Asha.**'), '\u201cWe will build skills,\u201d said Asha.')
+  assert.equal(cleanMirroredText('# Quotes\n- first\n* second\n1. third\n__bold__ it\'s'), 'Quotes\nfirst\nsecond\nthird\nbold it\u2019s')
+  assert.equal(cleanMirroredText('He said \'yes\' and "no".'), 'He said \u2018yes\u2019 and \u201cno\u201d.')
+  assert.equal(cleanMirroredText('2026. A year'), '2026. A year') // a year at the start of a line is not a list marker
+})
+
+test('a short variant must be shorter than the long one of the same phase', () => {
+  const v = (length: string, phase: string, text: string) => ({ length, phase, text })
+  assert.equal(lengthViolations([v('short', 'any', 'One two three'), v('long', 'any', 'One two three four five')]).length, 0)
+  assert.equal(lengthViolations([v('short', 'any', 'One two three four'), v('long', 'any', 'One two three four')]).length, 1)
+  assert.equal(lengthViolations([v('short', 'pre', 'a b c d e f'), v('long', 'post', 'a b c')]).length, 0) // different phases are not compared
+  assert.equal(lengthViolations([v('one_liner', 'any', 'a b c'), v('short', 'any', 'a b'), v('long', 'any', 'a b c d')]).length, 1)
+})
+
+test('forbidden words: whole word only', () => {
+  assert.deepEqual(forbiddenHits('Our Targets are clear', ['targets', 'target']), ['targets'])
+  assert.deepEqual(forbiddenHits('retargeting and targeted', ['targets', 'target']), [])
+})
+
+test('the before-event call to action is seeded from Common Details', () => {
+  assert.equal(seedCtaText('Register now:', 'https://x.io/r'), 'Register now: https://x.io/r')
+  assert.equal(seedCtaText('Register: https://x.io/r', 'https://x.io/r'), 'Register: https://x.io/r')
+  assert.equal(seedCtaText('Register', null), 'Register')
+  assert.equal(seedCtaText('  ', 'https://x.io/r'), null)
+  assert.equal(ctaLabelFromLibrary(seedCtaText('Register now:', 'https://x.io/r')!, 'https://x.io/r'), 'Register now:') // the existing line builder re-adds the link
 })
