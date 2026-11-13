@@ -9,8 +9,10 @@ import { resolveEffectiveRulesForOwner } from './resolve-validation-rules'
 import { validateText, type ValidationFinding } from './validate'
 import { contentText } from './edit-diff'
 import { COPY_CATALOGUE, CATALOGUE_BY_KEY, isValidVariant, starterVariants, type VariantLength, type VariantPhase } from './copy-catalogue'
-import { applyPairs, cleanMirroredText, clientApprovalRequired, ctaLabelFromLibrary, forbiddenHits, isNotUsed, lengthViolations, pickItem, seedCtaText, reviewFinding, sectionHash, statusAfterEdit, type ItemStatus, type OwnerLevel, type SourceRef } from './copy-model'
+import { docRefs, figureRefs, type DocSourceRef, applyPairs, cleanMirroredText, clientApprovalRequired, ctaLabelFromLibrary, forbiddenHits, isNotUsed, lengthViolations, pickItem, seedCtaText, reviewFinding, sectionHash, statusAfterEdit, type ItemStatus, type OwnerLevel, type SourceRef } from './copy-model'
 import { getEffectiveStyleNotes } from './style-notes'
+import { getPublicFigures, figureRefChanges, recordFigureUsage, type PublicFigure } from './public-figures-read'
+import { unsupportedNumbers } from './public-figures-model'
 
 /* Copy Library, server side (docs/build_suggestions/copy-library.md). Tools read ONLY approved_text (§2.2). Every write is audited (§2.7).
    Every read helper used by a consumer fails open to "no library item" so a missing table or a database error can never change a tool's output (§2.1). */
@@ -254,7 +256,8 @@ async function commonDetails(owner: ContentOwnerRef): Promise<{ cta_label: strin
 export async function generateStarterSet(owner: ContentOwnerRef, by: string | null, onlyKeys?: string[]): Promise<GenerateResult> {
   if (owner.kind === 'org') throw new Error('Copy is generated for an event or an umbrella, not Trescon-wide.')
   const { column, value } = ownerColumn(owner)
-  const [ctx, existing, details] = await Promise.all([buildContext(owner), supabaseAdmin.from('copy_library_items').select('asset_key, variant_length, variant_phase').eq(column, value), commonDetails(owner)])
+  let noDocs: string | null = null
+  const [ctx, existing, details] = await Promise.all([buildContext(owner).catch(async e => { noDocs = e instanceof Error ? e.message : String(e); return lightContext(owner) }), supabaseAdmin.from('copy_library_items').select('asset_key, variant_length, variant_phase').eq(column, value), commonDetails(owner)])
   const have = new Set((existing.data ?? []).map(r => `${r.asset_key}|${r.variant_length}|${r.variant_phase}`))
   const result: GenerateResult = { created: [], skipped: [], failed: [] }
 
@@ -262,6 +265,7 @@ export async function generateStarterSet(owner: ContentOwnerRef, by: string | nu
     const { data, error } = await supabaseAdmin.from('copy_library_items').insert({ ...ownerInsertColumns(owner), asset_key: key, variant_length: v.length, variant_phase: v.phase, working_text: text, status: source === 'from_doc' ? 'in_internal_review' : 'draft', source, source_refs: refs }).select(ITEM_COLS).single()
     if (error) throw new Error(error.message)
     await logCopyChange({ item_id: data.id, owner, asset_key: key, action: source === 'from_doc' ? 'create_from_doc' : source === 'manual' ? 'create_seeded' : 'create_generated', before: null, after: data, by })
+    for (const r of figureRefs(refs)) await recordFigureUsage({ figure_id: r.figure_id, version: r.version, consumer_type: 'copy_library_item', consumer_id: data.id, mode: 'live' })
   }
 
   const run = async (entry: typeof COPY_CATALOGUE[number]) => {
@@ -291,6 +295,18 @@ export async function generateStarterSet(owner: ContentOwnerRef, by: string | nu
           toDraft = toDraft.filter(v => v !== pre)
         }
       }
+      // key figures after the event: grounded on the event's approved public figures when it has any (no messaging document needed)
+      if (entry.key === 'figures_block' && owner.kind === 'event') {
+        const post = toDraft.filter(v => v.phase === 'post')
+        const figs = post.length ? await figuresForBlock(owner.id) : []
+        if (figs.length) {
+          const drafts = await draftFromFigures(ctx, entry, post, figs)
+          for (const d of drafts) await insert(entry.key, d, d.text, d.refs, 'generated')
+          made += drafts.length
+          toDraft = toDraft.filter(v => v.phase !== 'post')
+        }
+      }
+      if (toDraft.length && noDocs) throw new Error(noDocs)
       if (toDraft.length) {
         const drafts = await draftChecked(ctx, entry, toDraft)
         for (const d of drafts) await insert(entry.key, d, d.text, d.refs, 'generated')
@@ -335,16 +351,20 @@ export async function applyReviewChange(id: string, mode: 'apply' | 'dismiss', b
   const { item, owner } = await loadItem(id)
   if (item.status !== 'needs_review') throw new CopyError('This item is not waiting for review.', 409)
   let text = item.working_text
+  const figChange = await figureRefChanges(figureRefs(item.source_refs))
   if (mode === 'apply') {
-    const current = await currentSectionsFor(owner)
-    const f = reviewFinding(item.source_refs, snapshots(item.source_refs, current), item.working_text)
-    const next = applyPairs(item.working_text, f.pairs)
+    const current = await currentSectionsFor(owner).catch(() => [] as Section[])
+    const f = reviewFinding(docRefs(item.source_refs), snapshots(docRefs(item.source_refs), current), item.working_text)
+    const next = applyPairs(item.working_text, [...f.pairs, ...figChange.pairs])
     if (next === null) throw new CopyError('The changed wording does not appear in this text. Edit it by hand or use Regenerate.', 409)
     text = next
   }
   // Re-baseline the item on the sections as they are now.
-  const current = await currentSectionsFor(owner)
-  const refs = item.source_refs.map(r => { const s = matchSection(r, current); return s ? { ...r, doc_id: s.doc_id, section_id: s.id, section_hash: sectionHash(s.text), section_text: s.text.slice(0, 8000) } : r })
+  const current = await currentSectionsFor(owner).catch(() => [] as Section[])
+  const refs: SourceRef[] = item.source_refs.map(r => {
+    if (r.type === 'public_figure') return { ...r, version: figChange.current.get(r.figure_id) ?? r.version }
+    const s = matchSection(r, current); return s ? { ...r, doc_id: s.doc_id, section_id: s.id, section_hash: sectionHash(s.text), section_text: s.text.slice(0, 8000) } : r
+  })
   const { data, error } = await supabaseAdmin.from('copy_library_items').update({ working_text: text, source_refs: refs, status: item.approved_text ? 'edited_since_approval' : 'draft', review_reason: null, updated_at: new Date().toISOString() }).eq('id', id).select(ITEM_COLS).single()
   if (error) throw new CopyError(error.message, 500)
   await logCopyChange({ item_id: id, owner, asset_key: item.asset_key, action: mode === 'apply' ? 'apply_review_change' : 'dismiss_review', before: { working_text: item.working_text, status: item.status, review_reason: item.review_reason }, after: { working_text: data.working_text, status: data.status }, by })
@@ -360,6 +380,17 @@ export async function regenerateItem(id: string, by: string | null): Promise<Ite
     const seed = seedCtaText(details.cta_label, details.registration_url)
     if (!seed) throw new CopyError('Common Details has no call-to-action label to copy.', 409)
     return setWorkingText(item, owner, seed, [], by, 'reseed_from_common_details')
+  }
+  if (item.asset_key === 'figures_block' && item.variant_phase === 'post' && owner.kind === 'event') {
+    const figs = await figuresForBlock(owner.id)
+    const entry = CATALOGUE_BY_KEY.get('figures_block')
+    if (figs.length && entry) {
+      const [d] = await draftFromFigures(await lightContext(owner), entry, [{ length: item.variant_length, phase: item.variant_phase }], figs).catch(e => { throw new CopyError(`Regeneration failed; the previous text was kept. ${e instanceof Error ? e.message : ''}`.trim(), 502) })
+      if (!d) throw new CopyError('The model returned no usable text; the previous text was kept.', 502)
+      const out = await setWorkingText(item, owner, d.text, d.refs, by, 'regenerate')
+      for (const r of figureRefs(d.refs)) await recordFigureUsage({ figure_id: r.figure_id, version: r.version, consumer_type: 'copy_library_item', consumer_id: item.id, mode: 'live' })
+      return out
+    }
   }
   const ctx = await buildContext(owner).catch(e => { throw new CopyError(e instanceof Error ? e.message : String(e), 409) })
   let text: string, refs: SourceRef[]
@@ -538,11 +569,11 @@ async function currentSectionsFor(owner: ContentOwnerRef): Promise<Section[]> {
   return (await messagingSections(owner)).sections.filter(s => s.role === 'messaging')
 }
 /** Find where a section lives now: same id first, then same title (a new live version has a new doc id). */
-function matchSection(ref: SourceRef, current: Section[]): Section | null {
+function matchSection(ref: DocSourceRef, current: Section[]): Section | null {
   return current.find(s => s.id === ref.section_id) ?? (ref.section_title ? current.find(s => s.title === ref.section_title) : undefined) ?? null
 }
 
-const snapshots = (refs: SourceRef[], current: Section[]) => refs.map(r => { const m = matchSection(r, current); return m ? { doc_id: m.doc_id, section_id: m.id, content: m.text } : null })
+const snapshots = (refs: DocSourceRef[], current: Section[]) => refs.map(r => { const m = matchSection(r, current); return m ? { doc_id: m.doc_id, section_id: m.id, content: m.text } : null })
 
 /** Runs after a messaging document changes (new live version or a section edit). Compares each item's source section hashes with the document now.
     Changed → needs_review with a readable reason. House-style changes never reach here (§2.4): only messaging-document sections are compared.
@@ -557,11 +588,11 @@ export async function runCopyReviewCycle(owner: ContentOwnerRef): Promise<{ flag
       if (t.kind === 'org') continue
       const { column, value } = ownerColumn(t)
       const { data } = await supabaseAdmin.from('copy_library_items').select(ITEM_COLS).eq(column, value).neq('status', 'needs_review')
-      const items = ((data ?? []) as ItemRow[]).filter(i => i.source_refs?.length)
+      const items = ((data ?? []) as ItemRow[]).filter(i => docRefs(i.source_refs).length)
       if (!items.length) continue
       const current = await currentSectionsFor(t)
       for (const it of items) {
-        const f = reviewFinding(it.source_refs, snapshots(it.source_refs, current), it.working_text)
+        const f = reviewFinding(docRefs(it.source_refs), snapshots(docRefs(it.source_refs), current), it.working_text)
         if (!f.changed) continue
         await supabaseAdmin.from('copy_library_items').update({ status: 'needs_review', review_reason: f.reason, updated_at: new Date().toISOString() }).eq('id', it.id)
         await logCopyChange({ item_id: it.id, owner: t, asset_key: it.asset_key, action: 'flag_needs_review', before: { status: it.status }, after: { status: 'needs_review', review_reason: f.reason }, by: null })
@@ -570,6 +601,87 @@ export async function runCopyReviewCycle(owner: ContentOwnerRef): Promise<{ flag
     }
     return { flagged }
   } catch (e) { console.error('[copy-library] review cycle failed:', e instanceof Error ? e.message : e); return { flagged: 0 } }
+}
+
+// ── Public figures (public-figures.md §7, Step 0 outcome) ───────────────────
+
+/** A figure got a new approved version: every Copy Library item built from it goes to needs_review with a readable reason ("Footfall: '6,500+' → '6,800+'"),
+    keeps serving its last approved text, and offers Regenerate. Items that do not reference this figure are untouched. */
+export async function flagItemsForFigure(eventId: string, figureId: string, by: string | null): Promise<number> {
+  const { data } = await supabaseAdmin.from('copy_library_items').select(ITEM_COLS).eq('event_id', eventId).neq('status', 'needs_review')
+  let flagged = 0
+  for (const it of ((data ?? []) as ItemRow[]).filter(i => figureRefs(i.source_refs).some(r => r.figure_id === figureId))) {
+    const f = await figureRefChanges(figureRefs(it.source_refs))
+    if (!f.changed) continue
+    await supabaseAdmin.from('copy_library_items').update({ status: 'needs_review', review_reason: f.reason, updated_at: new Date().toISOString() }).eq('id', it.id)
+    await logCopyChange({ item_id: it.id, owner: { kind: 'event', id: eventId }, asset_key: it.asset_key, action: 'flag_needs_review', before: { status: it.status }, after: { status: 'needs_review', review_reason: f.reason, public_figure: figureId }, by })
+    flagged++
+  }
+  return flagged
+}
+
+/** The approved figures a post-event key-figures block may be built from: the headline numbers, the programme and the outcomes. */
+const BLOCK_CATEGORIES = ['at_a_glance', 'programme', 'outcomes']
+async function figuresForBlock(eventId: string): Promise<PublicFigure[]> {
+  return (await getPublicFigures(eventId, { categories: BLOCK_CATEGORIES })).filter(f => f.kind !== 'breakdown')
+}
+const figureLine = (f: PublicFigure) => `- ${f.group_label ? `${f.group_label}: ` : ''}${f.label}: ${f.kind === 'outcome' ? (f.payload.text ?? '') : (f.payload.display ?? '')}`
+
+/** Context for generation that does not read the messaging document: only the event facts and the style notes. */
+async function lightContext(owner: ContentOwnerRef): Promise<GenContext> {
+  const [notes, facts] = await Promise.all([getEffectiveStyleNotes(owner).catch(() => []), ownerFacts(owner)])
+  return { messaging: [], docBlock: '', noteBlock: notes.length ? `STYLE NOTES (writing guidance):\n${notes.map(n => `- ${n.note}`).join('\n')}` : '', facts }
+}
+
+/** After-the-event key figures, grounded ONLY on the event's approved public figures. The model may not reword, round or add a number: every number in the
+    text must already appear in the approved values (checked, one retry). The refs point at the figures and their versions, so a later re-approval flags the item. */
+async function draftFromFigures(ctx: GenContext, entry: typeof COPY_CATALOGUE[number], wanted: Array<{ length: VariantLength; phase: VariantPhase }>, figs: PublicFigure[]): Promise<Draft[]> {
+  const list = figs.map(figureLine).join('\n')
+  const allowed = `${list}\n${ctx.facts}`
+  const refs: SourceRef[] = figs.map(f => ({ type: 'public_figure', figure_id: f.id, version: f.version }))
+  let feedback = ''
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const variantSpec = wanted.map((v, i) => `${i + 1}. length="${v.length}" phase="${v.phase}"${entry.wordTarget?.[v.length] ? ` — ${entry.wordTarget[v.length]}` : ''}`).join('\n')
+    const prompt = `You write ready-to-use event copy for Trescon, an event organiser. You are building one reusable "${entry.label}" item from the event's APPROVED PUBLIC FIGURES.
+
+EVENT FACTS
+${ctx.facts}
+
+APPROVED PUBLIC FIGURES (the only numbers you may use, exactly as written)
+${list}
+
+${ctx.noteBlock}
+
+TASK
+${entry.guidance}
+
+Write these variants:
+${variantSpec}
+
+HARD RULES
+- Use each figure EXACTLY as written above: do not round it, convert it, reword it, add to it or combine two figures into one. Do not use any number that is not written above.
+- Past tense: the event has concluded.
+- Never use the word "target" or "targets".
+- Do not use em dashes. Plain, specific language; no filler such as "excited to announce".
+- Return JSON only: {"variants":[{"length":"...","phase":"...","text":"..."}]}.${feedback ? `\n\nFIX THESE PROBLEMS FROM YOUR LAST ATTEMPT\n${feedback}` : ''}`
+    const model = gemini().getGenerativeModel({ model: GEMINI_FLASH_MODEL, generationConfig: COPY_GENERATION_CONFIG })
+    const raw = await generateCopy(model, prompt, `copy-library:${entry.key}:figures`)
+    const parsed = JSON.parse(raw.replace(/^```json\s*|\s*```$/g, '')) as { variants?: Array<{ length: string; phase: string; text: string }> }
+    const drafts: Draft[] = []
+    for (const v of wanted) {
+      const got = parsed.variants?.find(x => x.length === v.length && x.phase === v.phase)
+      if (got && typeof got.text === 'string' && got.text.trim()) drafts.push({ length: v.length, phase: v.phase, text: got.text.trim(), refs })
+    }
+    const problems = [
+      ...lengthViolations(drafts),
+      ...drafts.flatMap(d => { const bad = unsupportedNumbers(d.text, allowed); return bad.length ? [`The ${d.length} text uses ${bad.join(', ')}, which is not one of the approved figures.`] : [] }),
+      ...drafts.flatMap(d => forbiddenHits(d.text, entry.forbidden).map(w => `The ${d.length} text uses the word "${w}".`)),
+    ]
+    if (!problems.length && drafts.length === wanted.length) return drafts
+    if (attempt === 1) throw new Error(problems.join(' ') || 'The model returned no usable text.')
+    feedback = problems.join('\n') || 'Return every requested variant.'
+  }
+  return []
 }
 
 export { isValidVariant, starterVariants }

@@ -10,7 +10,7 @@ import { CATALOGUE_SECTIONS, variantLabel, type CatalogueEntry } from '@/app/lib
    text; this screen is where it is generated, edited, approved internally, sent to the client as one bundle, and re-reviewed when the messaging document changes. */
 
 type Finding = { rule_key: string; severity: 'error' | 'warning'; message: string; match: string }
-type SourceRef = { section_id: string; section_title?: string }
+type SourceRef = { type?: 'doc_section' | 'public_figure'; section_id?: string; section_title?: string; figure_id?: string }
 type Item = {
   id: string; asset_key: string; variant_length: string; variant_phase: string; working_text: string; approved_text: string | null; approved_version: number
   status: string; source: string; source_refs: SourceRef[]; approved_at: string | null; review_reason: string | null; level: 'event' | 'umbrella' | 'org'; inherited: boolean
@@ -188,7 +188,8 @@ function ItemEditor({ item, act, busy, canEdit }: { item: Item; act: (a: string,
   }
   const dirty = text !== saved
   const usage = Object.entries(item.usage).map(([k, n]) => `${n} ${USAGE_LABEL[k] ?? k}${n === 1 ? '' : 's'}`).join(', ')
-  const sources = [...new Set(item.source_refs.map(r => r.section_title).filter(Boolean))].slice(0, 6).join(', ')
+  const sources = [...new Set(item.source_refs.filter(r => r.type !== 'public_figure').map(r => r.section_title).filter(Boolean))].slice(0, 6).join(', ')
+  const figCount = item.source_refs.filter(r => r.type === 'public_figure').length
 
   return (
     <div style={{ marginTop: '8px', display: 'grid', gap: '8px' }}>
@@ -232,7 +233,7 @@ function ItemEditor({ item, act, busy, canEdit }: { item: Item; act: (a: string,
         {dirty && <span style={{ fontSize: '11.5px', color: 'var(--ink3)' }}>Saving…</span>}
       </div>
       <div style={{ fontSize: '11.5px', color: 'var(--ink3)' }}>
-        {sources && <>Built from: {sources}. </>}{usage ? `Used by ${usage}.` : 'Not used by any tool yet.'}
+        {sources && <>Built from: {sources}. </>}{figCount > 0 && <>Built from {figCount} approved public figure{figCount === 1 ? '' : 's'} (Post-event tab). </>}{usage ? `Used by ${usage}.` : 'Not used by any tool yet.'}
       </div>
     </div>
   )

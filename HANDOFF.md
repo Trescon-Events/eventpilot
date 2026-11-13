@@ -22,6 +22,16 @@ Spec: `docs/build_suggestions/copy-library.md`. Migration `supabase/copy_library
   2. **Workspace badge** — "N need review" shows on the Copy Library tab only, not on the event workspace home.
   Also later: press releases / invites / Konfhub / website / YouTube consume the library in their own builds.
 
+## Public figures (13 Nov 2026) — branch `feat/public-figures`, built, NOT pushed; migration NOT run
+Spec: `docs/build_suggestions/public-figures.md` (incl. "Step 0 outcome and decisions"). Public only: internal actuals/targets are out of scope and must never share these tables.
+- Migration `supabase/public_figures_migration.sql` (6 new tables, nothing existing changed). Madhu runs it by hand.
+- Pure: `app/lib/content/public-figures-catalogue.ts` (starter template), `public-figures-model.ts` (payloads, checks, change pairs, number guard), tests (11).
+- Server: `public-figures.ts` (template/add/group/edit/lock, approve, internal + client review rounds, accept-as-suggested, counter, reopen, audit), `public-figures-read.ts` (`getPublicFigures` returns approved + active only, `recordFigureUsage`, `figureRefChanges`).
+- API: `/api/events/public-figures` (GET + POST actions), `/api/events/public-figures/evidence` (private DocuHub R2 at `public-figures/<event>/<figure>/<file>`, signed-URL download), public `/api/public/figures-review/[token]`. Pages: Event Details → **Post-event** tab (`app/components/post-event/PostEventTab.tsx`), client link `/public/figures-review/[token]`.
+- Copy Library: `SourceRef` is now doc_section | `public_figure` (no `type` = doc section, no migration). Post-event `figures_block` is generated ONLY from approved figures when the event has any (numbers checked against the approved values, one retry) and stores `public_figure` refs. Re-approving a referenced figure (`flagItemsForFigure`) flips those items to `needs_review` with "Footfall: '6,500+' → '6,800+'"; they keep serving their last approved text; "Apply this change" swaps the number. With no approved figures nothing changes.
+- Acceptance: `.scratch/figures-accept.ts` (throwaway event, cleans up) — run after the migration.
+- Not built (per spec §9): consumers beyond the Copy Library `figures_block`, testimonials, backfill, internal figures.
+
 ## Copy Library fixes from the first BSS review (13 Nov 2026) — branch `fix/copy-library-bss-review`, committed locally, NOT pushed; no migration
 - **Not used for this event:** `markNotUsed` / `restoreUse` (API actions `mark_not_used`, `use_again`). Stored as approved with EMPTY text (`approved_text = ''`); `pickItem` returns null for it (stops at that level, so an umbrella's wording is not picked up either) and every consumer falls back to today's behaviour. Readiness treats it as a decision. Edit/regenerate are blocked until "Use it again".
 - **attribution_line:** an event with an empty `announcement_attribution_line` gets it created as "not used" on generate, never generated.

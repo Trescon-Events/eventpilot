@@ -6,7 +6,12 @@ import { contentText, changedPhrases } from './edit-diff'
 export type ItemStatus = 'draft' | 'in_internal_review' | 'pending_client' | 'approved' | 'needs_review' | 'edited_since_approval'
 /** doc_id/section_id/section_hash as specified; section_title and section_text are extra so a section can be found again after its document is replaced by a new
     live version (new doc id), and so the review reason can show the exact words that changed. */
-export type SourceRef = { doc_id: string; section_id: string; section_hash: string; section_title?: string; section_text?: string }
+export type DocSourceRef = { type?: 'doc_section'; doc_id: string; section_id: string; section_hash: string; section_title?: string; section_text?: string }
+/** A second kind of source (public-figures.md, Step 0 outcome): the item was built from an approved public figure. Rows with no `type` are doc sections, so nothing stored needs migrating. */
+export type PublicFigureSourceRef = { type: 'public_figure'; figure_id: string; version: number }
+export type SourceRef = DocSourceRef | PublicFigureSourceRef
+export const docRefs = (refs: SourceRef[] | null | undefined): DocSourceRef[] => (refs ?? []).filter((r): r is DocSourceRef => !!r && r.type !== 'public_figure')
+export const figureRefs = (refs: SourceRef[] | null | undefined): PublicFigureSourceRef[] => (refs ?? []).filter((r): r is PublicFigureSourceRef => !!r && r.type === 'public_figure')
 export type OwnerLevel = 'event' | 'umbrella' | 'org'
 
 /** A stable fingerprint of a section's content (whitespace-insensitive), so a re-save that changes nothing is not a change. */
@@ -76,7 +81,7 @@ export type ReviewFinding = { changed: boolean; reason: string | null; pairs: Ar
 
 /** Compare what an item was built from with the sections as they are now. `previous` text is carried only when the caller has it
     (the reason prefers phrases that actually occur in the item's own text). */
-export function reviewFinding(refs: SourceRef[], current: SectionSnapshot[], itemText: string): ReviewFinding {
+export function reviewFinding(refs: DocSourceRef[], current: SectionSnapshot[], itemText: string): ReviewFinding {
   const pairs: Array<{ removed: string; added: string }> = []
   const gone: string[] = []
   let changed = false

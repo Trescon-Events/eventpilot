@@ -11,6 +11,7 @@ import { TRACKED_EVENT_FIELDS, FIELD_LABELS, TrackedEventField } from '@/app/lib
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import CopyLibraryTab from '@/app/components/copy-library/CopyLibraryTab'
 import SetupTab from './SetupTab'
+import PostEventTab from '@/app/components/post-event/PostEventTab'
 import AffectedRulesCard from '@/app/components/rules/AffectedRulesCard'
 import type { AffectedRule } from '@/app/lib/content/edit-diff'
 import EventDaysCard from '@/app/admin/operations-shared/EventDaysCard'
@@ -552,7 +553,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
   const searchParams = useSearchParams()
   const router = useRouter()
 
-  const [tab, setTabState] = useState<'overview' | 'messaging' | 'copy' | 'setup'>(searchParams.get('tab') === 'messaging' ? 'messaging' : searchParams.get('tab') === 'copy' ? 'copy' : searchParams.get('tab') === 'setup' ? 'setup' : 'overview')
+  const [tab, setTabState] = useState<'overview' | 'messaging' | 'copy' | 'postevent' | 'setup'>(searchParams.get('tab') === 'messaging' ? 'messaging' : searchParams.get('tab') === 'copy' ? 'copy' : searchParams.get('tab') === 'postevent' ? 'postevent' : searchParams.get('tab') === 'setup' ? 'setup' : 'overview')
   const [copyReviewCount, setCopyReviewCount] = useState(0)
   useEffect(() => {
     fetch(`/api/events/copy-library?owner_type=event&owner_id=${eventId}`).then(r => r.ok ? r.json() : null).then(j => setCopyReviewCount(j?.needs_review ?? 0)).catch(() => {})
@@ -563,9 +564,9 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
     (['messaging', 'style_guide', 'production_pack'] as DocRole[]).find(r => r === searchParams.get('doc')) ?? 'messaging'
   )
   function refDocsUrl(role: DocRole) { return `/admin/events/${eventId}/details?tab=messaging${role !== 'messaging' ? `&doc=${role}` : ''}` }
-  function setTab(t: 'overview' | 'messaging' | 'copy' | 'setup') {
+  function setTab(t: 'overview' | 'messaging' | 'copy' | 'postevent' | 'setup') {
     setTabState(t)
-    router.replace(t === 'messaging' ? refDocsUrl(docRole) : t === 'setup' ? `/admin/events/${eventId}/details?tab=setup` : t === 'copy' ? `/admin/events/${eventId}/details?tab=copy` : `/admin/events/${eventId}/details`, { scroll: false })
+    router.replace(t === 'messaging' ? refDocsUrl(docRole) : t === 'setup' ? `/admin/events/${eventId}/details?tab=setup` : t === 'copy' ? `/admin/events/${eventId}/details?tab=copy` : t === 'postevent' ? `/admin/events/${eventId}/details?tab=postevent` : `/admin/events/${eventId}/details`, { scroll: false })
   }
   function setDocRole(r: DocRole) {
     setDocRoleState(r)
@@ -861,7 +862,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
       />
 
       <div style={{ padding: '20px 32px 0', display: 'flex', gap: '4px', borderBottom: '1px solid var(--border-light)' }}>
-        {([['overview', 'Overview'], ['messaging', 'Reference Docs'], ['copy', 'Copy Library'], ['setup', 'Setup']] as const).map(([key, label]) => (
+        {([['overview', 'Overview'], ['messaging', 'Reference Docs'], ['copy', 'Copy Library'], ['postevent', 'Post-event'], ['setup', 'Setup']] as const).map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             style={{
               padding: '10px 18px', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit',
@@ -884,6 +885,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
 
         {tab === 'setup' && <SetupTab eventId={eventId} />}
         {tab === 'copy' && <CopyLibraryTab ownerType="event" ownerId={eventId} />}
+        {tab === 'postevent' && <PostEventTab eventId={eventId} />}
 
         {tab === 'overview' && (
           <>
