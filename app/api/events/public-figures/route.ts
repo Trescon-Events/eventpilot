@@ -14,6 +14,9 @@ import { FIGURE_CATALOGUE, FIGURE_CATEGORIES, GROUPABLE_CATEGORIES } from '@/app
    POST { action, … } start_from_template | add_from_catalogue | add_custom | add_group | remove_all_empty | update | remove | approve | send_review | accept_suggestion | revise | remove_after_review | reopen
    Permission: sae.forms.manage on the event (the same as the rules screen and the Copy Library). Read needs view access. Every write is audited. */
 
+/** Behind Railway and the Cloudflare worker `req.nextUrl.origin` is localhost, so links for outside people come from the configured site URL (same as every other review link). */
+const siteOrigin = () => (process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com').replace(/\/$/, '')
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export async function GET(req: NextRequest) {
@@ -63,7 +66,7 @@ export async function POST(req: NextRequest) {
       case 'send_review': {
         if (body.audience !== 'internal' && body.audience !== 'client') return NextResponse.json({ error: 'audience internal|client required.' }, { status: 400 })
         const r = await sendReview(eventId, body.audience, Array.isArray(body.ids) ? (body.ids as string[]).filter(i => UUID.test(i)) : null, sid)
-        return NextResponse.json({ ...r, url: `${req.nextUrl.origin}/public/figures-review/${r.token}` })
+        return NextResponse.json({ ...r, url: `${siteOrigin()}/public/figures-review/${r.token}` })
       }
       case 'accept_suggestion': return NextResponse.json({ item: await acceptSuggestion(need(), sid) })
       case 'revise': return NextResponse.json({ item: await reviseAndResend(need(), { label: typeof body.label === 'string' ? body.label : undefined, payload: body.payload }, sid) })

@@ -14,6 +14,9 @@ import { clientApprovalRequired, datesLookPast } from '@/app/lib/content/copy-mo
    POST { action, … }  generate | edit | approve | send_bundle | apply_change | dismiss_change | regenerate | mark_not_used | use_again | set_phase | set_client_approval
    Permissions are the rules screen's: sae.forms.manage on the event, sae.messaging.umbrella_manage on an umbrella. Every write is audited. */
 
+/** Behind Railway and the Cloudflare worker `req.nextUrl.origin` is localhost, so links for outside people come from the configured site URL (same as every other review link). */
+const siteOrigin = () => (process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com').replace(/\/$/, '')
+
 export const maxDuration = 120
 
 export async function GET(req: NextRequest) {
@@ -66,7 +69,7 @@ export async function POST(req: NextRequest) {
       case 'approve': return NextResponse.json({ item: await approveInternally(need(itemId), sid) })
       case 'send_bundle': {
         const r = await sendBundle(owner, sid)
-        return NextResponse.json({ ...r, url: `${req.nextUrl.origin}/public/copy-review/${r.token}` })
+        return NextResponse.json({ ...r, url: `${siteOrigin()}/public/copy-review/${r.token}` })
       }
       case 'apply_change': return NextResponse.json({ item: await applyReviewChange(need(itemId), 'apply', sid) })
       case 'dismiss_change': return NextResponse.json({ item: await applyReviewChange(need(itemId), 'dismiss', sid) })
