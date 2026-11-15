@@ -184,7 +184,7 @@ function OverrideEditor({ session, maxSpeakers, onSave, onClose }: { session: Se
               <div style={{ display: 'flex', gap: '4px' }}>
                 {!c.moderator && !ex && <Button variant="ghost" disabled={pos <= 0} onClick={() => move(c.speaker_id, -1)}>↑</Button>}
                 {!c.moderator && !ex && <Button variant="ghost" disabled={pos < 0 || pos >= others.length - 1} onClick={() => move(c.speaker_id, 1)}>↓</Button>}
-                <Button variant="ghost" onClick={() => toggle(c.speaker_id)}>{ex ? 'Include' : 'Exclude'}</Button>
+                {(!c.moderator || ex) && <Button variant="ghost" onClick={() => toggle(c.speaker_id)}>{ex ? 'Include' : 'Exclude'}</Button>}
               </div>
             </div>
           )

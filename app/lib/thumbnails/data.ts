@@ -3,7 +3,7 @@ import { getEventRoles, resolvePrimaryRole } from '@/app/lib/konfhub/roles'
 import { normalizeTimezone, utcToZonedLocal } from '@/app/lib/events/timezones'
 import { resolveEffectiveRules } from '@/app/lib/content/resolve-validation-rules'
 import { validateText } from '@/app/lib/content/validate'
-import type { Variant } from '@/app/lib/announcements/composite'
+import type { TextLayer, Variant } from '@/app/lib/announcements/composite'
 import type { HeadBox } from '@/app/lib/media/face-alignment'
 import { isModeratorRole, layoutFor } from '@/app/lib/screens/geometry'
 import { nameCheck, titleCheck } from './assess'
@@ -35,9 +35,14 @@ export async function loadSetup(eventId: string): Promise<ThumbSetup> {
   const cards = all.filter(v => v.category === 'thumbnail_card'), layoutVs = all.filter(v => v.category === 'thumbnail_layout')
   const ids = ((s?.layout_variant_ids ?? {}) as Partial<Record<ThumbLayout, string>>) ?? {}
   const settings: ThumbSettings = { cardVariantId: (s?.card_variant_id as string | null) ?? null, layoutVariantIds: ids, cardText: s?.card_text === 'name_company' ? 'name_company' : 'name' }
-  const card = cards.find(v => v.id === settings.cardVariantId) ?? null
+  // Text with no font draws NOTHING on the server (no generic font is installed there). A thumbnail template text layer with no font uses the event's brand font:
+  // the first font on any other speaker template of this event. If there is none, the page says to pick one.
+  const fallbackFont = all.filter(v => !v.category?.startsWith('thumbnail_')).flatMap(v => v.layers).find((l): l is TextLayer => l.type === 'text' && !!l.font_family)?.font_family ?? null
+  const withFont = (v: Variant | undefined): Variant | undefined => (v && fallbackFont ? { ...v, layers: v.layers.map(l => (l.type === 'text' && !l.font_family ? { ...l, font_family: fallbackFont } : l)) } : v)
+  const card = withFont(cards.find(v => v.id === settings.cardVariantId)) ?? null
   const layouts: Partial<Record<ThumbLayout, Variant>> = {}
-  for (const k of LAYOUTS) { const v = layoutVs.find(x => x.id === ids[k]); if (v) layouts[k] = v }
+  for (const k of LAYOUTS) { const v = withFont(layoutVs.find(x => x.id === ids[k])); if (v) layouts[k] = v }
+  const noFont = [card, ...Object.values(layouts)].some(v => v?.layers.some(l => l.type === 'text' && !l.font_family))
   const missing: string[] = []
   if (!card) missing.push('Thumbnail card template')
   else if (!card.layers.some(l => l.type === 'photo_slot' && l.source === 'speaker_photo')) missing.push('The card template needs a speaker photo slot')
@@ -47,6 +52,7 @@ export async function loadSetup(eventId: string): Promise<ThumbSetup> {
     if (v.canvas_width !== DESIGN_W || v.canvas_height !== DESIGN_H) missing.push(`The ${k} layout must be ${DESIGN_W}x${DESIGN_H}`)
     if (!speakerAreaOf(v)) missing.push(`The ${k} layout needs a speaker area`)
   }
+  if (noFont) missing.push('A font for the text layers: pick one on each text layer in the template editor (text with no font does not draw)')
   return { settings, card, layouts, missing, variants: [...cards, ...layoutVs].map(v => ({ id: v.id, name: v.name, category: v.category as string, kind: v.thumbnail_layout_kind, w: v.canvas_width, h: v.canvas_height })) }
 }
 
@@ -129,7 +135,7 @@ export async function loadThumbnailSessions(eventId: string, opts: LoadOpts = {}
         const size = cardSize(cards.length, area, setup.card.canvas_height / setup.card.canvas_width)
         const small: string[] = []
         for (const c of cards) { const r = await nameCheck(setup.card, size.width, c.moderator, c.name, c.company).catch(() => ({ ok: true, fontSize: null, reason: null })); if (!r.ok) small.push(`${c.name} (${r.reason})`) }
-        if (small.length) issues.push({ level: 'attention', text: `Names too small at ${cards.length} speakers (cards are ${size.width}px wide): ${small.join(', ')}. Names are never shortened: exclude a speaker, or ask branding to give the card's name layer more width or lines.` })
+        if (small.length) issues.push({ level: 'attention', text: `Names too small at ${cards.length} speakers (cards are ${size.width}px wide): ${small.join(', ')}. Names are never shortened: exclude a speaker, or ask branding to turn off capitals on the card's name layer or give it more width or lines.` })
       }
     }
     // not blocking

@@ -167,7 +167,7 @@ function thumbnailCardStarter(): Variant {
     // eslint-disable-next-line no-restricted-syntax -- default text colour of a new template layer (baked into the exported PNG), like newLayer()
     return { ...t, field, x: SIDE, width: W - SIDE * 2, max_lines: maxLines, font_size: size, height: Math.round(maxLines * size * 1.25), font_weight: weight, align: 'left', uppercase: upper, font_color: '#FFFFFF', allow_shrink: true }
   }
-  const company = text('company', 44, 400, 1, true), name = text('name', 76, 700, 2, true)
+  const company = text('company', 44, 400, 1, true), name = text('name', 76, 700, 2, false)   // mixed case: full names (government titles) fit two lines far more often than in capitals
   company.y = H - BOTTOM - company.height
   name.snap_above_layer_id = company.id; name.snap_gap = 10; name.y = company.y - 10 - name.height
   return { id: crypto.randomUUID(), name: 'Thumbnail card', category: 'thumbnail_card', canvas_width: W, canvas_height: H, layers: [photo, name, company] }
