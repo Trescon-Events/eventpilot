@@ -129,7 +129,7 @@ export async function loadThumbnailSessions(eventId: string, opts: LoadOpts = {}
         const size = cardSize(cards.length, area, setup.card.canvas_height / setup.card.canvas_width)
         const small: string[] = []
         for (const c of cards) { const r = await nameCheck(setup.card, size.width, c.moderator, c.name, c.company).catch(() => ({ ok: true, fontSize: null, reason: null })); if (!r.ok) small.push(`${c.name} (${r.reason})`) }
-        if (small.length) issues.push({ level: 'attention', text: `Names too small at ${cards.length} speakers (cards are ${size.width}px wide): ${small.join(', ')}. Shorten the name with an override or remove a speaker.` })
+        if (small.length) issues.push({ level: 'attention', text: `Names too small at ${cards.length} speakers (cards are ${size.width}px wide): ${small.join(', ')}. Names are never shortened: exclude a speaker, or ask branding to give the card's name layer more width or lines.` })
       }
     }
     // not blocking
