@@ -237,6 +237,8 @@ function resolveGhostText(layer: TextLayer, activeType: StakeholderKind, record:
 function resolveGhostTextRaw(layer: TextLayer, activeType: StakeholderKind, record: StakeholderOption | null, placeholder: PlaceholderProfile, globalDefault: GlobalPlaceholderDefault | null | undefined): string {
   if (layer.field === 'custom') return layer.value || ''
   if (layer.field === 'tier') return layer.value || 'LEAD SPONSOR'
+  if (layer.field === 'session_type') return 'KEYNOTE'
+  if (layer.field === 'session_title') return 'A New Era for Global Wealth: Capital, Technology and the Rise of Asia'
   if (activeType !== 'speaker') return ''
   // Explicit source switch (2026-08-29) — mirrors preview/route.ts's own
   // use_override handling exactly, so this live canvas never shows

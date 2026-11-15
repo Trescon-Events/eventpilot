@@ -16,7 +16,7 @@
 import sharp, { type OverlayOptions } from 'sharp'
 import { GlobalFonts, createCanvas } from '@napi-rs/canvas'
 import { alignAndCropPhoto, type PhotoAlignmentMeta, type HeadBox } from '@/app/lib/media/face-alignment'
-import { wrapAndFit } from '@/app/lib/announcements/text-layout'
+import { wrapAndFit, measureTextWidth } from '@/app/lib/announcements/text-layout'
 import { withTextLayerDefaults } from '@/app/lib/announcements/text-layer-defaults'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 import { toMonochrome } from '@/app/lib/media/monochrome'
@@ -45,6 +45,20 @@ export type ImageLayer = {
   y: number
   width: number
   height: number
+}
+
+/** Thumbnail layouts only (2026-11-15): the box the speaker cards are placed in, in one row (see app/lib/thumbnails/geometry.ts). Never drawn by compositeAnnouncement or any other renderer. */
+export type SpeakerAreaLayer = {
+  id: string
+  type: 'speaker_area'
+  show_for?: ShowFor
+  x: number
+  y: number
+  width: number
+  height: number
+  gap: number
+  align: 'left' | 'center' | 'right'
+  max_card_width: number
 }
 
 export type PhotoSlotLayer = {
@@ -97,7 +111,7 @@ export type TextLayer = {
   id: string
   type: 'text'
   show_for?: ShowFor
-  field: 'name' | 'title' | 'company' | 'tier' | 'country' | 'custom' | 'headline_lead' | 'headline_emphasis' | 'headline_trail' | 'headline_full'
+  field: 'name' | 'title' | 'company' | 'tier' | 'country' | 'custom' | 'headline_lead' | 'headline_emphasis' | 'headline_trail' | 'headline_full' | 'session_type' | 'session_title'   // session_* : YouTube thumbnail layouts only (see app/lib/thumbnails); they resolve from the session, not a speaker
   value?: string             // static text for 'custom', or a fallback for 'tier'
   x: number                  // box top-left (SAE Phase C v5, 2026-07-29) — was a single SVG baseline
   y: number                  // point before this; see withTextLayerDefaults() for the migration from that shape
@@ -164,6 +178,11 @@ export type TextLayer = {
   // AI-generated headline length. Default true (every existing layer keeps
   // shrinking, zero behavior change).
   allow_shrink?: boolean
+  // Pill (2026-11-15, session thumbnails): when set the layer draws a filled rounded rectangle sized to the rendered text (one line, no wrap) with the
+  // text inside. The layer's x/y is the pill's top-left; width/height are ignored. Generic, but only the thumbnail layouts use it today.
+  pill?: { fill: string; padding_x: number; padding_y: number; radius: number }
+  // Smallest size (px, on this variant's canvas) the thumbnail renderer accepts for this layer. Below it the thumbnail is marked "title too long".
+  min_font_size?: number
 }
 
 /** The variant as drawn for a moderator or another speaker: layers limited to the other kind are left out. */
@@ -188,9 +207,11 @@ export type ResolvedTexts = {
   headline_emphasis?: string
   headline_trail?: string
   headline_full?: string
+  session_type?: string
+  session_title?: string
 }
 
-export type Layer = ImageLayer | PhotoSlotLayer | TextLayer
+export type Layer = ImageLayer | PhotoSlotLayer | TextLayer | SpeakerAreaLayer
 
 export type Variant = {
   id: string
@@ -244,7 +265,7 @@ export type Variant = {
   // generate route both read as an already-clean input. That version uses
   // two annotated reference images plus a mandatory second manual confirm,
   // which is what the earlier abandoned attempt lacked.
-  category?: 'promo' | 'self_promo' | 'website_photo' | 'badge' | 'memento' | 'stage_screen' | 'table_screen'
+  category?: 'promo' | 'self_promo' | 'website_photo' | 'badge' | 'memento' | 'stage_screen' | 'table_screen' | 'thumbnail_card' | 'thumbnail_layout'
   // 'memento' (2026-10-22) — the speaker's photo cut-out for a physical memento, handed to the memento vendor (see
   // app/lib/mementos/render.ts). ONE layer: a Photo/Logo Slot (source: speaker photo) with `alignment` traced from an uploaded
   // reference exactly like Website Photo — but NO background and NO other layers; the output is a transparent PNG of exactly
@@ -263,6 +284,10 @@ export type Variant = {
   // to moderators or to other speakers, so one template carries both (e.g. a "MODERATOR" text layer shown for moderators only, stacked above the name with snap_above_layer_id).
   // `table_standby` marks the one extra variant that is the standby screen (event logo, no person). See app/lib/screens/tables*.ts. Never offered in announcement/badge pickers.
   table_standby?: boolean
+  // 'thumbnail_card' / 'thumbnail_layout' (2026-11-15) — YouTube session thumbnails (app/lib/thumbnails, docs/build_suggestions/session-thumbnails.md). thumbnail_card is ONE speaker card
+  // (a 1024x1024 layer stack: photo slot + name / company text, moderator label via show_for); thumbnail_layout is the 1920x1080 background with the tag pill, the title and a
+  // speaker_area box, one per layout kind (`thumbnail_layout_kind`). Never offered in announcement/badge pickers (they filter by exact category).
+  thumbnail_layout_kind?: 'keynote' | 'fireside' | 'panel'
   print?: BadgePrintSpec
   // 'common' (2026-10-30) — a badge variant (category 'badge') that is ONE finished artwork with no person on it: no photo slot, no text (security, protocol, organiser passes…).
   // It is printed in a quantity ("Common Badges" in the badge printing module: batch name + template + quantity) instead of once per person.
@@ -524,6 +549,8 @@ export async function compositeAnnouncement(
       })
     }
 
+    if (layer.type === 'speaker_area') return null // thumbnail layouts: a placement box only, never drawn
+
     // text
     const value = resolveTextValue(layer, texts)
     if (!value) return null
@@ -601,6 +628,8 @@ export function resolveTextValue(layer: TextLayer, texts: ResolvedTexts): string
     : layer.field === 'headline_emphasis' ? texts.headline_emphasis
     : layer.field === 'headline_trail' ? texts.headline_trail
     : layer.field === 'headline_full' ? texts.headline_full
+    : layer.field === 'session_type' ? texts.session_type
+    : layer.field === 'session_title' ? texts.session_title
     : (texts.tier ?? layer.value) // 'tier' — runtime value wins, falls back to the layer's own hardcoded label
   return layer.uppercase && raw ? raw.toUpperCase() : raw
 }
@@ -847,6 +876,7 @@ export async function planTextLayer(layer: TextLayer, value: string): Promise<Te
 async function renderTextLayerPng(
   layer: TextLayer, value: string, canvasWidth: number, canvasHeight: number
 ): Promise<{ buffer: Buffer; didShrink: boolean; didTruncate: boolean }> {
+  if (layer.pill) return renderPillLayerPng(layer, layer.pill, value, canvasWidth, canvasHeight)
   const plan = await planTextLayer(layer, value)
   const { lines, fontSize, lineHeight, xPos, firstBaselineY } = plan
 
@@ -873,6 +903,30 @@ async function renderTextLayerPng(
   }
 
   return { buffer: canvas.toBuffer('image/png'), didShrink: plan.didShrink, didTruncate: plan.didTruncate }
+}
+
+/** A text layer with `pill`: a filled rounded rectangle whose width follows the (single-line, never wrapped or shrunk) text, with the text inside. x/y = the pill's top-left. */
+export async function pillGeometry(layer: TextLayer, pill: NonNullable<TextLayer['pill']>, value: string): Promise<{ plan: TextLayerPlan; width: number; height: number; baselineY: number }> {
+  // one line at the layer's own size: a huge box so nothing wraps, shrink off so the size is exactly what branding set
+  const plan = await planTextLayer({ ...layer, x: 0, y: 0, width: 100000, height: layer.font_size * 2, max_lines: 1, allow_shrink: false, align: 'left', pill: undefined }, value.replace(/\s+/g, ' ').trim())
+  const textW = measureTextWidth(plan.lines[0] ?? '', plan.fontSize, plan.fontWeight, plan.fontFamily)
+  const lineH = plan.fontSize * 1.2
+  return { plan, width: Math.ceil(textW + pill.padding_x * 2), height: Math.ceil(lineH + pill.padding_y * 2), baselineY: layer.y + pill.padding_y + plan.fontSize * 0.8 + (lineH - plan.fontSize) / 2 }
+}
+
+async function renderPillLayerPng(
+  layer: TextLayer, pill: NonNullable<TextLayer['pill']>, value: string, canvasWidth: number, canvasHeight: number
+): Promise<{ buffer: Buffer; didShrink: boolean; didTruncate: boolean }> {
+  const g = await pillGeometry(layer, pill, value)
+  const canvas = createCanvas(canvasWidth, canvasHeight)
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = pill.fill
+  ctx.beginPath(); ctx.roundRect(layer.x, layer.y, g.width, g.height, Math.min(pill.radius, g.height / 2)); ctx.fill()
+  ctx.font = `${g.plan.fontWeight} ${g.plan.fontSize}px ${g.plan.fontFamily}`
+  ctx.fillStyle = layer.font_color; ctx.textAlign = 'left'
+  if (g.plan.syntheticBold) { ctx.strokeStyle = layer.font_color; ctx.lineWidth = g.plan.fontSize * 0.04; ctx.lineJoin = 'round'; ctx.strokeText(g.plan.lines[0] ?? '', layer.x + pill.padding_x, g.baselineY) }
+  ctx.fillText(g.plan.lines[0] ?? '', layer.x + pill.padding_x, g.baselineY)
+  return { buffer: canvas.toBuffer('image/png'), didShrink: false, didTruncate: false }
 }
 
 // Diagnostics-only: lets the variant editor's live preview surface an

@@ -48,6 +48,9 @@ const SHRINK_STEP = 1
 // Absolute shrink limit once the normal floor is passed (see wrapAndFit's last resorts).
 const HARD_MIN_RATIO = 0.4
 
+/** Width in px of one line of text (used by the thumbnail pill and the names-too-small check). */
+export function measureTextWidth(text: string, size: number, weight: number, family: string): number { return measure(text, size, weight, family) }
+
 function measure(text: string, size: number, weight: number, family: string): number {
   measureCtx.font = `${weight} ${size}px ${family}`
   return measureCtx.measureText(text).width

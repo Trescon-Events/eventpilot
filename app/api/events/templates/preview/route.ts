@@ -85,7 +85,10 @@ export async function POST(req: NextRequest) {
 
   if (body.variant.category === 'table_screen') body.variant = layersForRole(withModeratorFallback(body.variant, body.preview_role === 'moderator'), body.preview_role === 'moderator')   // same as the real cards, including the default Moderator tag when the template has none
 
+  if (body.variant.category === 'thumbnail_card') body.variant = layersForRole(body.variant, body.preview_role === 'moderator')   // the moderator label shows only on the moderator's card
   const { assets, texts } = await resolvePreviewInputs({ stakeholder_type: body.stakeholder_type, variant: body.variant, speaker_id: body.speaker_id, partner_id: body.partner_id, event_id: body.event_id })
+  // Thumbnail layouts: sample session text so the tag pill and title can be placed (the real ones come from the agenda)
+  if (body.variant.category === 'thumbnail_layout') { texts.session_type = texts.session_type ?? (body.variant.thumbnail_layout_kind === 'fireside' ? 'FIRESIDE CHAT' : body.variant.thumbnail_layout_kind === 'panel' ? 'PANEL DISCUSSION' : 'KEYNOTE'); texts.session_title = texts.session_title ?? 'A New Era for Global Wealth: Capital, Technology and the Rise of Asia' }
 
   // Website photo — see this file's top comment. Deterministic crop +
   // background composite only, no AI step.

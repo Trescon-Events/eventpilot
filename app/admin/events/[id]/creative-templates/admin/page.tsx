@@ -10,7 +10,7 @@ import { Button, Badge, Input, Select, ProcessingOverlay, Toast, type ToastType 
 import AccessTab from '@/app/components/AccessTab'
 import StageSpeakerPicSettings from '@/app/components/screens/StageSpeakerPicSettings'
 import { consoleTabsFor, CONSOLE_TAB_LABEL, type ConsoleTab } from '@/app/lib/access/admin-console'
-import type { Layer, ImageLayer, PhotoSlotLayer, TextLayer, Variant, CreativeTemplateConfig, TextLayerDiagnostics, PlaceholderProfile, GlobalPlaceholderDefault } from '@/app/lib/announcements/composite'
+import type { Layer, ImageLayer, PhotoSlotLayer, TextLayer, SpeakerAreaLayer, Variant, CreativeTemplateConfig, TextLayerDiagnostics, PlaceholderProfile, GlobalPlaceholderDefault } from '@/app/lib/announcements/composite'
 import { withTextLayerDefaults } from '@/app/lib/announcements/text-layer-defaults'
 import { CLEANING_CYCLE_CANVAS_SIZE } from '@/app/lib/media/cleaning-cycle-constants'
 import type { ResolvedFont, BrandRulesSnapshot } from '@/app/lib/branding/brand-rules'
@@ -41,7 +41,7 @@ export type StakeholderOption = {
 type EditorSnapshot = { speakerVariants: Variant[]; partnerVariants: Variant[]; activeType: StakeholderKind; activeVariantId: string | null }
 const MAX_UNDO_ENTRIES = 50
 
-const LAYER_TYPE_LABEL: Record<Layer['type'], string> = { image: 'Image', photo_slot: 'Photo/Logo Slot', text: 'Text' }
+const LAYER_TYPE_LABEL: Record<Layer['type'], string> = { image: 'Image', photo_slot: 'Photo/Logo Slot', text: 'Text', speaker_area: 'Speaker Area' }
 
 // Speaker text-layer fields that are actually backed by a PlaceholderProfile/
 // GlobalPlaceholderDefault value (2026-09-27) — 'tier' and 'custom' are
@@ -57,7 +57,7 @@ const SPEAKER_PLACEHOLDER_FIELDS = ['name', 'title', 'company', 'country', 'head
 // runtime fallback; the two are allowed to diverge without breaking anything.
 const DEFAULT_MAX_LINES_BY_FIELD: Record<TextLayer['field'], number> = {
   name: 3, title: 2, company: 2, country: 1, tier: 2, custom: 2,
-  headline_lead: 2, headline_emphasis: 3, headline_trail: 2, headline_full: 4,
+  headline_lead: 2, headline_emphasis: 3, headline_trail: 2, headline_full: 4, session_type: 1, session_title: 3,
 }
 
 // Editor-local — maps a text layer's `field` to the content-type slug the
@@ -76,7 +76,7 @@ const badgeGrid = (spec: { width_mm: number; height_mm: number }) => ({ w: Math.
 
 const FIELD_TO_CONTENT_TYPE: Record<TextLayer['field'], string> = {
   name: 'heading', title: 'subheading', company: 'body', country: 'body', tier: 'body', custom: 'body',
-  headline_lead: 'heading', headline_emphasis: 'heading', headline_trail: 'heading', headline_full: 'heading',
+  headline_lead: 'heading', headline_emphasis: 'heading', headline_trail: 'heading', headline_full: 'heading', session_type: 'body', session_title: 'heading',
 }
 
 function newLayer(type: Layer['type'], activeType: StakeholderKind, canvasWidth: number, canvasHeight: number, fontSuggestion?: ResolvedFont | null, category?: Variant['category']): Layer {
@@ -84,6 +84,7 @@ function newLayer(type: Layer['type'], activeType: StakeholderKind, canvasWidth:
   // Image layers are always full-bleed background/overlay art pre-sized by
   // the design team to the variant's exact canvas — default to that instead
   // of an arbitrary box, since there's no manual resize UI for this layer type.
+  if (type === 'speaker_area') return { id, type: 'speaker_area', x: Math.round(canvasWidth * 0.046), y: Math.round(canvasHeight * 0.47), width: Math.round(canvasWidth * 0.908), height: Math.round(canvasHeight * 0.39), gap: 24, align: 'left', max_card_width: Math.round(canvasWidth * 0.215) }
   if (type === 'image') return { id, type: 'image', asset_url: '', x: 0, y: 0, width: canvasWidth, height: canvasHeight }
   if (type === 'photo_slot') {
     // A website_photo variant's Photo/Logo Slot is ALWAYS the full canvas
@@ -91,7 +92,7 @@ function newLayer(type: Layer['type'], activeType: StakeholderKind, canvasWidth:
     // the frame with it, unlike a Promo variant's photo slot, which is
     // typically a smaller inset within a larger poster (400x400 stays the
     // sensible default there).
-    const full = category === 'website_photo' || category === 'badge' || category === 'memento' || category === 'stage_screen'
+    const full = category === 'website_photo' || category === 'badge' || category === 'memento' || category === 'stage_screen' || category === 'thumbnail_card'
     return { id, type: 'photo_slot', source: activeType === 'speaker' ? 'speaker_photo' : 'partner_logo', x: 0, y: 0, width: full ? canvasWidth : 400, height: full ? canvasHeight : 400 }
   }
   const field: TextLayer['field'] = activeType === 'speaker' ? 'name' : 'custom'
@@ -122,6 +123,10 @@ const variantPickerGroups = (activeType: StakeholderKind): { title: string; item
     ...(activeType === 'speaker' ? [['stage_screen', 'Stage Screen Card', 'Speaker card for the stage-screen graphic: layers from branding, photo, name / title / company stacked bottom-up'] as PickerItem] : []),
     ...(activeType === 'speaker' ? [
       ['table_screen', 'Table Screen Card', 'The small screen beside a speaker’s seat: the name over the branding, with a MODERATOR tag for the moderator. 1080×1920'] as PickerItem,
+      ['thumbnail_card', 'Thumbnail Card', 'One speaker card for the YouTube session thumbnails (1024×1024): photo, name, company, moderator label'] as PickerItem,
+      ['thumbnail_layout_keynote', 'Thumbnail Layout — Keynote', 'YouTube thumbnail background (1920×1080): tag, title on the left, one large card on the right'] as PickerItem,
+      ['thumbnail_layout_fireside', 'Thumbnail Layout — Fireside chat', 'YouTube thumbnail background (1920×1080): tag and title across the top, cards in one row below'] as PickerItem,
+      ['thumbnail_layout_panel', 'Thumbnail Layout — Panel', 'YouTube thumbnail background (1920×1080): tag and title across the top, up to six cards in one row below'] as PickerItem,
       ['table_standby', 'Table Screen — standby', 'What the table screens show between sessions: the event logo on the common background. 1080×1920'] as PickerItem,
     ] : []),
   ] },
@@ -149,6 +154,45 @@ function stageScreenStarter(): Variant {
   title.snap_above_layer_id = company.id; title.snap_gap = 14; title.y = company.y - 14 - title.height
   name.snap_above_layer_id = title.id; name.snap_gap = 30; name.y = title.y - 30 - name.height
   return { id: crypto.randomUUID(), name: 'Stage screen card', category: 'stage_screen', canvas_width: W, canvas_height: H, layers: [photo, name, title, company] }
+}
+
+// A new Thumbnail Card (YouTube session thumbnails, docs/build_suggestions/session-thumbnails.md): ONE speaker card, 1024 x 1024 by default. The speaker photo slot fills the card; the name and
+// company stack bottom-up from the bottom edge. Branding adds the background, the frame / name panel as Image layers, and a Moderator label (+ Moderator Tag, shown for moderators only).
+// The card is drawn at its final size on the thumbnail, so everything here scales; the name is kept at a readable size by the renderer.
+function thumbnailCardStarter(): Variant {
+  const W = 1024, H = 1024, SIDE = 40, BOTTOM = 36
+  const photo = newLayer('photo_slot', 'speaker', W, H, null, 'thumbnail_card')
+  const text = (field: TextLayer['field'], size: number, weight: number, maxLines: number, upper: boolean): TextLayer => {
+    const t = newLayer('text', 'speaker', W, H) as TextLayer
+    // eslint-disable-next-line no-restricted-syntax -- default text colour of a new template layer (baked into the exported PNG), like newLayer()
+    return { ...t, field, x: SIDE, width: W - SIDE * 2, max_lines: maxLines, font_size: size, height: Math.round(maxLines * size * 1.25), font_weight: weight, align: 'left', uppercase: upper, font_color: '#FFFFFF', allow_shrink: true }
+  }
+  const company = text('company', 44, 400, 1, true), name = text('name', 76, 700, 2, true)
+  company.y = H - BOTTOM - company.height
+  name.snap_above_layer_id = company.id; name.snap_gap = 10; name.y = company.y - 10 - name.height
+  return { id: crypto.randomUUID(), name: 'Thumbnail card', category: 'thumbnail_card', canvas_width: W, canvas_height: H, layers: [photo, name, company] }
+}
+
+// A new Thumbnail Layout (1920 x 1080): the background image, the session-type tag (a pill sized to its text), the session title (one colour, shrinks to fit its box) and the speaker area
+// (the box the cards are placed in, one row). One per layout kind. Branding adds the header and footer art as Image layers underneath and positions everything.
+function thumbnailLayoutStarter(kind: 'keynote' | 'fireside' | 'panel'): Variant {
+  const W = 1920, H = 1080, LEFT = 88
+  const bg = newLayer('image', 'speaker', W, H)
+  const keynote = kind === 'keynote'
+  const text = (field: TextLayer['field'], x: number, y: number, width: number, height: number, size: number, weight: number, maxLines: number): TextLayer => {
+    const t = newLayer('text', 'speaker', W, H) as TextLayer
+    // eslint-disable-next-line no-restricted-syntax -- default text colour of a new template layer (baked into the exported PNG), like newLayer()
+    return { ...t, field, x, y, width, height, max_lines: maxLines, font_size: size, font_weight: weight, align: 'left', font_color: '#FFFFFF', allow_shrink: true }
+  }
+  const tag = text('session_type', LEFT, keynote ? 308 : 184, 600, 56, 28, 700, 1)
+  // eslint-disable-next-line no-restricted-syntax -- default pill colours of a new template layer (baked into the exported PNG)
+  tag.uppercase = true; tag.font_color = '#0A1F28'; tag.pill = { fill: '#25E3D5', padding_x: 18, padding_y: 8, radius: 6 }
+  const title = text('session_title', LEFT, keynote ? 392 : 262, keynote ? 900 : 1744, keynote ? 380 : 220, keynote ? 128 : 100, 700, keynote ? 3 : 2)
+  title.min_font_size = keynote ? 56 : 52
+  const area = newLayer('speaker_area', 'speaker', W, H) as SpeakerAreaLayer
+  Object.assign(area, keynote ? { x: 1152, y: 204, width: 680, height: 680, max_card_width: 680 } : { x: LEFT, y: 508, width: 1744, height: 420, max_card_width: 412 })
+  const label = kind === 'keynote' ? 'Keynote' : kind === 'fireside' ? 'Fireside chat' : 'Panel'
+  return { id: crypto.randomUUID(), name: `Thumbnail layout — ${label}`, category: 'thumbnail_layout', thumbnail_layout_kind: kind, canvas_width: W, canvas_height: H, layers: [bg, tag, title, area] }
 }
 
 // A new Table Screen card (the small portrait screen beside each speaker's seat): the speaker's NAME over the branding, and a MODERATOR tag above it for the moderator only. Branding adds the
@@ -488,7 +532,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   // wrong canvas size (1080x1350) by mistake, only caught once a layer
   // inside it was already wrong too. Gating on the choice up front means
   // canvas dimensions are correct from the variant's very first layer.
-  function addVariant(category: 'promo' | 'self_promo' | 'website_photo' | 'badge' | 'memento' | 'stage_screen' | 'table_screen', badgeSpec?: { width_mm: number; height_mm: number; bleed_mm: number }, common?: boolean, tableStandby?: boolean) {
+  function addVariant(category: 'promo' | 'self_promo' | 'website_photo' | 'badge' | 'memento' | 'stage_screen' | 'table_screen' | 'thumbnail_card' | 'thumbnail_layout', badgeSpec?: { width_mm: number; height_mm: number; bleed_mm: number }, common?: boolean, tableStandby?: boolean, thumbKind?: 'keynote' | 'fireside' | 'panel') {
     pushUndo()
     const size = category === 'website_photo' ? CLEANING_CYCLE_CANVAS_SIZE : null
     // Badge (2026-10-02): page = trim + bleed, entered in the setup step; canvas = that page at ~300 ppi.
@@ -497,7 +541,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     const grid = badge || mementoPrint ? badgeGrid(badgeSpec!) : null
     const stage = category === 'stage_screen'
     const commonBadge = badge && !!common
-    const variant: Variant = category === 'table_screen' ? tableScreenStarter(!!tableStandby) : stage ? stageScreenStarter() : {
+    const variant: Variant = category === 'thumbnail_card' ? thumbnailCardStarter() : category === 'thumbnail_layout' ? thumbnailLayoutStarter(thumbKind ?? 'panel') : category === 'table_screen' ? tableScreenStarter(!!tableStandby) : stage ? stageScreenStarter() : {
       id: crypto.randomUUID(), name: commonBadge ? 'Common badge' : badge ? 'Speaker badge' : mementoPrint ? 'Speaker memento (print)' : category === 'memento' ? 'Speaker memento' : 'Untitled Variant', category,
       canvas_width: grid ? grid.w : category === 'memento' ? 1024 : size ?? 1080, canvas_height: grid ? grid.h : category === 'memento' ? 1024 : size ?? 1350, layers: category === 'memento' ? [newLayer('photo_slot', activeType, grid ? grid.w : 1024, grid ? grid.h : 1024, null, 'memento')] : commonBadge ? [newLayer('image', activeType, grid!.w, grid!.h)] : [],
       ...(badge || mementoPrint ? { print: { ...badgeSpec! } } : {}),
@@ -971,6 +1015,16 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                           <strong>Stage screen card</strong> — one speaker card on the stage-screen graphic (the AV team&apos;s file). Add <strong>Image layers</strong> for the background, the gradient and the top design (put the gradient above the Photo/Logo Slot, under the text), move the <strong>Photo/Logo Slot</strong> and use <em>Upload Reference Layer (auto-position)</em> to fix the head size and position, and style each <strong>Text layer</strong> (font, size, weight, colour, capitals). Text is stacked <strong>bottom-up</strong>: the company line stays on its fixed line and title and name rise above it, so a long title never runs off the card. To show country, add a Text layer with field <em>country</em>, put its box at the very bottom, and set <em>Stack above</em> on the company layer to it. Session title and the MODERATOR tag are set under <em>Stage Speaker Pic</em>. Then pick this card there.
                         </div>
                       )}
+                      {activeVariant.category === 'thumbnail_card' && (
+                        <div style={{ marginBottom: '14px', fontSize: '12.5px', color: 'var(--ink2)', lineHeight: 1.6 }}>
+                          <strong>Thumbnail card</strong> — one speaker card on the YouTube session thumbnails. Add <strong>Image layers</strong> for the background, the frame and the name panel (above the Photo/Logo Slot), then style the <strong>name</strong> and <strong>company</strong> text layers (bottom-up stack). <strong>+ Moderator Tag</strong> adds a label shown on the moderator&apos;s card only (open any layer › <em>Shown for</em>). The card is drawn at its final size on the thumbnail, so make it square (1024×1024); the name is kept at a readable size (never below 28&nbsp;px on the 1920×1080 thumbnail). Whether the company shows is set per event on the Session Thumbnails page. Use <em>Preview as</em> to check the moderator card.
+                        </div>
+                      )}
+                      {activeVariant.category === 'thumbnail_layout' && (
+                        <div style={{ marginBottom: '14px', fontSize: '12.5px', color: 'var(--ink2)', lineHeight: 1.6 }}>
+                          <strong>Thumbnail layout ({activeVariant.thumbnail_layout_kind ?? 'panel'})</strong> — the 1920×1080 background of a YouTube thumbnail. Add the header and footer art as <strong>Image layers</strong>. The <strong>session_type</strong> text layer is the tag (it has a <em>Pill</em> that sizes to the word); the <strong>session_title</strong> layer is the title: one colour, it shrinks to fit its box down to its <em>Minimum size</em>, and a longer title is flagged &ldquo;title too long&rdquo;. The <strong>Speaker Area</strong> is the box the speaker cards are placed in, in one row (up to six): drag it on the preview. Cards are drawn on top of every layer.
+                        </div>
+                      )}
                       {activeVariant.category === 'table_screen' && (
                         <div style={{ marginBottom: '14px', fontSize: '12.5px', color: 'var(--ink2)', lineHeight: 1.6 }}>
                           {activeVariant.table_standby ? (<>
@@ -1027,8 +1081,10 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
 
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                         <Button variant="ghost" title="Static art, identical on every announcement — backgrounds, decorative overlays, branding blocks. Not this speaker/partner's own photo or logo." onClick={() => addLayer('image')} disabled={activeVariant.category === 'memento' && !activeVariant.print}>+ Image Layer</Button>
-                        <Button variant="ghost" title="A slot that fills in with each real speaker/partner's own photo or logo at generation time. Not static art." onClick={() => addLayer('photo_slot')} disabled={!!activeVariant.common || activeVariant.category === 'table_screen'}>+ Photo/Logo Slot</Button>
+                        <Button variant="ghost" title="A slot that fills in with each real speaker/partner's own photo or logo at generation time. Not static art." onClick={() => addLayer('photo_slot')} disabled={!!activeVariant.common || activeVariant.category === 'table_screen' || activeVariant.category === 'thumbnail_layout'}>+ Photo/Logo Slot</Button>
                         <Button variant="ghost" title="A field of text (name, title, company, a static caption, etc.) rendered live at generation time." onClick={() => addLayer('text')} disabled={activeVariant.category === 'memento' || !!activeVariant.common}>+ Text Layer</Button>
+                        {activeVariant.category === 'thumbnail_layout' && <Button variant="ghost" title="The box the speaker cards are placed in, in one row. One per layout." onClick={() => addLayer('speaker_area')} disabled={activeVariant.layers.some(l => l.type === 'speaker_area')}>+ Speaker Area</Button>}
+                        {activeVariant.category === 'thumbnail_card' && <Button variant="ghost" title="Adds a text layer that only moderators get — the Moderator label on the moderator's card." onClick={addModeratorTag}>+ Moderator Tag</Button>}
                         {activeVariant.category === 'table_screen' && !activeVariant.table_standby && <Button variant="ghost" title="Adds a text layer that only moderators get — the MODERATOR tag above the name." onClick={addModeratorTag}>+ Moderator Tag</Button>}
                         <Button variant="ghost" title="A mockup to place text and photos against. Shown in Generate Preview only — never in real announcements, website photos or print." onClick={addPreviewLayer}>+ Preview Layer</Button>
                         <Button variant="ghost" title="Copies this variant with all its layers intact — into this event, or into another event (e.g. the same badge for a sister event)." onClick={() => openCopyDialog(activeVariant.id)}>Copy this</Button>
@@ -1229,7 +1285,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                     <div style={{ fontSize: '11.5px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>{g.title}</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px' }}>
                       {g.items.map(([value, label, hint]) => (
-                        <button key={value} onClick={() => value === 'table_standby' ? addVariant('table_screen', undefined, undefined, true) : value === 'common_badge' ? setBadgeSetup({ kind: 'badge', common: true, trim_w: String(BADGE_DEFAULT.trim_w), trim_h: String(BADGE_DEFAULT.trim_h), bleed: String(BADGE_DEFAULT.bleed) }) : value === 'badge' ? setBadgeSetup({ kind: 'badge', trim_w: String(BADGE_DEFAULT.trim_w), trim_h: String(BADGE_DEFAULT.trim_h), bleed: String(BADGE_DEFAULT.bleed) }) : value === 'memento_print' ? setBadgeSetup({ kind: 'memento', trim_w: String(MEMENTO_DEFAULT.trim_w), trim_h: String(MEMENTO_DEFAULT.trim_h), bleed: String(MEMENTO_DEFAULT.bleed) }) : addVariant(value as 'promo' | 'self_promo' | 'website_photo' | 'memento' | 'stage_screen')} style={{ display: 'block', width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1.5px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+                        <button key={value} onClick={() => value.startsWith('thumbnail_layout_') ? addVariant('thumbnail_layout', undefined, undefined, undefined, value.slice('thumbnail_layout_'.length) as 'keynote' | 'fireside' | 'panel') : value === 'table_standby' ? addVariant('table_screen', undefined, undefined, true) : value === 'common_badge' ? setBadgeSetup({ kind: 'badge', common: true, trim_w: String(BADGE_DEFAULT.trim_w), trim_h: String(BADGE_DEFAULT.trim_h), bleed: String(BADGE_DEFAULT.bleed) }) : value === 'badge' ? setBadgeSetup({ kind: 'badge', trim_w: String(BADGE_DEFAULT.trim_w), trim_h: String(BADGE_DEFAULT.trim_h), bleed: String(BADGE_DEFAULT.bleed) }) : value === 'memento_print' ? setBadgeSetup({ kind: 'memento', trim_w: String(MEMENTO_DEFAULT.trim_w), trim_h: String(MEMENTO_DEFAULT.trim_h), bleed: String(MEMENTO_DEFAULT.bleed) }) : addVariant(value as 'promo' | 'self_promo' | 'website_photo' | 'memento' | 'stage_screen' | 'thumbnail_card')} style={{ display: 'block', width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1.5px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
                           <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>{label}</div>
                           <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginTop: '3px', lineHeight: 1.45 }}>{hint}</div>
                         </button>
@@ -1326,7 +1382,7 @@ function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onTog
 
         {expanded && (
           <div style={{ padding: '12px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-            {variantCategory === 'table_screen' && !(layer.type === 'image' && layer.reference_only) && (
+            {(variantCategory === 'table_screen' || variantCategory === 'thumbnail_card') && !(layer.type === 'image' && layer.reference_only) && (
               <label style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 Shown for
                 <Select value={layer.show_for ?? ''} onChange={e => onChange({ show_for: (e.target.value || undefined) as Layer['show_for'] })} style={{ maxWidth: '260px' }}>
@@ -1339,7 +1395,8 @@ function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onTog
             {layer.type === 'image' && layer.reference_only && <PreviewLayerFields layer={layer} onChange={onChange as (patch: Partial<ImageLayer>) => void} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} activeType={activeType} />}
             {layer.type === 'image' && !layer.reference_only && <ImageLayerFields layer={layer} onChange={onChange as (patch: Partial<ImageLayer>) => void} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} canvasWidth={canvasWidth} canvasHeight={canvasHeight} variantCategory={variantCategory} variantPrint={variantPrint} activeType={activeType} />}
             {layer.type === 'photo_slot' && <PhotoSlotLayerFields layer={layer} activeType={activeType} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} canvasWidth={canvasWidth} canvasHeight={canvasHeight} variantCategory={variantCategory} variantPrint={variantPrint} />}
-            {layer.type === 'text' && <TextLayerFields layer={layer} activeType={activeType} brandFonts={brandFonts} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} allLayers={allLayers} />}
+            {layer.type === 'text' && <TextLayerFields layer={layer} activeType={activeType} brandFonts={brandFonts} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} allLayers={allLayers} variantCategory={variantCategory} />}
+            {layer.type === 'speaker_area' && <SpeakerAreaFields layer={layer} onChange={onChange as (patch: Partial<SpeakerAreaLayer>) => void} />}
           </div>
         )}
       </div>
@@ -1347,10 +1404,29 @@ function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onTog
   )
 }
 
+// eslint-disable-next-line no-restricted-syntax -- default pill colour of a new template layer (baked into the exported PNG)
+const DEFAULT_PILL = { fill: '#25E3D5', padding_x: 18, padding_y: 8, radius: 6 }
+
+function SpeakerAreaFields({ layer, onChange }: { layer: SpeakerAreaLayer; onChange: (patch: Partial<SpeakerAreaLayer>) => void }) {
+  const num = (k: 'x' | 'y' | 'width' | 'height' | 'gap' | 'max_card_width', label: string) => (
+    <label style={{ fontSize: '11px', color: 'var(--ink3)' }}>{label}<Input type="number" value={layer[k]} onChange={e => onChange({ [k]: Math.max(0, Number(e.target.value) || 0) } as Partial<SpeakerAreaLayer>)} style={{ width: '100%', marginTop: '3px' }} /></label>
+  )
+  return (
+    <>
+      <div style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--ink3)', lineHeight: 1.5 }}>The box the speaker cards are placed in, in one row (up to six). Cards are equal in size, never wider than the maximum, and shrink to fit; they are top-aligned in the box. Drag or resize the box on the preview.</div>
+      {num('x', 'Left')}{num('y', 'Top')}{num('width', 'Width')}{num('height', 'Height')}{num('gap', 'Gap between cards')}{num('max_card_width', 'Largest card width')}
+      <label style={{ fontSize: '11px', color: 'var(--ink3)' }}>Align
+        <Select value={layer.align} onChange={e => onChange({ align: e.target.value as SpeakerAreaLayer['align'] })} style={{ width: '100%', marginTop: '3px' }}><option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option></Select>
+      </label>
+    </>
+  )
+}
+
 function layerSummary(layer: Layer): string {
   if (layer.type === 'image' && layer.reference_only) return layer.asset_url ? 'Preview layer (reference only)' : 'Preview layer (no file uploaded)'
   if (layer.type === 'image') return layer.asset_url ? `Image (${layer.width}×${layer.height})` : 'Image (no file uploaded)'
   if (layer.type === 'photo_slot') return `${layer.source.replace(/_/g, ' ')} (${layer.width}×${layer.height})`
+  if (layer.type === 'speaker_area') return `Speaker area (${layer.width}×${layer.height}, gap ${layer.gap}, ${layer.align})`
   return `Text: ${layer.field}${layer.field === 'custom' || layer.field === 'tier' ? ` "${layer.value ?? ''}"` : ''}`
 }
 
@@ -2185,7 +2261,8 @@ function availableWeightsFor(font: BrandFontOption | undefined): number[] {
   return [400, ...(font.bold_url ? [700] : [])]
 }
 
-function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, discardLastUndo, eventId, allLayers }: {
+function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, discardLastUndo, eventId, allLayers, variantCategory }: {
+  variantCategory?: Variant['category']
   layer: TextLayer
   activeType: StakeholderKind
   brandFonts: Array<BrandFontOption>
@@ -2196,7 +2273,7 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
   allLayers: Layer[]
 }) {
   const snapCandidates = allLayers.filter((l): l is TextLayer => l.type === 'text' && l.id !== layer.id)
-  const fieldOptions: TextLayer['field'][] = activeType === 'speaker'
+  const fieldOptions: TextLayer['field'][] = variantCategory === 'thumbnail_layout' ? ['session_type', 'session_title', 'custom'] : activeType === 'speaker'
     ? ['name', 'title', 'company', 'country', 'tier', 'headline_lead', 'headline_emphasis', 'headline_trail', 'headline_full', 'custom']
     : ['tier', 'custom']
   const [analyzing, setAnalyzing] = useState(false)
@@ -2280,6 +2357,20 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
           {fieldOptions.map(f => <option key={f} value={f}>{f}</option>)}
         </Select>
       </label>
+      {variantCategory === 'thumbnail_layout' && (
+        <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '8px', alignItems: 'end' }}>
+          <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'flex', gap: '6px', alignItems: 'center' }}>
+            <input type="checkbox" checked={!!layer.pill} onChange={e => onChange({ pill: e.target.checked ? DEFAULT_PILL : undefined })} />Pill (filled box sized to the text)
+          </label>
+          {layer.pill && (<>
+            <label style={{ fontSize: '11px', color: 'var(--ink3)' }}>Pill colour<Input value={layer.pill.fill} onChange={e => onChange({ pill: { ...layer.pill!, fill: e.target.value } })} style={{ width: '100%', marginTop: '3px' }} /></label>
+            <label style={{ fontSize: '11px', color: 'var(--ink3)' }}>Padding across<Input type="number" value={layer.pill.padding_x} onChange={e => onChange({ pill: { ...layer.pill!, padding_x: Number(e.target.value) || 0 } })} style={{ width: '100%', marginTop: '3px' }} /></label>
+            <label style={{ fontSize: '11px', color: 'var(--ink3)' }}>Padding up/down<Input type="number" value={layer.pill.padding_y} onChange={e => onChange({ pill: { ...layer.pill!, padding_y: Number(e.target.value) || 0 } })} style={{ width: '100%', marginTop: '3px' }} /></label>
+            <label style={{ fontSize: '11px', color: 'var(--ink3)' }}>Corner radius<Input type="number" value={layer.pill.radius} onChange={e => onChange({ pill: { ...layer.pill!, radius: Number(e.target.value) || 0 } })} style={{ width: '100%', marginTop: '3px' }} /></label>
+          </>)}
+          {layer.field === 'session_title' && <label style={{ fontSize: '11px', color: 'var(--ink3)' }}>Minimum size (px): below this the thumbnail says &ldquo;title too long&rdquo;<Input type="number" value={layer.min_font_size ?? ''} onChange={e => onChange({ min_font_size: e.target.value ? Number(e.target.value) : undefined })} style={{ width: '100%', marginTop: '3px' }} /></label>}
+        </div>
+      )}
       {(layer.field === 'custom' || layer.field === 'tier') && (
         <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'block' }}>
           {layer.field === 'tier' ? 'Fallback text' : 'Static text'}

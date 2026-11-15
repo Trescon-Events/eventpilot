@@ -275,6 +275,7 @@ async function drawBadgePage(doc: PDFDocument, variant: Variant, assets: Resolve
       if (l.monochrome && l.source === 'speaker_photo') png = await toMonochrome(png)
       drawImageRef(page, await embedCmykImage(doc, png, PHOTO_JPEG_QUALITY), px * kx, PH - (py + ph) * ky, pw * kx, ph * ky)
     } else {
+      if (layer.type !== 'text') continue   // thumbnail speaker_area boxes are never printed
       const value = resolveTextValue(layer, texts)
       if (!value) continue
       const resolvedY = yPositions.get(layer.id) ?? layer.y

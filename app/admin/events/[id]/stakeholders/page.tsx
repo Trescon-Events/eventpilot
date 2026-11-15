@@ -783,6 +783,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     { href: 'status-board', label: 'Status Board' },
     { href: 'speaker-order', label: 'Speaker Order' },
     { href: 'screens', label: 'Stage Screens' },
+    { href: 'thumbnails', label: 'Session Thumbnails' },
     ...(can('sae.showcall.view') ? [{ href: '../showcall', label: 'Show Caller' }] : []),
     ...(mementosEnabled ? [{ href: 'mementos', label: 'Mementos' }] : []),
     { href: 'guest-invites', label: 'Guest Invites' },
