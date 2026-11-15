@@ -1,5 +1,5 @@
 import { layersForRole, planTextLayer, resolveTextLayerYPositions, resolveTextValue, withTextLayerDefaults, type TextLayer, type Variant } from '@/app/lib/announcements/composite'
-import { MIN_NAME_PX, scaleCardVariant } from './geometry'
+import { scaleCardVariant } from './geometry'
 
 /* Session thumbnails — checks that need fonts (so they are not in the pure geometry module): does the title fit, and is every name still readable once its card has shrunk. */
 
@@ -12,18 +12,34 @@ export async function titleCheck(layout: Variant, title: string): Promise<{ ok: 
   return { ok: !plan.didTruncate && plan.fontSize >= (t.min_font_size ?? 0), fontSize: plan.fontSize, shrunk: plan.didShrink }
 }
 
-/** Is the name readable on a card of this width: at least MIN_NAME_PX, and fully inside the card (never clipped). Rendered at final size, so the size reported is the real one. */
-export async function nameCheck(card: Variant, width: number, moderator: boolean, name: string, company: string): Promise<{ ok: boolean; fontSize: number | null; reason: string | null }> {
-  const scaled = layersForRole(scaleCardVariant(card, width), moderator)
-  const layer = scaled.layers.find((l): l is TextLayer => l.type === 'text' && l.field === 'name')
-  if (!layer || !name.trim()) return { ok: true, fontSize: null, reason: null }
-  const texts = { name, company }
-  const t = withTextLayerDefaults(layer, { width: scaled.canvas_width, height: scaled.canvas_height })
-  const plan = await planTextLayer(t, resolveTextValue(t, texts) ?? name)
-  const ys = await resolveTextLayerYPositions(scaled, texts)
-  const top = ys.get(layer.id) ?? t.y
-  const bottom = top + plan.lines.length * plan.lineHeight
-  if (plan.fontSize < MIN_NAME_PX) return { ok: false, fontSize: plan.fontSize, reason: `${plan.fontSize}px` }
-  if (bottom > scaled.canvas_height + 2 || top < -2) return { ok: false, fontSize: plan.fontSize, reason: 'runs off the card' }
-  return { ok: true, fontSize: plan.fontSize, reason: null }
+/** The ONE size every name on a thumbnail uses (px, final size): the template's own name size scaled to the card, shrunk only as far as the LONGEST name needs. Names are never shortened and never
+ *  block a thumbnail: each name wraps to the template's lines first, then the size comes down until the whole name is inside its box and the card. Null when the card has no name layer. */
+export async function nameSizeFor(card: Variant, width: number, people: { moderator: boolean; name: string; company: string }[]): Promise<number | null> {
+  const base = scaleCardVariant(card, width)
+  const seen = new Set<string>()
+  let size: number | null = null
+  for (const p of people) {
+    const key = `${p.moderator}|${p.name}|${p.company}`
+    if (seen.has(key) || !p.name.trim()) continue
+    seen.add(key)
+    const role = layersForRole(base, p.moderator)
+    const layer = role.layers.find((l): l is TextLayer => l.type === 'text' && l.field === 'name')
+    if (!layer) continue
+    const texts = { name: p.name, company: p.company }
+    const fitsAt = async (px: number): Promise<boolean> => {
+      const test: Variant = { ...role, layers: role.layers.map(l => (l.id === layer.id ? { ...layer, font_size: px, allow_shrink: false, height: Math.max(layer.height, Math.ceil(px * 1.2 * Math.max(1, layer.max_lines))) } : l)) }
+      const t = test.layers.find(l => l.id === layer.id) as TextLayer
+      const n = withTextLayerDefaults(t, { width: test.canvas_width, height: test.canvas_height })
+      const plan = await planTextLayer(n, resolveTextValue(n, texts) ?? p.name)
+      if (plan.didTruncate) return false   // does not fit its lines / box at this size
+      const top = (await resolveTextLayerYPositions(test, texts)).get(layer.id) ?? n.y
+      return top >= -2 && top + plan.lines.length * plan.lineHeight <= test.canvas_height + 2
+    }
+    let hi = layer.font_size
+    let best = 1
+    if (await fitsAt(hi)) best = hi
+    else { let lo = 1; hi -= 1; while (lo <= hi) { const mid = Math.floor((lo + hi) / 2); if (await fitsAt(mid)) { best = mid; lo = mid + 1 } else hi = mid - 1 } }
+    size = size === null ? best : Math.min(size, best)
+  }
+  return size
 }

@@ -9,7 +9,7 @@ import { Button, Input, Select } from '@/app/components/ui'
 /* Session thumbnails — one YouTube thumbnail per agenda session, made from the agenda and the speaker records (docs/build_suggestions/session-thumbnails.md).
    Producers generate, edit text for one session only (overrides: the agenda and speaker records are never touched), approve, and download. */
 
-type Issue = { level: 'attention' | 'error' | 'warning'; text: string; speaker_id?: string }
+type Issue = { level: 'attention' | 'error' | 'warning' | 'info'; text: string; speaker_id?: string }
 type Overrides = { title?: string; tag?: string; hide_tag?: boolean; cards?: Record<string, { name?: string; company?: string }>; exclude?: string[]; order?: string[] }
 type Card = { speaker_id: string; moderator: boolean; name: string; company: string; base_name: string; base_company: string; ready: boolean }
 type Cand = { speaker_id: string; name: string; moderator: boolean; excluded: boolean }
@@ -109,7 +109,7 @@ export default function ThumbnailsPage({ params }: { params: Promise<{ id: strin
                   <div style={{ fontSize: '16px', fontWeight: 800, lineHeight: 1.3 }}>{s.title}</div>
                   <div style={{ fontSize: '13px', color: 'var(--ink2)' }}>{s.cards.map(c => `${c.name}${c.moderator ? ' (Moderator)' : ''}`).join(' · ')}</div>
                   <div style={{ fontSize: '13px', fontWeight: 900, color: COLOR[s.state] }}>● {LABEL[s.state]}{s.approved_at ? ` ${new Date(s.approved_at).toLocaleDateString()}` : ''}{s.generated_at ? <span style={{ fontWeight: 500, color: 'var(--ink3)' }}> · generated {new Date(s.generated_at).toLocaleString()}</span> : null}</div>
-                  {s.issues.length > 0 && <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', lineHeight: 1.5 }}>{s.issues.map((i, k) => <li key={k} style={{ color: i.level === 'warning' ? 'var(--amber)' : 'var(--red)', fontWeight: i.level === 'attention' ? 800 : 600 }}>{i.level === 'attention' ? 'Needs attention: ' : i.level === 'error' ? 'Rule error: ' : ''}{i.text}</li>)}</ul>}
+                  {s.issues.length > 0 && <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', lineHeight: 1.5 }}>{s.issues.map((i, k) => <li key={k} style={{ color: i.level === 'info' ? 'var(--ink3)' : i.level === 'warning' ? 'var(--amber)' : 'var(--red)', fontWeight: i.level === 'attention' ? 800 : 600 }}>{i.level === 'attention' ? 'Needs attention: ' : i.level === 'error' ? 'Rule error: ' : ''}{i.text}</li>)}</ul>}
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
                     {canEdit && <Button variant={s.state === 'new' || s.state === 'changed' ? 'teal' : 'ghost'} disabled={busy.has(s.id) || !!progress || blocked || data.missing.length > 0} onClick={() => generate([s.id])}>{busy.has(s.id) ? 'Generating…' : s.png_url ? 'Regenerate' : 'Generate'}</Button>}
                     {canEdit && <Button variant="ghost" onClick={() => setEditing(s)}>Edit text / speakers</Button>}

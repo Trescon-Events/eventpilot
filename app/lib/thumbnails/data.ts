@@ -6,13 +6,13 @@ import { validateText } from '@/app/lib/content/validate'
 import type { TextLayer, Variant } from '@/app/lib/announcements/composite'
 import type { HeadBox } from '@/app/lib/media/face-alignment'
 import { isModeratorRole, layoutFor } from '@/app/lib/screens/geometry'
-import { nameCheck, titleCheck } from './assess'
-import { DESIGN_H, DESIGN_W, MAX_SPEAKERS, cardSize, chooseCards, cleanOverrides, fileBase, fingerprint, speakerAreaOf, tagFor, thumbState, type CardTextMode, type ThumbLayout, type ThumbOverrides, type ThumbState } from './geometry'
+import { nameSizeFor, titleCheck } from './assess'
+import { DESIGN_H, DESIGN_W, MAX_SPEAKERS, NAME_NOTE_PX, cardSize, chooseCards, cleanOverrides, fileBase, fingerprint, speakerAreaOf, tagFor, thumbState, type CardTextMode, type ThumbLayout, type ThumbOverrides, type ThumbState } from './geometry'
 
 /* Session thumbnails — reads the agenda, the speakers, the event's templates and the producer's overrides, and works out for every session what its thumbnail would contain
    right now, what is wrong with it, and whether the stored image still matches (a fingerprint of everything visible, as Stage Screens does). */
 
-export type Issue = { level: 'attention' | 'error' | 'warning'; text: string; speaker_id?: string }
+export type Issue = { level: 'attention' | 'error' | 'warning' | 'info'; text: string; speaker_id?: string }
 export type ThumbSettings = { cardVariantId: string | null; layoutVariantIds: Partial<Record<ThumbLayout, string>>; cardText: CardTextMode }
 export type ThumbSetup = { settings: ThumbSettings; card: Variant | null; layouts: Partial<Record<ThumbLayout, Variant>>; missing: string[]; variants: { id: string; name: string; category: string; kind?: ThumbLayout; w: number; h: number }[] }
 export type ThumbCard = { speakerId: string; moderator: boolean; name: string; company: string; baseName: string; baseCompany: string; photoUrl: string | null; headBox: HeadBox | null; ready: boolean; lowRes: boolean }
@@ -133,9 +133,8 @@ export async function loadThumbnailSessions(eventId: string, opts: LoadOpts = {}
       const area = speakerAreaOf(layoutV)
       if (area) {
         const size = cardSize(cards.length, area, setup.card.canvas_height / setup.card.canvas_width)
-        const small: string[] = []
-        for (const c of cards) { const r = await nameCheck(setup.card, size.width, c.moderator, c.name, c.company).catch(() => ({ ok: true, fontSize: null, reason: null })); if (!r.ok) small.push(`${c.name} (${r.reason})`) }
-        if (small.length) issues.push({ level: 'attention', text: `Names too small at ${cards.length} speakers (cards are ${size.width}px wide): ${small.join(', ')}. Names are never shortened: exclude a speaker, or ask branding to turn off capitals on the card's name layer or give it more width or lines.` })
+        const px = await nameSizeFor(setup.card, size.width, cards).catch(() => null)
+        if (px !== null && px < NAME_NOTE_PX) issues.push({ level: 'info', text: `Names are small on this thumbnail (${px}px): the longest name needs that size to show in full on ${cards.length} cards. Names are never shortened.` })
       }
     }
     // not blocking

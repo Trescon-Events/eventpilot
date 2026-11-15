@@ -6,8 +6,11 @@ import type { Layer, SpeakerAreaLayer, TextLayer, Variant } from '@/app/lib/anno
 
 export const DESIGN_W = 1920
 export const DESIGN_H = 1080
-/** Names must be at least this tall (px, on the 1920x1080 design) so they stay legible at YouTube's display sizes (cap height about 20 px). */
-export const MIN_NAME_PX = 28
+/** Names start at this size (px, on the 1920x1080 design) when the template's own scaled size is smaller, so they stay legible at YouTube's display sizes (cap height about 20 px). */
+export const NAME_START_PX = 28
+/** Names are never shortened and never block a thumbnail (Madhu, 15 Nov): they wrap to the template's own lines, then shrink from the start size until the longest fits, and every name on one thumbnail
+ *  uses that same size. Below this size the page shows a non-blocking info note. */
+export const NAME_NOTE_PX = 20
 /** One row only. More speakers than this and the thumbnail is not drawn until the producer excludes some (Madhu, 15 Nov). */
 export const MAX_SPEAKERS = 6
 export const MAX_PER_CALL = 3
@@ -96,9 +99,9 @@ export function cardPositions(n: number, size: { width: number; height: number }
   return Array.from({ length: n }, (_, i) => ({ x: Math.round(left + i * (size.width + area.gap)), y: Math.round(area.y) }))
 }
 
-/** The card template at its final size. Layer boxes scale with the card; text sizes scale too, except the NAME, which is floored at MIN_NAME_PX
- *  (and its box made tall enough for the template's own line count) so a small card still carries a readable name. Cards are drawn at this size, not shrunk afterwards. */
-export function scaleCardVariant(v: Variant, width: number, minName = MIN_NAME_PX): Variant {
+/** The card template at its final size. Layer boxes scale with the card and text sizes scale with it. The NAME layer starts at NAME_START_PX (or the template's scaled size if larger); pass `nameSize`
+ *  (the one size every name on the thumbnail uses, see assess.ts nameSizeFor) to fix it. Its box is made tall enough for the template's own line count. Cards are drawn at this size, not shrunk afterwards. */
+export function scaleCardVariant(v: Variant, width: number, nameSize?: number): Variant {
   const k = width / v.canvas_width
   const height = Math.max(1, Math.round(v.canvas_height * k))
   const sx = (n: number) => Math.round(n * k)
@@ -109,7 +112,8 @@ export function scaleCardVariant(v: Variant, width: number, minName = MIN_NAME_P
     if (l.type !== 'text') return { ...l, ...box }
     const t = l as TextLayer
     const scaled = Math.max(1, Math.round(t.font_size * k))
-    const font = t.field === 'name' ? Math.max(scaled, minName) : scaled
+    const ceiling = t.field === 'name' ? Math.max(scaled, NAME_START_PX) : scaled   // the name starts at NAME_START_PX or the template's scaled size, whichever is larger
+    const font = t.field === 'name' && nameSize ? Math.max(1, Math.min(ceiling, Math.floor(nameSize))) : ceiling
     const h = t.field === 'name' ? Math.max(box.height, Math.ceil(font * 1.2 * Math.max(1, t.max_lines))) : box.height
     return { ...t, ...box, height: h, font_size: font, ...(t.snap_gap !== undefined ? { snap_gap: Math.round(t.snap_gap * k) } : {}) }
   })

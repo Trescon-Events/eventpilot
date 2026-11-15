@@ -156,3 +156,10 @@ Report results to Madhu before pushing. Own branch. Madhu runs migrations himsel
 5. **Page:** `stakeholders/thumbnails` (link beside Stage Screens), permissions `sae.screens.view` (see) and `sae.screens.manage` (generate, override, approve).
 6. **Thumbnail card is its own 1024x1024 template** (`thumbnail_card`), separate from the 1024x1536 Stage Screen card.
 7. Sample files for the build: `scripts/thumbnail-samples/` (git-ignored): `Samples/`, `bss26-session-thumbnail-template/` (with `Speaker details/`), `dfs-26-session-thumbnail-template/`.
+
+### Revision: the name rule (Madhu, 15 Nov, after the live check). Supersedes decision 4 and the "names too small" blocker in §5.2.
+8. **Names are never shortened and never block a thumbnail.** A name wraps to the card template's own line count first. If it still does not fit its box and the card, the font shrinks until it does. **All names on one thumbnail use the same size**: the size the longest name needs, so a short name on the same thumbnail is drawn at that size too. Names start at 28 px (or the template's scaled size if larger).
+9. **"Names too small" is removed as a blocker.** Below **20 px on the 1920x1080 design** the thumbnail shows a non-blocking **info note** ("Names are small on this thumbnail (NN px) ... Names are never shortened"). It is generated and can be approved as usual.
+10. **Unchanged:** more than 6 speakers still blocks with "Needs attention: too many speakers, choose up to 6". Per-session name overrides still exist (§7) but are never suggested for fitting. Branding's levers for fit are the card template: mixed case instead of capitals, a wider name box, more lines.
+11. **Also from the live check:** text with no font draws nothing on the server, so thumbnail template text with no font uses the event's brand font, and the page says to pick one if the event has none (shipped, `2a73cd9`).
+
