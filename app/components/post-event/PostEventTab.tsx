@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Button, Card } from '@/app/components/ui'
 import { notify } from '@/app/lib/ui/notify'
 import { categoryLabel } from '@/app/lib/content/public-figures-catalogue'
+import { postEventStage } from '@/app/lib/content/post-event-stage'
 
 /* Event Details → Post-event (docs/build_suggestions/public-figures.md §8). Public figures: the figures and facts this event may say in public documents, each approved
    (and, when the event requires it, approved by the client) before any tool reads it. Internal actuals and targets are NOT kept here. */
@@ -41,7 +42,10 @@ export default function PostEventTab({ eventId }: { eventId: string }) {
   const [sending, setSending] = useState<'internal' | 'client' | null>(null)
   const [sent, setSent] = useState<{ audience: string; reviewers: Array<{ name: string; email: string; link: string; emailed: boolean }> } | null>(null)
   const [reload, setReload] = useState(0)
-  const [confirming, setConfirming] = useState(false)   // the list of what "approve" would do, shown before anything is approved
+  const [panel, setPanel] = useState<'approve' | 'skip' | 'override' | null>(null)   // the checklist of what a click would do, shown before anything is approved
+  const [picked, setPicked] = useState<Set<string>>(new Set())   // items ticked in the list; nothing is ticked by default
+  const [filter, setFilter] = useState<'all' | 'value' | 'ready' | 'review' | 'approved'>('all')
+  const [reason, setReason] = useState('')
   const [undo, setUndo] = useState<{ ids: string[] } | null>(null)   // the approvals just made, so they can be taken back in one click
   const load = useCallback(() => setReload(k => k + 1), [])
 
@@ -89,6 +93,28 @@ export default function PostEventTab({ eventId }: { eventId: string }) {
   const internalRound = data.rounds.internal, clientRound = data.rounds.client
   const finalisable = needsDecision.filter(i => i.status === 'in_internal_review')
 
+  const requires = data.requires_client_approval
+  const readyItems = items.filter(i => (i.status === 'draft' || i.status === 'edited_since_approval') && isFilled(i))
+  const overridable = items.filter(i => ['draft', 'edited_since_approval', 'in_internal_review', 'client_suggested', 'client_rejected'].includes(i.status) && isFilled(i))
+  const clientOpen = clientRound?.status === 'open', internalOpen = internalRound?.status === 'open'
+  const emptyCount = items.filter(i => i.status === 'draft' && !isFilled(i)).length
+  const readyIds = new Set(readyItems.map(i => i.id))
+  const togglePick = (id: string) => setPicked(p => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  const pickedIds = [...picked].filter(id => readyIds.has(id) || overridable.some(o => o.id === id))
+  const filterOf = (i: Item) => filter === 'all' ? true : filter === 'value' ? (i.status === 'draft' && !isFilled(i)) : filter === 'ready' ? readyIds.has(i.id) : filter === 'review' ? ['in_internal_review', 'pending_client', 'client_suggested', 'client_rejected'].includes(i.status) : ['approved', 'edited_since_approval'].includes(i.status)
+  const chips: Array<{ key: typeof filter; label: string; n: number }> = [
+    { key: 'all', label: 'All', n: items.length }, { key: 'value', label: 'Needs a value', n: emptyCount }, { key: 'ready', label: 'Ready to approve', n: readyItems.length },
+    { key: 'review', label: 'In review', n: items.filter(i => ['in_internal_review', 'pending_client', 'client_suggested', 'client_rejected'].includes(i.status)).length }, { key: 'approved', label: 'Approved', n: items.filter(i => ['approved', 'edited_since_approval'].includes(i.status)).length },
+  ]
+  const afterApprove = (j: { approved: number; approved_ids?: string[]; moved_to_client?: number; blocked: Array<{ label: string; reason: string }> } | null, finalForTools: boolean) => {
+    if (!j) return
+    setPicked(new Set()); setPanel(null); setReason('')
+    if (finalForTools && j.approved_ids?.length) setUndo({ ids: j.approved_ids })
+    notify(`${j.approved} approved${j.moved_to_client ? `, ${j.moved_to_client} ready for the client` : ''}${j.blocked.length ? `. ${j.blocked.length} blocked: ${j.blocked[0].label} (${j.blocked[0].reason})` : ''}.`, j.blocked.length ? 'error' : 'success')
+  }
+  // where the event is, and the ONE thing to do next
+  const stage = postEventStage({ itemCount: items.length, requires, clientOpen, internalOpen, needsDecision: needsDecision.length, readyForClient, readyDrafts: readyItems.length, approved, empty: emptyCount })
+
   return (
     <div style={{ display: 'grid', gap: '16px' }}>
       <Card padded>
@@ -98,63 +124,65 @@ export default function PostEventTab({ eventId }: { eventId: string }) {
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', margin: '12px 0', fontSize: '12.5px' }}>
           <Counter n={count(i => i.status === 'draft' || i.status === 'edited_since_approval')} label="draft" /><Counter n={inReview} label="in review" />
           <Counter n={needsDecision.length} label="need your decision" hot /><Counter n={approved} label="approved" />
-          <span style={{ color: 'var(--ink3)' }}>{data.requires_client_approval ? 'Client approval is required for this event.' : 'Client approval is not required for this event.'} <Link href={`/admin/events/${eventId}/details?tab=copy`} style={{ color: 'var(--teal-mid)', fontWeight: 800 }}>Change in Copy Library</Link></span>
+          <span style={{ color: 'var(--ink3)' }}>{requires ? 'Client approval is required for this event.' : 'Client approval is not required for this event.'} <Link href={`/admin/events/${eventId}/details?tab=copy`} style={{ color: 'var(--teal-mid)', fontWeight: 800 }}>Change in Copy Library</Link></span>
         </div>
-        <Steps requires={data.requires_client_approval} draft={count(i => i.status === 'draft' || i.status === 'edited_since_approval')} internal={internalRound} client={clientRound} ready={readyForClient} deciding={needsDecision.length} approved={approved} />
-        {!data.requires_client_approval && <div style={{ fontSize: '12.5px', color: 'var(--ink2)', marginTop: '8px' }}><strong>No client approval on this event:</strong> approving a value makes it final, and tools use it straight away. Colleagues can still review first (Send for internal review).</div>}
+        <Steps requires={requires} draft={count(i => i.status === 'draft' || i.status === 'edited_since_approval')} internal={internalRound} client={clientRound} ready={readyForClient} deciding={needsDecision.length} approved={approved} />
+
         {can && (
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginTop: '12px' }}>
-            {items.length === 0 && <Button disabled={!!busy} onClick={async () => { const j = await act('start_from_template', {}, 'tpl'); if (j) notify(`Created ${j.created} empty items from the starter template.`, 'success') }}>{busy === 'tpl' ? 'Creating…' : 'Start from template'}</Button>}
-            {items.length > 0 && <Button variant="ghost" disabled={!!busy} onClick={async () => { const j = await act('remove_all_empty', {}, 'empty'); if (j) notify(`Removed ${j.removed} empty item${j.removed === 1 ? '' : 's'}.`, 'success') }}>Remove all empty</Button>}
-            <Button variant="ghost" disabled={!!busy || draftReady === 0 || internalRound?.status === 'open'} onClick={() => setSending(sending === 'internal' ? null : 'internal')}>Send for internal review{draftReady ? ` (${draftReady})` : ''}</Button>
-            <Button variant={confirming ? 'teal' : 'ghost'} disabled={!!busy || draftReady === 0} onClick={() => setConfirming(c => !c)}>{data.requires_client_approval ? 'Approve internally' : 'Approve for public use'}{draftReady ? ` (${draftReady})` : ''}</Button>
-            {data.requires_client_approval && <Button disabled={!!busy || readyForClient === 0 || clientRound?.status === 'open'} onClick={() => setSending(sending === 'client' ? null : 'client')}>Send for client approval{readyForClient ? ` (${readyForClient})` : ''}</Button>}
-            {finalisable.length > 0 && <Button disabled={!!busy} onClick={async () => {
-              const j = await act('final_approve', { ids: finalisable.map(i => i.id) }, 'final')
-              if (j) notify(`${j.approved} approved${j.blocked.length ? `. ${j.blocked.length} held back: ${j.blocked[0].label} (${j.blocked[0].reason})` : ''}.`, j.blocked.length ? 'error' : 'success')
-            }}>Approve what the client approved ({finalisable.length})</Button>}
+          <div style={{ marginTop: '12px', border: '1.5px solid var(--teal-mid)', borderRadius: '12px', padding: '12px 14px', display: 'grid', gap: '8px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)' }}>What is next</div>
+            <div style={{ fontSize: '15px', fontWeight: 800 }}>{stage.title}</div>
+            <div style={{ fontSize: '12.5px', color: 'var(--ink2)' }}>{stage.text}</div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+              {items.length === 0 && <Button disabled={!!busy} onClick={async () => { const j = await act('start_from_template', {}, 'tpl'); if (j) notify(`Created ${j.created} empty items from the starter template.`, 'success') }}>{busy === 'tpl' ? 'Creating…' : 'Start from template'}</Button>}
+              {!clientOpen && !internalOpen && needsDecision.length === 0 && !(requires && readyForClient > 0) && readyItems.length > 0 && (<>
+                <Button variant={panel === 'approve' ? 'teal' : undefined} disabled={!!busy} onClick={() => setPanel(panel === 'approve' ? null : 'approve')}>{requires ? 'Mark ready for the client…' : 'Approve for public use…'}</Button>
+                <Button variant="ghost" disabled={!!busy} onClick={() => setSending(sending === 'internal' ? null : 'internal')}>Ask colleagues to review first</Button>
+              </>)}
+              {!clientOpen && !internalOpen && requires && readyForClient > 0 && needsDecision.length === 0 && <Button disabled={!!busy} onClick={() => setSending(sending === 'client' ? null : 'client')}>Send for client approval ({readyForClient})</Button>}
+              {finalisable.length > 0 && !clientOpen && <Button disabled={!!busy} onClick={async () => {
+                const j = await act('final_approve', { ids: finalisable.map(i => i.id) }, 'final')
+                if (j) notify(`${j.approved} approved${j.blocked.length ? `. ${j.blocked.length} held back: ${j.blocked[0].label} (${j.blocked[0].reason})` : ''}.`, j.blocked.length ? 'error' : 'success')
+              }}>Approve what the client approved ({finalisable.length})</Button>}
+            </div>
+            {requires && !clientOpen && overridable.length > 0 && (
+              <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', fontSize: '12px' }}>
+                {readyItems.length > 0 && !internalOpen && <button type="button" style={linkBtn} onClick={() => setPanel(panel === 'skip' ? null : 'skip')}>Override: internal approval not required, send straight to the client…</button>}
+                <button type="button" style={{ ...linkBtn, color: 'var(--amber)' }} onClick={() => setPanel(panel === 'override' ? null : 'override')}>Override: client approval not required, approve now…</button>
+              </div>
+            )}
           </div>
         )}
-        {can && sending && <SendPanel key={sending} audience={sending} data={data} act={act} busy={busy} onDone={r => { setSending(null); setSent(r) }} onCancel={() => setSending(null)} />}
-        {can && confirming && (
-          <div style={{ marginTop: '10px', border: '1.5px solid var(--amber)', borderRadius: '10px', padding: '10px 12px', display: 'grid', gap: '8px', fontSize: '12.5px' }}>
-            <div style={{ fontWeight: 800 }}>{data.requires_client_approval ? `Approve these ${draftReady} items internally?` : `Approve these ${draftReady} items for public use?`}</div>
-            <div style={{ color: 'var(--ink2)' }}>{data.requires_client_approval
-              ? 'They move to “ready for the client”. Nothing is public until the client has approved and you give the final approval.'
-              : 'There is no client approval on this event, so each value below becomes the approved public figure and tools (Copy Library, announcements, reports) will use it. You can undo this straight after, or Withdraw an item later.'}</div>
-            <div style={{ maxHeight: '220px', overflow: 'auto', display: 'grid', gap: '3px', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '6px 8px' }}>
-              {items.filter(i => (i.status === 'draft' || i.status === 'edited_since_approval') && isFilled(i)).map(i => <div key={i.id}><strong>{i.label}</strong> · <ValueView kind={i.kind} payload={i.working_payload} /></div>)}
-            </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <Button variant="teal" disabled={!!busy} onClick={async () => {
-                const j = await act('approve', {}, 'appr'); setConfirming(false)
-                if (!j) return
-                if (!data.requires_client_approval && j.approved_ids?.length) setUndo({ ids: j.approved_ids })
-                notify(`${j.approved} approved${j.moved_to_client ? `, ${j.moved_to_client} ready for the client` : ''}${j.blocked.length ? `. ${j.blocked.length} blocked: ${j.blocked[0].label} (${j.blocked[0].reason})` : ''}.`, j.blocked.length ? 'error' : 'success')
-              }}>{busy === 'appr' ? 'Approving…' : `Yes, approve these ${draftReady}`}</Button>
-              <Button variant="ghost" disabled={!!busy} onClick={() => setConfirming(false)}>Cancel</Button>
-            </div>
-          </div>
-        )}
+
+        {can && sending && <SendPanel key={sending} audience={sending} data={data} act={act} busy={busy} itemIds={sending === 'internal' ? pickedIds.filter(id => readyIds.has(id)) : undefined} onDone={r => { setSending(null); setSent(r) }} onCancel={() => setSending(null)} />}
+        {can && panel === 'approve' && <ChecklistPanel title={requires ? 'Mark these as ready for the client?' : 'Approve these for public use?'} items={readyItems} picked={picked} setPicked={setPicked} busy={busy}
+          text={requires ? 'Tick the items you are signing off. They become “ready for the client”. Nothing is public until the client approves and you give the final approval.' : 'Tick the items to approve. There is no client approval on this event, so each ticked value becomes the approved public figure and tools (Copy Library, announcements, reports) will use it. You can undo straight after, or Withdraw an item later.'}
+          confirmLabel={n => (busy === 'appr' ? 'Approving…' : requires ? `Mark ${n} ready for the client` : `Approve ${n} for public use`)}
+          onConfirm={async ids => afterApprove(await act('approve', { ids }, 'appr'), !requires)} onCancel={() => setPanel(null)} />}
+        {can && panel === 'skip' && <ChecklistPanel title="Skip internal approval and send straight to the client?" items={readyItems} picked={picked} setPicked={setPicked} busy={busy}
+          text="Override: these items are marked ready for the client without a separate internal sign-off or colleague review, then you choose the client approvers. Nothing is public until the client approves."
+          confirmLabel={n => (busy === 'appr' ? 'Working…' : `Skip and send ${n} to the client`)}
+          onConfirm={async ids => { const j = await act('approve', { ids }, 'appr'); if (j) { setPicked(new Set()); setPanel(null); setSending('client'); notify(`${j.moved_to_client} ready for the client. Choose who to send them to.`, 'success') } }} onCancel={() => setPanel(null)} />}
+        {can && panel === 'override' && <ChecklistPanel title="Approve without client approval?" items={overridable} picked={picked} setPicked={setPicked} busy={busy} reason={{ value: reason, set: setReason }}
+          text="Override: each ticked value becomes the approved public figure NOW, without the client approving it. Tools use it straight away. The reason is recorded on every item. Rule errors still block."
+          confirmLabel={n => (busy === 'ovr' ? 'Approving…' : `Approve ${n} without client approval`)}
+          onConfirm={async ids => afterApprove(await act('override_approve', { ids, reason }, 'ovr'), true)} onCancel={() => setPanel(null)} />}
         {can && undo && (
           <div style={{ marginTop: '10px', border: '1.5px solid var(--teal-mid)', borderRadius: '10px', padding: '8px 12px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', fontSize: '12.5px' }}>
-            <span><strong>{undo.ids.length} items approved.</strong> They are final and tools can use them now.</span>
+            <span><strong>{undo.ids.length} item{undo.ids.length === 1 ? '' : 's'} approved.</strong> They are final and tools can use them now.</span>
             <Button variant="red" disabled={!!busy} onClick={async () => { const j = await act('withdraw', { ids: undo.ids, reason: 'Undone right after approving' }, 'undo'); if (j) { setUndo(null); notify(`${j.withdrawn} approvals taken back. The values are kept as drafts.`, 'success') } }}>{busy === 'undo' ? 'Undoing…' : 'Undo these approvals'}</Button>
             <Button variant="ghost" onClick={() => setUndo(null)}>Keep them approved</Button>
           </div>
         )}
-        {can && internalRound?.status === 'open' && <RoundBar round={internalRound} act={act} busy={busy} />}
-        {can && clientRound?.status === 'open' && <RoundBar round={clientRound} act={act} busy={busy} />}
+        {can && internalOpen && <RoundBar round={internalRound!} act={act} busy={busy} />}
+        {can && clientOpen && <RoundBar round={clientRound!} act={act} busy={busy} />}
         {sent && (
           <div style={{ marginTop: '10px', fontSize: '12.5px', background: 'var(--surface)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '8px 10px', display: 'grid', gap: '4px' }}>
             <div><strong>Sent to {sent.audience}.</strong> {sent.reviewers.every(r => r.emailed) ? 'Each person has been emailed their link.' : 'Some emails could not be sent. Copy those links and send them yourself.'} <button onClick={() => setSent(null)} style={{ ...linkBtn, marginLeft: '6px' }}>Dismiss</button></div>
             {sent.reviewers.map(r => <div key={r.email}>{r.name} · {r.emailed ? 'emailed' : <strong style={{ color: 'var(--red)' }}>not emailed</strong>} <button onClick={() => { navigator.clipboard?.writeText(r.link); notify('Link copied.') }} style={linkBtn}>Copy link</button></div>)}
           </div>
         )}
-        {can && items.length > 0 && <AddBar data={data} act={act} busy={busy} />}
       </Card>
-
-      {can && <ApproversCard data={data} act={act} busy={busy} />}
 
       {needsDecision.length > 0 && can && (
         <Card padded>
@@ -165,12 +193,40 @@ export default function PostEventTab({ eventId }: { eventId: string }) {
 
       {items.length === 0 && <Card padded><div style={{ fontSize: '13px', color: 'var(--ink3)' }}>No items yet.{can ? ' “Start from template” creates the standard set as empty drafts; keep what applies, fill in the values and remove the rest.' : ''}</div></Card>}
 
-      {groups.map(g => (
-        <details key={g.key} open={g.items.some(i => isFilled(i) || i.status !== 'draft')} style={{ background: 'var(--card)', border: '1px solid var(--border-light)', borderRadius: '12px', padding: '10px 14px' }}>
-          <summary style={{ cursor: 'pointer', fontSize: '12px', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>{categoryLabel(g.category)}{g.group ? ` · ${g.group}` : ''} <span style={{ fontWeight: 600 }}>({g.items.length})</span></summary>
-          <div style={{ display: 'grid', gap: '10px', marginTop: '10px' }}>{g.items.map(i => <ItemCard key={`${i.id}-${i.status}-${i.approved_version}`} item={i} act={act} busy={busy} canEdit={can} eventId={eventId} />)}</div>
+      {items.length > 0 && (
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+          {chips.map(c => (
+            <button key={c.key} type="button" onClick={() => setFilter(c.key)} style={{ border: `1.5px solid ${filter === c.key ? 'var(--teal-mid)' : 'var(--border-light)'}`, background: filter === c.key ? 'var(--surface)' : 'transparent', color: filter === c.key ? 'var(--teal-mid)' : 'var(--ink2)', borderRadius: '999px', padding: '4px 12px', fontSize: '12.5px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>{c.label} <span style={{ fontWeight: 600 }}>{c.n}</span></button>
+          ))}
+          {can && pickedIds.length > 0 && <span style={{ fontSize: '12.5px', color: 'var(--ink2)', marginLeft: '6px' }}>{pickedIds.length} ticked · <button type="button" style={linkBtn} onClick={() => setPanel('approve')}>{requires ? 'Mark ready…' : 'Approve ticked…'}</button> · <button type="button" style={linkBtn} onClick={() => setPicked(new Set())}>Clear</button></span>}
+        </div>
+      )}
+
+      {groups.map(g => {
+        const gi = g.items.filter(filterOf)
+        if (!gi.length) return null
+        return (
+          <details key={g.key} open={filter !== 'all' || g.items.some(i => isFilled(i) || i.status !== 'draft')} style={{ background: 'var(--card)', border: '1px solid var(--border-light)', borderRadius: '12px', padding: '10px 14px' }}>
+            <summary style={{ cursor: 'pointer', fontSize: '12px', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>{categoryLabel(g.category)}{g.group ? ` · ${g.group}` : ''} <span style={{ fontWeight: 600 }}>({gi.length})</span></summary>
+            <div style={{ display: 'grid', gap: '10px', marginTop: '10px' }}>{gi.map(i => (
+              <ItemCard key={`${i.id}-${i.status}-${i.approved_version}`} item={i} act={act} busy={busy} canEdit={can} eventId={eventId}
+                pick={can && readyIds.has(i.id) ? { on: picked.has(i.id), toggle: () => togglePick(i.id) } : undefined}
+                oneAct={can && readyIds.has(i.id) && !clientOpen && !internalOpen ? { label: requires ? 'Mark ready for client' : 'Approve', run: async () => afterApprove(await act('approve', { ids: [i.id] }, 'one'), !requires) } : undefined} />
+            ))}</div>
+          </details>
+        )
+      })}
+
+      {can && (
+        <details open={items.length === 0} style={{ background: 'var(--card)', border: '1px solid var(--border-light)', borderRadius: '12px', padding: '10px 14px' }}>
+          <summary style={{ cursor: 'pointer', fontSize: '12px', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>Set up and add items</summary>
+          <div style={{ display: 'grid', gap: '12px', marginTop: '10px' }}>
+            {items.length > 0 && <div><Button variant="ghost" disabled={!!busy} onClick={async () => { const j = await act('remove_all_empty', {}, 'empty'); if (j) notify(`Removed ${j.removed} empty item${j.removed === 1 ? '' : 's'}.`, 'success') }}>Remove all empty items ({emptyCount})</Button></div>}
+            {items.length > 0 && <AddBar data={data} act={act} busy={busy} />}
+            <ApproversCard data={data} act={act} busy={busy} />
+          </div>
         </details>
-      ))}
+      )}
 
       <Card padded>
         <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '6px' }}>Post-event copy (read-only)</div>
@@ -298,6 +354,30 @@ function DecisionCard({ item, act, busy }: { item: Item; act: Act; busy: string 
   )
 }
 
+/** A list of exactly what a click would do, each item tickable, nothing ticked until you tick it. The confirm button works only on what is ticked. */
+function ChecklistPanel({ title, text, items, picked, setPicked, busy, confirmLabel, onConfirm, onCancel, reason }: {
+  title: string; text: string; items: Item[]; picked: Set<string>; setPicked: (s: Set<string>) => void; busy: string | null
+  confirmLabel: (n: number) => string; onConfirm: (ids: string[]) => void; onCancel: () => void; reason?: { value: string; set: (v: string) => void }
+}) {
+  const ids = items.filter(i => picked.has(i.id)).map(i => i.id)
+  const toggle = (id: string) => { const n = new Set(picked); if (n.has(id)) n.delete(id); else n.add(id); setPicked(n) }
+  return (
+    <div style={{ marginTop: '10px', border: '1.5px solid var(--amber)', borderRadius: '10px', padding: '10px 12px', display: 'grid', gap: '8px', fontSize: '12.5px' }}>
+      <div style={{ fontWeight: 800 }}>{title}</div>
+      <div style={{ color: 'var(--ink2)' }}>{text}</div>
+      <div style={{ display: 'flex', gap: '10px' }}><button type="button" style={linkBtn} onClick={() => setPicked(new Set(items.map(i => i.id)))}>Tick all ({items.length})</button><button type="button" style={linkBtn} onClick={() => setPicked(new Set())}>Clear</button></div>
+      <div style={{ maxHeight: '240px', overflow: 'auto', display: 'grid', gap: '4px', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '6px 8px' }}>
+        {items.map(i => <label key={i.id} style={{ display: 'flex', gap: '8px', alignItems: 'baseline' }}><input type="checkbox" checked={picked.has(i.id)} onChange={() => toggle(i.id)} /><span><strong>{i.label}</strong> · <ValueView kind={i.kind} payload={i.working_payload} /></span></label>)}
+      </div>
+      {reason && <input value={reason.value} onChange={e => reason.set(e.target.value)} placeholder="Why is this approval not needed? (required, recorded on each item)" style={fieldStyle} />}
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <Button variant="teal" disabled={!!busy || ids.length === 0 || (!!reason && !reason.value.trim())} onClick={() => onConfirm(ids)}>{ids.length === 0 ? 'Tick at least one item' : confirmLabel(ids.length)}</Button>
+        <Button variant="ghost" disabled={!!busy} onClick={onCancel}>Cancel</Button>
+      </div>
+    </div>
+  )
+}
+
 /** Where the event is in the sequence: draft, internal review, ready for the client, client review, final. */
 function Steps({ requires, draft, internal, client, ready, deciding, approved }: { requires: boolean; draft: number; internal: RoundSummary | null; client: RoundSummary | null; ready: number; deciding: number; approved: number }) {
   const roundText = (r: RoundSummary | null) => (!r ? 'not sent' : r.status === 'open' ? `open · ${r.reviewers.filter(v => v.done).length} of ${r.reviewers.length} done` : 'closed')
@@ -338,7 +418,7 @@ function RoundBar({ round, act, busy }: { round: RoundSummary; act: Act; busy: s
 }
 
 /** Choose who to send the round to. Colleagues are the event's assigned staff; the client side are the post-event approvers. */
-function SendPanel({ audience, data, act, busy, onDone, onCancel }: { audience: 'internal' | 'client'; data: Payloadd; act: Act; busy: string | null; onDone: (r: { audience: string; reviewers: Array<{ name: string; email: string; link: string; emailed: boolean }> }) => void; onCancel: () => void }) {
+function SendPanel({ audience, data, act, busy, itemIds, onDone, onCancel }: { audience: 'internal' | 'client'; data: Payloadd; act: Act; busy: string | null; itemIds?: string[]; onDone: (r: { audience: string; reviewers: Array<{ name: string; email: string; link: string; emailed: boolean }> }) => void; onCancel: () => void }) {
   const pool = audience === 'internal' ? data.staff_choices : data.approvers
   const [picked, setPicked] = useState<string[]>([])
   const [message, setMessage] = useState('')
@@ -355,7 +435,7 @@ function SendPanel({ audience, data, act, busy, onDone, onCancel }: { audience: 
       </div>
       <textarea value={message} onChange={e => setMessage(e.target.value)} rows={2} placeholder="A note for them (optional)" style={fieldStyle} />
       <div style={{ display: 'flex', gap: '6px' }}>
-        <Button disabled={!!busy || picked.length === 0} onClick={async () => { const j = await act('send_review', { audience, reviewer_ids: picked, message }, 'send'); if (j) onDone({ audience: audience === 'internal' ? 'your colleagues' : 'the client approvers', reviewers: j.reviewers }) }}>{busy === 'send' ? 'Sending…' : `Send to ${picked.length || ''} ${picked.length === 1 ? 'person' : 'people'}`}</Button>
+        <Button disabled={!!busy || picked.length === 0} onClick={async () => { const j = await act('send_review', { audience, reviewer_ids: picked, message, ...(itemIds?.length ? { ids: itemIds } : {}) }, 'send'); if (j) onDone({ audience: audience === 'internal' ? 'your colleagues' : 'the client approvers', reviewers: j.reviewers }) }}>{busy === 'send' ? 'Sending…' : `Send to ${picked.length || ''} ${picked.length === 1 ? 'person' : 'people'}`}</Button>
         <Button variant="ghost" onClick={onCancel}>Cancel</Button>
       </div>
     </div>
@@ -407,7 +487,7 @@ function PayloadEditor({ kind, label, setLabel, payload, setPayload, disabled }:
   )
 }
 
-function ItemCard({ item, act, busy, canEdit, eventId }: { item: Item; act: Act; busy: string | null; canEdit: boolean; eventId: string }) {
+function ItemCard({ item, act, busy, canEdit, eventId, pick, oneAct }: { item: Item; act: Act; busy: string | null; canEdit: boolean; eventId: string; pick?: { on: boolean; toggle: () => void }; oneAct?: { label: string; run: () => void } }) {
   const locked = item.status === 'approved' || item.status === 'pending_client'
   const [label, setLabel] = useState(item.label)
   const [payload, setPayload] = useState<Payload>(item.working_payload)
@@ -438,8 +518,10 @@ function ItemCard({ item, act, busy, canEdit, eventId }: { item: Item; act: Act;
   return (
     <div style={{ border: '1px solid var(--border-light)', borderRadius: '10px', padding: '10px 12px', display: 'grid', gap: '8px' }}>
       <div style={{ display: 'flex', gap: '8px', alignItems: 'baseline', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-        <button type="button" onClick={() => setOpen(o => !o)} style={{ ...linkBtn, color: 'var(--ink)', fontSize: '13.5px', textAlign: 'left' }}>{item.label} <span style={{ fontWeight: 500, color: 'var(--ink2)' }}>· <ValueView kind={item.kind} payload={item.status === 'approved' ? (item.approved_payload ?? item.working_payload) : item.working_payload} /></span></button>
-        <span style={{ display: 'flex', gap: '8px', fontSize: '11.5px', fontWeight: 800, flexWrap: 'wrap' }}>
+        <span style={{ display: 'flex', gap: '8px', alignItems: 'baseline' }}>{pick && <input type="checkbox" checked={pick.on} onChange={pick.toggle} aria-label={`Tick ${item.label}`} />}
+        <button type="button" onClick={() => setOpen(o => !o)} style={{ ...linkBtn, color: 'var(--ink)', fontSize: '13.5px', textAlign: 'left' }}>{item.label} <span style={{ fontWeight: 500, color: 'var(--ink2)' }}>· <ValueView kind={item.kind} payload={item.status === 'approved' ? (item.approved_payload ?? item.working_payload) : item.working_payload} /></span></button></span>
+        <span style={{ display: 'flex', gap: '8px', fontSize: '11.5px', fontWeight: 800, flexWrap: 'wrap', alignItems: 'center' }}>
+          {oneAct && <Button variant="ghost" disabled={!!busy} onClick={oneAct.run}>{oneAct.label}</Button>}
           {item.basis === 'estimate' && <span style={{ color: 'var(--amber)' }}>Estimate</span>}
           {item.update_available > 0 && <span style={{ color: 'var(--red)' }}>Update available · {item.update_available} live use{item.update_available === 1 ? '' : 's'}</span>}
           {item.approved_version > 0 && <span style={{ color: 'var(--ink3)' }}>v{item.approved_version}</span>}

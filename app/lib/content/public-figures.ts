@@ -277,6 +277,30 @@ export async function approveInternally(eventId: string, ids: string[] | 'all', 
   return { approved, approved_ids: approvedIds, moved_to_client: toClient, blocked }
 }
 
+const OVERRIDABLE: FigureStatus[] = ['draft', 'edited_since_approval', 'in_internal_review', 'client_suggested', 'client_rejected']
+
+/** Override: the producer approves these items now, WITHOUT the client approving them (and without colleagues reviewing). A reason is required and is recorded on every item.
+ *  Rule errors still block (an override skips people, never the event's rules). Items with the client right now (an open client round) are left alone: close that round first. */
+export async function overrideApprove(eventId: string, ids: string[], reason: string, by: string | null): Promise<{ approved: number; approved_ids: string[]; blocked: Array<{ id: string; label: string; reason: string }> }> {
+  if (!reason.trim()) throw new FigureError('Say why the client approval is not needed.', 400)
+  if (!ids.length) return { approved: 0, approved_ids: [], blocked: [] }
+  const { data } = await supabaseAdmin.from('event_public_figures').select(FIGURE_COLS).eq('event_id', eventId).eq('is_active', true).in('id', ids)
+  const all = (data ?? []) as FigureRow[]
+  if (all.some(r => r.status === 'pending_client')) throw new FigureError('Some of these items are with the client right now. Close the client round first.', 409)
+  const rows = all.filter(r => OVERRIDABLE.includes(r.status) && isFilled(r.kind, r.working_payload))
+  const checks = await checkItems(eventId, rows)
+  const approvedIds: string[] = [], blocked: Array<{ id: string; label: string; reason: string }> = []
+  for (const r of rows) {
+    const c = checks.get(r.id)
+    if (c?.errors.length) { blocked.push({ id: r.id, label: r.label, reason: c.errors[0].message }); continue }
+    await writeApproved(r, r.working_payload, r.label, 'internal', by)
+    await resolveFigureDecisions(r.id)
+    await logFigureChange({ event_id: eventId, figure_id: r.id, action: 'approve_override', before: { status: r.status }, after: { status: 'approved' }, reason: reason.trim(), by })
+    approvedIds.push(r.id)
+  }
+  return { approved: approvedIds.length, approved_ids: approvedIds, blocked }
+}
+
 // ── Acting on feedback (the producer decides) ────────────────────────────────
 
 async function resolveFigureDecisions(figureId: string): Promise<void> {

@@ -22,6 +22,15 @@ Spec: `docs/build_suggestions/copy-library.md`. Migration `supabase/copy_library
   2. **Workspace badge** — "N need review" shows on the Copy Library tab only, not on the event workspace home.
   Also later: press releases / invites / Konfhub / website / YouTube consume the library in their own builds.
 
+## Post-event tab redesign: one "What is next" card, checklists, overrides (16 Nov 2026) — branch `feat/post-event-flow`, NOT pushed
+
+Madhu: the Post-event approval screen mixed approving with set-up and showed buttons for stages you were not on. Rebuilt `PostEventTab.tsx`:
+- **"What is next" card** (top): the current step and ONE primary action. The step comes from `app/lib/content/post-event-stage.ts` (`postEventStage`, unit-tested): open client round > open colleague round > client answers to decide > ready for the client > drafts ready to approve > fill in values. Colleague review is optional ("Ask colleagues to review first"). No-client events: "Approve for public use…"; client events: "Mark ready for the client…" then "Send for client approval".
+- **Nothing approves on the first click and nothing is ticked by default.** Every approve opens a checklist of exactly what it would do; the confirm button works only on ticked items ("Tick all" is one click away). Items in the list have tick boxes and their own Approve button; ticking items drives "Approve ticked…". "Approve all" no longer exists. After an approval that tools can read, the Undo bar appears (Withdraw, see the next entry).
+- **Overrides** (client events): "Internal approval not required, send straight to the client…" (marks the ticked items ready for the client, then opens the client send) and "Client approval not required, approve now…" (`overrideApprove`, API action `override_approve`: reason required, recorded as `approve_override` on every item, rule errors still block, items with an open client round are refused until the round is closed).
+- **List:** filter chips (All / Needs a value / Ready to approve / In review / Approved). **Set-up** (add from catalogue, custom, group, remove all empty, client approvers) is a collapsed section below the list.
+- Verified: stage logic unit tests (6), override acceptance on a throwaway event (10/10). The new screen has NOT been seen in a browser: check it live after the push.
+
 ## Post-event figures: confirm before approving, and a real Withdraw (16 Nov 2026) — branch `fix/post-event-approve-confirm`, NOT pushed
 
 **Incident:** on BSS (client approval NOT required) one click on "Approve internally" approved all 24 filled figures at once: with no client approval, internal approval is the FINAL approval and tools read it straight away. Nothing had used the values yet (usage log empty). Undone at Madhu's request: all 24 withdrawn (audited, reason recorded), the 2 stale 13 Nov review rounds closed.

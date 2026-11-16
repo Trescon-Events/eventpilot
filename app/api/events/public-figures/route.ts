@@ -4,7 +4,7 @@ import { hasEventPermission } from '@/app/lib/access/event-access'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { canManageRules } from '@/app/lib/content/rule-admin'
 import {
-  FigureError, acceptSuggestion, withdrawApproval, addCustom, addFromCatalogue, addGroup, approveInternally, eventOfFigure, finalApprove, listFigures, removeAfterReview, removeAllEmpty, removeItem, reopen, reviseAndResend,
+  FigureError, acceptSuggestion, overrideApprove, withdrawApproval, addCustom, addFromCatalogue, addGroup, approveInternally, eventOfFigure, finalApprove, listFigures, removeAfterReview, removeAllEmpty, removeItem, reopen, reviseAndResend,
   startFromTemplate, updateItem,
 } from '@/app/lib/content/public-figures'
 import { addApprover, closeRound, eventStaffChoices, importApprovers, removeApprover, sendRound } from '@/app/lib/content/public-figures-review'
@@ -13,7 +13,7 @@ import { FIGURE_CATALOGUE, FIGURE_CATEGORIES, GROUPABLE_CATEGORIES } from '@/app
 /* Public figures API (docs/build_suggestions/public-figures.md). Public only: internal actuals and targets are not here.
    GET  ?event_id=…   the event's items, with checks, the last decision and "update available"
    POST { action, … } start_from_template | add_from_catalogue | add_custom | add_group | remove_all_empty | update | remove | approve | send_review | close_round | final_approve
-                       | accept_suggestion | revise | remove_after_review | reopen | withdraw (take an approval back; reason required) | add_approver | remove_approver | import_approvers
+                       | accept_suggestion | revise | remove_after_review | reopen | withdraw (take an approval back; reason required) | override_approve (approve now without client approval; reason required) | add_approver | remove_approver | import_approvers
    Permission: sae.forms.manage on the event (the same as the rules screen and the Copy Library). Read needs view access. Every write is audited. */
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -77,6 +77,7 @@ export async function POST(req: NextRequest) {
       case 'revise': return NextResponse.json({ item: await reviseAndResend(need(), { label: typeof body.label === 'string' ? body.label : undefined, payload: body.payload }, sid) })
       case 'remove_after_review': await removeAfterReview(need(), sid); return NextResponse.json({ ok: true })
       case 'reopen': return NextResponse.json({ item: await reopen(need(), str('reason'), sid) })
+      case 'override_approve': return NextResponse.json(await overrideApprove(eventId, Array.isArray(body.ids) ? (body.ids as string[]).filter(i => UUID.test(i)) : [], str('reason'), sid))
       case 'withdraw': return NextResponse.json(await withdrawApproval(eventId, Array.isArray(body.ids) ? (body.ids as string[]).filter(i => UUID.test(i)) : [], str('reason'), sid))
       default: return NextResponse.json({ error: 'Unknown action.' }, { status: 400 })
     }
