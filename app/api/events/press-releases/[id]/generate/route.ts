@@ -97,6 +97,7 @@ Return ONLY valid JSON, no preamble, no markdown fences:
     '',
     figuresCtx.block,
     figuresCtx.rule,
+    `EVENT NAME: every time you name the event, write it exactly as "${eventName}", even if the guidelines use a shorter form. Never drop the year or shorten it. A short reference such as "the Summit" is fine.`,
     '',
     `PREVIOUSLY APPROVED RELEASES FOR THIS EVENT:\n${priorReleasesText || 'None yet — this would be the first.'}`,
     '',

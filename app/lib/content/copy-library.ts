@@ -8,6 +8,7 @@ import { resolveEffectiveDocs } from './resolve-reference-docs'
 import { resolveEffectiveRulesForOwner } from './resolve-validation-rules'
 import { ruleErrorsFor, ruleFeedback, surfaceOf } from './copy-surface'
 import { blockedSlots, type BlockedSlot } from './copy-blocked'
+import { linksBlock, linksOf, missingLinks, shortNameHits, type EventLink } from './copy-event-name'
 import { rulesForSurface, validateText, type Surface, type ValidationFinding, type ValidationRule } from './validate'
 import { contentText } from './edit-diff'
 import { COPY_CATALOGUE, CATALOGUE_BY_KEY, isValidVariant, starterVariants, type VariantLength, type VariantPhase } from './copy-catalogue'
@@ -179,9 +180,16 @@ async function ownerFacts(owner: ContentOwnerRef): Promise<string> {
   return u ? `Series name: ${u.name}` : ''
 }
 
+/** The event's own name (public name, else name) and its website and social URLs: the name goes in every item in full, the links into the YouTube footer. Events only. */
+async function eventNameAndLinks(owner: ContentOwnerRef): Promise<{ eventName?: string; links: EventLink[] }> {
+  if (owner.kind !== 'event') return { links: [] }
+  const { data: e } = await supabaseAdmin.from('events').select('name, public_name, website_url, social_linkedin, social_x, social_instagram, social_facebook, social_youtube').eq('id', owner.id).maybeSingle()
+  return { eventName: ((e?.public_name as string | null) || (e?.name as string | null) || undefined) ?? undefined, links: linksOf(e as Record<string, unknown> | null) }
+}
+
 export type GenerateResult = { created: string[]; skipped: string[]; failed: Array<{ key: string; error: string }>; /** drafts that still carry an error-level rule finding after the one regeneration; the item shows the finding */ rule_errors?: number; /** slots that cannot be generated yet (missing Common Details label or quotes section): not failures, shown highlighted with what to do */ blocked?: BlockedSlot[] }
 type Draft = { length: VariantLength; phase: VariantPhase; text: string; refs: SourceRef[]; ruleErrors?: number }
-type GenContext = { messaging: Section[]; docBlock: string; noteBlock: string; facts: string; figures: { pre: PublicFigure[]; post: PublicFigure[] }; rules?: ValidationRule[] }
+type GenContext = { messaging: Section[]; docBlock: string; noteBlock: string; facts: string; figures: { pre: PublicFigure[]; post: PublicFigure[] }; rules?: ValidationRule[]; eventName?: string; links?: EventLink[] }
 const NO_FIGURES = { pre: [] as PublicFigure[], post: [] as PublicFigure[] }
 
 /** The approved figures of each phase: the only source of statistics in generated copy (an umbrella has none of its own). */
@@ -192,12 +200,12 @@ async function loadFigures(owner: ContentOwnerRef): Promise<{ pre: PublicFigure[
 }
 
 async function buildContext(owner: ContentOwnerRef): Promise<GenContext> {
-  const [{ sections }, notes, facts, figures, rules] = await Promise.all([messagingSections(owner), getEffectiveStyleNotes(owner), ownerFacts(owner), loadFigures(owner), resolveEffectiveRulesForOwner(owner, 'any').catch(() => [] as ValidationRule[])])
+  const [{ sections }, notes, facts, figures, rules, nl] = await Promise.all([messagingSections(owner), getEffectiveStyleNotes(owner), ownerFacts(owner), loadFigures(owner), resolveEffectiveRulesForOwner(owner, 'any').catch(() => [] as ValidationRule[]), eventNameAndLinks(owner)])
   const messaging = sections.filter(s => s.role === 'messaging')
   if (!messaging.length) throw new Error('There is no live messaging document to build from. Approve a messaging document first.')
   const docBlock = sections.map(s => `[${s.id}] ${s.title} (${s.role === 'messaging' ? 'messaging doc' : s.role === 'style_guide' ? 'style guide, context only' : 'production pack, context only'})\n${s.text}`).join('\n\n').slice(0, 90_000)
   const noteBlock = notes.length ? `STYLE NOTES (writing guidance; the documents above win if they disagree):\n${notes.map(n => `- ${n.note}`).join('\n')}` : ''
-  return { messaging, docBlock, noteBlock, facts, figures, rules }
+  return { messaging, docBlock, noteBlock, facts, figures, rules, eventName: nl.eventName, links: nl.links }
 }
 
 /** approved_quotes: the document's words, never generated. Markdown markers are stripped and quote marks made curly (cleanMirroredText); the words are untouched. */
@@ -212,7 +220,7 @@ async function draftEntry(ctx: GenContext, entry: typeof COPY_CATALOGUE[number],
 
 EVENT FACTS
 ${ctx.facts}
-
+${entry.key === 'youtube_footer' ? `\n${linksBlock(ctx.links ?? [])}\n` : ''}
 DOCUMENTS (each section has an id in square brackets)
 ${ctx.docBlock}
 
@@ -228,7 +236,7 @@ ${variantSpec}
 
 HARD RULES
 - Use only facts, names and titles that appear in the documents or event facts above. Never invent, round or estimate.
-${NO_STAT_CHECK.has(entry.key) ? '' : STAT_RULE + '\n'}
+${ctx.eventName ? `- EVENT NAME: every time you name the event, write it exactly as "${ctx.eventName}" (the Event name in EVENT FACTS), even if the documents use a shorter form. Never drop the year or shorten it. A short reference such as "the Summit" is fine.\n` : ''}${NO_STAT_CHECK.has(entry.key) ? '' : STAT_RULE + '\n'}
 - Spell every name exactly as the documents spell it.
 - Do not use em dashes. Plain, specific language; no filler such as "excited to announce".
 - "pre" means the event has not happened yet (future tense); "post" means it has concluded (past tense); "any" must read correctly in both cases.
@@ -259,11 +267,14 @@ async function draftChecked(ctx: GenContext, entry: typeof COPY_CATALOGUE[number
     const problems = [...lengthViolations(drafts), ...drafts.flatMap(d => forbiddenHits(d.text, entry.forbidden).map(w => `The ${d.length}/${d.phase} text uses the word "${w}". Do not use it.`))]
     // statistics must be approved figures of that variant's phase: one retry with the numbers named; after that the draft is kept and the number shows as a warning on the item (never a hard failure)
     const numbers = NO_STAT_CHECK.has(entry.key) ? [] : drafts.flatMap(d => { const bad = unapprovedNumbers(d.text, figuresForVariant(d.phase, ctx.figures), ctx.facts); return bad.length ? [`The ${d.length}/${d.phase} text uses ${bad.join(', ')}, which ${bad.length === 1 ? 'is' : 'are'} not an approved figure for that phase. Remove ${bad.length === 1 ? 'it' : 'them'} or use only the APPROVED FIGURES.`] : [] })
+    // the event's own name, in full (documents often use a shorter form), and for the YouTube footer every recorded website / social URL
+    const names = ctx.eventName ? drafts.flatMap(d => shortNameHits(d.text, ctx.eventName) ? [`The ${d.length}/${d.phase} text names the event without its year. Write "${ctx.eventName}" every time you name it.`] : []) : []
+    const links = entry.key === 'youtube_footer' ? drafts.flatMap(d => { const m = missingLinks(d.text, ctx.links ?? []); return m.length ? [`The ${d.length}/${d.phase} text is missing these exact URLs from EVENT LINKS: ${m.map(l => `${l.label}: ${l.url}`).join(' | ')}. Write each channel as "Label: URL", never a label alone.`] : [] }) : []
     const ruleErrs = drafts.map(d => ruleErrorsFor(ctx.rules, entry.key, d))
     const rules = drafts.flatMap((d, i) => ruleFeedback(d, ruleErrs[i]))
-    if (!problems.length && !numbers.length && !rules.length) return drafts
+    if (!problems.length && !numbers.length && !rules.length && !names.length && !links.length) return drafts
     if (attempt === 1) { if (problems.length) throw new Error(problems.join(' ')); return drafts.map((d, i) => ({ ...d, ruleErrors: ruleErrs[i].length })) }
-    feedback = [...problems, ...numbers, ...rules].join('\n')
+    feedback = [...problems, ...numbers, ...names, ...links, ...rules].join('\n')
   }
   return []
 }
@@ -680,8 +691,8 @@ const figureLine = (f: PublicFigure) => `- ${f.group_label ? `${f.group_label}: 
 
 /** Context for generation that does not read the messaging document: only the event facts and the style notes. */
 async function lightContext(owner: ContentOwnerRef): Promise<GenContext> {
-  const [notes, facts, rules] = await Promise.all([getEffectiveStyleNotes(owner).catch(() => []), ownerFacts(owner), resolveEffectiveRulesForOwner(owner, 'any').catch(() => [] as ValidationRule[])])
-  return { messaging: [], docBlock: '', noteBlock: notes.length ? `STYLE NOTES (writing guidance):\n${notes.map(n => `- ${n.note}`).join('\n')}` : '', facts, figures: NO_FIGURES, rules }
+  const [notes, facts, rules, nl] = await Promise.all([getEffectiveStyleNotes(owner).catch(() => []), ownerFacts(owner), resolveEffectiveRulesForOwner(owner, 'any').catch(() => [] as ValidationRule[]), eventNameAndLinks(owner)])
+  return { messaging: [], docBlock: '', noteBlock: notes.length ? `STYLE NOTES (writing guidance):\n${notes.map(n => `- ${n.note}`).join('\n')}` : '', facts, figures: NO_FIGURES, rules, eventName: nl.eventName, links: nl.links }
 }
 
 /** After-the-event key figures, grounded ONLY on the event's approved public figures. The model may not reword, round or add a number: every number in the
