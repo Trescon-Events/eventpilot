@@ -4080,3 +4080,7 @@ Speakers give flight/arrival/departure details through a private mobile link so 
 - Rules screen: scope select on add/edit, tag on the row. DFS: royal/protocol rules set social-only and the patronage rule tightened (`dfs-patronage-rule.ts`), both through the audited rules API.
 - Banner: only Key figures and recap need approved figures. NB: the feat/session-video-phase1 branch also edits draftChecked/copy-library.ts (youtube_footer no-figures): expect a small merge there.
 
+## Copy Library: blocked slots highlighted + Not used before generating (16 Nov 2026, Claude with Madhu) — built, NOT pushed
+- Slots "Generate starter set" cannot make (cta before the event: no call-to-action label in Common Details; approved_quotes: no "quotes" section in the messaging doc) are no longer reported as failures. `copy-blocked.ts` (pure, tested) decides them; GET returns `blocked`, generate returns `blocked`, and the screen shows an amber summary strip, an amber "needs a decision" tag and "!" marker on the card, and a callout on the empty slot with why, what to do, and a **Not used for this event** button (new action `mark_slot_not_used` -> `markSlotNotUsed`, which records an approved-empty item like the generated-then-marked path; refuses when the item already exists).
+- Toast now reads e.g. "Nothing new to generate. 2 slots cannot be made yet and are highlighted below with what to do: ...". Real failures still show as errors.
+

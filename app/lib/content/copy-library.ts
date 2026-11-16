@@ -7,6 +7,7 @@ import { ownerColumn, ownerInsertColumns, ownerLabel, type ContentOwnerRef } fro
 import { resolveEffectiveDocs } from './resolve-reference-docs'
 import { resolveEffectiveRulesForOwner } from './resolve-validation-rules'
 import { ruleErrorsFor, ruleFeedback, surfaceOf } from './copy-surface'
+import { blockedSlots, type BlockedSlot } from './copy-blocked'
 import { rulesForSurface, validateText, type Surface, type ValidationFinding, type ValidationRule } from './validate'
 import { contentText } from './edit-diff'
 import { COPY_CATALOGUE, CATALOGUE_BY_KEY, isValidVariant, starterVariants, type VariantLength, type VariantPhase } from './copy-catalogue'
@@ -178,7 +179,7 @@ async function ownerFacts(owner: ContentOwnerRef): Promise<string> {
   return u ? `Series name: ${u.name}` : ''
 }
 
-export type GenerateResult = { created: string[]; skipped: string[]; failed: Array<{ key: string; error: string }>; /** drafts that still carry an error-level rule finding after the one regeneration; the item shows the finding */ rule_errors?: number }
+export type GenerateResult = { created: string[]; skipped: string[]; failed: Array<{ key: string; error: string }>; /** drafts that still carry an error-level rule finding after the one regeneration; the item shows the finding */ rule_errors?: number; /** slots that cannot be generated yet (missing Common Details label or quotes section): not failures, shown highlighted with what to do */ blocked?: BlockedSlot[] }
 type Draft = { length: VariantLength; phase: VariantPhase; text: string; refs: SourceRef[]; ruleErrors?: number }
 type GenContext = { messaging: Section[]; docBlock: string; noteBlock: string; facts: string; figures: { pre: PublicFigure[]; post: PublicFigure[] }; rules?: ValidationRule[] }
 const NO_FIGURES = { pre: [] as PublicFigure[], post: [] as PublicFigure[] }
@@ -296,7 +297,7 @@ export async function generateStarterSet(owner: ContentOwnerRef, by: string | nu
     try {
       if (entry.fromDoc) {
         const q = quotesFromDoc(ctx)
-        if (!q) { result.failed.push({ key: entry.key, error: 'No "quotes" section found in the messaging document.' }); return }
+        if (!q) return   // reported as a blocked slot below, with what to do: not a failure
         await insert(entry.key, wanted[0], q.text, q.refs, 'from_doc')
         result.created.push(entry.key); return
       }
@@ -313,7 +314,7 @@ export async function generateStarterSet(owner: ContentOwnerRef, by: string | nu
         if (pre) {
           const seed = seedCtaText(details.cta_label, details.registration_url)
           if (seed) { await insert(entry.key, pre, seed, [], 'manual'); made++ }
-          else result.failed.push({ key: 'cta (before the event)', error: 'Common Details has no call-to-action label to copy.' })
+          // no label: reported as a blocked slot below, with what to do: not a failure
           toDraft = toDraft.filter(v => v !== pre)
         }
       }
@@ -342,6 +343,10 @@ export async function generateStarterSet(owner: ContentOwnerRef, by: string | nu
   const entries = COPY_CATALOGUE.filter(e => !onlyKeys || onlyKeys.includes(e.key))
   // Six at a time: stays well under the ~100s proxy limit.
   for (let i = 0; i < entries.length; i += 6) await Promise.all(entries.slice(i, i + 6).map(run))
+  const { data: nowHave } = await supabaseAdmin.from('copy_library_items').select('asset_key, variant_length, variant_phase').eq(column, value)
+  const blocked = blockedSlots({ ownedSlots: new Set((nowHave ?? []).map(r => `${r.asset_key}|${r.variant_length}|${r.variant_phase}`)), ctaLabel: details?.cta_label, registrationUrl: details?.registration_url, hasQuotesSection: !!quotesFromDoc(ctx) })
+    .filter(b => !onlyKeys || onlyKeys.includes(b.key))
+  if (blocked.length && owner.kind === 'event') result.blocked = blocked
   return result
 }
 
@@ -459,6 +464,28 @@ async function insertNotUsed(owner: ContentOwnerRef, key: string, v: { length: V
   if (error) throw new Error(error.message)
   await supabaseAdmin.from('copy_library_versions').insert({ item_id: data.id, version: 1, text: '', approved_by: actor(by), approved_at: now })
   await logCopyChange({ item_id: data.id, owner, asset_key: key, action, before: null, after: { ...data, reason: why }, by })
+}
+
+/** The slots that cannot be generated yet, for the highlighted callouts (events only: an umbrella has no Common Details). */
+export async function blockedSlotsFor(owner: ContentOwnerRef, items: Array<{ asset_key: string; variant_length: string; variant_phase: string }>): Promise<BlockedSlot[]> {
+  if (owner.kind !== 'event') return []
+  const [details, { sections }] = await Promise.all([commonDetails(owner), messagingSections(owner).catch(() => ({ sections: [] as Section[] }))])
+  return blockedSlots({
+    ownedSlots: new Set(items.map(i => `${i.asset_key}|${i.variant_length}|${i.variant_phase}`)), ctaLabel: details?.cta_label, registrationUrl: details?.registration_url,
+    hasQuotesSection: sections.some(sec => sec.role === 'messaging' && /quote/i.test(sec.title)),
+  })
+}
+
+/** "Not used for this event" for a slot that has no item yet (nothing was generated): records the decision as an approved-empty item, exactly like the generated-then-marked path. */
+export async function markSlotNotUsed(owner: ContentOwnerRef, key: string, length: string, phase: string, by: string | null): Promise<void> {
+  if (owner.kind === 'org') throw new CopyError('Copy is kept for an event or an umbrella.', 400)
+  const entry = CATALOGUE_BY_KEY.get(key)
+  const v = entry?.variants.find(x => x.length === length && x.phase === phase)
+  if (!entry || !v) throw new CopyError('Unknown catalogue item.', 400)
+  const { column, value } = ownerColumn(owner)
+  const { data: have } = await supabaseAdmin.from('copy_library_items').select('id').eq(column, value).eq('asset_key', key).eq('variant_length', length).eq('variant_phase', phase).maybeSingle()
+  if (have) throw new CopyError('This item already exists. Use its own "Not used for this event" button.', 409)
+  await insertNotUsed(owner, key, v, by, 'mark_not_used', 'Marked not used before it was generated.')
 }
 
 /** "Not used for this event": approved as empty. Tools that read this item fall back to today's behaviour; the previous text is kept so it can be used again. */

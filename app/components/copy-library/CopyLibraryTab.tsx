@@ -20,8 +20,10 @@ type Payload = {
   figures?: { pre: number; post: number } | null
   catalogue: CatalogueEntry[]; items: Item[]; can_edit: boolean; phase: 'pre' | 'post' | null; requires_client_approval: boolean; requires_override: boolean | null
   suggest_post: boolean; dates: string | null; trescon_about: string | null; needs_review: number
+  blocked?: Blocked[]
 }
 
+type Blocked = { key: string; label: string; length: string; phase: string; slot_label: string; why: string; fix: string }
 const STATUS: Record<string, { label: string; color: string }> = {
   draft: { label: 'Draft', color: 'var(--ink3)' }, in_internal_review: { label: 'Approved internally', color: 'var(--amber)' },
   pending_client: { label: 'With the client', color: 'var(--amber)' }, approved: { label: 'Approved', color: 'var(--teal-mid)' },
@@ -72,7 +74,14 @@ export default function CopyLibraryTab({ ownerType, ownerId }: { ownerType: 'eve
           {data.needs_review > 0 && <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--red)' }}>{data.needs_review} need{data.needs_review === 1 ? 's' : ''} review</span>}
           {canEdit && <Button variant="ghost" disabled={!!busy} onClick={async () => {
             const j = await act('generate', {}, 'generate')
-            if (j) notify((j.failed?.length ? `Generated ${j.created.length}; ${j.failed.length} failed: ${j.failed.map((f: { key: string; error: string }) => `${f.key} (${f.error})`).join('; ')}` : `Generated ${j.created.length} item${j.created.length === 1 ? '' : 's'}.`) + (j.rule_errors ? ` ${j.rule_errors} still break${j.rule_errors === 1 ? 's' : ''} a rule after one rewrite: the finding is shown on the item.` : ''), j.failed?.length || j.rule_errors ? 'error' : 'success')
+            if (j) {
+              const made = j.created.length, failed: Array<{ key: string; error: string }> = j.failed ?? [], blockedN: number = j.blocked?.length ?? 0
+              const parts = [made ? `Generated ${made} item${made === 1 ? '' : 's'}.` : 'Nothing new to generate.']
+              if (failed.length) parts.push(`${failed.length} failed: ${failed.map(f => `${f.key} (${f.error})`).join('; ')}.`)
+              if (blockedN) parts.push(`${blockedN} slot${blockedN === 1 ? '' : 's'} cannot be made yet and ${blockedN === 1 ? 'is' : 'are'} highlighted below with what to do: ${j.blocked.map((b: Blocked) => b.slot_label).join(', ')}.`)
+              if (j.rule_errors) parts.push(`${j.rule_errors} still break${j.rule_errors === 1 ? 's' : ''} a rule after one rewrite: the finding is shown on the item.`)
+              notify(parts.join(' '), failed.length ? 'error' : 'success')
+            }
           }}>{busy === 'generate' ? 'Generating… (up to a minute)' : 'Generate starter set'}</Button>}
           {canEdit && <Button disabled={!!busy || waiting === 0} onClick={async () => { const j = await act('send_bundle', {}, 'bundle'); if (j?.url) setBundleUrl(j.url) }}>{busy === 'bundle' ? 'Sending…' : `Send for client approval${waiting ? ` (${waiting})` : ''}`}</Button>}
         </div>
@@ -88,6 +97,15 @@ export default function CopyLibraryTab({ ownerType, ownerId }: { ownerType: 'eve
             }}>{busy === 'refresh' ? 'Refreshing…' : `Refresh the ${flagged.length} item${flagged.length === 1 ? '' : 's'} that need review`}</Button></div>}
           </>)
         })()}
+        {(data.blocked?.length ?? 0) > 0 && (
+          <div style={{ marginTop: '10px', border: '1.5px solid var(--amber)', borderRadius: '10px', padding: '10px 12px', display: 'grid', gap: '4px', fontSize: '12.5px' }}>
+            <strong style={{ color: 'var(--amber)' }}>{data.blocked!.length} item{data.blocked!.length === 1 ? ' needs' : 's need'} a decision. Generate starter set cannot make {data.blocked!.length === 1 ? 'it' : 'them'} yet.</strong>
+            {data.blocked!.map(b => (
+              <div key={`${b.key}|${b.length}|${b.phase}`}><a href={`#entry-${b.key}`} style={{ color: 'var(--teal-mid)', fontWeight: 800 }}>{b.slot_label}</a>: {b.why}</div>
+            ))}
+            <div style={{ color: 'var(--ink3)' }}>Open each one below: fix the source, or mark it Not used for this event. Neither is urgent; an empty slot blocks nothing.</div>
+          </div>
+        )}
         {bundleUrl && (
           <div style={{ marginTop: '10px', fontSize: '12.5px', background: 'var(--surface)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '8px 10px' }}>
             Client approval link (send it to the client; it works without a login): <a href={bundleUrl} target="_blank" rel="noreferrer" style={{ wordBreak: 'break-all' }}>{bundleUrl}</a>
@@ -152,11 +170,14 @@ function EntryCard({ entry, data, act, busy, canEdit }: { entry: CatalogueEntry;
   const item = mine ?? inherited
   const anyOwn = data.items.filter(i => !i.inherited && i.asset_key === entry.key)
   const worst = anyOwn.some(i => i.status === 'needs_review') ? 'needs_review' : null
+  const blockedHere = (data.blocked ?? []).filter(b => b.key === entry.key)
+  const blockedSlot = !item ? blockedHere.find(b => b.length === length && b.phase === phase) : undefined
 
   return (
     <Card padded>
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'baseline', flexWrap: 'wrap' }}>
+      <div id={`entry-${entry.key}`} style={{ scrollMarginTop: '90px', display: 'flex', gap: '8px', alignItems: 'baseline', flexWrap: 'wrap' }}>
         <div style={{ fontSize: '14px', fontWeight: 800 }}>{entry.label}</div>
+        {blockedHere.length > 0 && <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--amber)' }}>needs a decision</span>}
         {worst && <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--red)' }}>needs review</span>}
         <div style={{ fontSize: '11.5px', color: 'var(--ink3)' }}>Read by: {entry.consumers.join(', ')}</div>
       </div>
@@ -168,13 +189,22 @@ function EntryCard({ entry, data, act, busy, canEdit }: { entry: CatalogueEntry;
             return (
               <button key={k} onClick={() => setSel(k)} style={{ padding: '3px 10px', borderRadius: '999px', fontFamily: 'inherit', fontSize: '11.5px', fontWeight: 800, cursor: 'pointer',
                 border: '1px solid var(--border)', background: sel === k ? 'var(--teal-mid)' : 'var(--card)', color: sel === k ? 'var(--card)' : 'var(--ink2)' }}>
-                {variantLabel(v)}{it ? <span style={{ marginLeft: '5px', color: sel === k ? 'var(--card)' : STATUS[it.status]?.color }}>●</span> : null}
+                {variantLabel(v)}{it ? <span style={{ marginLeft: '5px', color: sel === k ? 'var(--card)' : STATUS[it.status]?.color }}>●</span> : (blockedHere.some(b => b.length === v.length && b.phase === v.phase) ? <span style={{ marginLeft: '5px', color: sel === k ? 'var(--card)' : 'var(--amber)' }}>!</span> : null)}
               </button>
             )
           })}
         </div>
       )}
-      {!item
+      {!item && blockedSlot
+        ? (
+          <div style={{ marginTop: '8px', border: '1.5px solid var(--amber)', borderRadius: '10px', padding: '10px 12px', display: 'grid', gap: '6px', fontSize: '12.5px' }}>
+            <strong style={{ color: 'var(--amber)' }}>Cannot be generated yet</strong>
+            <div>{blockedSlot.why}</div>
+            <div style={{ color: 'var(--ink2)' }}><strong>What to do:</strong> {blockedSlot.fix}</div>
+            {canEdit && <div><Button variant="ghost" disabled={!!busy} onClick={() => act('mark_slot_not_used', { asset_key: entry.key, variant_length: blockedSlot.length, variant_phase: blockedSlot.phase }, 'slot')}>{busy === 'slot' ? 'Saving…' : 'Not used for this event'}</Button></div>}
+          </div>
+        )
+        : !item
         ? <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '8px' }}>Not generated yet{canEdit ? '. Use “Generate starter set” above.' : '.'}</div>
         : <ItemEditor key={`${item.id}-${item.status}-${item.approved_version}-${item.working_text.length}`} item={item} act={act} busy={busy} canEdit={canEdit && !item.inherited} />}
     </Card>

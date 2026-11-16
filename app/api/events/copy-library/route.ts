@@ -4,7 +4,7 @@ import { getSession } from '@/app/lib/access/session'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { canManageRules, parseOwner } from '@/app/lib/content/rule-admin'
 import {
-  CopyError, applyReviewChange, approvedFigureCounts, approveInternally, editItem, findingsFor, generateStarterSet, loadLibrary, markNotUsed, ownerOfItem, regenerateItem, restoreUse, sendBundle, setContentPhase, statWarningsFor, usageCounts, logCopyChange,
+  CopyError, applyReviewChange, approvedFigureCounts, approveInternally, blockedSlotsFor, editItem, findingsFor, generateStarterSet, loadLibrary, markNotUsed, markSlotNotUsed, ownerOfItem, regenerateItem, restoreUse, sendBundle, setContentPhase, statWarningsFor, usageCounts, logCopyChange,
 } from '@/app/lib/content/copy-library'
 import { getApprovedText } from '@/app/lib/content/trescon-profile'
 import { COPY_CATALOGUE } from '@/app/lib/content/copy-catalogue'
@@ -12,7 +12,7 @@ import { clientApprovalRequired, datesLookPast } from '@/app/lib/content/copy-mo
 
 /* Copy Library API (docs/build_suggestions/copy-library.md).
    GET  ?owner_type=event|umbrella|org&owner_id=…   — the catalogue, the items (own + inherited), findings, usage, phase.
-   POST { action, … }  generate | edit | approve | send_bundle | apply_change | dismiss_change | regenerate | mark_not_used | use_again | set_phase | set_client_approval
+   POST { action, … }  generate | edit | approve | send_bundle | apply_change | dismiss_change | regenerate | mark_not_used | mark_slot_not_used (a slot with no item yet: asset_key, variant_length, variant_phase) | use_again | set_phase | set_client_approval
    Permissions are the rules screen's: sae.forms.manage on the event, sae.messaging.umbrella_manage on an umbrella. Every write is audited. */
 
 /** Behind Railway and the Cloudflare worker `req.nextUrl.origin` is localhost, so links for outside people come from the configured site URL (same as every other review link). */
@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
       figures: figureCounts,   // approved figures per phase ({ pre, post }); null for an umbrella
       items: lib.items.map((it, i) => ({ ...it, findings: findings[i], usage: usage[it.id] ?? {}, stat_warnings: statWarnings[i] ?? [] })),
       needs_review: lib.items.filter(i => i.status === 'needs_review' && !i.inherited).length,
+      blocked: await blockedSlotsFor(owner, lib.items).catch(() => []),   // empty slots that cannot be generated yet, with why and what to do
     })
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Could not load the Copy Library.' }, { status: 500 })
@@ -78,6 +79,10 @@ export async function POST(req: NextRequest) {
       case 'dismiss_change': return NextResponse.json({ item: await applyReviewChange(need(itemId), 'dismiss', sid) })
       case 'regenerate': return NextResponse.json({ item: await regenerateItem(need(itemId), sid) })
       case 'mark_not_used': return NextResponse.json({ item: await markNotUsed(need(itemId), sid) })
+      case 'mark_slot_not_used': {
+        if (typeof body.asset_key !== 'string' || typeof body.variant_length !== 'string' || typeof body.variant_phase !== 'string') return NextResponse.json({ error: 'asset_key, variant_length and variant_phase required.' }, { status: 400 })
+        await markSlotNotUsed(owner, body.asset_key, body.variant_length, body.variant_phase, sid); return NextResponse.json({ ok: true })
+      }
       case 'use_again': return NextResponse.json({ item: await restoreUse(need(itemId), sid) })
       case 'set_phase': {
         if (owner.kind !== 'event' || (body.phase !== 'pre' && body.phase !== 'post')) return NextResponse.json({ error: 'An event and phase pre|post required.' }, { status: 400 })
