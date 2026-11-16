@@ -973,7 +973,10 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       {/* Wraps instead of a fixed 4-column grid so the name box is never squeezed off-screen on narrow windows. */}
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', marginBottom: '14px' }}>
                         <Input value={activeVariant.name} onChange={e => updateActiveVariant({ name: e.target.value })} placeholder="Variant name" style={{ flex: '1 1 260px', minWidth: 0 }} />
-                        {activeVariant.category !== 'badge' && activeVariant.category !== 'memento' && activeVariant.category !== 'stage_screen' && activeVariant.category !== 'table_screen' && (
+                        {(activeVariant.category === 'thumbnail_card' || activeVariant.category === 'thumbnail_layout') && (
+                          <Badge>{activeVariant.category === 'thumbnail_card' ? 'Session thumbnail card' : `Session thumbnail layout · ${activeVariant.thumbnail_layout_kind ?? 'panel'}`}</Badge>
+                        )}
+                        {activeVariant.category !== 'badge' && activeVariant.category !== 'memento' && activeVariant.category !== 'stage_screen' && activeVariant.category !== 'table_screen' && activeVariant.category !== 'thumbnail_card' && activeVariant.category !== 'thumbnail_layout' && (
                         <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                           Use
                           <Select
