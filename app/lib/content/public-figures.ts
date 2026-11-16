@@ -5,7 +5,7 @@ import { findingsFor, flagItemsForFigure } from './copy-library'
 import type { ValidationFinding } from './validate'
 import { FIGURE_CATALOGUE, FIGURE_CATALOGUE_BY_KEY, entriesForCategory, type FigureKind } from './public-figures-catalogue'
 import {
-  breakdownSumWarning, figureChangePairs, finalRoute, isFilled, normalizePayload, samePayload, statusAfterFigureEdit, textsToCheck, type DecisionKind, type FigurePayload, type FigureStatus,
+  breakdownSumWarning, figureChangePairs, figureKey, finalRoute, isFilled, normalizePayload, samePayload, statusAfterFigureEdit, textsToCheck, type DecisionKind, type FigurePayload, type FigureStatus, type Phase,
 } from './public-figures-model'
 
 /* Public figures, write side (docs/build_suggestions/public-figures.md §4–§6). Every write is audited (§3.5). Tools read ONLY through public-figures-read.ts (approved_payload
@@ -14,12 +14,12 @@ import {
 export class FigureError extends Error { constructor(msg: string, public status = 400, public extra?: Record<string, unknown>) { super(msg) } }
 
 export type FigureRow = {
-  id: string; event_id: string; kind: FigureKind; catalogue_key: string | null; category: string; group_label: string | null; label: string
+  id: string; event_id: string; phase: Phase; kind: FigureKind; catalogue_key: string | null; category: string; group_label: string | null; label: string
   working_payload: FigurePayload; approved_payload: FigurePayload | null; approved_label: string | null; approved_version: number; status: FigureStatus
   source: string | null; evidence_file_path: string | null; evidence_file_name: string | null; basis: 'measured' | 'estimate'; owner_id: string | null; notes: string | null
   sort_order: number; is_active: boolean; approved_by: string | null; approved_at: string | null; created_at: string; updated_at: string
 }
-export const FIGURE_COLS = 'id, event_id, kind, catalogue_key, category, group_label, label, working_payload, approved_payload, approved_label, approved_version, status, source, evidence_file_path, evidence_file_name, basis, owner_id, notes, sort_order, is_active, approved_by, approved_at, created_at, updated_at'
+export const FIGURE_COLS = 'id, event_id, phase, kind, catalogue_key, category, group_label, label, working_payload, approved_payload, approved_label, approved_version, status, source, evidence_file_path, evidence_file_name, basis, owner_id, notes, sort_order, is_active, approved_by, approved_at, created_at, updated_at'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const actor = (id: string | null) => (id && UUID.test(id) ? id : null)
@@ -72,9 +72,12 @@ export type RoundSummary = {
   reviewers: Array<{ id: string; name: string; email: string; kind: 'staff' | 'client'; done: boolean; answered: number; last_opened_at: string | null; notified_at: string | null }>
 }
 
-export async function listFigures(eventId: string) {
-  const { data } = await supabaseAdmin.from('event_public_figures').select(FIGURE_COLS).eq('event_id', eventId).eq('is_active', true).order('sort_order').order('label')
-  const rows = (data ?? []) as FigureRow[]
+export async function listFigures(eventId: string, phase: Phase = 'post') {
+  const { data: allData } = await supabaseAdmin.from('event_public_figures').select(FIGURE_COLS).eq('event_id', eventId).eq('is_active', true).order('sort_order').order('label')
+  const everything = (allData ?? []) as FigureRow[]
+  const rows = everything.filter(r => r.phase === phase)
+  const other = new Map(everything.filter(r => r.phase !== phase).map(r => [figureKey(r.group_label, r.label), r]))   // the same figure in the other phase (shown as a hint)
+  const counts = { pre: everything.filter(r => r.phase === 'pre').length, post: everything.filter(r => r.phase === 'post').length }
   const ids = rows.map(r => r.id)
   const [checks, usagesRes, requires, roundsRes, approversRes] = await Promise.all([
     checkItems(eventId, rows.map(r => ({ id: r.id, kind: r.kind, label: r.label, working_payload: r.working_payload }))),
@@ -84,7 +87,8 @@ export async function listFigures(eventId: string) {
     supabaseAdmin.from('event_public_figure_approvers').select('id, name, email').eq('event_id', eventId).order('created_at'),
   ])
   type RoundRowDb = { id: string; audience: 'internal' | 'client'; status: 'open' | 'closed'; sent_at: string; closed_at: string | null; item_ids: string[]; event_public_figure_reviewers: Array<{ id: string; name: string; email: string; kind: 'staff' | 'client'; done_at: string | null; last_opened_at: string | null; notified_at: string | null }> }
-  const rounds = (roundsRes.data ?? []) as unknown as RoundRowDb[]
+  const rowIds = new Set(rows.map(r => r.id))
+  const rounds = ((roundsRes.data ?? []) as unknown as RoundRowDb[]).filter(r => (r.item_ids ?? []).some(id => rowIds.has(id)))   // only this phase's rounds
   const roundIds = rounds.map(r => r.id)
   const { data: decs } = roundIds.length
     ? await supabaseAdmin.from('event_public_figure_decisions').select('id, review_id, figure_id, reviewer_id, decision, suggested_label, suggested_payload, comment, seen_label, seen_payload, decided_at, resolved_at').in('review_id', roundIds).order('decided_at')
@@ -119,10 +123,11 @@ export async function listFigures(eventId: string) {
     reviewers: (rv.event_public_figure_reviewers ?? []).map(v => ({ id: v.id, name: v.name, email: v.email, kind: v.kind, done: !!v.done_at, answered: decisions.filter(d => d.review_id === rv.id && d.reviewer_id === v.id).length, last_opened_at: v.last_opened_at, notified_at: v.notified_at })),
   })
   return {
+    phase, counts,
     requires_client_approval: requires,
     approvers: (approversRes.data ?? []) as Array<{ id: string; name: string; email: string }>,
     rounds: { internal: rounds.filter(r => r.audience === 'internal').slice(0, 1).map(summarise)[0] ?? null, client: rounds.filter(r => r.audience === 'client').slice(0, 1).map(summarise)[0] ?? null },
-    items: rows.map(r => ({ ...r, errors: checks.get(r.id)?.errors ?? [], warnings: checks.get(r.id)?.warnings ?? [], feedback: rounds_by_item.get(r.id) ?? [], update_available: alerts.get(r.id) ?? 0, usage_count: usageCount.get(r.id) ?? 0 })),
+    items: rows.map(r => ({ ...r, errors: checks.get(r.id)?.errors ?? [], warnings: checks.get(r.id)?.warnings ?? [], feedback: rounds_by_item.get(r.id) ?? [], update_available: alerts.get(r.id) ?? 0, usage_count: usageCount.get(r.id) ?? 0, counterpart: ((o) => (o ? { phase: o.phase, status: o.status, value: o.status === 'approved' || o.status === 'edited_since_approval' ? (o.approved_payload ?? o.working_payload) : o.working_payload, approved: !!o.approved_payload } : null))(other.get(figureKey(r.group_label, r.label))) })),
   }
 }
 
@@ -135,53 +140,66 @@ async function nextSort(eventId: string): Promise<number> {
   return ((data?.[0]?.sort_order as number | undefined) ?? -1) + 1
 }
 
-async function insertFigures(eventId: string, rows: Array<{ kind: FigureKind; catalogue_key: string | null; category: string; group_label: string | null; label: string; basis?: 'measured' | 'estimate' }>, by: string | null, action: string): Promise<FigureRow[]> {
+async function insertFigures(eventId: string, rows: Array<{ kind: FigureKind; catalogue_key: string | null; category: string; group_label: string | null; label: string; basis?: 'measured' | 'estimate' }>, by: string | null, action: string, phase: Phase = 'post'): Promise<FigureRow[]> {
   if (!rows.length) return []
   let sort = await nextSort(eventId)
   const { data, error } = await supabaseAdmin.from('event_public_figures').insert(rows.map(r => ({
-    event_id: eventId, kind: r.kind, catalogue_key: r.catalogue_key, category: r.category, group_label: r.group_label, label: r.label, working_payload: emptyPayload(r.kind, r.label),
+    event_id: eventId, phase, kind: r.kind, catalogue_key: r.catalogue_key, category: r.category, group_label: r.group_label, label: r.label, working_payload: emptyPayload(r.kind, r.label),
     basis: r.basis ?? 'measured', owner_id: actor(by), sort_order: sort++, created_by: actor(by),
   }))).select(FIGURE_COLS)
   if (error) throw new FigureError(error.message.includes('uq_event_public_figures_label') ? 'An item with that name already exists in this group.' : error.message, error.message.includes('uq_') ? 409 : 500)
-  await logFigureChange({ event_id: eventId, figure_id: null, action, after: { count: data.length, labels: data.map(d => d.label) }, by })
+  await logFigureChange({ event_id: eventId, figure_id: null, action, after: { phase, count: data.length, labels: data.map(d => d.label) }, by })
   return (data ?? []) as FigureRow[]
 }
 
 /** Only when the event has no items yet. Every catalogue entry, as an empty draft (§5). */
-export async function startFromTemplate(eventId: string, by: string | null): Promise<{ created: number }> {
-  const { count } = await supabaseAdmin.from('event_public_figures').select('id', { count: 'exact', head: true }).eq('event_id', eventId).eq('is_active', true)
-  if (count) throw new FigureError('This event already has items. Use “Add from catalogue” to add single entries.', 409)
-  const rows = await insertFigures(eventId, FIGURE_CATALOGUE.map(e => ({ kind: e.kind, catalogue_key: e.key, category: e.category, group_label: null, label: e.label, basis: e.basis })), by, 'start_from_template')
+export async function startFromTemplate(eventId: string, by: string | null, phase: Phase = 'post'): Promise<{ created: number }> {
+  const { count } = await supabaseAdmin.from('event_public_figures').select('id', { count: 'exact', head: true }).eq('event_id', eventId).eq('phase', phase).eq('is_active', true)
+  if (count) throw new FigureError('This phase already has items. Use “Add from catalogue” to add single entries.', 409)
+  const rows = await insertFigures(eventId, FIGURE_CATALOGUE.map(e => ({ kind: e.kind, catalogue_key: e.key, category: e.category, group_label: null, label: e.label, basis: e.basis })), by, 'start_from_template', phase)
   return { created: rows.length }
 }
 
-export async function addFromCatalogue(eventId: string, key: string, groupLabel: string | null, by: string | null): Promise<FigureRow> {
+export async function addFromCatalogue(eventId: string, key: string, groupLabel: string | null, by: string | null, phase: Phase = 'post'): Promise<FigureRow> {
   const e = FIGURE_CATALOGUE_BY_KEY.get(key)
   if (!e) throw new FigureError('Unknown catalogue entry.', 400)
-  const [row] = await insertFigures(eventId, [{ kind: e.kind, catalogue_key: e.key, category: e.category, group_label: groupLabel?.trim() || null, label: e.label, basis: e.basis }], by, 'add_from_catalogue')
+  const [row] = await insertFigures(eventId, [{ kind: e.kind, catalogue_key: e.key, category: e.category, group_label: groupLabel?.trim() || null, label: e.label, basis: e.basis }], by, 'add_from_catalogue', phase)
   return row
 }
 
-export async function addCustom(eventId: string, input: { kind: FigureKind; category: string; label: string; group_label?: string | null }, by: string | null): Promise<FigureRow> {
+export async function addCustom(eventId: string, input: { kind: FigureKind; category: string; label: string; group_label?: string | null }, by: string | null, phase: Phase = 'post'): Promise<FigureRow> {
   const label = input.label.replace(/\s+/g, ' ').trim()
   if (!label) throw new FigureError('Give the item a name.', 400)
   if (!['figure', 'breakdown', 'outcome'].includes(input.kind)) throw new FigureError('Choose figure, breakdown or outcome.', 400)
-  const [row] = await insertFigures(eventId, [{ kind: input.kind, catalogue_key: null, category: input.category.trim() || 'custom', group_label: input.group_label?.trim() || null, label }], by, 'add_custom')
+  const [row] = await insertFigures(eventId, [{ kind: input.kind, catalogue_key: null, category: input.category.trim() || 'custom', group_label: input.group_label?.trim() || null, label }], by, 'add_custom', phase)
   return row
 }
 
 /** "Add group": copies a category's catalogue entries under a new group label (a second competition, one more channel). */
-export async function addGroup(eventId: string, category: string, groupLabel: string, by: string | null): Promise<{ created: number }> {
+export async function addGroup(eventId: string, category: string, groupLabel: string, by: string | null, phase: Phase = 'post'): Promise<{ created: number }> {
   const g = groupLabel.replace(/\s+/g, ' ').trim()
   const entries = entriesForCategory(category)
   if (!g || !entries.length) throw new FigureError('Choose a category and a group name.', 400)
-  const rows = await insertFigures(eventId, entries.map(e => ({ kind: e.kind, catalogue_key: e.key, category: e.category, group_label: g, label: e.label, basis: e.basis })), by, 'add_group')
+  const rows = await insertFigures(eventId, entries.map(e => ({ kind: e.kind, catalogue_key: e.key, category: e.category, group_label: g, label: e.label, basis: e.basis })), by, 'add_group', phase)
   return { created: rows.length }
 }
 
+/** Copies the items of one phase into the other as EMPTY drafts (same groups and names, no values, nothing approved). The other phase's value is shown next to each item as a hint, never copied:
+ *  a pre-event target must not slide into the post-event figures as if it were the result. Items that already exist in the target phase are left alone. */
+export async function copyPhase(eventId: string, from: Phase, to: Phase, by: string | null): Promise<{ created: number; skipped: number }> {
+  if (from === to) throw new FigureError('Choose two different phases.', 400)
+  const { data } = await supabaseAdmin.from('event_public_figures').select(FIGURE_COLS).eq('event_id', eventId).eq('is_active', true)
+  const all = (data ?? []) as FigureRow[]
+  const have = new Set(all.filter(r => r.phase === to).map(r => figureKey(r.group_label, r.label)))
+  const src = all.filter(r => r.phase === from)
+  const fresh = src.filter(r => !have.has(figureKey(r.group_label, r.label)))
+  const rows = await insertFigures(eventId, fresh.map(r => ({ kind: r.kind, catalogue_key: r.catalogue_key, category: r.category, group_label: r.group_label, label: r.label, basis: r.basis })), by, 'copy_phase', to)
+  return { created: rows.length, skipped: src.length - fresh.length }
+}
+
 /** Bulk "remove all empty": removes (keeps for audit) every item that was never filled in and never approved. */
-export async function removeAllEmpty(eventId: string, by: string | null): Promise<{ removed: number }> {
-  const { data } = await supabaseAdmin.from('event_public_figures').select(FIGURE_COLS).eq('event_id', eventId).eq('is_active', true).eq('approved_version', 0)
+export async function removeAllEmpty(eventId: string, by: string | null, phase: Phase = 'post'): Promise<{ removed: number }> {
+  const { data } = await supabaseAdmin.from('event_public_figures').select(FIGURE_COLS).eq('event_id', eventId).eq('phase', phase).eq('is_active', true).eq('approved_version', 0)
   const empty = ((data ?? []) as FigureRow[]).filter(r => !isFilled(r.kind, r.working_payload) && ['draft'].includes(r.status))
   if (!empty.length) return { removed: 0 }
   const { error } = await supabaseAdmin.from('event_public_figures').update({ is_active: false, updated_at: new Date().toISOString() }).in('id', empty.map(r => r.id))
@@ -259,9 +277,9 @@ async function internalApprove(f: FigureRow, requires: boolean, by: string | nul
 
 const APPROVABLE: FigureStatus[] = ['draft', 'edited_since_approval', 'client_rejected', 'client_suggested']
 
-export async function approveInternally(eventId: string, ids: string[] | 'all', by: string | null): Promise<{ approved: number; approved_ids: string[]; moved_to_client: number; blocked: Array<{ id: string; label: string; reason: string }> }> {
+export async function approveInternally(eventId: string, ids: string[] | 'all', by: string | null, phase?: Phase): Promise<{ approved: number; approved_ids: string[]; moved_to_client: number; blocked: Array<{ id: string; label: string; reason: string }> }> {
   const { data } = await supabaseAdmin.from('event_public_figures').select(FIGURE_COLS).eq('event_id', eventId).eq('is_active', true)
-  let rows = ((data ?? []) as FigureRow[]).filter(r => APPROVABLE.includes(r.status) && isFilled(r.kind, r.working_payload))
+  let rows = ((data ?? []) as FigureRow[]).filter(r => APPROVABLE.includes(r.status) && isFilled(r.kind, r.working_payload) && (!phase || r.phase === phase))
   if (ids !== 'all') rows = rows.filter(r => ids.includes(r.id))
   const requires = await requiresClientApproval(eventId)
   const checks = await checkItems(eventId, rows)

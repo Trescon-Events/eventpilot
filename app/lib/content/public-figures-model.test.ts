@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { breakdownSumWarning, clientView, figureChangePairs, figureChangeReason, isFilled, normalizePayload, numberTokens, percentOf, samePayload, statusAfterFigureEdit, textsToCheck, unsupportedNumbers } from './public-figures-model'
+import { breakdownSumWarning, clientView, figureChangePairs, figureChangeReason, isFilled, normalizePayload, numberTokens, percentOf, samePayload, statusAfterFigureEdit, textsToCheck, unsupportedNumbers, asPhase, figureKey, PHASES } from './public-figures-model'
 import { FIGURE_CATALOGUE, entriesForCategory } from './public-figures-catalogue'
 import { docRefs, figureRefs } from './copy-model'
 
@@ -97,3 +97,16 @@ test('sameWording / finalRoute: client route only when they approved exactly thi
 test('waitingOn lists reviewers with no answer', () => {
   assert.deepEqual(waitingOn([{ id: 'a', name: 'Priya' }, { id: 'b', name: 'Rahul' }], ['a']), ['Rahul'])
 })
+
+test('phase: only pre or post, anything else falls back (existing figures are post)', () => {
+  assert.equal(asPhase('pre'), 'pre'); assert.equal(asPhase('post'), 'post')
+  assert.equal(asPhase(undefined), 'post'); assert.equal(asPhase('PRE'), 'post'); assert.equal(asPhase(null, 'pre'), 'pre')
+  assert.deepEqual(PHASES, ['pre', 'post'])
+})
+test('the same figure in the two phases is matched by group and name, ignoring case and spacing', () => {
+  assert.equal(figureKey(null, 'Footfall'), figureKey('', '  footfall '))
+  assert.equal(figureKey('Skillathon 2026', 'Applications'), figureKey(' skillathon 2026 ', 'Applications'))
+  assert.notEqual(figureKey('A', 'Winners'), figureKey('B', 'Winners'))
+  assert.notEqual(figureKey(null, 'Speakers'), figureKey(null, 'Sessions'))
+})
+

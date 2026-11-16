@@ -1,3 +1,4 @@
+import type { Phase } from './public-figures-model'
 import { randomBytes } from 'node:crypto'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { renderEmailTemplate } from '@/app/lib/email/render-template'
@@ -91,11 +92,15 @@ async function sendMail(eventId: string, to: string, subject: string, body: stri
 
 export type SentRound = { review_id: string; count: number; reviewers: Array<{ name: string; email: string; link: string; emailed: boolean }> }
 
-export async function sendRound(eventId: string, audience: 'internal' | 'client', opts: { ids: string[] | null; reviewerIds: string[]; message?: string | null }, by: string | null): Promise<SentRound> {
-  const { data: open } = await supabaseAdmin.from('event_public_figure_reviews').select('id').eq('event_id', eventId).eq('audience', audience).eq('status', 'open').limit(1)
-  if (open?.length) throw new FigureError(`A ${audience === 'client' ? 'client' : 'internal'} round is already open. Close it before sending another.`, 409)
+export async function sendRound(eventId: string, audience: 'internal' | 'client', opts: { ids: string[] | null; reviewerIds: string[]; message?: string | null; phase?: Phase }, by: string | null): Promise<SentRound> {
+  const phase: Phase = opts.phase ?? 'post'
+  const { data: phaseRows } = await supabaseAdmin.from('event_public_figures').select('id').eq('event_id', eventId).eq('phase', phase).eq('is_active', true)
+  const phaseIds = new Set((phaseRows ?? []).map(r => r.id as string))
+  const { data: openAll } = await supabaseAdmin.from('event_public_figure_reviews').select('id, item_ids').eq('event_id', eventId).eq('audience', audience).eq('status', 'open')
+  const open = (openAll ?? []).filter(r => ((r.item_ids as string[]) ?? []).some(i => phaseIds.has(i)))   // one open round per phase
+  if (open.length) throw new FigureError(`A ${audience === 'client' ? 'client' : 'internal'} round is already open. Close it before sending another.`, 409)
   const { data } = await supabaseAdmin.from('event_public_figures').select(FIGURE_COLS).eq('event_id', eventId).eq('is_active', true)
-  const all = (data ?? []) as FigureRow[]
+  const all = ((data ?? []) as FigureRow[]).filter(r => r.phase === phase)
   const wanted = audience === 'client' ? all.filter(r => r.status === 'in_internal_review') : all.filter(r => (r.status === 'draft' || r.status === 'edited_since_approval') && isFilled(r.kind, r.working_payload))
   const rows = opts.ids ? wanted.filter(r => opts.ids!.includes(r.id)) : wanted
   if (!rows.length) throw new FigureError(audience === 'client' ? 'No items are ready for the client. Approve items internally first.' : 'No filled-in draft items to send. Fill in values first.', 409)

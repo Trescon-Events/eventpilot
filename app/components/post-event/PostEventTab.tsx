@@ -19,11 +19,13 @@ type Item = {
   id: string; kind: 'figure' | 'breakdown' | 'outcome'; catalogue_key: string | null; category: string; group_label: string | null; label: string; working_payload: Payload; approved_payload: Payload | null
   approved_version: number; status: string; updated_at: string; source: string | null; evidence_file_name: string | null; evidence_file_path: string | null; basis: 'measured' | 'estimate'; notes: string | null
   errors: Finding[]; warnings: Finding[]; feedback: ItemRound[]; update_available: number; usage_count: number
+  counterpart: { phase: 'pre' | 'post'; status: string; value: Payload; approved: boolean } | null   // the same figure in the other phase
 }
 type CopyItem = { id: string; asset_key: string; variant_length: string; variant_phase: string; status: string; approved_version: number }
 type Person = { id: string; name: string; email: string }
 type RoundSummary = { id: string; audience: 'internal' | 'client'; status: 'open' | 'closed'; sent_at: string; closed_at: string | null; items: number; reviewers: Array<{ id: string; name: string; email: string; kind: string; done: boolean; answered: number; last_opened_at: string | null; notified_at: string | null }> }
 type Payloadd = {
+  phase: 'pre' | 'post'; counts: { pre: number; post: number }; content_phase: string | null
   items: Item[]; requires_client_approval: boolean; can_edit: boolean; categories: Array<{ key: string; label: string }>; catalogue: Array<{ key: string; category: string; kind: string; label: string; help: string }>
   groupable: string[]; event_name: string | null; copy_post_items: CopyItem[]; approvers: Person[]; staff_choices: Person[]; rounds: { internal: RoundSummary | null; client: RoundSummary | null }
 }
@@ -42,6 +44,7 @@ export default function PostEventTab({ eventId }: { eventId: string }) {
   const [sending, setSending] = useState<'internal' | 'client' | null>(null)
   const [sent, setSent] = useState<{ audience: string; reviewers: Array<{ name: string; email: string; link: string; emailed: boolean }> } | null>(null)
   const [reload, setReload] = useState(0)
+  const [phase, setPhase] = useState<'pre' | 'post' | null>(null)   // which set of figures this screen shows; starts on the event's own phase
   const [panel, setPanel] = useState<'approve' | 'skip' | 'override' | null>(null)   // the checklist of what a click would do, shown before anything is approved
   const [picked, setPicked] = useState<Set<string>>(new Set())   // items ticked in the list; nothing is ticked by default
   const [filter, setFilter] = useState<'all' | 'value' | 'ready' | 'review' | 'approved'>('all')
@@ -50,15 +53,15 @@ export default function PostEventTab({ eventId }: { eventId: string }) {
   const load = useCallback(() => setReload(k => k + 1), [])
 
   useEffect(() => {
-    fetch(`/api/events/public-figures?event_id=${eventId}`, { cache: 'no-store' })
-      .then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Could not load.'); setData(j); setError(null) })
+    fetch(`/api/events/public-figures?event_id=${eventId}&phase=${phase ?? 'post'}`, { cache: 'no-store' })
+      .then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Could not load.'); if (phase === null && j.content_phase === 'pre') { setPhase('pre'); return } setData(j); setError(null); if (phase === null) setPhase('post') })
       .catch(e => setError(e instanceof Error ? e.message : 'Could not load.'))
-  }, [eventId, reload])
+  }, [eventId, reload, phase])
 
   async function act(action: string, extra: Record<string, unknown> = {}, label = action) {
     setBusy(label)
     try {
-      const r = await fetch('/api/events/public-figures', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, event_id: eventId, ...extra }) })
+      const r = await fetch('/api/events/public-figures', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, event_id: eventId, phase: phase ?? 'post', ...extra }) })
       const j = await r.json().catch(() => ({}))
       if (!r.ok) { notify(j.error || 'That did not work.', 'error'); return null }
       load(); return j
@@ -118,8 +121,14 @@ export default function PostEventTab({ eventId }: { eventId: string }) {
   return (
     <div style={{ display: 'grid', gap: '16px' }}>
       <Card padded>
-        <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)' }}>Post-event</div>
+        <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)' }}>Figures</div>
         <div style={{ fontSize: '17px', fontWeight: 800, marginTop: '2px' }}>Public figures: approved for use in public documents</div>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', margin: '8px 0 2px' }}>
+          {(['pre', 'post'] as const).map(ph => (
+            <button key={ph} type="button" onClick={() => { setPhase(ph); setPicked(new Set()); setPanel(null); setSending(null); setFilter('all') }} style={{ border: `1.5px solid ${data.phase === ph ? 'var(--teal-mid)' : 'var(--border-light)'}`, background: data.phase === ph ? 'var(--surface)' : 'transparent', color: data.phase === ph ? 'var(--teal-mid)' : 'var(--ink2)', borderRadius: '999px', padding: '5px 16px', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>{ph === 'pre' ? 'Pre-event' : 'Post-event'} <span style={{ fontWeight: 600 }}>{data.counts[ph]}</span></button>
+          ))}
+          <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>{data.phase === 'pre' ? 'Expected and target numbers as published before the event.' : 'The actual results after the event.'} {data.content_phase === 'pre' ? 'This event is before the event: tools use the pre-event figures.' : data.content_phase === 'post' ? 'This event is after the event: tools use the post-event figures.' : ''}</span>
+        </div>
         <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '2px' }}>Internal actuals and targets are not kept here. Tools only ever read the approved value of an item; a draft or an item in review never goes out. A reopened item keeps serving its last approved value until the new one is approved; Withdraw takes an approval back.</div>
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', margin: '12px 0', fontSize: '12.5px' }}>
           <Counter n={count(i => i.status === 'draft' || i.status === 'edited_since_approval')} label="draft" /><Counter n={inReview} label="in review" />
@@ -222,6 +231,7 @@ export default function PostEventTab({ eventId }: { eventId: string }) {
           <summary style={{ cursor: 'pointer', fontSize: '12px', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>Set up and add items</summary>
           <div style={{ display: 'grid', gap: '12px', marginTop: '10px' }}>
             {items.length > 0 && <div><Button variant="ghost" disabled={!!busy} onClick={async () => { const j = await act('remove_all_empty', {}, 'empty'); if (j) notify(`Removed ${j.removed} empty item${j.removed === 1 ? '' : 's'}.`, 'success') }}>Remove all empty items ({emptyCount})</Button></div>}
+            {data.counts[data.phase === 'pre' ? 'post' : 'pre'] > 0 && <div style={{ fontSize: '12.5px' }}><Button variant="ghost" disabled={!!busy} onClick={async () => { const j = await act('copy_phase', { from: data.phase === 'pre' ? 'post' : 'pre', to: data.phase }, 'copy'); if (j) notify(`Copied ${j.created} item${j.created === 1 ? '' : 's'} as empty drafts${j.skipped ? ` (${j.skipped} already here)` : ''}. The other phase's value is shown beside each one.`, 'success') }}>Copy the items from {data.phase === 'pre' ? 'Post-event' : 'Pre-event'} as empty drafts</Button> <span style={{ color: 'var(--ink3)' }}>Names and groups only: values are never copied.</span></div>}
             {items.length > 0 && <AddBar data={data} act={act} busy={busy} />}
             <ApproversCard data={data} act={act} busy={busy} />
           </div>
@@ -521,6 +531,7 @@ function ItemCard({ item, act, busy, canEdit, eventId, pick, oneAct }: { item: I
         <span style={{ display: 'flex', gap: '8px', alignItems: 'baseline' }}>{pick && <input type="checkbox" checked={pick.on} onChange={pick.toggle} aria-label={`Tick ${item.label}`} />}
         <button type="button" onClick={() => setOpen(o => !o)} style={{ ...linkBtn, color: 'var(--ink)', fontSize: '13.5px', textAlign: 'left' }}>{item.label} <span style={{ fontWeight: 500, color: 'var(--ink2)' }}>· <ValueView kind={item.kind} payload={item.status === 'approved' ? (item.approved_payload ?? item.working_payload) : item.working_payload} /></span></button></span>
         <span style={{ display: 'flex', gap: '8px', fontSize: '11.5px', fontWeight: 800, flexWrap: 'wrap', alignItems: 'center' }}>
+          {item.counterpart && <span style={{ color: 'var(--ink3)', fontWeight: 600 }}>{item.counterpart.phase === 'pre' ? 'Pre-event' : 'Post-event'}{item.counterpart.approved ? '' : ' (draft)'}: <ValueView kind={item.kind} payload={item.counterpart.value} /></span>}
           {oneAct && <Button variant="ghost" disabled={!!busy} onClick={oneAct.run}>{oneAct.label}</Button>}
           {item.basis === 'estimate' && <span style={{ color: 'var(--amber)' }}>Estimate</span>}
           {item.update_available > 0 && <span style={{ color: 'var(--red)' }}>Update available · {item.update_available} live use{item.update_available === 1 ? '' : 's'}</span>}

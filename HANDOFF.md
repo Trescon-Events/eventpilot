@@ -22,6 +22,13 @@ Spec: `docs/build_suggestions/copy-library.md`. Migration `supabase/copy_library
   2. **Workspace badge** — "N need review" shows on the Copy Library tab only, not on the event workspace home.
   Also later: press releases / invites / Konfhub / website / YouTube consume the library in their own builds.
 
+## Figures in two phases, pre-event and post-event (16 Nov 2026) — branch `feat/figures-phases`, step 1 of 4, NOT pushed; migration `supabase/figures_phases_migration.sql` NOT yet run
+
+Madhu's design: ONE store of stats that every tool reads, with a pre-event version (expected / target as published) and a post-event version (actual), instead of stats living in the messaging document. Agreed order: (1) phase in the data model + tab switch + copy pre→post; (2) Copy Library and generators read figures by the event's phase + number check + "refresh post-event copy" button; (3) import the doc's stat facts as pre-event drafts and stop reading doc stats once a figure exists (the client's doc is NOT edited); (4) serve the figures through the external guidelines API.
+- **Step 1 (this branch):** `event_public_figures.phase` ('pre' | 'post', existing rows = 'post': BSS / Thulasi's stats untouched); the unique label index now includes the phase. Every write takes an optional `phase` (default 'post', so nothing that predates phases changes); `getPublicFigures(eventId, { phase })` defaults to 'post'; review rounds and "approve all" are scoped to a phase; `copyPhase` copies names and groups as EMPTY drafts (values are NEVER copied; the other phase's value is shown beside each item as a hint). The Post-event tab is now **Figures** with a Pre-event | Post-event switch (starts on the event's own phase).
+- **Safety:** a full backup of all 8 figures tables was taken first (`.scratch/backups/figures-before-phases-*.json`, local, not committed) and `.scratch/phases-verify.ts` compares them with the live tables after the migration. The migration is backward compatible: run it BEFORE pushing the code.
+- Decisions taken by default (Madhu did not answer): with no approved post-event figures, generators leave stats out and warn (step 2); pre-event figures are public "expected" numbers only (internal targets stay out, spec §3.1).
+
 ## Post-event tab redesign: one "What is next" card, checklists, overrides (16 Nov 2026) — branch `feat/post-event-flow`, NOT pushed
 
 Madhu: the Post-event approval screen mixed approving with set-up and showed buttons for stages you were not on. Rebuilt `PostEventTab.tsx`:

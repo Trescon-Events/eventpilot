@@ -862,7 +862,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
       />
 
       <div style={{ padding: '20px 32px 0', display: 'flex', gap: '4px', borderBottom: '1px solid var(--border-light)' }}>
-        {([['overview', 'Overview'], ['messaging', 'Reference Docs'], ['copy', 'Copy Library'], ['postevent', 'Post-event'], ['setup', 'Setup']] as const).map(([key, label]) => (
+        {([['overview', 'Overview'], ['messaging', 'Reference Docs'], ['copy', 'Copy Library'], ['postevent', 'Figures'], ['setup', 'Setup']] as const).map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             style={{
               padding: '10px 18px', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit',

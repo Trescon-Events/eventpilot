@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import type { FigureKind } from './public-figures-catalogue'
-import { figureChangePairs, figureChangeReason, type FigurePayload, type Pair } from './public-figures-model'
+import { figureChangePairs, figureChangeReason, type FigurePayload, type Pair, type Phase } from './public-figures-model'
 
 /* Public figures, READ side (docs/build_suggestions/public-figures.md §7). The only thing any tool may call. It returns APPROVED, ACTIVE items only (their
    approved_payload, never the working copy), and it never throws: a missing table or a database error is "no figures", so a tool's output cannot change by accident
@@ -10,13 +10,13 @@ export type PublicFigure = {
   id: string; catalogue_key: string | null; category: string; group_label: string | null; label: string; kind: FigureKind; payload: FigurePayload; version: number; basis: 'measured' | 'estimate'
 }
 
-export type FigureQuery = { categories?: string[]; keys?: string[]; groupLabel?: string | null; includeEstimates?: boolean }
+export type FigureQuery = { categories?: string[]; keys?: string[]; groupLabel?: string | null; includeEstimates?: boolean; phase?: Phase }   // phase defaults to 'post' (what every caller got before phases existed)
 
 export async function getPublicFigures(eventId: string, q: FigureQuery = {}): Promise<PublicFigure[]> {
   try {
     let query = supabaseAdmin.from('event_public_figures')
       .select('id, catalogue_key, category, group_label, approved_label, label, kind, approved_payload, approved_version, basis, sort_order')
-      .eq('event_id', eventId).eq('is_active', true).not('approved_payload', 'is', null).order('sort_order').order('label')
+      .eq('event_id', eventId).eq('phase', q.phase ?? 'post').eq('is_active', true).not('approved_payload', 'is', null).order('sort_order').order('label')
     if (q.categories?.length) query = query.in('category', q.categories)
     if (q.keys?.length) query = query.in('catalogue_key', q.keys)
     if (q.groupLabel !== undefined) query = q.groupLabel === null ? query.is('group_label', null) : query.eq('group_label', q.groupLabel)

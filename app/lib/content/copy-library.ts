@@ -623,7 +623,7 @@ export async function flagItemsForFigure(eventId: string, figureId: string, by: 
 /** The approved figures a post-event key-figures block may be built from: the headline numbers, the programme and the outcomes. */
 const BLOCK_CATEGORIES = ['at_a_glance', 'programme', 'outcomes']
 async function figuresForBlock(eventId: string): Promise<PublicFigure[]> {
-  return (await getPublicFigures(eventId, { categories: BLOCK_CATEGORIES })).filter(f => f.kind !== 'breakdown')
+  return (await getPublicFigures(eventId, { categories: BLOCK_CATEGORIES, phase: 'post' })).filter(f => f.kind !== 'breakdown')
 }
 const figureLine = (f: PublicFigure) => `- ${f.group_label ? `${f.group_label}: ` : ''}${f.label}: ${f.kind === 'outcome' ? (f.payload.text ?? '') : (f.payload.display ?? '')}`
 

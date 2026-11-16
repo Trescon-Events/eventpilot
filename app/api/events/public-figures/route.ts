@@ -4,16 +4,17 @@ import { hasEventPermission } from '@/app/lib/access/event-access'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { canManageRules } from '@/app/lib/content/rule-admin'
 import {
-  FigureError, acceptSuggestion, overrideApprove, withdrawApproval, addCustom, addFromCatalogue, addGroup, approveInternally, eventOfFigure, finalApprove, listFigures, removeAfterReview, removeAllEmpty, removeItem, reopen, reviseAndResend,
+  FigureError, acceptSuggestion, copyPhase, overrideApprove, withdrawApproval, addCustom, addFromCatalogue, addGroup, approveInternally, eventOfFigure, finalApprove, listFigures, removeAfterReview, removeAllEmpty, removeItem, reopen, reviseAndResend,
   startFromTemplate, updateItem,
 } from '@/app/lib/content/public-figures'
+import { asPhase } from '@/app/lib/content/public-figures-model'
 import { addApprover, closeRound, eventStaffChoices, importApprovers, removeApprover, sendRound } from '@/app/lib/content/public-figures-review'
 import { FIGURE_CATALOGUE, FIGURE_CATEGORIES, GROUPABLE_CATEGORIES } from '@/app/lib/content/public-figures-catalogue'
 
 /* Public figures API (docs/build_suggestions/public-figures.md). Public only: internal actuals and targets are not here.
-   GET  ?event_id=…   the event's items, with checks, the last decision and "update available"
+   GET  ?event_id=…&phase=pre|post   the event's items for that phase (default post), with checks, the last decision and "update available"
    POST { action, … } start_from_template | add_from_catalogue | add_custom | add_group | remove_all_empty | update | remove | approve | send_review | close_round | final_approve
-                       | accept_suggestion | revise | remove_after_review | reopen | withdraw (take an approval back; reason required) | override_approve (approve now without client approval; reason required) | add_approver | remove_approver | import_approvers
+                       | accept_suggestion | revise | remove_after_review | reopen | copy_phase (copy the other phase's items as empty drafts) | withdraw (take an approval back; reason required) | override_approve (approve now without client approval; reason required) | add_approver | remove_approver | import_approvers
    Permission: sae.forms.manage on the event (the same as the rules screen and the Copy Library). Read needs view access. Every write is audited. */
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -27,14 +28,14 @@ export async function GET(req: NextRequest) {
   if (!can.ok && !(await hasEventPermission(session.sid, eventId, 'sae.stakeholders.view'))) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   try {
     const [lib, staff, ev, copy] = await Promise.all([
-      listFigures(eventId),
+      listFigures(eventId, asPhase(req.nextUrl.searchParams.get('phase'))),
       eventStaffChoices(eventId),
       supabaseAdmin.from('events').select('name, public_name, content_phase').eq('id', eventId).maybeSingle(),
       supabaseAdmin.from('copy_library_items').select('id, asset_key, variant_length, variant_phase, status, approved_version').eq('event_id', eventId).eq('variant_phase', 'post').order('asset_key'),
     ])
     return NextResponse.json({
       ...lib, staff_choices: staff, can_edit: can.ok, categories: FIGURE_CATEGORIES, catalogue: FIGURE_CATALOGUE.map(e => ({ key: e.key, category: e.category, kind: e.kind, label: e.label, help: e.help })), groupable: [...GROUPABLE_CATEGORIES],
-      event_name: ev.data?.public_name || ev.data?.name || null, copy_post_items: copy.data ?? [],
+      event_name: ev.data?.public_name || ev.data?.name || null, content_phase: ev.data?.content_phase ?? null, copy_post_items: copy.data ?? [],
     }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : 'Could not load.' }, { status: 500 }) }
 }
@@ -52,21 +53,22 @@ export async function POST(req: NextRequest) {
     const auth = await canManageRules(req, { kind: 'event', id: eventId })
     if (!auth.ok) return NextResponse.json({ error: 'Not authorized to change public figures here.' }, { status: 403 })
     const need = () => { if (!figureId) throw new FigureError('figure_id required.', 400); return figureId }
+    const phase = asPhase(body.phase)   // pre | post (default post)
     const str = (k: string) => (typeof body[k] === 'string' ? (body[k] as string) : '')
 
     switch (body.action) {
-      case 'start_from_template': return NextResponse.json(await startFromTemplate(eventId, sid))
-      case 'add_from_catalogue': return NextResponse.json({ item: await addFromCatalogue(eventId, str('key'), str('group_label') || null, sid) })
-      case 'add_custom': return NextResponse.json({ item: await addCustom(eventId, { kind: str('kind') as 'figure', category: str('category'), label: str('label'), group_label: str('group_label') || null }, sid) })
-      case 'add_group': return NextResponse.json(await addGroup(eventId, str('category'), str('group_label'), sid))
-      case 'remove_all_empty': return NextResponse.json(await removeAllEmpty(eventId, sid))
+      case 'start_from_template': return NextResponse.json(await startFromTemplate(eventId, sid, phase))
+      case 'add_from_catalogue': return NextResponse.json({ item: await addFromCatalogue(eventId, str('key'), str('group_label') || null, sid, phase) })
+      case 'add_custom': return NextResponse.json({ item: await addCustom(eventId, { kind: str('kind') as 'figure', category: str('category'), label: str('label'), group_label: str('group_label') || null }, sid, phase) })
+      case 'add_group': return NextResponse.json(await addGroup(eventId, str('category'), str('group_label'), sid, phase))
+      case 'remove_all_empty': return NextResponse.json(await removeAllEmpty(eventId, sid, phase))
       case 'update': return NextResponse.json({ item: await updateItem(need(), (body.patch ?? {}) as Record<string, never>, sid) })
       case 'remove': await removeItem(need(), sid); return NextResponse.json({ ok: true })
-      case 'approve': return NextResponse.json(await approveInternally(eventId, Array.isArray(body.ids) ? (body.ids as string[]).filter(i => UUID.test(i)) : 'all', sid))
+      case 'approve': return NextResponse.json(await approveInternally(eventId, Array.isArray(body.ids) ? (body.ids as string[]).filter(i => UUID.test(i)) : 'all', sid, phase))
       case 'send_review': {
         if (body.audience !== 'internal' && body.audience !== 'client') return NextResponse.json({ error: 'audience internal|client required.' }, { status: 400 })
         const reviewerIds = Array.isArray(body.reviewer_ids) ? (body.reviewer_ids as string[]).filter(i => UUID.test(i)) : []
-        return NextResponse.json(await sendRound(eventId, body.audience, { ids: Array.isArray(body.ids) ? (body.ids as string[]).filter(i => UUID.test(i)) : null, reviewerIds, message: str('message') || null }, sid))
+        return NextResponse.json(await sendRound(eventId, body.audience, { ids: Array.isArray(body.ids) ? (body.ids as string[]).filter(i => UUID.test(i)) : null, reviewerIds, message: str('message') || null, phase }, sid))
       }
       case 'close_round': return NextResponse.json(await closeRound(eventId, str('round_id'), sid))
       case 'final_approve': return NextResponse.json(await finalApprove(eventId, Array.isArray(body.ids) ? (body.ids as string[]).filter(i => UUID.test(i)) : [], body.override === true, sid))
@@ -78,6 +80,7 @@ export async function POST(req: NextRequest) {
       case 'remove_after_review': await removeAfterReview(need(), sid); return NextResponse.json({ ok: true })
       case 'reopen': return NextResponse.json({ item: await reopen(need(), str('reason'), sid) })
       case 'override_approve': return NextResponse.json(await overrideApprove(eventId, Array.isArray(body.ids) ? (body.ids as string[]).filter(i => UUID.test(i)) : [], str('reason'), sid))
+      case 'copy_phase': return NextResponse.json(await copyPhase(eventId, asPhase(body.from, 'pre'), asPhase(body.to, 'post'), sid))
       case 'withdraw': return NextResponse.json(await withdrawApproval(eventId, Array.isArray(body.ids) ? (body.ids as string[]).filter(i => UUID.test(i)) : [], str('reason'), sid))
       default: return NextResponse.json({ error: 'Unknown action.' }, { status: 400 })
     }

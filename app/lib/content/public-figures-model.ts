@@ -129,3 +129,11 @@ export function waitingOn(reviewers: Array<{ id: string; name: string }>, answer
   const done = new Set(answeredBy)
   return reviewers.filter(r => !done.has(r.id)).map(r => r.name)
 }
+
+/** A figure exists once per phase: "pre" = expected / target as published before the event, "post" = the actual. Existing figures are "post". */
+export type Phase = 'pre' | 'post'
+export const PHASES: Phase[] = ['pre', 'post']
+export const asPhase = (v: unknown, fallback: Phase = 'post'): Phase => (v === 'pre' || v === 'post' ? v : fallback)
+/** The key that says two items are "the same figure" in the two phases (same group, same name). */
+export const figureKey = (groupLabel: string | null | undefined, label: string): string => `${(groupLabel ?? '').trim().toLowerCase()}|${label.replace(/\s+/g, ' ').trim().toLowerCase()}`
+
