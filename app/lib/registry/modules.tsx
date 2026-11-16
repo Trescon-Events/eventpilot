@@ -1230,6 +1230,17 @@ export function getModuleRegistry(): ModuleDef[] {
       sidebar: { section: 'events', parent: 'events', order: 6.5 },
     },
     {
+      key: 'session-videos', label: 'Session Videos',
+      description: 'Upload a recorded session, name the voices, and get the transcript, titles, description with chapters and tags to review. Nothing is published from here.',
+      icon: I.doc, color: '#0291DB',
+      href: ctx => `/admin/events/${ctx.eventId}/session-videos`,
+      needsEvent: true,
+      breadcrumbPattern: '/admin/events/:eventId/session-videos', breadcrumbParent: 'admin-event-workspace',
+      // Matches session-videos/layout.tsx's real gate.
+      access: { kind: 'event_permission', permissionKey: 'sae.videos.manage' },
+      sidebar: { section: 'events', parent: 'events', order: 6.7 },
+    },
+    {
       key: 'showcall', label: 'Show Caller',
       description: 'The live run-of-show sheet for the show caller — built from the Agenda, editable on the day, with a private link and an Excel download.',
       icon: I.clock, color: '#0291DB',

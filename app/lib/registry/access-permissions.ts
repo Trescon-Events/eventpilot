@@ -49,6 +49,8 @@ export const ACCESS_REGISTRY: AccessModule[] = [
       // Speaker Badges (2026-10-02) — bulk print badges for an event's confirmed speakers. view = see batches and
       // previews; manage = create/edit/render a batch; approve = approve a batch for print and generate/download the
       // real print PDF (deliberately separate: the person who adjusts badges isn't necessarily who releases to the vendor).
+      // Session Videos (2026-11-16): upload a session recording, name the voices, review and approve the title, description, chapters and tags. Nothing is published from here.
+      { key: 'sae.videos.manage',          label: 'Upload and prepare session videos (transcript, title, description)', enforced: true },
       { key: 'sae.badges.view',            label: 'View speaker badge batches',                      enforced: true },
       { key: 'sae.badges.manage',          label: 'Create and edit speaker badge batches',           enforced: true },
       { key: 'sae.badges.approve',         label: 'Approve badges for print and download the print file', enforced: true },

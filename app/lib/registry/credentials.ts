@@ -227,6 +227,15 @@ export const CREDENTIALS: Credential[] = [
     mode: 'old-stays',
   },
   {
+    id: 'r2-session-videos', platform: 'Cloudflare R2 — Session Videos', group: 'File storage',
+    what: 'Session video bucket (private): originals, 720p proxies and audio. Read by the video worker on Railway too.',
+    vars: ['VIDEO_R2_ACCESS_KEY_ID', 'VIDEO_R2_SECRET_ACCESS_KEY', 'VIDEO_R2_ACCOUNT_ID', 'VIDEO_R2_BUCKET'], stores: ['railway'],
+    consoleUrl: 'https://dash.cloudflare.com/?to=/:account/r2/api-tokens',
+    login: 'md@tresconglobal.com (Cloudflare admin)',
+    rotate: 'R2 → Manage API tokens → Create Account API token (Object Read & Write, the session-videos bucket). Save the Access Key ID AND Secret Access Key. → Set the new values on BOTH Railway services (EventPilot and the video worker) → deploy → delete the old token. The bucket also needs a CORS rule allowing PUT from https://eventpilot.tresconglobal.com and exposing the ETag header (browser uploads).',
+    mode: 'old-stays',
+  },
+  {
     id: 'r2-kb', platform: 'Cloudflare R2 — Knowledge Base', group: 'File storage',
     what: 'KB bucket (eventpilot-kb).',
     vars: ['KB_R2_ACCESS_KEY_ID', 'KB_R2_SECRET_ACCESS_KEY', 'KB_R2_ACCOUNT_ID', 'KB_R2_BUCKET'], stores: ['railway'],

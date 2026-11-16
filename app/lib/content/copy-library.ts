@@ -165,6 +165,14 @@ async function messagingSections(owner: ContentOwnerRef): Promise<{ sections: Se
   return { sections: sections.filter(s => s.id && s.text.trim()), docRoles: new Map(docs.map(d => [d.id, d.role])) }
 }
 
+/** Reference text for tools outside the Copy Library (the session video text pack): the live documents' sections as plain text, WITHOUT facts and table sections (where an event's statistics live: session
+ *  videos carry no event figures), plus the effective style notes. Never throws: no documents means empty blocks. */
+export async function referenceForTools(owner: ContentOwnerRef): Promise<{ docBlock: string; noteBlock: string }> {
+  const [{ sections }, notes] = await Promise.all([messagingSections(owner).catch(() => ({ sections: [] as Section[] })), getEffectiveStyleNotes(owner).catch(() => [])])
+  const docBlock = sections.filter(s => s.kind !== 'facts' && s.kind !== 'table').map(s => `[${s.title}] (${s.role === 'messaging' ? 'messaging doc' : s.role === 'style_guide' ? 'style guide' : 'production pack'})\n${s.text}`).join('\n\n').slice(0, 60_000)
+  return { docBlock, noteBlock: notes.length ? `STYLE NOTES:\n${notes.map(n => `- ${n.note}`).join('\n')}` : '' }
+}
+
 const toRef = (s: Section): SourceRef => ({ doc_id: s.doc_id, section_id: s.id, section_hash: sectionHash(s.text), section_title: s.title, section_text: s.text.slice(0, 8000) })
 
 let _gemini: GoogleGenerativeAI | null = null

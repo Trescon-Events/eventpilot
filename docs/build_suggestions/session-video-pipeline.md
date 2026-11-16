@@ -158,3 +158,14 @@ Per session video: transcript (searchable, named), titles (pick one or edit), de
 2. Two DFS session MP4s for the trial (a keynote and a panel), uploaded through the new page once built.
 3. DFS thumbnails approved on the Session Thumbnails page (done, 16 Nov).
 4. The DFS `youtube_footer` approved in the Copy Library, with no event figures. Step 0 reports whether DFS has a Copy Library yet; if not, the producer generates it (post-event items) and approves the footer. DFS output elsewhere must not change (concluded event).
+
+---
+
+## 10. Phase 1 build notes (16 Nov 2026)
+
+Built on `feat/session-video-phase1`, not pushed until the prerequisites below are in place.
+- **Where things live:** page `/admin/events/[id]/session-videos`; API `/api/events/session-videos`; logic `app/lib/session-videos/*`; worker `worker/session-video/*` (Dockerfile there); migration `supabase/session_videos_migration.sql`; permission `sae.videos.manage`; credentials `VIDEO_R2_*` on the Keys page.
+- **Deviations from the spec text:** (1) agenda roles come from KonfHub role tags, not a role column on the link table (as the thumbnails do). (2) No candidate frames and no `session_video_thumbnails` table in Phase 1: thumbnails come from Session Thumbnails (7.6), Phase 2 samples its own frames. (3) The text pack reads the live documents without their facts and table sections (where statistics live) and never touches public figures.
+- **Storage:** a new private R2 bucket (`VIDEO_R2_*`), browser uploads in 64 MB parts through presigned URLs (needs a CORS rule on the bucket: allow PUT from the app origin). `VIDEO_STORAGE_LOCAL_DIR` swaps in plain files for testing the worker on a laptop; never set it in production.
+- **Worker:** a second Railway service from the same repo, Dockerfile path `worker/session-video/Dockerfile`, variables listed at the top of that file. It polls `video_jobs`, one job at a time; a failed job is retried once; jobs left running for 90 minutes are re-queued.
+
