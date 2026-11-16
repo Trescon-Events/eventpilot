@@ -1,3 +1,4 @@
+import { withStatisticsSection } from '@/app/lib/content/figures-context'
 import { setupGateResponse } from '@/app/lib/events/sae-setup'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -60,6 +61,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .order('version', { ascending: false }).limit(1).maybeSingle()
     messagingSections = (rawDoc?.structured_json as { sections?: unknown } | null)?.sections as typeof messagingSections ?? null
   }
+  messagingSections = await withStatisticsSection(speaker.event_id, messagingSections as unknown[] | null) as typeof messagingSections
   const messagingJson = messagingSections ? { sections: messagingSections } : null
 
   let segments: Awaited<ReturnType<typeof generateHeadlines>>

@@ -1,3 +1,4 @@
+import { withStatisticsSection } from '@/app/lib/content/figures-context'
 import { withLibraryFixedLines } from '@/app/lib/content/copy-library'
 import { setupGateResponse } from '@/app/lib/events/sae-setup'
 import { NextRequest, NextResponse } from 'next/server'
@@ -74,7 +75,9 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     variety = { openerStyleIndex: (count ?? 0) % 4, recentHooks: (recent ?? []).map(r => hookOf(r.post_copy)).filter(Boolean) }
   }
   try {
-    ;({ copy, xCopy, validationFindings, attempts } = await generateAnnouncementCopy(event, speaker, partner, messagingDoc?.structured_json ?? null, effectiveRules, kind, variety))
+    const rawJson = messagingDoc?.structured_json as { sections?: unknown[] } | null | undefined
+    const messagingJson = rawJson ? { ...rawJson, sections: await withStatisticsSection(announcement.event_id, rawJson.sections ?? []) } : null
+    ;({ copy, xCopy, validationFindings, attempts } = await generateAnnouncementCopy(event, speaker, partner, messagingJson, effectiveRules, kind, variety))
   } catch (e) {
     console.error('Post copy regeneration failed:', e)
     return NextResponse.json({ error: describeGeminiError(e) }, { status: 502 })

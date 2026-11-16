@@ -1,3 +1,4 @@
+import { withStatisticsSection } from '@/app/lib/content/figures-context'
 import { withLibraryFixedLines } from '@/app/lib/content/copy-library'
 import { setupGateResponse } from '@/app/lib/events/sae-setup'
 import { NextRequest, NextResponse } from 'next/server'
@@ -117,6 +118,8 @@ export async function POST(req: NextRequest) {
       .order('version', { ascending: false }).limit(1).maybeSingle()
     messagingSections = (rawDoc?.structured_json as { sections?: unknown } | null)?.sections as typeof messagingSections ?? null
   }
+  // statistics live in the Stats tab (approved, by phase), not in the doc's sections
+  messagingSections = await withStatisticsSection(body.event_id, messagingSections as unknown[] | null) as typeof messagingSections
   const messagingDoc = messagingSections ? { structured_json: { sections: messagingSections } } : null
 
   // Build inputs FIRST (sync, cheap) — fail fast on a broken/missing

@@ -1,3 +1,4 @@
+import { withStatisticsSection } from '@/app/lib/content/figures-context'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { generateAnnouncementCopy, describeGeminiError, type EventContext } from '@/app/lib/events/announcements'
@@ -26,6 +27,7 @@ export async function POST(req: NextRequest) {
     const { data: raw } = await supabaseAdmin.from('event_messaging_docs').select('structured_json').eq('event_id', body.event_id).eq('status', 'live').order('version', { ascending: false }).limit(1).maybeSingle()
     sections = (raw?.structured_json as { sections?: unknown } | null)?.sections ?? null
   }
+  sections = await withStatisticsSection(body.event_id, sections as unknown[] | null) as typeof sections
   const messaging = sections ? { sections } as Record<string, unknown> : null
 
   const samples = await Promise.all(speakers.map(async (s, i) => {

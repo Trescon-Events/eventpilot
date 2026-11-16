@@ -1,3 +1,4 @@
+import { withStatisticsSection } from '@/app/lib/content/figures-context'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getLatestCompiledReference } from '@/app/lib/content/compile-reference'
@@ -25,7 +26,7 @@ function flattenSection(s: Section): string {
 
 export async function referenceExcerpt(eventId: string, maxChars = 9000): Promise<string> {
   const ref = await getLatestCompiledReference(eventId)
-  const sections = (ref?.sections ?? []) as Section[]
+  const sections = (await withStatisticsSection(eventId, (ref?.sections ?? []) as Section[])) as Section[]
   const keep = sections.filter(s => s.kind === 'text' || s.kind === 'facts')
   let out = ''
   for (const s of keep) { const t = `## ${s.title}\n${flattenSection(s)}\n\n`; if (out.length + t.length > maxChars) break; out += t }
