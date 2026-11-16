@@ -15,7 +15,7 @@ import { COPY_CATALOGUE, CATALOGUE_BY_KEY, isValidVariant, starterVariants, type
 import { docRefs, figureRefs, type DocSourceRef, applyPairs, cleanMirroredText, clientApprovalRequired, ctaLabelFromLibrary, forbiddenHits, isNotUsed, lengthViolations, pickItem, seedCtaText, reviewFinding, sectionHash, statusAfterEdit, type ItemStatus, type OwnerLevel, type SourceRef } from './copy-model'
 import { getEffectiveStyleNotes } from './style-notes'
 import { getPublicFigures, figureRefChanges, recordFigureUsage, type PublicFigure } from './public-figures-read'
-import { NO_STAT_CHECK, STAT_RULE, figureRefsIn, figuresForVariant, figuresPromptBlock, unapprovedNumbers } from './copy-figures'
+import { NO_EVENT_FIGURES, NO_FIGURES_RULE, NO_STAT_CHECK, STAT_RULE, figureRefsIn, figuresForItem, figuresPromptBlock, unapprovedNumbers } from './copy-figures'
 import { unsupportedNumbers } from './public-figures-model'
 
 /* Copy Library, server side (docs/build_suggestions/copy-library.md). Tools read ONLY approved_text (§2.2). Every write is audited (§2.7).
@@ -224,7 +224,7 @@ ${entry.key === 'youtube_footer' ? `\n${linksBlock(ctx.links ?? [])}\n` : ''}
 DOCUMENTS (each section has an id in square brackets)
 ${ctx.docBlock}
 
-${NO_STAT_CHECK.has(entry.key) ? '' : figuresPromptBlock(ctx.figures)}
+${NO_STAT_CHECK.has(entry.key) || NO_EVENT_FIGURES.has(entry.key) ? '' : figuresPromptBlock(ctx.figures)}
 
 ${ctx.noteBlock}
 
@@ -236,7 +236,7 @@ ${variantSpec}
 
 HARD RULES
 - Use only facts, names and titles that appear in the documents or event facts above. Never invent, round or estimate.
-${ctx.eventName ? `- EVENT NAME: every time you name the event, write it exactly as "${ctx.eventName}" (the Event name in EVENT FACTS), even if the documents use a shorter form. Never drop the year or shorten it. A short reference such as "the Summit" is fine.\n` : ''}${NO_STAT_CHECK.has(entry.key) ? '' : STAT_RULE + '\n'}
+${ctx.eventName ? `- EVENT NAME: every time you name the event, write it exactly as "${ctx.eventName}" (the Event name in EVENT FACTS), even if the documents use a shorter form. Never drop the year or shorten it. A short reference such as "the Summit" is fine.\n` : ''}${NO_STAT_CHECK.has(entry.key) ? '' : (NO_EVENT_FIGURES.has(entry.key) ? NO_FIGURES_RULE : STAT_RULE) + '\n'}
 - Spell every name exactly as the documents spell it.
 - Do not use em dashes. Plain, specific language; no filler such as "excited to announce".
 - "pre" means the event has not happened yet (future tense); "post" means it has concluded (past tense); "any" must read correctly in both cases.
@@ -251,7 +251,7 @@ ${feedback ? `\nFIX THESE PROBLEMS FROM YOUR LAST ATTEMPT\n${feedback}\n` : ''}-
     const ids = new Set(got.used_section_ids ?? [])
     const used = ctx.messaging.filter(sec => ids.has(sec.id))
     const text = got.text.trim()
-    const figRefs: SourceRef[] = NO_STAT_CHECK.has(entry.key) ? [] : figureRefsIn(text, figuresForVariant(v.phase, ctx.figures)).map(f => ({ type: 'public_figure', figure_id: f.id, version: f.version }))
+    const figRefs: SourceRef[] = NO_STAT_CHECK.has(entry.key) ? [] : figureRefsIn(text, figuresForItem(entry.key, v.phase, ctx.figures)).map(f => ({ type: 'public_figure', figure_id: f.id, version: f.version }))
     out.push({ length: v.length, phase: v.phase, text, refs: [...(used.length ? used : ctx.messaging).map(toRef), ...figRefs] })
   }
   return out
@@ -266,7 +266,7 @@ async function draftChecked(ctx: GenContext, entry: typeof COPY_CATALOGUE[number
     const drafts = await draftEntry(ctx, entry, wanted, feedback)
     const problems = [...lengthViolations(drafts), ...drafts.flatMap(d => forbiddenHits(d.text, entry.forbidden).map(w => `The ${d.length}/${d.phase} text uses the word "${w}". Do not use it.`))]
     // statistics must be approved figures of that variant's phase: one retry with the numbers named; after that the draft is kept and the number shows as a warning on the item (never a hard failure)
-    const numbers = NO_STAT_CHECK.has(entry.key) ? [] : drafts.flatMap(d => { const bad = unapprovedNumbers(d.text, figuresForVariant(d.phase, ctx.figures), ctx.facts); return bad.length ? [`The ${d.length}/${d.phase} text uses ${bad.join(', ')}, which ${bad.length === 1 ? 'is' : 'are'} not an approved figure for that phase. Remove ${bad.length === 1 ? 'it' : 'them'} or use only the APPROVED FIGURES.`] : [] })
+    const numbers = NO_STAT_CHECK.has(entry.key) ? [] : drafts.flatMap(d => { const bad = unapprovedNumbers(d.text, figuresForItem(entry.key, d.phase, ctx.figures), ctx.facts); return bad.length ? [`The ${d.length}/${d.phase} text uses ${bad.join(', ')}, which ${bad.length === 1 ? 'is' : 'are'} not an approved figure for that phase. Remove ${bad.length === 1 ? 'it' : 'them'}${NO_EVENT_FIGURES.has(entry.key) ? ': this text carries no event figures.' : ' or use only the APPROVED FIGURES.'}`] : [] })
     // the event's own name, in full (documents often use a shorter form), and for the YouTube footer every recorded website / social URL
     const names = ctx.eventName ? drafts.flatMap(d => shortNameHits(d.text, ctx.eventName) ? [`The ${d.length}/${d.phase} text names the event without its year. Write "${ctx.eventName}" every time you name it.`] : []) : []
     const links = entry.key === 'youtube_footer' ? drafts.flatMap(d => { const m = missingLinks(d.text, ctx.links ?? []); return m.length ? [`The ${d.length}/${d.phase} text is missing these exact URLs from EVENT LINKS: ${m.map(l => `${l.label}: ${l.url}`).join(' | ')}. Write each channel as "Label: URL", never a label alone.`] : [] }) : []
@@ -754,7 +754,7 @@ export async function statWarningsFor(owner: ContentOwnerRef, items: Array<{ ass
   const [figures, facts] = await Promise.all([loadFigures(owner), ownerFacts(owner)])
   return items.map(i => {
     if (NO_STAT_CHECK.has(i.asset_key) || !i.working_text?.trim() || isNotUsed(i.working_text)) return []
-    return unapprovedNumbers(i.working_text, figuresForVariant(i.variant_phase as 'pre' | 'post' | 'any', figures), facts)
+    return unapprovedNumbers(i.working_text, figuresForItem(i.asset_key, i.variant_phase as 'pre' | 'post' | 'any', figures), facts)
   })
 }
 

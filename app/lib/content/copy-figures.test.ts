@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { figureRefsIn, figuresForVariant, figuresPromptBlock, figuresPromptBlockFor, unapprovedNumbers, type Phase } from './copy-figures'
+import { NO_EVENT_FIGURES, figureRefsIn, figuresForItem, figuresForVariant, figuresPromptBlock, figuresPromptBlockFor, unapprovedNumbers, type Phase } from './copy-figures'
 import type { PublicFigure } from './public-figures-read'
 
 const fig = (id: string, label: string, display: string, over: Partial<PublicFigure> = {}): PublicFigure => ({ id, catalogue_key: null, category: 'at_a_glance', group_label: null, label, kind: 'figure', payload: { display }, version: 1, basis: 'measured', ...over })
@@ -48,3 +48,12 @@ test('a single-phase block (press release): that phase only, or "none approved y
   assert.match(figuresPromptBlockFor('pre', []), /APPROVED PRE-EVENT FIGURES[\s\S]*none approved yet: state NO statistics/)
 })
 
+
+test('the YouTube footer gets no figures, even approved ones, and any event statistic in it is flagged', () => {
+  assert.ok(NO_EVENT_FIGURES.has('youtube_footer'))
+  assert.deepEqual(figuresForItem('youtube_footer', 'post', { pre, post }), [])
+  assert.deepEqual(figuresForItem('recap', 'post', { pre, post }), post)   // every other item is unchanged
+  const footer = figuresForItem('youtube_footer', 'post', { pre, post })
+  assert.deepEqual(unapprovedNumbers('The summit drew 9,756 participants. Held 3-5 November 2026. #Workforce2030', footer, facts), ['9,756'])
+  assert.deepEqual(unapprovedNumbers('Held 3-5 November 2026 at BIEC, Bengaluru. #Workforce2030 #SkillForFuture', footer, facts), [])
+})

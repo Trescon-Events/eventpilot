@@ -51,5 +51,12 @@ export function figureRefsIn(text: string, figs: PublicFigure[]): PublicFigure[]
 /** The figures that apply to a copy variant: its own phase's; "any" copy has none (it must read right before and after the event, so it carries no statistics). */
 export const figuresForVariant = (phase: 'pre' | 'post' | 'any', byPhase: Record<Phase, PublicFigure[]>): PublicFigure[] => (phase === 'any' ? [] : byPhase[phase])
 
+/** Asset keys that must carry NO event figures at all, approved or not (Madhu, 16 Nov 2026: session videos describe the session, its speakers and the event without numbers).
+ *  They are given no figures and every statistic in the text is flagged. Dates, the venue and the edition are not statistics. */
+export const NO_EVENT_FIGURES = new Set(['youtube_footer'])
+export const NO_FIGURES_RULE = '- NO EVENT FIGURES: write no statistic about the event at all: no footfall, attendee, speaker, session, country, partner or exhibitor counts, no MoUs, deals, money, media reach or percentages, even if the documents contain them. Dates, the venue, the edition and hashtags are fine.'
+/** figuresForVariant, except that an asset key in NO_FIGURES has none. */
+export const figuresForItem = (key: string, phase: 'pre' | 'post' | 'any', byPhase: Record<Phase, PublicFigure[]>): PublicFigure[] => (NO_EVENT_FIGURES.has(key) ? [] : figuresForVariant(phase, byPhase))
+
 /** Asset keys whose text is the client's own words or fixed lines, not generated prose: never number-checked. */
 export const NO_STAT_CHECK = new Set(['approved_quotes', 'cta', 'attribution'])
