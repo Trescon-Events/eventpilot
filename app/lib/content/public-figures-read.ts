@@ -44,7 +44,7 @@ export const isFigureRef = (r: unknown): r is PublicFigureRef => !!r && typeof r
 export async function figureRefChanges(refs: PublicFigureRef[]): Promise<{ changed: boolean; reason: string | null; pairs: Pair[]; current: Map<string, number> }> {
   const current = new Map<string, number>()
   if (!refs.length) return { changed: false, reason: null, pairs: [], current }
-  const { data: figs } = await supabaseAdmin.from('event_public_figures').select('id, kind, label, approved_label, approved_version, is_active').in('id', refs.map(r => r.figure_id))
+  const { data: figs } = await supabaseAdmin.from('event_public_figures').select('id, kind, label, approved_label, approved_version, approved_payload, is_active').in('id', refs.map(r => r.figure_id))
   const byId = new Map((figs ?? []).map(f => [f.id as string, f]))
   const pairs: Pair[] = []; const reasons: string[] = []
   let changed = false
@@ -53,6 +53,7 @@ export async function figureRefChanges(refs: PublicFigureRef[]): Promise<{ chang
     if (!f) { changed = true; reasons.push('A figure this was built from was removed.'); continue }
     current.set(ref.figure_id, f.approved_version as number)
     if (!f.is_active) { changed = true; reasons.push(`${f.label}: removed from the public figures.`); continue }
+    if (f.approved_payload === null) { changed = true; reasons.push(`${f.label}: the approval was withdrawn.`); continue }
     if ((f.approved_version as number) <= ref.version) continue
     changed = true
     const { data: vs } = await supabaseAdmin.from('event_public_figure_versions').select('version, label, payload').eq('figure_id', ref.figure_id).in('version', [ref.version, f.approved_version as number])

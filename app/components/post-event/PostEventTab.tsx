@@ -41,6 +41,8 @@ export default function PostEventTab({ eventId }: { eventId: string }) {
   const [sending, setSending] = useState<'internal' | 'client' | null>(null)
   const [sent, setSent] = useState<{ audience: string; reviewers: Array<{ name: string; email: string; link: string; emailed: boolean }> } | null>(null)
   const [reload, setReload] = useState(0)
+  const [confirming, setConfirming] = useState(false)   // the list of what "approve" would do, shown before anything is approved
+  const [undo, setUndo] = useState<{ ids: string[] } | null>(null)   // the approvals just made, so they can be taken back in one click
   const load = useCallback(() => setReload(k => k + 1), [])
 
   useEffect(() => {
@@ -92,22 +94,20 @@ export default function PostEventTab({ eventId }: { eventId: string }) {
       <Card padded>
         <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)' }}>Post-event</div>
         <div style={{ fontSize: '17px', fontWeight: 800, marginTop: '2px' }}>Public figures: approved for use in public documents</div>
-        <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '2px' }}>Internal actuals and targets are not kept here. Tools only ever read the approved value of an item; a draft, an item in review or a reopened item never goes out.</div>
+        <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginTop: '2px' }}>Internal actuals and targets are not kept here. Tools only ever read the approved value of an item; a draft or an item in review never goes out. A reopened item keeps serving its last approved value until the new one is approved; Withdraw takes an approval back.</div>
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', margin: '12px 0', fontSize: '12.5px' }}>
           <Counter n={count(i => i.status === 'draft' || i.status === 'edited_since_approval')} label="draft" /><Counter n={inReview} label="in review" />
           <Counter n={needsDecision.length} label="need your decision" hot /><Counter n={approved} label="approved" />
           <span style={{ color: 'var(--ink3)' }}>{data.requires_client_approval ? 'Client approval is required for this event.' : 'Client approval is not required for this event.'} <Link href={`/admin/events/${eventId}/details?tab=copy`} style={{ color: 'var(--teal-mid)', fontWeight: 800 }}>Change in Copy Library</Link></span>
         </div>
         <Steps requires={data.requires_client_approval} draft={count(i => i.status === 'draft' || i.status === 'edited_since_approval')} internal={internalRound} client={clientRound} ready={readyForClient} deciding={needsDecision.length} approved={approved} />
+        {!data.requires_client_approval && <div style={{ fontSize: '12.5px', color: 'var(--ink2)', marginTop: '8px' }}><strong>No client approval on this event:</strong> approving a value makes it final, and tools use it straight away. Colleagues can still review first (Send for internal review).</div>}
         {can && (
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginTop: '12px' }}>
             {items.length === 0 && <Button disabled={!!busy} onClick={async () => { const j = await act('start_from_template', {}, 'tpl'); if (j) notify(`Created ${j.created} empty items from the starter template.`, 'success') }}>{busy === 'tpl' ? 'Creating…' : 'Start from template'}</Button>}
             {items.length > 0 && <Button variant="ghost" disabled={!!busy} onClick={async () => { const j = await act('remove_all_empty', {}, 'empty'); if (j) notify(`Removed ${j.removed} empty item${j.removed === 1 ? '' : 's'}.`, 'success') }}>Remove all empty</Button>}
             <Button variant="ghost" disabled={!!busy || draftReady === 0 || internalRound?.status === 'open'} onClick={() => setSending(sending === 'internal' ? null : 'internal')}>Send for internal review{draftReady ? ` (${draftReady})` : ''}</Button>
-            <Button variant="ghost" disabled={!!busy || draftReady === 0} onClick={async () => {
-              const j = await act('approve', {}, 'appr')
-              if (j) notify(`${j.approved} approved${j.moved_to_client ? `, ${j.moved_to_client} ready for the client` : ''}${j.blocked.length ? `. ${j.blocked.length} blocked: ${j.blocked[0].label} (${j.blocked[0].reason})` : ''}.`, j.blocked.length ? 'error' : 'success')
-            }}>Approve internally{draftReady ? ` (${draftReady})` : ''}</Button>
+            <Button variant={confirming ? 'teal' : 'ghost'} disabled={!!busy || draftReady === 0} onClick={() => setConfirming(c => !c)}>{data.requires_client_approval ? 'Approve internally' : 'Approve for public use'}{draftReady ? ` (${draftReady})` : ''}</Button>
             {data.requires_client_approval && <Button disabled={!!busy || readyForClient === 0 || clientRound?.status === 'open'} onClick={() => setSending(sending === 'client' ? null : 'client')}>Send for client approval{readyForClient ? ` (${readyForClient})` : ''}</Button>}
             {finalisable.length > 0 && <Button disabled={!!busy} onClick={async () => {
               const j = await act('final_approve', { ids: finalisable.map(i => i.id) }, 'final')
@@ -116,6 +116,33 @@ export default function PostEventTab({ eventId }: { eventId: string }) {
           </div>
         )}
         {can && sending && <SendPanel key={sending} audience={sending} data={data} act={act} busy={busy} onDone={r => { setSending(null); setSent(r) }} onCancel={() => setSending(null)} />}
+        {can && confirming && (
+          <div style={{ marginTop: '10px', border: '1.5px solid var(--amber)', borderRadius: '10px', padding: '10px 12px', display: 'grid', gap: '8px', fontSize: '12.5px' }}>
+            <div style={{ fontWeight: 800 }}>{data.requires_client_approval ? `Approve these ${draftReady} items internally?` : `Approve these ${draftReady} items for public use?`}</div>
+            <div style={{ color: 'var(--ink2)' }}>{data.requires_client_approval
+              ? 'They move to “ready for the client”. Nothing is public until the client has approved and you give the final approval.'
+              : 'There is no client approval on this event, so each value below becomes the approved public figure and tools (Copy Library, announcements, reports) will use it. You can undo this straight after, or Withdraw an item later.'}</div>
+            <div style={{ maxHeight: '220px', overflow: 'auto', display: 'grid', gap: '3px', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '6px 8px' }}>
+              {items.filter(i => (i.status === 'draft' || i.status === 'edited_since_approval') && isFilled(i)).map(i => <div key={i.id}><strong>{i.label}</strong> · <ValueView kind={i.kind} payload={i.working_payload} /></div>)}
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <Button variant="teal" disabled={!!busy} onClick={async () => {
+                const j = await act('approve', {}, 'appr'); setConfirming(false)
+                if (!j) return
+                if (!data.requires_client_approval && j.approved_ids?.length) setUndo({ ids: j.approved_ids })
+                notify(`${j.approved} approved${j.moved_to_client ? `, ${j.moved_to_client} ready for the client` : ''}${j.blocked.length ? `. ${j.blocked.length} blocked: ${j.blocked[0].label} (${j.blocked[0].reason})` : ''}.`, j.blocked.length ? 'error' : 'success')
+              }}>{busy === 'appr' ? 'Approving…' : `Yes, approve these ${draftReady}`}</Button>
+              <Button variant="ghost" disabled={!!busy} onClick={() => setConfirming(false)}>Cancel</Button>
+            </div>
+          </div>
+        )}
+        {can && undo && (
+          <div style={{ marginTop: '10px', border: '1.5px solid var(--teal-mid)', borderRadius: '10px', padding: '8px 12px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', fontSize: '12.5px' }}>
+            <span><strong>{undo.ids.length} items approved.</strong> They are final and tools can use them now.</span>
+            <Button variant="red" disabled={!!busy} onClick={async () => { const j = await act('withdraw', { ids: undo.ids, reason: 'Undone right after approving' }, 'undo'); if (j) { setUndo(null); notify(`${j.withdrawn} approvals taken back. The values are kept as drafts.`, 'success') } }}>{busy === 'undo' ? 'Undoing…' : 'Undo these approvals'}</Button>
+            <Button variant="ghost" onClick={() => setUndo(null)}>Keep them approved</Button>
+          </div>
+        )}
         {can && internalRound?.status === 'open' && <RoundBar round={internalRound} act={act} busy={busy} />}
         {can && clientRound?.status === 'open' && <RoundBar round={clientRound} act={act} busy={busy} />}
         {sent && (
@@ -282,7 +309,7 @@ function Steps({ requires, draft, internal, client, ready, deciding, approved }:
       { n: 4, title: 'Client review', text: roundText(client), on: client?.status === 'open' },
       { n: 5, title: 'Your decision', text: `${deciding} to decide`, on: deciding > 0 },
     ] : []),
-    { n: requires ? 6 : 3, title: 'Approved', text: `${approved} approved`, on: false },
+    { n: requires ? 6 : 3, title: requires ? 'Approved' : 'Approved (final)', text: `${approved} approved`, on: false },
   ]
   return (
     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -300,12 +327,12 @@ function Steps({ requires, draft, internal, client, ready, deciding, approved }:
 function RoundBar({ round, act, busy }: { round: RoundSummary; act: Act; busy: string | null }) {
   return (
     <div style={{ marginTop: '10px', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '8px 10px', fontSize: '12.5px', display: 'grid', gap: '6px' }}>
-      <div style={{ fontWeight: 800 }}>{round.audience === 'internal' ? 'Internal review is open' : 'Client review is open'} · {round.items} item{round.items === 1 ? '' : 's'}</div>
+      <div style={{ fontWeight: 800 }}>{round.reviewers.length === 0 ? 'Old review round (sent before named reviewers; nobody can answer it)' : round.audience === 'internal' ? 'Internal review is open' : 'Client review is open'} · {round.items} item{round.items === 1 ? '' : 's'}</div>
       {round.reviewers.map(v => <div key={v.id}>{v.name} · {v.answered} of {round.items} answered{v.done ? ' · done' : ''}{!v.last_opened_at ? <span style={{ color: 'var(--ink3)' }}> · not opened yet</span> : ''}</div>)}
       <div><Button variant="ghost" disabled={!!busy} onClick={async () => {
         const j = await act('close_round', { round_id: round.id }, 'close')
         if (j) notify(round.audience === 'client' ? `Round closed. ${j.ready} ready for your decision${j.suggested ? `, ${j.suggested} with a suggestion` : ''}${j.rejected ? `, ${j.rejected} rejected` : ''}.` : 'Internal round closed. Everyone’s answers stay on each item.', 'success')
-      }}>{busy === 'close' ? 'Closing…' : 'Close this round'}</Button></div>
+      }}>{busy === 'close' ? 'Closing…' : round.reviewers.length === 0 ? 'Close this old round' : 'Close this round'}</Button></div>
     </div>
   )
 }
@@ -389,6 +416,7 @@ function ItemCard({ item, act, busy, canEdit, eventId }: { item: Item; act: Act;
   const [notes, setNotes] = useState(item.notes ?? '')
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState<string | null>(null)
+  const [wreason, setWreason] = useState<string | null>(null)   // withdrawing an approval
   const st = STATUS[item.status] ?? STATUS.draft
   const dirty = label !== item.label || JSON.stringify(payload) !== JSON.stringify(item.working_payload) || source !== (item.source ?? '') || basis !== item.basis || notes !== (item.notes ?? '')
   const editable = canEdit && !locked
@@ -443,6 +471,14 @@ function ItemCard({ item, act, busy, canEdit, eventId }: { item: Item; act: Act;
                   <input value={reason} onChange={e => setReason(e.target.value)} placeholder="Why are you reopening it? (required)" style={{ ...fieldStyle, width: '260px' }} />
                   <Button disabled={!!busy || !reason.trim()} onClick={async () => { if (await act('reopen', { figure_id: item.id, reason }, 'reopen')) setReason(null) }}>Reopen</Button>
                   <Button variant="ghost" onClick={() => setReason(null)}>Cancel</Button>
+                </>
+              )}
+              {(item.status === 'approved' || item.status === 'edited_since_approval') && !!item.approved_payload && wreason === null && <Button variant="ghost" disabled={!!busy} onClick={() => setWreason('')}>Withdraw approval</Button>}
+              {wreason !== null && (
+                <>
+                  <input value={wreason} onChange={e => setWreason(e.target.value)} placeholder="Why take the approval back? (required)" style={{ ...fieldStyle, width: '260px' }} />
+                  <Button variant="red" disabled={!!busy || !wreason.trim()} onClick={async () => { if (await act('withdraw', { ids: [item.id], reason: wreason }, 'withdraw')) setWreason(null) }}>Withdraw</Button>
+                  <Button variant="ghost" onClick={() => setWreason(null)}>Cancel</Button>
                 </>
               )}
               {item.status !== 'pending_client' && <Button variant="ghost" disabled={!!busy} onClick={() => act('remove', { figure_id: item.id }, 'rm')}>Remove</Button>}

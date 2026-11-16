@@ -22,6 +22,13 @@ Spec: `docs/build_suggestions/copy-library.md`. Migration `supabase/copy_library
   2. **Workspace badge** — "N need review" shows on the Copy Library tab only, not on the event workspace home.
   Also later: press releases / invites / Konfhub / website / YouTube consume the library in their own builds.
 
+## Post-event figures: confirm before approving, and a real Withdraw (16 Nov 2026) — branch `fix/post-event-approve-confirm`, NOT pushed
+
+**Incident:** on BSS (client approval NOT required) one click on "Approve internally" approved all 24 filled figures at once: with no client approval, internal approval is the FINAL approval and tools read it straight away. Nothing had used the values yet (usage log empty). Undone at Madhu's request: all 24 withdrawn (audited, reason recorded), the 2 stale 13 Nov review rounds closed.
+- **Reopen is not an undo.** Per the spec (§6.5) a reopened item keeps serving its last approved version to tools until the new one is approved. New `withdrawApproval(eventId, ids, reason, by)` (API action `withdraw`) is the undo: clears the approved value (tools stop reading it), item back to draft with its value kept as the working copy, the version stays in the history, the next approval is the next version, Copy Library items built from it are flagged ("the approval was withdrawn").
+- **UI:** the button is "Approve for public use (n)" when no client approval is needed; clicking it opens a list of every item and value, with "Yes, approve these n" / Cancel (nothing is approved by the first click). After a bulk approval an "Undo these approvals" bar appears. Approved or reopened items get "Withdraw approval" (reason required). A line explains the no-client-approval case; the last step reads "Approved (final)"; rounds with no named reviewers are labelled "Old review round" with a Close button; the header no longer says a reopened item never goes out.
+- Verified on a throwaway event (14/14: approve, reopen still serves, withdraw stops tools, version history, flag, re-approve is v2, audit, client-approval events unchanged). The new UI has not been seen in a browser.
+
 ## Reference docs: `raw_text` is the original upload and goes stale (16 Nov 2026) — branch `fix/doc-text-sources`, NOT pushed
 
 `event_messaging_docs` keeps two copies of a doc's text. **`structured_json.sections` is the live doc**: Copy Library, the reference compiler and the guidelines API read it, and every edit (chat edit, producer edit) changes it. **`raw_text` is the text extracted from the uploaded PDF at upload time and is never updated**: a wording fixed in a section stays as it was in `raw_text` (BSS live v3 still has the old "Sharanaprakash" there although its sections are corrected).

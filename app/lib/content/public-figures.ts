@@ -259,21 +259,22 @@ async function internalApprove(f: FigureRow, requires: boolean, by: string | nul
 
 const APPROVABLE: FigureStatus[] = ['draft', 'edited_since_approval', 'client_rejected', 'client_suggested']
 
-export async function approveInternally(eventId: string, ids: string[] | 'all', by: string | null): Promise<{ approved: number; moved_to_client: number; blocked: Array<{ id: string; label: string; reason: string }> }> {
+export async function approveInternally(eventId: string, ids: string[] | 'all', by: string | null): Promise<{ approved: number; approved_ids: string[]; moved_to_client: number; blocked: Array<{ id: string; label: string; reason: string }> }> {
   const { data } = await supabaseAdmin.from('event_public_figures').select(FIGURE_COLS).eq('event_id', eventId).eq('is_active', true)
   let rows = ((data ?? []) as FigureRow[]).filter(r => APPROVABLE.includes(r.status) && isFilled(r.kind, r.working_payload))
   if (ids !== 'all') rows = rows.filter(r => ids.includes(r.id))
   const requires = await requiresClientApproval(eventId)
   const checks = await checkItems(eventId, rows)
   let approved = 0, toClient = 0
+  const approvedIds: string[] = []
   const blocked: Array<{ id: string; label: string; reason: string }> = []
   for (const r of rows) {
     const c = checks.get(r.id)
     if (c?.errors.length) { blocked.push({ id: r.id, label: r.label, reason: c.errors[0].message }); continue }
     const out = await internalApprove(r, requires, by)
-    if (out.status === 'approved') approved++; else toClient++
+    if (out.status === 'approved') { approved++; approvedIds.push(r.id) } else toClient++
   }
-  return { approved, moved_to_client: toClient, blocked }
+  return { approved, approved_ids: approvedIds, moved_to_client: toClient, blocked }
 }
 
 // ── Acting on feedback (the producer decides) ────────────────────────────────
@@ -354,6 +355,26 @@ export async function finalApprove(eventId: string, ids: string[], override: boo
 }
 
 // ── Reopen (§6.5) ───────────────────────────────────────────────────────────
+
+/** Takes an approval BACK: the item stops being readable by any tool (approved value cleared) and goes to draft with its value kept as the working copy, so it has to be approved again.
+ *  This is the undo for a mistaken approval. (Reopen is different: it is for changing an approved value, and tools keep reading the last approved version until the new one is approved.)
+ *  The approved versions stay in the history; a later approval is the next version. Items built from it in the Copy Library are flagged for review. */
+export async function withdrawApproval(eventId: string, ids: string[], reason: string, by: string | null): Promise<{ withdrawn: number; ids: string[] }> {
+  if (!reason.trim()) throw new FigureError('Say why you are withdrawing the approval.', 400)
+  if (!ids.length) return { withdrawn: 0, ids: [] }
+  const { data } = await supabaseAdmin.from('event_public_figures').select(FIGURE_COLS).eq('event_id', eventId).eq('is_active', true).in('id', ids)
+  const rows = ((data ?? []) as FigureRow[]).filter(r => r.approved_payload !== null && r.approved_payload !== undefined && (r.status === 'approved' || r.status === 'edited_since_approval'))
+  const done: string[] = []
+  for (const r of rows) {
+    const now = new Date().toISOString()
+    const { error } = await supabaseAdmin.from('event_public_figures').update({ approved_payload: null, approved_label: null, approved_by: null, approved_at: null, status: 'draft', updated_at: now }).eq('id', r.id)
+    if (error) throw new FigureError(error.message, 500)
+    await logFigureChange({ event_id: eventId, figure_id: r.id, action: 'withdraw', before: { status: r.status, approved_version: r.approved_version, approved_payload: r.approved_payload }, after: { status: 'draft', approved_payload: null }, reason: reason.trim(), by })
+    await flagItemsForFigure(eventId, r.id, by).catch(e => console.error('[public-figures] copy library flag failed:', e instanceof Error ? e.message : e))
+    done.push(r.id)
+  }
+  return { withdrawn: done.length, ids: done }
+}
 
 export async function reopen(id: string, reason: string, by: string | null): Promise<FigureRow> {
   const f = await loadFigure(id)
