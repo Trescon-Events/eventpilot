@@ -12,6 +12,7 @@ import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import CopyLibraryTab from '@/app/components/copy-library/CopyLibraryTab'
 import SetupTab from './SetupTab'
 import PostEventTab from '@/app/components/post-event/PostEventTab'
+import StatsInDoc from '@/app/components/post-event/StatsInDoc'
 import AffectedRulesCard from '@/app/components/rules/AffectedRulesCard'
 import type { AffectedRule } from '@/app/lib/content/edit-diff'
 import EventDaysCard from '@/app/admin/operations-shared/EventDaysCard'
@@ -862,7 +863,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
       />
 
       <div style={{ padding: '20px 32px 0', display: 'flex', gap: '4px', borderBottom: '1px solid var(--border-light)' }}>
-        {([['overview', 'Overview'], ['messaging', 'Reference Docs'], ['copy', 'Copy Library'], ['postevent', 'Figures'], ['setup', 'Setup']] as const).map(([key, label]) => (
+        {([['overview', 'Overview'], ['messaging', 'Reference Docs'], ['copy', 'Copy Library'], ['postevent', 'Stats'], ['setup', 'Setup']] as const).map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             style={{
               padding: '10px 18px', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit',
@@ -1272,6 +1273,11 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
               </Card>
             )}
 
+            {activeRole === 'messaging' && (roleLiveDoc || roleDraftDoc) && (
+              <StatsInDoc key={(roleDraftDoc ?? roleLiveDoc)!.id} eventId={eventId} docId={(roleDraftDoc ?? roleLiveDoc)!.id} canManage={canManage}
+                lifted={(((roleDraftDoc ?? roleLiveDoc)!.structured_json as { lifted_stats?: Array<{ at: string; items: Array<{ label: string; phase: string }> }> } | null)?.lifted_stats) ?? []}
+                conflicts={(((roleDraftDoc ?? roleLiveDoc)!.structured_json as { lift_conflicts?: Array<{ label: string; doc_value: string; stats_value: string; phase: string }> } | null)?.lift_conflicts) ?? []} onChanged={loadAll} />
+            )}
             {roleLiveDoc && !roleDraftDoc && (
               <LiveDocView key={roleLiveDoc.id} doc={roleLiveDoc} canManage={canManage} session={session} onUpdated={loadAll} onOpenRules={() => setTab('setup')} />
             )}

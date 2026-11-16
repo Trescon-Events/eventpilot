@@ -1,3 +1,5 @@
+import { figuresContextFor } from './figures-context'
+import { figureValue, promptFigures } from './copy-figures'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { createHash } from 'node:crypto'
 import { getLatestCompiledReference, type CompiledSection } from './compile-reference'
@@ -41,6 +43,8 @@ export type EventGuidelines = {
   document_version: number
   approved_at: string | null
   event_facts: Array<{ key: TrackedEventField; label: string; value: string }>
+  /** The event's approved statistics for its CURRENT phase (pre-event before the event, post-event after). The only statistics to use: the document's sections no longer carry them. */
+  statistics: { phase: 'pre' | 'post'; items: Array<{ label: string; group: string | null; value: string; version: number }> }
   sections: GuidelineSection[]
   validation_rules: ValidationRule[]
 }
@@ -53,12 +57,13 @@ export async function getEventGuidelines(eventId: string): Promise<EventGuidelin
     .maybeSingle() as { data: (Record<string, unknown> & { id: string; name: string; umbrella_id: string | null }) | null }
   if (!event) return null
 
-  const [compiled, rules, umbrella] = await Promise.all([
+  const [compiled, rules, umbrella, figs] = await Promise.all([
     getLatestCompiledReference(eventId),
     resolveEffectiveRules(eventId),
     event.umbrella_id
       ? supabaseAdmin.from('event_umbrellas').select('id, name').eq('id', event.umbrella_id).maybeSingle().then(r => r.data)
       : Promise.resolve(null),
+    figuresContextFor(eventId),
   ])
 
   const sourceDocIds = (compiled?.source_doc_ids ?? []) as string[]
@@ -87,6 +92,7 @@ export async function getEventGuidelines(eventId: string): Promise<EventGuidelin
     document_version: compiled?.version ?? 0,
     approved_at: approvedAt,
     event_facts,
+    statistics: { phase: figs.phase, items: promptFigures(figs.figures).map(f => ({ label: f.label, group: f.group_label, value: figureValue(f), version: f.version })) },
     sections,
     validation_rules: rules,
   }
@@ -97,7 +103,8 @@ export function computeGuidelinesETag(g: EventGuidelines): string {
     .update(JSON.stringify(g.validation_rules.map(r => r.rule_key)))
     .digest('hex')
     .slice(0, 12)
-  return `"${g.document_version}-${rulesHash}"`
+  const statsHash = createHash('sha256').update(JSON.stringify([g.statistics.phase, g.statistics.items])).digest('hex').slice(0, 8)
+  return `"${g.document_version}-${rulesHash}-${statsHash}"`
 }
 
 const ROLE_TITLES: Record<CompiledSection['role'], string> = {
@@ -154,6 +161,10 @@ export function renderGuidelinesMarkdown(g: EventGuidelines, includeRoles: Compi
     out.push('')
   }
 
+  out.push(`## Statistics (${g.statistics.phase === 'pre' ? 'pre-event' : 'post-event'}, approved)`)
+  out.push(g.statistics.items.length ? 'These are the ONLY statistics to use in copy for this phase. Copy each exactly as written; the sections below do not carry statistics.' : 'No statistics are approved for this phase yet: state no statistics.')
+  out.push(...g.statistics.items.map(i => `- ${i.group ? `${i.group}: ` : ''}${i.label}: ${i.value}`), '')
+
   for (const role of includeRoles) {
     const roleSections = g.sections.filter(s => s.role === role).sort((a, b) => a.order - b.order)
     if (!roleSections.length) continue
@@ -179,6 +190,7 @@ export function renderGuidelinesJson(g: EventGuidelines, includeRoles: CompiledS
     document_version: g.document_version,
     approved_at: g.approved_at,
     event_facts: g.event_facts,
+    statistics: g.statistics,
     sections: g.sections.filter(s => includeRoles.includes(s.role)),
     validation_rules: g.validation_rules,
     umbrella: g.umbrella,

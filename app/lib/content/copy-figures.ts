@@ -7,14 +7,14 @@ import { numberTokens } from './public-figures-model'
 
 export type Phase = 'pre' | 'post'
 
-const valueOf = (f: PublicFigure): string => {
+export const figureValue = (f: PublicFigure): string => {
   const p = f.payload
   return f.kind === 'figure' ? (p.display ?? '') : f.kind === 'outcome' ? (p.text ?? '') : (p.rows ?? []).map(r => `${r.label} ${r.display}`).join('; ')
 }
-const line = (f: PublicFigure) => `- ${f.group_label ? `${f.group_label}: ` : ''}${f.label}: ${valueOf(f)}`
+const line = (f: PublicFigure) => `- ${f.group_label ? `${f.group_label}: ` : ''}${f.label}: ${figureValue(f)}`
 
 /** The figures a model may be shown: single figures and outcomes (breakdowns stay out of prose, as in the key-figures block). */
-export const promptFigures = (figs: PublicFigure[]): PublicFigure[] => figs.filter(f => f.kind !== 'breakdown' && valueOf(f).trim())
+export const promptFigures = (figs: PublicFigure[]): PublicFigure[] => figs.filter(f => f.kind !== 'breakdown' && figureValue(f).trim())
 
 /** The block that goes into a generation prompt: the approved figures per phase, or a plain "none approved yet". */
 export function figuresPromptBlock(byPhase: Record<Phase, PublicFigure[]>): string {
@@ -35,7 +35,7 @@ const isClaim = (n: string): boolean => !/^(19|20)\d{2}$/.test(n) && n.replace(/
 
 /** The numbers in `text` that are neither in the approved figures for its phase nor in the event facts (dates, venue). Empty = every number is accounted for. */
 export function unapprovedNumbers(text: string, figs: PublicFigure[], facts: string): string[] {
-  const allowed = new Set(numberTokens(`${figs.map(valueOf).join('\n')}\n${figs.map(f => f.label).join('\n')}\n${facts}`))
+  const allowed = new Set(numberTokens(`${figs.map(figureValue).join('\n')}\n${figs.map(f => f.label).join('\n')}\n${facts}`))
   return [...new Set(numberTokens(text).filter(n => isClaim(n) && !allowed.has(n)))]
 }
 
@@ -43,7 +43,7 @@ export function unapprovedNumbers(text: string, figs: PublicFigure[], facts: str
 export function figureRefsIn(text: string, figs: PublicFigure[]): PublicFigure[] {
   const have = new Set(numberTokens(text))
   return figs.filter(f => {
-    const toks = numberTokens(valueOf(f)).filter(isClaim)
+    const toks = numberTokens(figureValue(f)).filter(isClaim)
     return toks.length > 0 && toks.every(t => have.has(t))
   })
 }

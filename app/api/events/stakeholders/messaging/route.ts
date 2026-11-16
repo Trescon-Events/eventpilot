@@ -1,6 +1,7 @@
 import { actorOf, logDocAudit, logDocAuditById } from '@/app/lib/content/doc-audit'
 import { requireContentEditAccess } from '@/app/lib/content/content-access'
 import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
+import { liftStatsAtUpload } from '@/app/lib/content/stats-lift-server'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -356,6 +357,8 @@ async function runExtraction(docId: string, buffer: Buffer, fileName: string): P
     const match  = text.match(/\{[\s\S]*\}/)
     const parsed = match ? JSON.parse(match[0]) : null
     structuredJson = normalizeSections(parsed)
+    // the statistics go to the Stats tab (pre-event drafts) and leave the sections; on any failure the sections stay exactly as extracted
+    structuredJson = await liftStatsAtUpload(docId, structuredJson)
     rawClarifications = (parsed as ParsedExtraction | null)?.clarifications ?? []
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)

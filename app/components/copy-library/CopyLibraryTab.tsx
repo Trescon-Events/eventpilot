@@ -79,7 +79,7 @@ export default function CopyLibraryTab({ ownerType, ownerId }: { ownerType: 'eve
         {data.figures && (() => {
           const ph = data.phase ?? 'pre', n = data.figures[ph], flagged = own.filter(i => i.status === 'needs_review' && i.source !== 'from_doc')
           return (<>
-            {n === 0 && <div style={{ marginTop: '10px', fontSize: '12.5px', border: '1px solid var(--amber)', borderRadius: '8px', padding: '8px 10px' }}><strong style={{ color: 'var(--amber)' }}>No approved {ph === 'pre' ? 'pre-event' : 'post-event'} figures yet.</strong> Copy for this phase is generated without statistics, and any number in it shows a warning. Approve the figures in the <a href={`?tab=postevent`} style={{ color: 'var(--teal-mid)', fontWeight: 800 }}>Figures tab</a> first.</div>}
+            {n === 0 && <div style={{ marginTop: '10px', fontSize: '12.5px', border: '1px solid var(--amber)', borderRadius: '8px', padding: '8px 10px' }}><strong style={{ color: 'var(--amber)' }}>No approved {ph === 'pre' ? 'pre-event' : 'post-event'} figures yet.</strong> Copy for this phase is generated without statistics, and any number in it shows a warning. Approve the figures in the <a href={`?tab=postevent`} style={{ color: 'var(--teal-mid)', fontWeight: 800 }}>Stats tab</a> first.</div>}
             {n > 0 && <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--ink3)' }}>{n} approved {ph === 'pre' ? 'pre-event' : 'post-event'} figure{n === 1 ? '' : 's'}: every statistic in this phase&apos;s copy must be one of them.</div>}
             {canEdit && flagged.length > 0 && <div style={{ marginTop: '8px' }}><Button variant="ghost" disabled={!!busy} onClick={async () => {
               let done = 0, failed = 0
@@ -214,7 +214,7 @@ function ItemEditor({ item, act, busy, canEdit }: { item: Item; act: (a: string,
       </div>
 
       {(item.stat_warnings?.length ?? 0) > 0 && (
-        <div style={{ border: '1px solid var(--amber)', borderRadius: '8px', padding: '6px 10px', fontSize: '12.5px' }}><strong style={{ color: 'var(--amber)' }}>Not an approved figure:</strong> {item.stat_warnings!.join(', ')}. Statistics here must be approved figures of this phase. Approve them in the Figures tab, or remove them from the text.</div>
+        <div style={{ border: '1px solid var(--amber)', borderRadius: '8px', padding: '6px 10px', fontSize: '12.5px' }}><strong style={{ color: 'var(--amber)' }}>Not an approved figure:</strong> {item.stat_warnings!.join(', ')}. Statistics here must be approved figures of this phase. Approve them in the Stats tab, or remove them from the text.</div>
       )}
       {item.status === 'needs_review' && (
         <div style={{ border: '1px solid var(--red)', borderRadius: '8px', padding: '8px 10px', fontSize: '12.5px', display: 'grid', gap: '6px' }}>

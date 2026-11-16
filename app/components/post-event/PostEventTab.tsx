@@ -121,8 +121,8 @@ export default function PostEventTab({ eventId }: { eventId: string }) {
   return (
     <div style={{ display: 'grid', gap: '16px' }}>
       <Card padded>
-        <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)' }}>Figures</div>
-        <div style={{ fontSize: '17px', fontWeight: 800, marginTop: '2px' }}>Public figures: approved for use in public documents</div>
+        <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--teal-mid)' }}>Stats</div>
+        <div style={{ fontSize: '17px', fontWeight: 800, marginTop: '2px' }}>Stats: approved for use in public documents</div>
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', margin: '8px 0 2px' }}>
           {(['pre', 'post'] as const).map(ph => (
             <button key={ph} type="button" onClick={() => { setPhase(ph); setPicked(new Set()); setPanel(null); setSending(null); setFilter('all') }} style={{ border: `1.5px solid ${data.phase === ph ? 'var(--teal-mid)' : 'var(--border-light)'}`, background: data.phase === ph ? 'var(--surface)' : 'transparent', color: data.phase === ph ? 'var(--teal-mid)' : 'var(--ink2)', borderRadius: '999px', padding: '5px 16px', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>{ph === 'pre' ? 'Pre-event' : 'Post-event'} <span style={{ fontWeight: 600 }}>{data.counts[ph]}</span></button>
