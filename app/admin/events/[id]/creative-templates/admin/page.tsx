@@ -742,7 +742,8 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   function deleteLayer(layerId: string) {
     if (!activeVariant) return
     pushUndo()
-    updateActiveVariant({ layers: activeVariant.layers.filter(l => l.id !== layerId) })
+    // a deleted text layer must not leave a stale snap / stack link on another layer (it would still change where that layer's text sits)
+    updateActiveVariant({ layers: activeVariant.layers.filter(l => l.id !== layerId).map(l => (l.type === 'text' && (l.snap_below_layer_id === layerId || l.snap_above_layer_id === layerId) ? { ...l, ...(l.snap_below_layer_id === layerId ? { snap_below_layer_id: undefined } : {}), ...(l.snap_above_layer_id === layerId ? { snap_above_layer_id: undefined } : {}) } : l)) })
   }
 
   function reorderLayers(activeId: string, overId: string) {
@@ -2483,6 +2484,14 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
           <option value="left">Left</option>
           <option value="center">Center</option>
           <option value="right">Right</option>
+        </Select>
+      </label>
+      <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'block' }} title="Where the text sits inside this layer's box. Applies when the layer is not stacked above or below another text layer.">
+        Vertical align
+        <Select value={layer.valign ?? 'top'} onChange={e => onChange({ valign: e.target.value === 'top' ? undefined : (e.target.value as TextLayer['valign']) })} style={{ width: '100%', marginTop: '3px' }}>
+          <option value="top">Top</option>
+          <option value="middle">Middle</option>
+          <option value="bottom">Bottom</option>
         </Select>
       </label>
       {/* Uppercase toggle (2026-08-04, per Madhu: "we sometimes go with full

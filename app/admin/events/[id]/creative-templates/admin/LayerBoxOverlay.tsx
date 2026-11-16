@@ -611,7 +611,7 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
               // edge actually was during editing.
               <div style={{
                 position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none',
-                display: 'flex', alignItems: 'flex-start',
+                display: 'flex', alignItems: layer.valign === 'middle' ? 'center' : layer.valign === 'bottom' ? 'flex-end' : 'flex-start',
                 justifyContent: layer.align === 'center' ? 'center' : layer.align === 'right' ? 'flex-end' : 'flex-start',
               }}>
                 <span style={{

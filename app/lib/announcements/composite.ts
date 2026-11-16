@@ -135,6 +135,9 @@ export type TextLayer = {
   // written back to the underlying speaker/partner data itself.
   uppercase?: boolean
   align?: 'left' | 'center' | 'right'
+  // Vertical position of the text inside the layer's own box (2026-11-16): 'top' (what every layer did before), 'middle' or 'bottom'. Unset = exactly the old behaviour, so no saved template changes.
+  // Applies to a layer that is not in a snap chain (snap below / stack above): a stacked layer's position comes from its stack. A link to a layer that no longer exists does not count as a chain.
+  valign?: 'top' | 'middle' | 'bottom'
   font_family?: TextLayerFont // denormalized at variant-save time from a brand_fonts row — see app/lib/branding/fonts.ts. Falls back to a generic sans-serif when absent.
   // "Snap below previous text layer" (2026-08-02) — id of another TEXT
   // layer in the same variant. When set, this layer's rendered Y is
@@ -709,7 +712,15 @@ export async function resolveTextLayerYPositions(
 
     let y = layer.y
     const above = layer.snap_below_layer_id ? textLayers.get(layer.snap_below_layer_id) : undefined
-    if (above) {
+    const stackedAbove = !!layer.snap_above_layer_id && textLayers.has(layer.snap_above_layer_id)
+    const stackedBy = [...textLayers.values()].some(l => l.snap_above_layer_id === layer.id)
+    if (layer.valign && layer.valign !== 'top' && !above && !stackedAbove && !stackedBy) {
+      // vertical alignment inside the layer's own box (not part of a chain)
+      const value = resolveTextValue(layer, texts)
+      const h = value ? await measureTextLayerHeight(layer, value, variant.canvas_width, variant.canvas_height) : 0
+      const room = Math.max(0, layer.height - h)
+      y = layer.y + (layer.valign === 'middle' ? room / 2 : room)
+    } else if (above) {
       const aboveY = await resolve(above.id)
       const aboveValue = resolveTextValue(above, texts)
       const aboveHeight = aboveValue ? await measureTextLayerHeight(above, aboveValue, variant.canvas_width, variant.canvas_height) : 0
