@@ -1,3 +1,4 @@
+import { surfaceOf } from '@/app/lib/content/copy-surface'
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/app/lib/access/session'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
   try {
     const lib = await loadLibrary(owner)
     const [findings, usage, can, statWarnings, figureCounts] = await Promise.all([
-      findingsFor(owner, lib.items.map(i => i.working_text)), usageCounts(lib.items.map(i => i.id)), canManageRules(req, owner),
+      findingsFor(owner, lib.items.map(i => i.working_text), lib.items.map(i => surfaceOf(i.asset_key, i.variant_length))), usageCounts(lib.items.map(i => i.id)), canManageRules(req, owner),
       statWarningsFor(owner, lib.items).catch(() => lib.items.map(() => [] as string[])), approvedFigureCounts(owner).catch(() => null),
     ])
     let suggest_post = false, dates: string | null = null, requires_override: boolean | null = null

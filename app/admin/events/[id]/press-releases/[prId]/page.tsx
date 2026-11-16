@@ -343,7 +343,7 @@ export default function PressReleaseWorkspace({ params }: { params: Promise<{ id
         const res = await fetch('/api/events/stakeholders/content/validate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ event_id: eventId, text }),
+          body: JSON.stringify({ event_id: eventId, text, surface: 'long_form' }),
         })
         if (!res.ok) return [field, []] as [ComplianceField, ComplianceFinding[]]
         const data = await res.json()

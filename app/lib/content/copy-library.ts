@@ -6,7 +6,8 @@ import { COPY_GENERATION_CONFIG, generateCopy } from '@/app/lib/ai/gemini-call'
 import { ownerColumn, ownerInsertColumns, ownerLabel, type ContentOwnerRef } from './owner'
 import { resolveEffectiveDocs } from './resolve-reference-docs'
 import { resolveEffectiveRulesForOwner } from './resolve-validation-rules'
-import { validateText, type ValidationFinding } from './validate'
+import { ruleErrorsFor, ruleFeedback, surfaceOf } from './copy-surface'
+import { rulesForSurface, validateText, type Surface, type ValidationFinding, type ValidationRule } from './validate'
 import { contentText } from './edit-diff'
 import { COPY_CATALOGUE, CATALOGUE_BY_KEY, isValidVariant, starterVariants, type VariantLength, type VariantPhase } from './copy-catalogue'
 import { docRefs, figureRefs, type DocSourceRef, applyPairs, cleanMirroredText, clientApprovalRequired, ctaLabelFromLibrary, forbiddenHits, isNotUsed, lengthViolations, pickItem, seedCtaText, reviewFinding, sectionHash, statusAfterEdit, type ItemStatus, type OwnerLevel, type SourceRef } from './copy-model'
@@ -140,9 +141,10 @@ export async function usageCounts(itemIds: string[]): Promise<Record<string, Rec
   return out
 }
 
-export async function findingsFor(owner: ContentOwnerRef, texts: string[]): Promise<ValidationFinding[][]> {
-  const rules = await resolveEffectiveRulesForOwner(owner).catch(() => [])
-  return texts.map(t => (t.trim() ? validateText(t, rules) : []))
+/** `surfaces[i]` is the kind of text `texts[i]` is (default 'social': every rule that applies to social copy, as before rule scopes existed). */
+export async function findingsFor(owner: ContentOwnerRef, texts: string[], surfaces?: Surface[]): Promise<ValidationFinding[][]> {
+  const rules = await resolveEffectiveRulesForOwner(owner, 'any').catch(() => [])
+  return texts.map((t, i) => (t.trim() ? validateText(t, rulesForSurface(rules, surfaces?.[i] ?? 'social')) : []))
 }
 
 // ── Generation (§5) ─────────────────────────────────────────────────────────
@@ -176,9 +178,9 @@ async function ownerFacts(owner: ContentOwnerRef): Promise<string> {
   return u ? `Series name: ${u.name}` : ''
 }
 
-export type GenerateResult = { created: string[]; skipped: string[]; failed: Array<{ key: string; error: string }> }
-type Draft = { length: VariantLength; phase: VariantPhase; text: string; refs: SourceRef[] }
-type GenContext = { messaging: Section[]; docBlock: string; noteBlock: string; facts: string; figures: { pre: PublicFigure[]; post: PublicFigure[] } }
+export type GenerateResult = { created: string[]; skipped: string[]; failed: Array<{ key: string; error: string }>; /** drafts that still carry an error-level rule finding after the one regeneration; the item shows the finding */ rule_errors?: number }
+type Draft = { length: VariantLength; phase: VariantPhase; text: string; refs: SourceRef[]; ruleErrors?: number }
+type GenContext = { messaging: Section[]; docBlock: string; noteBlock: string; facts: string; figures: { pre: PublicFigure[]; post: PublicFigure[] }; rules?: ValidationRule[] }
 const NO_FIGURES = { pre: [] as PublicFigure[], post: [] as PublicFigure[] }
 
 /** The approved figures of each phase: the only source of statistics in generated copy (an umbrella has none of its own). */
@@ -189,12 +191,12 @@ async function loadFigures(owner: ContentOwnerRef): Promise<{ pre: PublicFigure[
 }
 
 async function buildContext(owner: ContentOwnerRef): Promise<GenContext> {
-  const [{ sections }, notes, facts, figures] = await Promise.all([messagingSections(owner), getEffectiveStyleNotes(owner), ownerFacts(owner), loadFigures(owner)])
+  const [{ sections }, notes, facts, figures, rules] = await Promise.all([messagingSections(owner), getEffectiveStyleNotes(owner), ownerFacts(owner), loadFigures(owner), resolveEffectiveRulesForOwner(owner, 'any').catch(() => [] as ValidationRule[])])
   const messaging = sections.filter(s => s.role === 'messaging')
   if (!messaging.length) throw new Error('There is no live messaging document to build from. Approve a messaging document first.')
   const docBlock = sections.map(s => `[${s.id}] ${s.title} (${s.role === 'messaging' ? 'messaging doc' : s.role === 'style_guide' ? 'style guide, context only' : 'production pack, context only'})\n${s.text}`).join('\n\n').slice(0, 90_000)
   const noteBlock = notes.length ? `STYLE NOTES (writing guidance; the documents above win if they disagree):\n${notes.map(n => `- ${n.note}`).join('\n')}` : ''
-  return { messaging, docBlock, noteBlock, facts, figures }
+  return { messaging, docBlock, noteBlock, facts, figures, rules }
 }
 
 /** approved_quotes: the document's words, never generated. Markdown markers are stripped and quote marks made curly (cleanMirroredText); the words are untouched. */
@@ -246,7 +248,9 @@ ${feedback ? `\nFIX THESE PROBLEMS FROM YOUR LAST ATTEMPT\n${feedback}\n` : ''}-
   return out
 }
 
-/** Drafts an entry and checks it: a shorter variant must be shorter than a longer one, and no forbidden word may appear. One retry with the problems named. */
+/** Drafts an entry and checks it: a shorter variant must be shorter than a longer one, no forbidden word may appear, statistics must be approved figures, and no error-level style rule may be broken.
+ *  Generate, check, and if anything is wrong regenerate ONCE with every problem named; after that the draft is kept (a length or forbidden-word problem is refused), and any rule error that
+ *  remains shows on the item for the producer to fix (never a hard failure). */
 async function draftChecked(ctx: GenContext, entry: typeof COPY_CATALOGUE[number], wanted: Array<{ length: VariantLength; phase: VariantPhase }>): Promise<Draft[]> {
   let feedback = ''
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -254,9 +258,11 @@ async function draftChecked(ctx: GenContext, entry: typeof COPY_CATALOGUE[number
     const problems = [...lengthViolations(drafts), ...drafts.flatMap(d => forbiddenHits(d.text, entry.forbidden).map(w => `The ${d.length}/${d.phase} text uses the word "${w}". Do not use it.`))]
     // statistics must be approved figures of that variant's phase: one retry with the numbers named; after that the draft is kept and the number shows as a warning on the item (never a hard failure)
     const numbers = NO_STAT_CHECK.has(entry.key) ? [] : drafts.flatMap(d => { const bad = unapprovedNumbers(d.text, figuresForVariant(d.phase, ctx.figures), ctx.facts); return bad.length ? [`The ${d.length}/${d.phase} text uses ${bad.join(', ')}, which ${bad.length === 1 ? 'is' : 'are'} not an approved figure for that phase. Remove ${bad.length === 1 ? 'it' : 'them'} or use only the APPROVED FIGURES.`] : [] })
-    if (!problems.length && !numbers.length) return drafts
-    if (attempt === 1) { if (problems.length) throw new Error(problems.join(' ')); return drafts }
-    feedback = [...problems, ...numbers].join('\n')
+    const ruleErrs = drafts.map(d => ruleErrorsFor(ctx.rules, entry.key, d))
+    const rules = drafts.flatMap((d, i) => ruleFeedback(d, ruleErrs[i]))
+    if (!problems.length && !numbers.length && !rules.length) return drafts
+    if (attempt === 1) { if (problems.length) throw new Error(problems.join(' ')); return drafts.map((d, i) => ({ ...d, ruleErrors: ruleErrs[i].length })) }
+    feedback = [...problems, ...numbers, ...rules].join('\n')
   }
   return []
 }
@@ -326,6 +332,7 @@ export async function generateStarterSet(owner: ContentOwnerRef, by: string | nu
       if (toDraft.length) {
         const drafts = await draftChecked(ctx, entry, toDraft)
         for (const d of drafts) await insert(entry.key, d, d.text, d.refs, 'generated')
+        result.rule_errors = (result.rule_errors ?? 0) + drafts.filter(d => (d.ruleErrors ?? 0) > 0).length
         made += drafts.length
         if (!drafts.length) result.failed.push({ key: entry.key, error: 'The model returned no usable text.' })
       }
@@ -480,8 +487,8 @@ export async function restoreUse(id: string, by: string | null): Promise<ItemRow
 }
 
 /** Errors that block submission (§5): error-level findings against the event's effective rules. */
-export async function blockingFindings(owner: ContentOwnerRef, text: string): Promise<ValidationFinding[]> {
-  const [f] = await findingsFor(owner, [text])
+export async function blockingFindings(owner: ContentOwnerRef, text: string, surface: Surface = 'social'): Promise<ValidationFinding[]> {
+  const [f] = await findingsFor(owner, [text], [surface])
   return f.filter(x => x.severity === 'error')
 }
 
@@ -505,7 +512,7 @@ export async function approveInternally(id: string, by: string | null): Promise<
   if (!item.working_text.trim()) throw new CopyError('There is no text to approve.', 409)
   if (item.status === 'pending_client') throw new CopyError('Already with the client.', 409)
   if (item.status === 'approved') throw new CopyError('Already approved.', 409)
-  const errs = await blockingFindings(owner, item.working_text)
+  const errs = await blockingFindings(owner, item.working_text, surfaceOf(item.asset_key, item.variant_length))
   if (errs.length) throw new CopyError(`${errs.length} rule error${errs.length === 1 ? '' : 's'} must be fixed first: ${errs[0].message}`, 409, { findings: errs })
   let requires = false
   if (owner.kind === 'event') { const ev = await eventFacts(owner.id); requires = clientApprovalRequired(ev?.copy_requires_client_approval, ev?.type) }
@@ -646,8 +653,8 @@ const figureLine = (f: PublicFigure) => `- ${f.group_label ? `${f.group_label}: 
 
 /** Context for generation that does not read the messaging document: only the event facts and the style notes. */
 async function lightContext(owner: ContentOwnerRef): Promise<GenContext> {
-  const [notes, facts] = await Promise.all([getEffectiveStyleNotes(owner).catch(() => []), ownerFacts(owner)])
-  return { messaging: [], docBlock: '', noteBlock: notes.length ? `STYLE NOTES (writing guidance):\n${notes.map(n => `- ${n.note}`).join('\n')}` : '', facts, figures: NO_FIGURES }
+  const [notes, facts, rules] = await Promise.all([getEffectiveStyleNotes(owner).catch(() => []), ownerFacts(owner), resolveEffectiveRulesForOwner(owner, 'any').catch(() => [] as ValidationRule[])])
+  return { messaging: [], docBlock: '', noteBlock: notes.length ? `STYLE NOTES (writing guidance):\n${notes.map(n => `- ${n.note}`).join('\n')}` : '', facts, figures: NO_FIGURES, rules }
 }
 
 /** After-the-event key figures, grounded ONLY on the event's approved public figures. The model may not reword, round or add a number: every number in the

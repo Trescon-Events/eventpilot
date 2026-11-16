@@ -36,6 +36,11 @@
 
 export type RuleType = 'forbidden_term' | 'forbidden_pattern' | 'required_format' | 'proximity' | 'canonical_name'
 export type Severity = 'error' | 'warning'
+/** Where a rule applies (16 Nov 2026): 'all' (default), social posts and announcements, or long-form copy. */
+export type RuleScope = 'all' | 'social' | 'long_form'
+/** The kind of text being checked. SAE and short copy are 'social'; press releases and long Copy Library items are 'long_form'. */
+export type Surface = 'social' | 'long_form'
+export const RULE_SCOPES: RuleScope[] = ['all', 'social', 'long_form']
 
 export type ValidationRule = {
   rule_key: string
@@ -44,6 +49,8 @@ export type ValidationRule = {
   severity: Severity
   message: string
   source_clause: string | null
+  /** Absent means 'all'. */
+  scope?: RuleScope
 }
 
 export type ValidationFinding = {
@@ -151,4 +158,9 @@ export function validateText(text: string, rules: ValidationRule[]): ValidationF
     }
   }
   return findings.sort((a, b) => a.offset - b.offset)
+}
+
+/** The rules that apply to a kind of text: a rule scoped 'all' (or with no scope) applies everywhere, 'social' and 'long_form' only to their own surface. */
+export function rulesForSurface<T extends { scope?: RuleScope }>(rules: T[], surface: Surface): T[] {
+  return rules.filter(r => !r.scope || r.scope === 'all' || r.scope === surface)
 }

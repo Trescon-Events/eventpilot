@@ -72,14 +72,14 @@ export default function CopyLibraryTab({ ownerType, ownerId }: { ownerType: 'eve
           {data.needs_review > 0 && <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--red)' }}>{data.needs_review} need{data.needs_review === 1 ? 's' : ''} review</span>}
           {canEdit && <Button variant="ghost" disabled={!!busy} onClick={async () => {
             const j = await act('generate', {}, 'generate')
-            if (j) notify(j.failed?.length ? `Generated ${j.created.length}; ${j.failed.length} failed: ${j.failed.map((f: { key: string; error: string }) => `${f.key} (${f.error})`).join('; ')}` : `Generated ${j.created.length} item${j.created.length === 1 ? '' : 's'}.`, j.failed?.length ? 'error' : 'success')
+            if (j) notify((j.failed?.length ? `Generated ${j.created.length}; ${j.failed.length} failed: ${j.failed.map((f: { key: string; error: string }) => `${f.key} (${f.error})`).join('; ')}` : `Generated ${j.created.length} item${j.created.length === 1 ? '' : 's'}.`) + (j.rule_errors ? ` ${j.rule_errors} still break${j.rule_errors === 1 ? 's' : ''} a rule after one rewrite: the finding is shown on the item.` : ''), j.failed?.length || j.rule_errors ? 'error' : 'success')
           }}>{busy === 'generate' ? 'Generating… (up to a minute)' : 'Generate starter set'}</Button>}
           {canEdit && <Button disabled={!!busy || waiting === 0} onClick={async () => { const j = await act('send_bundle', {}, 'bundle'); if (j?.url) setBundleUrl(j.url) }}>{busy === 'bundle' ? 'Sending…' : `Send for client approval${waiting ? ` (${waiting})` : ''}`}</Button>}
         </div>
         {data.figures && (() => {
           const ph = data.phase ?? 'pre', n = data.figures[ph], flagged = own.filter(i => i.status === 'needs_review' && i.source !== 'from_doc')
           return (<>
-            {n === 0 && <div style={{ marginTop: '10px', fontSize: '12.5px', border: '1px solid var(--amber)', borderRadius: '8px', padding: '8px 10px' }}><strong style={{ color: 'var(--amber)' }}>No approved {ph === 'pre' ? 'pre-event' : 'post-event'} figures yet.</strong> Copy for this phase is generated without statistics, and any number in it shows a warning. Approve the figures in the <a href={`?tab=postevent`} style={{ color: 'var(--teal-mid)', fontWeight: 800 }}>Stats tab</a> first.</div>}
+            {n === 0 && <div style={{ marginTop: '10px', fontSize: '12.5px', color: 'var(--ink3)' }}><strong style={{ color: 'var(--ink2)' }}>No approved {ph === 'pre' ? 'pre-event' : 'post-event'} figures yet.</strong> Only Key figures and the post-event recap need them: approve them in the <a href={`?tab=postevent`} style={{ color: 'var(--teal-mid)', fontWeight: 800 }}>Stats tab</a> before generating those two. Every other item is generated without statistics, and any number in it shows a warning.</div>}
             {n > 0 && <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--ink3)' }}>{n} approved {ph === 'pre' ? 'pre-event' : 'post-event'} figure{n === 1 ? '' : 's'}: every statistic in this phase&apos;s copy must be one of them.</div>}
             {canEdit && flagged.length > 0 && <div style={{ marginTop: '8px' }}><Button variant="ghost" disabled={!!busy} onClick={async () => {
               let done = 0, failed = 0

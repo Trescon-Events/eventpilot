@@ -4,14 +4,15 @@ import { getSession } from '@/app/lib/access/session'
 import { ownerOfRow, ownerInsertColumns } from '@/app/lib/content/owner'
 import { checkRuleDraft } from '@/app/lib/content/rule-check'
 import { canManageRules, fixedTextsForOwner, logRuleChange, parseOwner } from '@/app/lib/content/rule-admin'
+import { RULE_SCOPES, type RuleScope } from '@/app/lib/content/validate'
 import { loadRulesView, RULE_COLS as COLS } from '@/app/lib/content/rules-view'
 
 /* Rules screen API (2026-10-15, docs/build_suggestions/rules-screen-and-trescon-layer.md Part 3).
 
    GET   ?owner_type=event|umbrella|org&owner_id=…   — the effective rules for that owner grouped by level, with `inherited`,
                                                        `disabled_by` (an override above switched it off) and what the caller may edit.
-   POST  { owner_type, owner_id, rule_key, rule_type, pattern, severity, message, source_clause, origin, acknowledge_warnings? }
-   PATCH ?id=…  { severity?, message?, pattern?, source_clause?, origin?, is_active?, acknowledge_warnings?, source_doc_edit_id? }
+   POST  { owner_type, owner_id, rule_key, rule_type, pattern, severity, message, source_clause, origin, scope? ('all' default | 'social' | 'long_form'), acknowledge_warnings? }
+   PATCH ?id=…  { severity?, message?, pattern?, source_clause?, origin?, scope?, is_active?, acknowledge_warnings?, source_doc_edit_id? }
    Every write is recorded in validation_rule_changes (who, when, before, after). Rules are never deleted from here: switching one
    off keeps it (and its audit trail). */
 
@@ -43,13 +44,15 @@ export async function POST(req: NextRequest) {
   if (!message) return NextResponse.json({ error: 'A message is required — it is what the reviewer sees.' }, { status: 400 })
   if (!source_clause) return NextResponse.json({ error: 'A source clause is required (for example "DIFC style guide §9" or "Trescon house rule").' }, { status: 400 })
   if (origin !== 'client' && origin !== 'trescon') return NextResponse.json({ error: 'Origin must be client or trescon.' }, { status: 400 })
+  const scope = (body.scope === undefined || body.scope === null || body.scope === '' ? 'all' : body.scope) as RuleScope
+  if (!RULE_SCOPES.includes(scope)) return NextResponse.json({ error: 'Scope must be all, social or long_form.' }, { status: 400 })
 
   const check = checkRuleDraft({ rule_type, pattern, severity, message, rule_key }, await fixedTextsForOwner(owner))
   if (check.errors.length > 0) return NextResponse.json({ error: check.errors[0], errors: check.errors, warnings: check.warnings }, { status: 400 })
   if (check.warnings.length > 0 && body.acknowledge_warnings !== true) return NextResponse.json({ error: check.warnings[0], warnings: check.warnings, needs_acknowledgement: true }, { status: 409 })
 
   const { data, error } = await supabaseAdmin.from('event_validation_rules')
-    .insert({ ...ownerInsertColumns(owner), rule_key, rule_type, pattern, severity, message, source_clause, origin, is_active: true, review_status: 'accepted' })
+    .insert({ ...ownerInsertColumns(owner), rule_key, rule_type, pattern, severity, message, source_clause, origin, scope, is_active: true, review_status: 'accepted' })
     .select(COLS).single()
   if (error) return NextResponse.json({ error: error.code === '23505' ? `A rule with the key "${rule_key}" already exists at this level.` : error.message }, { status: error.code === '23505' ? 409 : 500 })
   try { await logRuleChange({ rule_id: data.id, rule_key, owner, action: 'create', before: null, after: data, changed_by: auth.sid }) }
@@ -78,6 +81,7 @@ export async function PATCH(req: NextRequest) {
   if (typeof body.message === 'string') { if (!body.message.trim()) return NextResponse.json({ error: 'A message is required.' }, { status: 400 }); patch.message = body.message.trim() }
   if (typeof body.source_clause === 'string') { if (!body.source_clause.trim()) return NextResponse.json({ error: 'A source clause is required.' }, { status: 400 }); patch.source_clause = body.source_clause.trim() }
   if (body.origin === 'client' || body.origin === 'trescon') patch.origin = body.origin
+  if (body.scope !== undefined) { if (!RULE_SCOPES.includes(body.scope as RuleScope)) return NextResponse.json({ error: 'Scope must be all, social or long_form.' }, { status: 400 }); patch.scope = body.scope }
   if (typeof body.pattern === 'string') patch.pattern = body.pattern
   if (typeof body.is_active === 'boolean') patch.is_active = body.is_active
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 })

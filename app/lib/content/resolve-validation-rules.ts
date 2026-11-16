@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
-import type { ValidationRule } from './validate'
+import { rulesForSurface, type ValidationRule, type Surface } from './validate'
 import type { ContentOwnerRef } from './owner'
 
 /* Reference Documents spec, Stage 3 (2026-09-10) — rewritten 2026-09-11 for the umbrella/event structural separation, and
@@ -17,10 +17,10 @@ import type { ContentOwnerRef } from './owner'
 
 export type RuleLevel = 'event' | 'umbrella' | 'org'
 export type RuleOrigin = 'client' | 'trescon'
-export type EffectiveRuleRow = ValidationRule & { id: string; level: RuleLevel; origin: RuleOrigin }
+export type EffectiveRuleRow = ValidationRule & { id: string; level: RuleLevel; origin: RuleOrigin }   // scope comes from ValidationRule
 export type OverrideRow = { id: string; event_id: string | null; umbrella_id: string | null; rule_key: string; is_disabled: boolean; reason: string; created_by: string | null; created_at: string }
 
-const RULE_COLS = 'id, rule_key, rule_type, pattern, severity, message, source_clause, origin'
+const RULE_COLS = 'id, rule_key, rule_type, pattern, severity, message, source_clause, origin, scope'
 
 async function activeRulesFor(column: 'event_id' | 'umbrella_id' | 'org_scope', id: string, level: RuleLevel): Promise<EffectiveRuleRow[]> {
   const { data, error } = await supabaseAdmin
@@ -85,15 +85,19 @@ export async function resolveEffectiveRuleRowsForOwner(owner: ContentOwnerRef): 
 
 const toValidationRule = ({ rule_key, rule_type, pattern, severity, message, source_clause }: EffectiveRuleRow): ValidationRule =>
   ({ rule_key, rule_type, pattern, severity, message, source_clause })
+const toScopedRule = (r: EffectiveRuleRow): ValidationRule => ({ ...toValidationRule(r), scope: r.scope ?? 'all' })
 
-export async function resolveEffectiveRulesForOwner(owner: ContentOwnerRef): Promise<ValidationRule[]> {
-  return (await resolveEffectiveRuleRowsForOwner(owner)).map(toValidationRule)
+/** `surface` picks the rules that apply to that kind of text (default 'social': SAE, announcements, short copy, every caller that existed before scopes). The returned rules carry
+ *  no scope field, so what reaches a prompt or a response is exactly what it was before. 'any' returns every active rule WITH its scope (the Copy Library filters per item itself). */
+export async function resolveEffectiveRulesForOwner(owner: ContentOwnerRef, surface: Surface | 'any' = 'social'): Promise<ValidationRule[]> {
+  const rows = await resolveEffectiveRuleRowsForOwner(owner)
+  return surface === 'any' ? rows.map(toScopedRule) : rulesForSurface(rows, surface).map(toValidationRule)
 }
 
 // Convenience wrapper for the many existing call sites that only ever deal
 // with a real event id (SAE generation, the standalone content-check
 // endpoint) — kept so those callers don't need to know about
 // ContentOwnerRef at all.
-export async function resolveEffectiveRules(eventId: string): Promise<ValidationRule[]> {
-  return resolveEffectiveRulesForOwner({ kind: 'event', id: eventId })
+export async function resolveEffectiveRules(eventId: string, surface: Surface | 'any' = 'social'): Promise<ValidationRule[]> {
+  return resolveEffectiveRulesForOwner({ kind: 'event', id: eventId }, surface)
 }

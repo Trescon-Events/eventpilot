@@ -50,7 +50,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'event_id and text required' }, { status: 400 })
   }
 
-  const rules = await resolveEffectiveRulesForOwner({ kind: ownerType, id: eventId })
+  // surface: 'long_form' for press releases and other long copy (skips rules scoped to social posts); default 'social' = every rule that applies to announcements, as before rule scopes
+  const surface = body?.surface === 'long_form' ? 'long_form' : 'social'
+  const rules = await resolveEffectiveRulesForOwner({ kind: ownerType, id: eventId }, surface)
   const findings = validateText(text, rules)
   return NextResponse.json({ findings, rules_checked: rules.length })
 }

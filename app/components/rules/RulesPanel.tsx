@@ -11,15 +11,18 @@ import { readCanonical, writeCanonical, suggestLoose } from '@/app/lib/content/c
    (Trescon-wide, umbrella, this event); owners with permission can add / edit / switch rules off, and anyone can try text in the test box. */
 
 type Level = 'org' | 'umbrella' | 'event'
+type Scope = 'all' | 'social' | 'long_form'
+const SCOPE_LABEL: Record<Scope, string> = { all: 'All copy', social: 'Social and announcements only', long_form: 'Long-form only' }
+const scopeOptions = <><option value="all">{SCOPE_LABEL.all} (default)</option><option value="social">{SCOPE_LABEL.social}</option><option value="long_form">{SCOPE_LABEL.long_form}</option></>
 type Rule = {
   id: string; rule_key: string; rule_type: string; pattern: string; severity: 'error' | 'warning'; message: string; source_clause: string | null
-  origin: 'client' | 'trescon'; is_active: boolean; level: Level; inherited: boolean; disabled_by: Level | null
+  origin: 'client' | 'trescon'; scope?: Scope; is_active: boolean; level: Level; inherited: boolean; disabled_by: Level | null
   override: { id: string; reason: string; level: Level } | null
 }
 type LevelBlock = { level: Level; label: string; can_edit: boolean; rules: Rule[] }
 type Payload = { levels: LevelBlock[]; can_override: boolean; owner_level: Level }
 type Finding = { rule_key: string; severity: string; message: string; match: string }
-type Draft = { rule_key: string; rule_type: string; pattern: string; severity: 'error' | 'warning'; message: string; source_clause: string; origin: 'client' | 'trescon' }
+type Draft = { rule_key: string; rule_type: string; pattern: string; severity: 'error' | 'warning'; message: string; source_clause: string; origin: 'client' | 'trescon'; scope: Scope }
 
 const TYPE_HELP: Record<string, string> = {
   forbidden_term: 'A word or phrase that must not appear. Case-insensitive; also catches endings, so "seamless" catches "seamlessly".',
@@ -28,7 +31,7 @@ const TYPE_HELP: Record<string, string> = {
   proximity: 'JSON {"a":"regex","b":"regex","maxDistance":40}. Flagged when a and b appear within that many characters of each other.',
   canonical_name: 'Protects one name or title. Type the approved form exactly; "Also catch" is a pattern that finds any attempt at it, right or wrong. Anything it finds that is not the exact approved form is flagged, and the approved form is offered as the fix.',
 }
-const EMPTY: Draft = { rule_key: '', rule_type: 'forbidden_term', pattern: '', severity: 'error', message: '', source_clause: '', origin: 'client' }
+const EMPTY: Draft = { rule_key: '', rule_type: 'forbidden_term', pattern: '', severity: 'error', message: '', source_clause: '', origin: 'client', scope: 'all' }
 const input = { width: '100%', padding: '6px 8px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '12.5px', background: 'var(--card)', color: 'var(--ink)', boxSizing: 'border-box' } as const
 function CanonicalFields({ pattern, onChange }: { pattern: string; onChange: (pattern: string, canonicalChanged: string | null) => void }) {
   const c = readCanonical(pattern)
@@ -143,6 +146,7 @@ export default function RulesPanel({ ownerType, ownerId, title = 'Rules' }: { ow
                     <span style={tag(r.severity === 'error' ? 'var(--red-light, #fde8e8)' : 'var(--amber-light, #fdf3dc)', r.severity === 'error' ? 'var(--red)' : 'var(--amber)')}>{r.severity}</span>
                     <span style={tag('var(--surface)', 'var(--ink3)')}>{r.rule_type.replace('_', ' ')}</span>
                     <span style={tag(r.origin === 'client' ? 'var(--teal-light)' : 'var(--surface)', r.origin === 'client' ? 'var(--teal-mid)' : 'var(--ink2)')}>{r.origin === 'client' ? 'Client' : 'Trescon'}</span>
+                    {r.scope && r.scope !== 'all' && <span style={tag('var(--surface)', 'var(--teal-mid)')}>{r.scope === 'social' ? 'social only' : 'long-form only'}</span>}
                     {r.inherited && <span style={tag('var(--surface)', 'var(--ink3)')}>inherited</span>}
                     {!r.is_active && <span style={tag('var(--surface)', 'var(--ink3)')}>disabled</span>}
                     {r.disabled_by && <span style={tag('var(--surface)', 'var(--amber)')}>off at {r.disabled_by === 'event' ? 'this event' : 'umbrella'}</span>}
@@ -156,6 +160,7 @@ export default function RulesPanel({ ownerType, ownerId, title = 'Rules' }: { ow
                       <input value={edit.message ?? r.message} onChange={e => setEdit({ ...edit, message: e.target.value })} style={input} placeholder="Message" />
                       <input value={edit.source_clause ?? r.source_clause ?? ''} onChange={e => setEdit({ ...edit, source_clause: e.target.value })} style={input} placeholder="Source clause" />
                       <select value={edit.origin ?? r.origin} onChange={e => setEdit({ ...edit, origin: e.target.value as Draft['origin'] })} style={input}><option value="client">Client rule</option><option value="trescon">Trescon rule</option></select>
+                      <select value={edit.scope ?? r.scope ?? 'all'} onChange={e => setEdit({ ...edit, scope: e.target.value as Scope })} style={input} title="Where this rule is checked">{scopeOptions}</select>
                       {warnings.length > 0 && <div style={{ fontSize: '12px', color: 'var(--amber)' }}>{warnings.join(' ')}</div>}
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <Button variant="lime" onClick={() => saveEdit(r, warnings.length > 0)} disabled={busy}>{warnings.length > 0 ? 'Save anyway' : 'Save'}</Button>
@@ -224,6 +229,7 @@ export default function RulesPanel({ ownerType, ownerId, title = 'Rules' }: { ow
           <input value={draft.message} onChange={e => setDraft({ ...draft, message: e.target.value })} placeholder="Message the reviewer sees (required)" style={input} />
           <input value={draft.source_clause} onChange={e => setDraft({ ...draft, source_clause: e.target.value })} placeholder='Source clause (required) — for example "DIFC style guide §9" or "Trescon house rule"' style={input} />
           <select value={draft.origin} onChange={e => setDraft({ ...draft, origin: e.target.value as Draft['origin'] })} style={input}><option value="client">Client rule (from a client-approved document)</option><option value="trescon">Trescon rule (house style)</option></select>
+          <select value={draft.scope} onChange={e => setDraft({ ...draft, scope: e.target.value as Scope })} style={input} title="Where this rule is checked">{scopeOptions}</select>
           {warnings.length > 0 && <div style={{ fontSize: '12px', color: 'var(--amber)' }}>{warnings.join(' ')}</div>}
           <div style={{ display: 'flex', gap: '8px' }}>
             <Button variant="lime" onClick={() => addRule(warnings.length > 0)} disabled={busy}>{warnings.length > 0 ? 'Save anyway' : 'Save rule'}</Button>

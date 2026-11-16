@@ -7,7 +7,7 @@ import type { OverrideRow, RuleLevel } from './resolve-validation-rules'
 /* The effective rules for an owner, grouped by level (Trescon-wide, umbrella, this event) with what the caller may edit. One implementation shared by
    GET /api/events/validation-rules (the Rules screen) and the live-doc edit flow (which of these rules mention text a doc edit just changed). */
 
-export const RULE_COLS = 'id, event_id, umbrella_id, org_scope, rule_key, rule_type, pattern, severity, message, source_clause, origin, is_active, review_status, created_at'
+export const RULE_COLS = 'id, event_id, umbrella_id, org_scope, rule_key, rule_type, pattern, severity, message, source_clause, origin, scope, is_active, review_status, created_at'
 export type RuleRecord = { id: string; event_id: string | null; umbrella_id: string | null; org_scope: string | null; rule_key: string; rule_type: string; pattern: string; severity: string; message: string; source_clause: string | null; origin: string; is_active: boolean; review_status: string }
 export type RuleViewRule = RuleRecord & { level: RuleLevel; inherited: boolean; disabled_by: RuleLevel | null; override: { id: string; reason: string; level: RuleLevel } | null }
 export type RuleViewLevel = { level: RuleLevel; label: string; owner_type: ContentOwnerRef['kind']; owner_id: string; can_edit: boolean; rules: RuleViewRule[] }

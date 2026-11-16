@@ -4073,3 +4073,10 @@ Speakers give flight/arrival/departure details through a private mobile link so 
 - Generate Preview now draws the REAL thing: the layout plus the event's thumbnail card (selected one, else its first) once per placeholder speaker, through the same `drawThumbnail` as real thumbnails (`app/lib/thumbnails/render.ts`, extracted from `renderThumbnail`). Only the first card is the moderator. Same placeholder speaker (name, company, photo) repeated.
 - Falls back to the layout alone, with an amber note under the controls, when the event has no thumbnail card, the layout has no Speaker Area, or the placeholder photo has no detected head.
 
+## Rule scope + Copy Library rule check (16 Nov 2026, Claude with Madhu) — built, NOT pushed
+- `event_validation_rules.scope` ('all' default | 'social' | 'long_form'); migration `supabase/validation_rule_scope_migration.sql` (Madhu runs it BEFORE the code deploys: the resolver now selects the column). `rulesForSurface` in validate.ts; `resolveEffectiveRules*` take a surface (default 'social', so SAE and every old caller see exactly what they saw before; scope is stripped from what they return). Copy Library asks for 'any' and filters per item.
+- Copy Library item kinds (`copy-surface.ts`): long-form = press_release_ending, organiser_line, recap, youtube_footer, konfhub_description, about_event medium/long, figures_block long. Findings listing, submit/approve gates and generation all use the item's surface. Press release compliance check sends `surface: 'long_form'`.
+- Generation now: generate -> check error-level rules for the item's surface -> ONE rewrite with the findings named -> keep what remains (shown on the item; toast says how many).
+- Rules screen: scope select on add/edit, tag on the row. DFS: royal/protocol rules set social-only and the patronage rule tightened (`dfs-patronage-rule.ts`), both through the audited rules API.
+- Banner: only Key figures and recap need approved figures. NB: the feat/session-video-phase1 branch also edits draftChecked/copy-library.ts (youtube_footer no-figures): expect a small merge there.
+
