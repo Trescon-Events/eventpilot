@@ -2,6 +2,7 @@ import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { ownerOfRow, ownerInsertColumns, type ContentOwnerRef } from './owner'
+import { docSourceText } from './doc-text'
 
 /* Reference Documents spec — extraction-time clarification Q&A (2026-09-10,
    agreed with Madhu after Stage 3). See
@@ -164,7 +165,6 @@ Return a JSON object of EXACTLY this shape (same as the original extraction, plu
 }
 Include the FULL sections array and FULL default_fields object — every section, not just ones you changed. Only use information actually present in the document or in the answers given — never invent, infer, or embellish. Return JSON only, no commentary, no markdown fences.
 
-ORIGINAL DOCUMENT TEXT:
 `
 
 type StructuredJson = { sections: Array<Record<string, unknown>>; default_fields?: Record<string, unknown> }
@@ -204,7 +204,9 @@ export async function processAnsweredRound(docId: string): Promise<{ nextRound: 
   const atCap = doc.clarification_rounds_used >= MAX_CLARIFICATION_ROUNDS
 
   const model = getGemini().getGenerativeModel({ model: GEMINI_FLASH_MODEL })
-  const prompt = `${ROUND_PROMPT}${doc.raw_text ?? ''}\n\nCURRENT STRUCTURED CONTENT:\n${currentContent}\n\nQUESTIONS ASKED AND ANSWERS GIVEN THIS ROUND:\n${qaBlock}`
+  // The doc's LIVE sections (what every other tool reads), not raw_text: raw_text is the original upload and is stale after any section edit. raw_text only when there are no sections yet.
+  const source = docSourceText({ structured_json: doc.structured_json as { sections?: unknown } | null, raw_text: doc.raw_text as string | null })
+  const prompt = `${ROUND_PROMPT}${source.from === 'raw_text' ? 'ORIGINAL DOCUMENT TEXT (the document has no sections yet):' : "DOCUMENT TEXT (the document's current sections):"}\n${source.text}\n\nCURRENT STRUCTURED CONTENT:\n${currentContent}\n\nQUESTIONS ASKED AND ANSWERS GIVEN THIS ROUND:\n${qaBlock}`
   const result = await model.generateContent([{ text: prompt }])
   const text = result.response.text().trim()
   const match = text.match(/\{[\s\S]*\}/)

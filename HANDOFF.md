@@ -22,6 +22,12 @@ Spec: `docs/build_suggestions/copy-library.md`. Migration `supabase/copy_library
   2. **Workspace badge** — "N need review" shows on the Copy Library tab only, not on the event workspace home.
   Also later: press releases / invites / Konfhub / website / YouTube consume the library in their own builds.
 
+## Reference docs: `raw_text` is the original upload and goes stale (16 Nov 2026) — branch `fix/doc-text-sources`, NOT pushed
+
+`event_messaging_docs` keeps two copies of a doc's text. **`structured_json.sections` is the live doc**: Copy Library, the reference compiler and the guidelines API read it, and every edit (chat edit, producer edit) changes it. **`raw_text` is the text extracted from the uploaded PDF at upload time and is never updated**: a wording fixed in a section stays as it was in `raw_text` (BSS live v3 still has the old "Sharanaprakash" there although its sections are corrected).
+- `app/lib/content/doc-text.ts` is the one place that says which text a tool reads: `docSourceText(doc)` = the live sections, else `raw_text` only when the doc has no sections yet; `publishedSectionTexts(sections)` = title + content only. **A section's `change_note` is an internal record of an edit (often quoting the old wrong wording) and is never read, generated from or rule-checked.** Any code that scans doc sections with rules must go through it.
+- `clarifications.ts` (the clarification Q&A round) now sends the live sections instead of `raw_text`. Nothing else in the app read `raw_text`; nothing in the app rule-checks doc sections today.
+
 ## Session thumbnails (15 Nov 2026) — branch `feat/session-thumbnails`, built and committed, NOT pushed; migration `supabase/session_thumbnails_migration.sql` NOT yet run
 
 Spec: `docs/build_suggestions/session-thumbnails.md` (§11 records Madhu's Step 0 decisions). One YouTube thumbnail per agenda session that has speakers: layout background + tag pill + title + speaker cards in ONE row (up to 6).
