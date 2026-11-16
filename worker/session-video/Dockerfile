@@ -4,7 +4,8 @@
 FROM node:22-bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY package.json package-lock.json ./
+# .npmrc carries legacy-peer-deps=true (the Cloudflare packages' peer ranges conflict with next); without it npm ci fails
+COPY package.json package-lock.json .npmrc ./
 RUN npm ci --ignore-scripts
 COPY . .
 ENV NODE_ENV=production
