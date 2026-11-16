@@ -4067,3 +4067,9 @@ Speakers give flight/arrival/departure details through a private mobile link so 
 - On upload, `liftStatsAtUpload` does the same automatically on the new draft (best effort; any failure leaves sections as extracted). Drafts still need approval in the Stats tab.
 - `getEventGuidelines` now returns `statistics` (approved figures for the event's current phase); markdown and JSON render it, ETag includes it. This reaches the external guidelines API.
 - NOT yet done: existing docs (BSS v3 etc.) have not been moved; announcements, short bios/headlines, email polish, press-release chat still read the doc sections directly and should be switched to `statistics`.
+
+## Thumbnail layout preview with placeholder speakers — 16 Nov 2026 (Claude, with Madhu)
+- Template editor, thumbnail layout variants: new **Sample session for this preview** panel (session type with suggestions, session title, speakers shown 1-6, "first one is the moderator"). Defaults per kind: keynote 1, fireside 2 + moderator, panel 4 + moderator. Kept in the browser (localStorage per layout), not saved on the template.
+- Generate Preview now draws the REAL thing: the layout plus the event's thumbnail card (selected one, else its first) once per placeholder speaker, through the same `drawThumbnail` as real thumbnails (`app/lib/thumbnails/render.ts`, extracted from `renderThumbnail`). Only the first card is the moderator. Same placeholder speaker (name, company, photo) repeated.
+- Falls back to the layout alone, with an amber note under the controls, when the event has no thumbnail card, the layout has no Speaker Area, or the placeholder photo has no detected head.
+

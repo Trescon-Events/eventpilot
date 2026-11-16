@@ -1,3 +1,6 @@
+import { loadPreviewCard } from '@/app/lib/thumbnails/data'
+import { drawThumbnail, type DrawPerson } from '@/app/lib/thumbnails/render'
+import { MAX_SPEAKERS, speakerAreaOf } from '@/app/lib/thumbnails/geometry'
 import { composeMementoLayers } from '@/app/lib/mementos/render'
 import { toMonochrome } from '@/app/lib/media/monochrome'
 import { NextRequest, NextResponse } from 'next/server'
@@ -75,6 +78,8 @@ type PreviewBody = {
   hide_reference_layers?: boolean
   // Table Screen cards: draw the card as the moderator (their tag and other moderator-only layers) or as another speaker.
   preview_role?: 'speaker' | 'moderator'
+  // Thumbnail layouts: the sample session and how many placeholder speakers to draw (the event's thumbnail card, the placeholder speaker repeated; the first is the moderator when asked).
+  thumb_preview?: { session_type?: string; session_title?: string; count?: number; moderator?: boolean }
 }
 
 export async function POST(req: NextRequest) {
@@ -88,7 +93,32 @@ export async function POST(req: NextRequest) {
   if (body.variant.category === 'thumbnail_card') body.variant = layersForRole(body.variant, body.preview_role === 'moderator')   // the moderator label shows only on the moderator's card
   const { assets, texts } = await resolvePreviewInputs({ stakeholder_type: body.stakeholder_type, variant: body.variant, speaker_id: body.speaker_id, partner_id: body.partner_id, event_id: body.event_id })
   // Thumbnail layouts: sample session text so the tag pill and title can be placed (the real ones come from the agenda)
-  if (body.variant.category === 'thumbnail_layout') { texts.session_type = texts.session_type ?? (body.variant.thumbnail_layout_kind === 'fireside' ? 'FIRESIDE CHAT' : body.variant.thumbnail_layout_kind === 'panel' ? 'PANEL DISCUSSION' : 'KEYNOTE'); texts.session_title = texts.session_title ?? 'A New Era for Global Wealth: Capital, Technology and the Rise of Asia' }
+  let thumbNote: string | null = null
+  let thumbFull: Buffer | null = null
+  if (body.variant.category === 'thumbnail_layout') {
+    const tp = body.thumb_preview ?? {}
+    const kind = body.variant.thumbnail_layout_kind
+    const typeText = (tp.session_type ?? '').trim() || (kind === 'fireside' ? 'FIRESIDE CHAT' : kind === 'panel' ? 'PANEL DISCUSSION' : 'KEYNOTE')
+    const titleText = (tp.session_title ?? '').trim() || 'A New Era for Global Wealth: Capital, Technology and the Rise of Asia'
+    texts.session_type = typeText; texts.session_title = titleText
+    // the real thing: the event's thumbnail card drawn once per placeholder speaker, in the speaker area
+    const { card, withFont } = body.event_id ? await loadPreviewCard(body.event_id) : { card: null, withFont: (v: Variant) => v }
+    const layout = withFont(body.variant)
+    if (!card) thumbNote = 'No thumbnail card template on this event yet: showing the layout alone.'
+    else if (!speakerAreaOf(layout)) thumbNote = 'Add a Speaker Area layer to see the cards.'
+    else {
+      try {
+        const cardInputs = await resolvePreviewInputs({ stakeholder_type: 'speaker', variant: card, event_id: body.event_id })
+        const photo = cardInputs.assets.speaker_photo
+        if (!photo?.url || !photo.head_box) thumbNote = 'The placeholder speaker has no photo with a detected head yet (Brand & Content > placeholder defaults): showing the layout alone.'
+        else {
+          const n = Math.min(MAX_SPEAKERS, Math.max(1, Math.round(tp.count ?? (kind === 'fireside' ? 2 : kind === 'panel' ? 4 : 1))))
+          const people: DrawPerson[] = Array.from({ length: n }, (_, i) => ({ name: String(cardInputs.texts.name ?? ''), company: String(cardInputs.texts.company ?? ''), moderator: !!tp.moderator && n > 1 && i === 0, buffer: photo.buffer, url: photo.url!, headBox: photo.head_box! }))
+          thumbFull = await drawThumbnail(layout, card, { tag: typeText, title: titleText }, people)
+        }
+      } catch (e) { thumbNote = `Could not draw the cards: ${e instanceof Error ? e.message : 'unknown error'}. Showing the layout alone.` }
+    }
+  }
 
   // Website photo — see this file's top comment. Deterministic crop +
   // background composite only, no AI step.
@@ -158,7 +188,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const fullBuffer = websitePhotoFinalBuffer ?? await compositeAnnouncement(renderVariant, assets, texts, { showReferenceLayers: !body.hide_reference_layers })
+    const fullBuffer = thumbFull ?? websitePhotoFinalBuffer ?? await compositeAnnouncement(renderVariant, assets, texts, { showReferenceLayers: !body.hide_reference_layers })
     const draftBuffer = body.full_res
       ? fullBuffer
       : await sharp(fullBuffer)
@@ -172,6 +202,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       preview_data_url: `data:image/png;base64,${draftBuffer.toString('base64')}`,
       text_diagnostics,
+      ...(thumbNote ? { thumb_note: thumbNote } : {}),
       ...(body.variant.category === 'website_photo' || isMemento ? { website_photo_error: websitePhotoError } : {}),
     })
   } catch (e) {

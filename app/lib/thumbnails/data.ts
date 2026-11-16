@@ -162,3 +162,17 @@ export async function loadThumbnailSessions(eventId: string, opts: LoadOpts = {}
   }
   return { setup, sessions: out, timezone: tz }
 }
+
+/** For the template editor's layout preview: the event's selected thumbnail card (else its first one), with the brand-font fallback applied, and the same fallback for the layout being edited. */
+export async function loadPreviewCard(eventId: string): Promise<{ card: Variant | null; withFont: (v: Variant) => Variant }> {
+  const [{ data: s }, { data: ev }] = await Promise.all([
+    supabaseAdmin.from('event_thumbnail_settings').select('card_variant_id').eq('event_id', eventId).maybeSingle(),
+    supabaseAdmin.from('events').select('creative_template_config').eq('id', eventId).maybeSingle(),
+  ])
+  const all = ((ev?.creative_template_config as { speaker?: { variants?: Variant[] } } | null)?.speaker?.variants ?? []) as Variant[]
+  const font = all.filter(v => !v.category?.startsWith('thumbnail_')).flatMap(v => v.layers).find((l): l is TextLayer => l.type === 'text' && !!l.font_family)?.font_family ?? null
+  const withFont = (v: Variant): Variant => (font ? { ...v, layers: v.layers.map(l => (l.type === 'text' && !l.font_family ? { ...l, font_family: font } : l)) } : v)
+  const cards = all.filter(v => v.category === 'thumbnail_card')
+  const card = cards.find(v => v.id === (s?.card_variant_id as string | null)) ?? cards[0] ?? null
+  return { card: card ? withFont(card) : null, withFont }
+}

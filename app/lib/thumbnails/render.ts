@@ -3,6 +3,7 @@ import { compositeAnnouncement, layersForRole } from '@/app/lib/announcements/co
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 import { DESIGN_H, DESIGN_W, cardPositions, cardSize, scaleCardVariant, speakerAreaOf } from './geometry'
 import { nameSizeFor } from './assess'
+import type { Variant } from '@/app/lib/announcements/composite'
 import type { ThumbSession, ThumbSetup } from './data'
 
 /* Session thumbnails — draws one thumbnail: the layout (background, tag pill, title) with the speaker cards placed on top in one row.
@@ -11,25 +12,34 @@ import type { ThumbSession, ThumbSetup } from './data'
 
 const JPG_LIMIT = 1_900_000   // YouTube's limit is 2 MB; keep a margin
 
+export type DrawPerson = { name: string; company: string; moderator: boolean; buffer: Buffer; url: string; headBox: NonNullable<ThumbSession['cards'][number]['headBox']> }
+
+/** The drawing itself, from photos already in memory (also used by the template editor's preview with placeholder speakers). */
+export async function drawThumbnail(layout: Variant, card: Variant, text: { tag?: string; title: string }, people: DrawPerson[]): Promise<Buffer> {
+  const area = speakerAreaOf(layout)
+  if (!area) throw new Error('The layout has no speaker area.')
+  if (layout.canvas_width !== DESIGN_W || layout.canvas_height !== DESIGN_H) throw new Error(`The layout must be ${DESIGN_W}x${DESIGN_H}.`)
+  const base = await compositeAnnouncement(layout, {}, { session_type: text.tag, session_title: text.title }, { showReferenceLayers: false })
+  const size = cardSize(people.length, area, card.canvas_height / card.canvas_width)
+  const spots = cardPositions(people.length, size, area)
+  const nameSize = await nameSizeFor(card, size.width, people)   // one size for every name: what the longest needs
+  const scaled = scaleCardVariant(card, size.width, nameSize ?? undefined)
+  const pieces = await Promise.all(people.map(c => compositeAnnouncement(layersForRole(scaled, c.moderator), { speaker_photo: { buffer: c.buffer, url: c.url, head_box: c.headBox } }, { name: c.name, company: c.company }, { showReferenceLayers: false })))
+  return sharp(base).composite(pieces.map((input, k) => ({ input, left: spots[k].x, top: spots[k].y }))).png().toBuffer()
+}
+
 export async function renderThumbnail(s: ThumbSession, setup: ThumbSetup): Promise<{ png: Buffer; jpg: Buffer; width: number; height: number }> {
   const layout = setup.layouts[s.layout], card = setup.card
   if (!layout || !card) throw new Error('The thumbnail templates are not complete.')
-  const area = speakerAreaOf(layout)
-  if (!area) throw new Error(`The ${s.layout} layout has no speaker area.`)
+  if (!speakerAreaOf(layout)) throw new Error(`The ${s.layout} layout has no speaker area.`)
   if (layout.canvas_width !== DESIGN_W || layout.canvas_height !== DESIGN_H) throw new Error(`The ${s.layout} layout must be ${DESIGN_W}x${DESIGN_H}.`)
-
-  const base = await compositeAnnouncement(layout, {}, { session_type: s.tag ?? undefined, session_title: s.title }, { showReferenceLayers: false })
-  const size = cardSize(s.cards.length, area, card.canvas_height / card.canvas_width)
-  const spots = cardPositions(s.cards.length, size, area)
-  const nameSize = await nameSizeFor(card, size.width, s.cards)   // one size for every name: what the longest needs
-  const scaled = scaleCardVariant(card, size.width, nameSize ?? undefined)
-  const pieces = await Promise.all(s.cards.map(async c => {
+  const people: DrawPerson[] = await Promise.all(s.cards.map(async c => {
     if (!c.photoUrl || !c.headBox) throw new Error(`Photo missing for ${c.name}.`)
     const buffer = await fetchAssetBuffer(c.photoUrl)
     if (!buffer) throw new Error(`Could not load the photo for ${c.name}.`)
-    return compositeAnnouncement(layersForRole(scaled, c.moderator), { speaker_photo: { buffer, url: c.photoUrl, head_box: c.headBox } }, { name: c.name, company: c.company }, { showReferenceLayers: false })
+    return { name: c.name, company: c.company, moderator: c.moderator, buffer, url: c.photoUrl, headBox: c.headBox }
   }))
-  const png = await sharp(base).composite(pieces.map((input, i) => ({ input, left: spots[i].x, top: spots[i].y }))).png().toBuffer()
+  const png = await drawThumbnail(layout, card, { tag: s.tag ?? undefined, title: s.title }, people)
   return { png, jpg: await toYoutubeJpg(png), width: DESIGN_W, height: DESIGN_H }
 }
 
