@@ -14,9 +14,10 @@ type SourceRef = { type?: 'doc_section' | 'public_figure'; section_id?: string; 
 type Item = {
   id: string; asset_key: string; variant_length: string; variant_phase: string; working_text: string; approved_text: string | null; approved_version: number
   status: string; source: string; source_refs: SourceRef[]; approved_at: string | null; review_reason: string | null; level: 'event' | 'umbrella' | 'org'; inherited: boolean
-  findings: Finding[]; usage: Record<string, number>
+  findings: Finding[]; usage: Record<string, number>; stat_warnings?: string[]
 }
 type Payload = {
+  figures?: { pre: number; post: number } | null
   catalogue: CatalogueEntry[]; items: Item[]; can_edit: boolean; phase: 'pre' | 'post' | null; requires_client_approval: boolean; requires_override: boolean | null
   suggest_post: boolean; dates: string | null; trescon_about: string | null; needs_review: number
 }
@@ -75,6 +76,18 @@ export default function CopyLibraryTab({ ownerType, ownerId }: { ownerType: 'eve
           }}>{busy === 'generate' ? 'Generating… (up to a minute)' : 'Generate starter set'}</Button>}
           {canEdit && <Button disabled={!!busy || waiting === 0} onClick={async () => { const j = await act('send_bundle', {}, 'bundle'); if (j?.url) setBundleUrl(j.url) }}>{busy === 'bundle' ? 'Sending…' : `Send for client approval${waiting ? ` (${waiting})` : ''}`}</Button>}
         </div>
+        {data.figures && (() => {
+          const ph = data.phase ?? 'pre', n = data.figures[ph], flagged = own.filter(i => i.status === 'needs_review' && i.source !== 'from_doc')
+          return (<>
+            {n === 0 && <div style={{ marginTop: '10px', fontSize: '12.5px', border: '1px solid var(--amber)', borderRadius: '8px', padding: '8px 10px' }}><strong style={{ color: 'var(--amber)' }}>No approved {ph === 'pre' ? 'pre-event' : 'post-event'} figures yet.</strong> Copy for this phase is generated without statistics, and any number in it shows a warning. Approve the figures in the <a href={`?tab=postevent`} style={{ color: 'var(--teal-mid)', fontWeight: 800 }}>Figures tab</a> first.</div>}
+            {n > 0 && <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--ink3)' }}>{n} approved {ph === 'pre' ? 'pre-event' : 'post-event'} figure{n === 1 ? '' : 's'}: every statistic in this phase&apos;s copy must be one of them.</div>}
+            {canEdit && flagged.length > 0 && <div style={{ marginTop: '8px' }}><Button variant="ghost" disabled={!!busy} onClick={async () => {
+              let done = 0, failed = 0
+              for (const it of flagged) { const j = await act('regenerate', { item_id: it.id }, 'refresh'); if (j) done++; else failed++ }
+              notify(`Refreshed ${done} item${done === 1 ? '' : 's'}${failed ? `; ${failed} failed (the previous text was kept)` : ''}. Review and approve them below.`, failed ? 'error' : 'success')
+            }}>{busy === 'refresh' ? 'Refreshing…' : `Refresh the ${flagged.length} item${flagged.length === 1 ? '' : 's'} that need review`}</Button></div>}
+          </>)
+        })()}
         {bundleUrl && (
           <div style={{ marginTop: '10px', fontSize: '12.5px', background: 'var(--surface)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '8px 10px' }}>
             Client approval link (send it to the client; it works without a login): <a href={bundleUrl} target="_blank" rel="noreferrer" style={{ wordBreak: 'break-all' }}>{bundleUrl}</a>
@@ -200,9 +213,12 @@ function ItemEditor({ item, act, busy, canEdit }: { item: Item; act: (a: string,
         {item.source === 'from_doc' && <span style={{ color: 'var(--ink3)' }}>Mirrors the messaging document word for word</span>}
       </div>
 
+      {(item.stat_warnings?.length ?? 0) > 0 && (
+        <div style={{ border: '1px solid var(--amber)', borderRadius: '8px', padding: '6px 10px', fontSize: '12.5px' }}><strong style={{ color: 'var(--amber)' }}>Not an approved figure:</strong> {item.stat_warnings!.join(', ')}. Statistics here must be approved figures of this phase. Approve them in the Figures tab, or remove them from the text.</div>
+      )}
       {item.status === 'needs_review' && (
         <div style={{ border: '1px solid var(--red)', borderRadius: '8px', padding: '8px 10px', fontSize: '12.5px', display: 'grid', gap: '6px' }}>
-          <div><strong style={{ color: 'var(--red)' }}>The messaging document changed.</strong> {item.review_reason}</div>
+          <div><strong style={{ color: 'var(--red)' }}>Needs review.</strong> {item.review_reason}</div>
           <div style={{ color: 'var(--ink3)' }}>Tools keep using the last approved text{item.approved_text ? '' : ' (there is none yet, so they use today’s source)'} until this is approved again.</div>
           {canEdit && (
             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>

@@ -12,6 +12,7 @@ import { COPY_CATALOGUE, CATALOGUE_BY_KEY, isValidVariant, starterVariants, type
 import { docRefs, figureRefs, type DocSourceRef, applyPairs, cleanMirroredText, clientApprovalRequired, ctaLabelFromLibrary, forbiddenHits, isNotUsed, lengthViolations, pickItem, seedCtaText, reviewFinding, sectionHash, statusAfterEdit, type ItemStatus, type OwnerLevel, type SourceRef } from './copy-model'
 import { getEffectiveStyleNotes } from './style-notes'
 import { getPublicFigures, figureRefChanges, recordFigureUsage, type PublicFigure } from './public-figures-read'
+import { NO_STAT_CHECK, STAT_RULE, figureRefsIn, figuresForVariant, figuresPromptBlock, unapprovedNumbers } from './copy-figures'
 import { unsupportedNumbers } from './public-figures-model'
 
 /* Copy Library, server side (docs/build_suggestions/copy-library.md). Tools read ONLY approved_text (§2.2). Every write is audited (§2.7).
@@ -177,15 +178,23 @@ async function ownerFacts(owner: ContentOwnerRef): Promise<string> {
 
 export type GenerateResult = { created: string[]; skipped: string[]; failed: Array<{ key: string; error: string }> }
 type Draft = { length: VariantLength; phase: VariantPhase; text: string; refs: SourceRef[] }
-type GenContext = { messaging: Section[]; docBlock: string; noteBlock: string; facts: string }
+type GenContext = { messaging: Section[]; docBlock: string; noteBlock: string; facts: string; figures: { pre: PublicFigure[]; post: PublicFigure[] } }
+const NO_FIGURES = { pre: [] as PublicFigure[], post: [] as PublicFigure[] }
+
+/** The approved figures of each phase: the only source of statistics in generated copy (an umbrella has none of its own). */
+async function loadFigures(owner: ContentOwnerRef): Promise<{ pre: PublicFigure[]; post: PublicFigure[] }> {
+  if (owner.kind !== 'event') return NO_FIGURES
+  const [pre, post] = await Promise.all([getPublicFigures(owner.id, { phase: 'pre' }), getPublicFigures(owner.id, { phase: 'post' })])
+  return { pre, post }
+}
 
 async function buildContext(owner: ContentOwnerRef): Promise<GenContext> {
-  const [{ sections }, notes, facts] = await Promise.all([messagingSections(owner), getEffectiveStyleNotes(owner), ownerFacts(owner)])
+  const [{ sections }, notes, facts, figures] = await Promise.all([messagingSections(owner), getEffectiveStyleNotes(owner), ownerFacts(owner), loadFigures(owner)])
   const messaging = sections.filter(s => s.role === 'messaging')
   if (!messaging.length) throw new Error('There is no live messaging document to build from. Approve a messaging document first.')
   const docBlock = sections.map(s => `[${s.id}] ${s.title} (${s.role === 'messaging' ? 'messaging doc' : s.role === 'style_guide' ? 'style guide, context only' : 'production pack, context only'})\n${s.text}`).join('\n\n').slice(0, 90_000)
   const noteBlock = notes.length ? `STYLE NOTES (writing guidance; the documents above win if they disagree):\n${notes.map(n => `- ${n.note}`).join('\n')}` : ''
-  return { messaging, docBlock, noteBlock, facts }
+  return { messaging, docBlock, noteBlock, facts, figures }
 }
 
 /** approved_quotes: the document's words, never generated. Markdown markers are stripped and quote marks made curly (cleanMirroredText); the words are untouched. */
@@ -204,6 +213,8 @@ ${ctx.facts}
 DOCUMENTS (each section has an id in square brackets)
 ${ctx.docBlock}
 
+${NO_STAT_CHECK.has(entry.key) ? '' : figuresPromptBlock(ctx.figures)}
+
 ${ctx.noteBlock}
 
 TASK
@@ -213,7 +224,8 @@ Write these variants:
 ${variantSpec}
 
 HARD RULES
-- Use only facts, names, titles and figures that appear in the documents or event facts above. Never invent, round or estimate.
+- Use only facts, names and titles that appear in the documents or event facts above. Never invent, round or estimate.
+${NO_STAT_CHECK.has(entry.key) ? '' : STAT_RULE + '\n'}
 - Spell every name exactly as the documents spell it.
 - Do not use em dashes. Plain, specific language; no filler such as "excited to announce".
 - "pre" means the event has not happened yet (future tense); "post" means it has concluded (past tense); "any" must read correctly in both cases.
@@ -227,7 +239,9 @@ ${feedback ? `\nFIX THESE PROBLEMS FROM YOUR LAST ATTEMPT\n${feedback}\n` : ''}-
     if (!got || typeof got.text !== 'string' || !got.text.trim()) continue
     const ids = new Set(got.used_section_ids ?? [])
     const used = ctx.messaging.filter(sec => ids.has(sec.id))
-    out.push({ length: v.length, phase: v.phase, text: got.text.trim(), refs: (used.length ? used : ctx.messaging).map(toRef) })
+    const text = got.text.trim()
+    const figRefs: SourceRef[] = NO_STAT_CHECK.has(entry.key) ? [] : figureRefsIn(text, figuresForVariant(v.phase, ctx.figures)).map(f => ({ type: 'public_figure', figure_id: f.id, version: f.version }))
+    out.push({ length: v.length, phase: v.phase, text, refs: [...(used.length ? used : ctx.messaging).map(toRef), ...figRefs] })
   }
   return out
 }
@@ -238,9 +252,11 @@ async function draftChecked(ctx: GenContext, entry: typeof COPY_CATALOGUE[number
   for (let attempt = 0; attempt < 2; attempt++) {
     const drafts = await draftEntry(ctx, entry, wanted, feedback)
     const problems = [...lengthViolations(drafts), ...drafts.flatMap(d => forbiddenHits(d.text, entry.forbidden).map(w => `The ${d.length}/${d.phase} text uses the word "${w}". Do not use it.`))]
-    if (!problems.length) return drafts
-    if (attempt === 1) throw new Error(problems.join(' '))
-    feedback = problems.join('\n')
+    // statistics must be approved figures of that variant's phase: one retry with the numbers named; after that the draft is kept and the number shows as a warning on the item (never a hard failure)
+    const numbers = NO_STAT_CHECK.has(entry.key) ? [] : drafts.flatMap(d => { const bad = unapprovedNumbers(d.text, figuresForVariant(d.phase, ctx.figures), ctx.facts); return bad.length ? [`The ${d.length}/${d.phase} text uses ${bad.join(', ')}, which ${bad.length === 1 ? 'is' : 'are'} not an approved figure for that phase. Remove ${bad.length === 1 ? 'it' : 'them'} or use only the APPROVED FIGURES.`] : [] })
+    if (!problems.length && !numbers.length) return drafts
+    if (attempt === 1) { if (problems.length) throw new Error(problems.join(' ')); return drafts }
+    feedback = [...problems, ...numbers].join('\n')
   }
   return []
 }
@@ -415,6 +431,7 @@ export async function regenerateItem(id: string, by: string | null): Promise<Ite
   const { data, error } = await supabaseAdmin.from('copy_library_items').update({ working_text: text, source_refs: refs, status, review_reason: null, updated_at: new Date().toISOString() }).eq('id', id).select(ITEM_COLS).single()
   if (error) throw new CopyError(error.message, 500)
   await logCopyChange({ item_id: id, owner, asset_key: item.asset_key, action: 'regenerate', before: { working_text: item.working_text, status: item.status }, after: { working_text: text, status }, by })
+  for (const r of figureRefs(refs)) await recordFigureUsage({ figure_id: r.figure_id, version: r.version, consumer_type: 'copy_library_item', consumer_id: id, mode: 'live' })
   return data as ItemRow
 }
 
@@ -630,7 +647,7 @@ const figureLine = (f: PublicFigure) => `- ${f.group_label ? `${f.group_label}: 
 /** Context for generation that does not read the messaging document: only the event facts and the style notes. */
 async function lightContext(owner: ContentOwnerRef): Promise<GenContext> {
   const [notes, facts] = await Promise.all([getEffectiveStyleNotes(owner).catch(() => []), ownerFacts(owner)])
-  return { messaging: [], docBlock: '', noteBlock: notes.length ? `STYLE NOTES (writing guidance):\n${notes.map(n => `- ${n.note}`).join('\n')}` : '', facts }
+  return { messaging: [], docBlock: '', noteBlock: notes.length ? `STYLE NOTES (writing guidance):\n${notes.map(n => `- ${n.note}`).join('\n')}` : '', facts, figures: NO_FIGURES }
 }
 
 /** After-the-event key figures, grounded ONLY on the event's approved public figures. The model may not reword, round or add a number: every number in the
@@ -685,3 +702,20 @@ HARD RULES
 }
 
 export { isValidVariant, starterVariants }
+
+/** For each item: the numbers in its text that are not approved figures of its phase (or the event facts). Read-time, so it also covers old items and hand edits. Quotes and fixed lines are never checked. */
+export async function statWarningsFor(owner: ContentOwnerRef, items: Array<{ asset_key: string; variant_phase: string; working_text: string }>): Promise<string[][]> {
+  if (owner.kind !== 'event') return items.map(() => [])
+  const [figures, facts] = await Promise.all([loadFigures(owner), ownerFacts(owner)])
+  return items.map(i => {
+    if (NO_STAT_CHECK.has(i.asset_key) || !i.working_text?.trim() || isNotUsed(i.working_text)) return []
+    return unapprovedNumbers(i.working_text, figuresForVariant(i.variant_phase as 'pre' | 'post' | 'any', figures), facts)
+  })
+}
+
+/** How many approved figures each phase has: the Copy Library says so when a phase has none (its copy is then generated without statistics). */
+export async function approvedFigureCounts(owner: ContentOwnerRef): Promise<{ pre: number; post: number }> {
+  const f = await loadFigures(owner)
+  return { pre: f.pre.length, post: f.post.length }
+}
+

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getEventGuidelines, renderGuidelinesMarkdown } from '@/app/lib/content/guidelines-api'
+import { figuresContextFor, unapprovedIn } from '@/app/lib/content/figures-context'
 import { getAboutTresconForEvent, isTresconOwnedEvent } from '@/app/lib/content/trescon-profile'
 import {
   loadPressReleaseAndAuthorize, getPriorApprovedReleasesContext, countTodayGenerations, getLatestVersion,
@@ -58,9 +59,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .map(m => `${m.role === 'user' ? 'PR team' : 'Research assistant'}: ${m.text}`)
     .join('\n\n')
 
-  const [guidelines, priorReleasesText] = await Promise.all([
+  const [guidelines, priorReleasesText, figuresCtx] = await Promise.all([
     getEventGuidelines(pr.event_id),
     getPriorApprovedReleasesContext(pr.event_id, pr.id),
+    figuresContextFor(pr.event_id),
   ])
   const guidelinesText = guidelines
     ? renderGuidelinesMarkdown(guidelines, ['style_guide', 'messaging', 'production_pack'])
@@ -92,6 +94,9 @@ Return ONLY valid JSON, no preamble, no markdown fences:
 
   const userPrompt = [
     `EVENT GUIDELINES:\n${guidelinesText || '(none available)'}`,
+    '',
+    figuresCtx.block,
+    figuresCtx.rule,
     '',
     `PREVIOUSLY APPROVED RELEASES FOR THIS EVENT:\n${priorReleasesText || 'None yet — this would be the first.'}`,
     '',
@@ -138,5 +143,6 @@ Return ONLY valid JSON, no preamble, no markdown fences:
   await supabaseAdmin.from('press_releases').update({ updated_at: new Date().toISOString() }).eq('id', pr.id)
 
   const generateUsed = staffId ? await countTodayGenerations(staffId) : 0
-  return NextResponse.json({ ...version, boilerplate_warning, boilerplate_source: about ? 'approved' : 'model', generate_usage: { used: generateUsed, limit: isAdmin ? null : DAILY_GENERATE_LIMIT } })
+  const stat_warnings = unapprovedIn(`${headline}\n${body}`, figuresCtx)   // numbers that are not approved figures of the event's phase (a warning for the writer, not a failure)
+  return NextResponse.json({ ...version, stat_warnings, boilerplate_warning, boilerplate_source: about ? 'approved' : 'model', generate_usage: { used: generateUsed, limit: isAdmin ? null : DAILY_GENERATE_LIMIT } })
 }

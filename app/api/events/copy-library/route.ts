@@ -3,7 +3,7 @@ import { getSession } from '@/app/lib/access/session'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { canManageRules, parseOwner } from '@/app/lib/content/rule-admin'
 import {
-  CopyError, applyReviewChange, approveInternally, editItem, findingsFor, generateStarterSet, loadLibrary, markNotUsed, ownerOfItem, regenerateItem, restoreUse, sendBundle, setContentPhase, usageCounts, logCopyChange,
+  CopyError, applyReviewChange, approvedFigureCounts, approveInternally, editItem, findingsFor, generateStarterSet, loadLibrary, markNotUsed, ownerOfItem, regenerateItem, restoreUse, sendBundle, setContentPhase, statWarningsFor, usageCounts, logCopyChange,
 } from '@/app/lib/content/copy-library'
 import { getApprovedText } from '@/app/lib/content/trescon-profile'
 import { COPY_CATALOGUE } from '@/app/lib/content/copy-catalogue'
@@ -27,8 +27,9 @@ export async function GET(req: NextRequest) {
   if (owner.kind === 'org') return NextResponse.json({ catalogue: [], items: [], can_edit: false, phase: null, trescon_about, requires_client_approval: false })
   try {
     const lib = await loadLibrary(owner)
-    const [findings, usage, can] = await Promise.all([
+    const [findings, usage, can, statWarnings, figureCounts] = await Promise.all([
       findingsFor(owner, lib.items.map(i => i.working_text)), usageCounts(lib.items.map(i => i.id)), canManageRules(req, owner),
+      statWarningsFor(owner, lib.items).catch(() => lib.items.map(() => [] as string[])), approvedFigureCounts(owner).catch(() => null),
     ])
     let suggest_post = false, dates: string | null = null, requires_override: boolean | null = null
     if (owner.kind === 'event') {
@@ -39,7 +40,8 @@ export async function GET(req: NextRequest) {
     }
     return NextResponse.json({
       catalogue: COPY_CATALOGUE, can_edit: can.ok, phase: lib.phase, requires_client_approval: lib.requires_client_approval, requires_override, suggest_post, dates, trescon_about,
-      items: lib.items.map((it, i) => ({ ...it, findings: findings[i], usage: usage[it.id] ?? {} })),
+      figures: figureCounts,   // approved figures per phase ({ pre, post }); null for an umbrella
+      items: lib.items.map((it, i) => ({ ...it, findings: findings[i], usage: usage[it.id] ?? {}, stat_warnings: statWarnings[i] ?? [] })),
       needs_review: lib.items.filter(i => i.status === 'needs_review' && !i.inherited).length,
     })
   } catch (e) {
