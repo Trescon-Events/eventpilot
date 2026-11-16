@@ -1,7 +1,7 @@
-# Session video pipeline (trial on BSS 2026)
+# Session video pipeline (trial on DFS 2026)
 
 **Date:** 6 Nov 2026. Discussed and agreed with Madhu (2–6 Nov). Proposed build, phased.
-**Trial:** Bengaluru Skill Summit 2026 (`27edfe37-ab45-4656-922d-0503012c75a7`). The editing team is producing the real BSS session videos manually in parallel. **Nothing in this build publishes anything during the trial**; outputs are compared with the manual versions. If Phase 1 output is good, Madhu may use it for the real uploads.
+**Trial: Dubai FinTech Summit 2026** (changed from BSS by Madhu, 16 Nov 2026: DFS session thumbnails are already generated and tested; Step 0 looks up the DFS event id). Where this spec says BSS below, read DFS. The editing team produces the real session videos manually in parallel. **Nothing in this build publishes anything during the trial**; outputs are compared with the manual versions. If Phase 1 output is good, Madhu may use it for the real uploads.
 
 ---
 
@@ -93,7 +93,9 @@ Returns:
 - **Chapters**: `0:00` first, at least 3, each ≥10 s, from topic shifts in the transcript.
 - **Tags**: 10–15.
 
-Footer: append the event's approved `youtube_footer` from the Copy Library (`getCopyItem`, built 6 Nov). If none is approved, show "Footer not approved yet" in the review screen and leave it out of the description (do NOT add a temporary column). Record a `copy_library_usages` row (mode `live`) when a description is approved. Fill `{playlist_link}` with a placeholder the producer edits. If the description needs event-level figures, read them only through `getPublicFigures` (`public-figures.md`), never from the messaging doc.
+Footer: append the event's approved `youtube_footer` from the Copy Library (`getCopyItem`, built 6 Nov). If none is approved, show "Footer not approved yet" in the review screen and leave it out of the description (do NOT add a temporary column). Record a `copy_library_usages` row (mode `live`) when a description is approved. Fill `{playlist_link}` with a placeholder the producer edits.
+
+**No event-level figures in session videos (Madhu, 16 Nov 2026).** Titles, descriptions, chapters, tags and the footer describe the session, its speakers and the event without numbers (no footfall, speaker counts, MoUs, media reach). The text-pack prompt must say so, and generated text containing an event figure is regenerated once, then shown with a warning. Session videos therefore have **no dependency on public figures** (`public-figures.md`). Figures said by a speaker in the session may appear only as part of summarising what was said.
 
 Run `validateText` on title options and description; store findings.
 
@@ -112,7 +114,7 @@ Producer sees a grid (frame × headline), can swap frame or headline per option,
 ### 7.7 Review screen
 Per session video: transcript (searchable, named), titles (pick one or edit), description editor with findings, chapters, tags, thumbnails. **Approve** stores `description_approved` and the selected title and thumbnail. **Copy all** button for the manual team (title, description, tags) and **Download thumbnail**.
 
-### 7.8 Phase 1 acceptance (two real BSS sessions: one keynote, one panel)
+### 7.8 Phase 1 acceptance (two real DFS sessions: one keynote, one panel)
 1. A 45-minute MP4 uploads through the browser without timing out; the worker produces proxy, audio and frames.
 2. Session match suggests the right agenda session from the file name.
 3. Transcript: spot-check 3 passages against the video; voices separated well enough that each panel speaker maps to one voice (report how many voices were detected vs actual speakers).
@@ -153,6 +155,6 @@ Per session video: transcript (searchable, named), titles (pick one or edit), de
 ## 9. Prerequisites from Madhu (Phase 1)
 
 1. Approve a Railway worker service (small monthly cost; FFmpeg work is CPU-bound).
-2. Two BSS session MP4s for the trial (a keynote and a panel), uploaded through the new page once built.
-3. BSS thumbnails approved on the Session Thumbnails page (`session-thumbnails.md`).
-4. The BSS `youtube_footer` approved in the Copy Library (it is a draft as of 14 Nov).
+2. Two DFS session MP4s for the trial (a keynote and a panel), uploaded through the new page once built.
+3. DFS thumbnails approved on the Session Thumbnails page (done, 16 Nov).
+4. The DFS `youtube_footer` approved in the Copy Library, with no event figures. Step 0 reports whether DFS has a Copy Library yet; if not, the producer generates it (post-event items) and approves the footer. DFS output elsewhere must not change (concluded event).
