@@ -172,28 +172,41 @@ Why: withdrawals were handled by Delete (archive, no reason), so there was no re
 - **Known gaps:** Withdrew only leaves the public website if the checkbox is ticked, and restoring does not put a speaker back on it. `app/api/events/speakers/route.ts` (Website Builder) can hard-delete a speaker, bypassing all this. Thank-you tool not built yet (design agreed: one owner per event, gallery link required, scheduled send, sent from each speaker's own producer, recipients = Confirmed or Spoke).
 - Also uncommitted in the working tree: the subscriptions tracker (`app/lib/registry/subscriptions.ts`, section on Keys & Credentials). R2 was found switched off on 6 Nov (billing), re-added.
 
-## Last Session — Claude Code with Madhu, 2–6 Nov 2026 (DFS / FIFF live week). Handed off to: next session
-All code is pushed (`main` = `origin/main`, CI green). Live data changes and external steps are listed separately below.
+## Last Session — Claude Code with Madhu, 16–17 Nov 2026. Handed off to: next session
+All code is pushed (`main` = `origin/main`, CI green). Infra set up during this session; real end-to-end MP4 test still pending.
 
-**Built / fixed this session (pushed)**
-- `f97d130` Stage Screens: per-event "Shown under each speaker" ticks (name / job title / company / country). Stored as `hidden` in `event_screen_settings.type_styles` (no migration; `clampTypeStyles` accepts it only for the four detail elements). `hideDetails()` in `app/lib/screens/dims.ts` blanks the text in `loadScreenSessions` (`data.ts`), so both card designs, the fingerprint and AV/table change tracking all follow. UI: `StageSpeakerPicSettings.tsx`. Unticking redraws every screen of that event and marks it Changed. Requested for DFWS (drop Country). Test in `geometry.test.ts`.
-- `33492a1` Agenda → KonfHub: "Changed in KonfHub" now only when KonfHub was touched since the last sync AND its content differs from what EventPilot would push (`app/lib/agenda/konfhub-push.ts`). Cause: KonfHub re-saved 12 DFS Innovation 1 sessions on 1 Nov 18:28–18:33 UTC with no content change. Limit: a touched session that then gets a real EventPilot edit still reads as drift until its stamp is refreshed by a normal push of unchanged sessions.
-- `56ecc68` Stage/Table screens page shows "Created by <name> · <date>" on each link (`app/api/events/screens/route.ts` resolves `event_screen_links.created_by` through `staff_members.name`).
-- `0821596` Agenda speaker picker marks inactive records "(deleted record)" (`SessionPanel.tsx`, `agenda-utils.ts`; the speakers API already returned `active`).
-- Earlier in the session (see the Stage Screens / Table Screens sections below): AV link status + REMOVED alerts (`19ca940`, migration `event_screen_links_last_seen_migration.sql` run), fireside title rule, Table Hub v3, table-card change tracking and downloads, vendor batch parts + Ops ZIP, Show Caller under Stakeholder Hub > Speakers with a friendlier Add-cue dialog, speaker Excel phone numbers.
+**Built / pushed this session (16–17 Nov)**
+- `d4e6373` Session Videos Phase 1: R2 multipart upload, session match, Railway video-worker (FFmpeg + Gemini transcript), voice naming, text pack, review/approve page, `sae.videos.manage` gate, migration (4 tables).
+- `ce92795` HANDOFF: session videos migration run + end-to-end test result.
+- `3fce63a` video-worker Dockerfile: copy .npmrc so `npm ci` picks up `legacy-peer-deps`.
+- `6c5a573` Copy Library: youtube_footer carries no event figures (rule + guidance).
+- `4641d66` Copy Library: every item names the event in full with year; YouTube footer carries real website/social URLs.
+- `cfe9693` Copy Library: blocked slots highlighted with why + what to do; "Not used for this event" on an empty slot.
+- `e8ae178` Rules: scope (all/social/long_form), rule check inside Copy Library generation (surface-aware), DFS royal/patronage rules scoped social-only.
+- `a0f1f16` Templates: thumbnail card/layout variants no longer show the Promo/Self Promo/Website Photo "Use" dropdown.
+- `9c75672` Thumbnails: layout preview draws placeholder speakers (sample type/title, 1–6 speakers, moderator on first card).
+- `10ba1bf` Stats: announcements, headlines, guest invites and sample generation read the approved statistics for the event's phase.
+- `5ed1c90` Stats: statistics tab (was Figures), read-only Statistics card in the doc, preview-then-apply lift from doc, automatic lift on upload, approved statistics served in guidelines + external API.
+- `e993e35` Figures step 2: Copy Library and press releases take statistics only from the approved figures of the right phase.
+- `1cb32d5` Figures step 1: pre/post phases, per-phase listing/rounds/approve/copy-as-empty-drafts, Figures tab with Pre/Post switch.
+- `a2d09de` Post-event: rebuilt approval flow — "What is next" card, checklist confirmations, per-item approve/tick, filters, overrides.
+- `c1bdbf3` Public figures: confirm before approving, Undo, real Withdraw (tools stop reading it), old review rounds labelled.
+- `3cf7e61` Content: clarification rounds read the live doc sections, not raw_text; shared doc-text helper.
+- Also: several test/docs commits for rules, thumbnails, session-video pipeline docs.
 
-**Live data changes (not code)**
-- DFS: Katerina Zemskova's seat on "Who Owns the Payment?…" (3 Nov) was re-linked from her old inactive record (2f2360ac…) to her active one (04dd2a62…, KonfHub 31142). That session's KonfHub push (Save and update KonfHub) was left for Madhu. A scan found no other session linked to an inactive speaker.
-- Cloudflare: Madhu upgraded the Trescon account to **Workers Paid** (renews 4 Dec 2026) after the free 100k/day cap was hit (EventPilot's proxy Worker is ~50k/day; the rest is other sites). Open flags: an unexpected "Images Stream Basic" subscription, saved cards showing expiry 12/2024, billing email still `charan@`. Nothing in the repo changed.
-- HubSpot: a FIFF speaker-form submission was held as spam ("Unregistered Site Domain"); Madhu releases it in HubSpot → form → Submissions. Not confirmed afterwards whether the speaker reached EventPilot. Registering the form's host domain in HubSpot would stop a repeat (needs Madhu's go).
+**Infra done (not code)**
+- Cloudflare R2 bucket `eventpilot-session-videos` created (Trescon account, APAC, private, CORS rule set).
+- Railway `video-worker` service created (Singapore, Dockerfile `worker/session-video/Dockerfile`).
+- `VIDEO_R2_ACCESS_KEY_ID` + `VIDEO_R2_SECRET_ACCESS_KEY` added to both Railway services (`eventpilot` + `video-worker`) — Madhu pasted the tokens.
+- `sae.videos.manage` confirmed already granted on the Producer role.
 
 **What's next / open**
-- Update the KonfHub-linked Katerina session (Save and update KonfHub) and confirm the FIFF HubSpot speaker arrived.
-- Check the Cloudflare Images Stream Basic subscription and the payment card / billing email before 4 Dec.
-- DFWS: untick Country in Stage Screens settings; the AV team must re-download that event's screens afterwards.
-- Windows Table Hub exe is untested on Windows. Not built (offered): escalation messages for urgent screen changes, bulk-redraw activity record, "second Hub on the same link" warning, gentler Hub/Show Caller polling to cut Worker requests.
-- Carry-over: producer/technician feedback on Show Caller and BSS review; moving the event workspace to `/events/…`; 4 "Title to be confirmed" DFS sessions.
-- Process notes: psql migrations are run by Madhu via `!` (pooler); tests run with `npx tsx --test`; tsc needs an 8 GB heap; only "push" in his message deploys.
+- **Session video real test:** Madhu provides a clipped DFS session MP4 (DFFW2026 Drive has raw .mov footage, not edited individual sessions). Then: upload via browser UI, confirm R2 multipart, watch the worker process, check transcript + text pack, use the review/approve page.
+- Branches listed "NOT pushed" earlier in this file: **all confirmed merged into origin/main on 17 Nov 2026** (every local branch tip was an ancestor of origin/main). The sections are left as written for reference but their infra/migration notes still apply.
+- DFS: Katerina Zemskova's KonfHub session push still pending (Save and update KonfHub). Confirm FIFF HubSpot speaker arrived.
+- Cloudflare Images Stream Basic subscription + card expiry 12/2024 + billing email `charan@` — check before 4 Dec Workers Paid renewal.
+- DFWS: untick Country in Stage Screens settings; AV team re-downloads afterwards.
+- Process notes: psql migrations run by Madhu via `!` (pooler); tests with `npx tsx --test`; tsc needs 8 GB heap; only "push" in his message deploys.
 
 ---
 
@@ -4088,8 +4101,10 @@ Speakers give flight/arrival/departure details through a private mobile link so 
 - Every Copy Library item and the press release generator are told to name the event exactly as its recorded name (public name, else name), year included; a draft that names it without the year is rewritten once (`copy-event-name.ts`, `shortNameHits`). Existing drafts are NOT touched: they keep the old wording until someone clicks Regenerate.
 - YouTube footer: gets the event's website and social URLs (events.website_url, social_*) as EVENT LINKS and must carry each recorded URL ("Label: URL", never a bare label, checked + one rewrite). `{playlist_link}` stays a placeholder on purpose: no playlist exists until the session-video pipeline publishes (Phase 4 fills it); `{website}` is now the real URL. Sign-off line is "Subscribe to the channel for more." (with a full stop).
 
-## Session Videos, Phase 1 (16 Nov 2026, Claude with Madhu) — built on feat/session-video-phase1, NOT pushed
+## Session Videos, Phase 1 (16–17 Nov 2026, Claude with Madhu) — PUSHED to main (d4e6373, ce92795, 3fce63a), CI green; infra live
 Upload (R2 multipart, resumable) -> session match from the file name -> worker: FFmpeg proxy + audio -> Gemini transcript -> producer names the voices -> text pack (5 titles, description, chapters, tags; Speakers block from records; approved youtube_footer appended; rules on the long-form surface; no event figures: regenerated once then warned) -> review / edit / approve / Copy all. Nothing is published. See section 10 of docs/build_suggestions/session-video-pipeline.md.
-- Needs from Madhu before it can run for real: run `supabase/session_videos_migration.sql`; create the R2 bucket + token + CORS; create the Railway worker service (Dockerfile `worker/session-video/Dockerfile`, variables in its header); grant `sae.videos.manage` to producers.
-- Migration run 16 Nov 2026 (4 tables). Tested end to end on a throwaway event with local-disk storage and a synthetic spoken video: worker loop (ingest -> transcribe -> text pack), voice naming gate, approval refused on an event figure, a non-video file fails after one retry with a clear error, remove deletes the objects. NOT yet tested: the R2 multipart upload from the browser (needs the bucket + CORS), the page in a browser, a real 45-minute DFS file.
+- **Infra live (done 16–17 Nov):** R2 bucket `eventpilot-session-videos` created (Trescon CF account b27fbe19c7798f8b75ecaeb7b5660f19, APAC, private, CORS rule set); Railway `video-worker` service created (Dockerfile `worker/session-video/Dockerfile`, Singapore); `VIDEO_R2_ACCESS_KEY_ID` + `VIDEO_R2_SECRET_ACCESS_KEY` added to both Railway services (`eventpilot` and `video-worker`); `sae.videos.manage` confirmed granted on the Producer role; migration run 16 Nov (4 tables).
+- **Tested** end to end on a throwaway event with local-disk storage and a synthetic spoken video: worker loop (ingest → transcribe → text pack), voice naming gate, approval refused on an event figure, a non-video file fails after one retry with a clear error, remove deletes the objects.
+- **NOT yet tested:** R2 multipart upload from the browser, the page in a browser, a real 45-minute DFS session file. Waiting for Madhu to provide a clipped session MP4 — the DFFW2026 Drive folder has raw camera .mov files organised by day/stage/angle, not individual edited sessions.
+- Trial event: DFS 2026 (id 293bde73-22c0-40f0-b621-6306c9266d6a). Session video text carries no event figures.
 
