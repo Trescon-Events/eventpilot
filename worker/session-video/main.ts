@@ -2,6 +2,7 @@ import { claimNextJob, failJob, finishJob, logJob, requeueStale } from '@/app/li
 import { runDriveImport } from './drive-import'
 import { runIngest } from './ingest'
 import { runTranscribe } from './transcribe'
+import { runIdentify } from './identify'
 import { runTextPack } from './text-pack'
 
 /* The session video worker (a second Railway service from this repo, see worker/session-video/Dockerfile): polls video_jobs, runs one job at a time, never publishes or sends anything. */
@@ -22,6 +23,7 @@ async function main() {
         if (job.kind === 'drive_import') await runDriveImport(job)
         else if (job.kind === 'ingest') await runIngest(job)
         else if (job.kind === 'transcribe') await runTranscribe(job)
+        else if (job.kind === 'identify') await runIdentify(job)
         else if (job.kind === 'text_pack') await runTextPack(job)
         else throw new Error(`Unknown job kind ${job.kind}`)
         await finishJob(job.id); console.log(`[video-worker] ${job.kind} done`)

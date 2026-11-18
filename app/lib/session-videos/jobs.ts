@@ -2,7 +2,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 
 /* The worker's queue (video_jobs). The web app only ever ENQUEUES; the worker on Railway claims, runs and finishes. Nothing heavy runs in a request. */
 
-export type JobKind = 'drive_import' | 'ingest' | 'transcribe' | 'text_pack'
+export type JobKind = 'drive_import' | 'ingest' | 'transcribe' | 'identify' | 'text_pack'
 export type Job = { id: string; session_video_id: string; kind: JobKind; status: string; attempts: number }
 export const MAX_ATTEMPTS = 2
 export const STALE_RUNNING_MS = 90 * 60 * 1000   // a job "running" for longer than this was lost with its worker: it goes back in the queue

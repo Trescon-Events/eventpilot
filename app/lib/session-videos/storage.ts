@@ -29,6 +29,12 @@ export const keysFor = (eventId: string, videoId: string, fileName: string) => {
   const base = `session-videos/${eventId}/${videoId}`
   return { original: `${base}/original/${safe}`, proxy: `${base}/proxy.mp4`, audio: `${base}/audio.m4a` }
 }
+/** R2 keys for per-voice clip and frame, produced by the identify job. */
+export const clipKeyFor = (eventId: string, videoId: string, voiceId: string) => {
+  const safe = voiceId.replace(/\s+/g, '_').toLowerCase()
+  const base = `session-videos/${eventId}/${videoId}/clips`
+  return { clip: `${base}/${safe}.mp4`, frame: `${base}/${safe}.jpg` }
+}
 export const uploadIdFromXml = (xml: string): string | null => xml.match(/<UploadId>([^<]+)<\/UploadId>/)?.[1] ?? null
 export const partsFromXml = (xml: string): Array<{ PartNumber: number; ETag: string; Size: number }> =>
   [...xml.matchAll(/<Part>([\s\S]*?)<\/Part>/g)].map(m => ({ PartNumber: Number(m[1].match(/<PartNumber>(\d+)<\/PartNumber>/)?.[1]), ETag: (m[1].match(/<ETag>([^<]+)<\/ETag>/)?.[1] ?? '').replace(/&quot;/g, '"'), Size: Number(m[1].match(/<Size>(\d+)<\/Size>/)?.[1] ?? 0) })).filter(p => p.PartNumber > 0 && p.ETag)

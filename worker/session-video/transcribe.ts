@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { GEMINI_FLASH_MODEL } from '@/app/lib/ai/models'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { downloadToFile } from '@/app/lib/session-videos/storage'
-import { logJob, type Job } from '@/app/lib/session-videos/jobs'
+import { logJob, enqueueJob, type Job } from '@/app/lib/session-videos/jobs'
 import { parseTranscript, voiceSummaries } from '@/app/lib/session-videos/logic'
 import { sessionSpeakers } from '@/app/lib/session-videos/speakers'
 
@@ -56,6 +56,7 @@ export async function runTranscribe(job: Job): Promise<void> {
     const voices = voiceSummaries(segments).map(x => ({ voice_id: x.voice_id, speaker_id: null, rejected: false }))
     await supabaseAdmin.from('session_video_transcripts').upsert({ session_video_id: v.id, segments, voices, model: TRANSCRIBE_MODEL, voices_named_at: null, created_at: new Date().toISOString() }, { onConflict: 'session_video_id' })
     await supabaseAdmin.from('session_videos').update({ status: 'transcribed', updated_at: new Date().toISOString() }).eq('id', v.id)
+    await enqueueJob(v.id as string, 'identify')
     await logJob(job.id, `${segments.length} segments, ${voices.length} voice${voices.length === 1 ? '' : 's'} detected`)
   } finally { rmSync(dir, { recursive: true, force: true }) }
 }

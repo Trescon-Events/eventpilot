@@ -41,17 +41,18 @@ export async function matchSessions(eventId: string) {
 
 // ── upload ───────────────────────────────────────────────────────────────────
 
-export async function createVideo(eventId: string, b: { file_name?: unknown; size?: unknown; content_type?: unknown }, by: string | null) {
+export async function createVideo(eventId: string, b: { file_name?: unknown; size?: unknown; content_type?: unknown; agenda_session_id?: unknown }, by: string | null) {
   if (!videoStorageConfigured()) throw new VideoError('Video storage is not set up yet (VIDEO_R2_* on Railway).', 503)
   const name = typeof b.file_name === 'string' ? b.file_name.trim() : ''
   const size = typeof b.size === 'number' && isFinite(b.size) ? Math.floor(b.size) : 0
   const type = typeof b.content_type === 'string' && /^video\//.test(b.content_type) ? b.content_type : 'video/mp4'
+  const sessionId = typeof b.agenda_session_id === 'string' ? b.agenda_session_id : null
   if (!name || size <= 0) throw new VideoError('file_name and size are required.')
   if (!/\.(mp4|mov|m4v)$/i.test(name)) throw new VideoError('Upload an MP4 (or MOV) file.')
   if (size > 30 * 1024 ** 3) throw new VideoError('That file is over 30 GB.')
   const sessions = await matchSessions(eventId)
   const suggestions = suggestSessions(name, sessions.map(s => ({ id: s.id, title: s.title, speakers: s.speakers })))
-  const { data, error } = await supabaseAdmin.from('session_videos').insert({ event_id: eventId, source_ref: name, content_type: type, size_bytes: size, status: 'uploading', match_suggestions: suggestions, created_by: actor(by) }).select('id').single()
+  const { data, error } = await supabaseAdmin.from('session_videos').insert({ event_id: eventId, source_ref: name, content_type: type, size_bytes: size, status: 'uploading', match_suggestions: suggestions, created_by: actor(by), ...(sessionId ? { agenda_session_id: sessionId } : {}) }).select('id').single()
   if (error) throw new VideoError(error.message, 500)
   const key = keysFor(eventId, data.id as string, name).original
   try {
@@ -123,19 +124,20 @@ export async function createVideoFromDriveLink(eventId: string, b: { url?: unkno
   } catch (e) { await supabaseAdmin.from('session_videos').delete().eq('id', data.id); throw e }
 }
 
-export async function createVideoFromDrive(eventId: string, b: { drive_file_id?: unknown; access_token?: unknown; file_name?: unknown; size?: unknown; content_type?: unknown }, by: string | null) {
+export async function createVideoFromDrive(eventId: string, b: { drive_file_id?: unknown; access_token?: unknown; file_name?: unknown; size?: unknown; content_type?: unknown; agenda_session_id?: unknown }, by: string | null) {
   if (!videoStorageConfigured()) throw new VideoError('Video storage is not set up yet (VIDEO_R2_* on Railway).', 503)
   const fileId = typeof b.drive_file_id === 'string' ? b.drive_file_id.trim() : ''
   const token = typeof b.access_token === 'string' ? b.access_token.trim() : ''
   const name = typeof b.file_name === 'string' ? b.file_name.trim() : ''
   const size = typeof b.size === 'number' && isFinite(b.size) ? Math.floor(b.size) : 0
   const type = typeof b.content_type === 'string' && /^video\//.test(b.content_type) ? b.content_type : 'video/mp4'
+  const sessionId = typeof b.agenda_session_id === 'string' ? b.agenda_session_id : null
   if (!fileId || !token || !name || size <= 0) throw new VideoError('drive_file_id, access_token, file_name and size are required.')
   if (!/\.(mp4|mov|m4v)$/i.test(name)) throw new VideoError('Only MP4 (or MOV) files are supported.')
   if (size > 30 * 1024 ** 3) throw new VideoError('That file is over 30 GB.')
   const sessions = await matchSessions(eventId)
   const suggestions = suggestSessions(name, sessions.map(s => ({ id: s.id, title: s.title, speakers: s.speakers })))
-  const { data, error } = await supabaseAdmin.from('session_videos').insert({ event_id: eventId, source_ref: name, drive_file_id: fileId, drive_access_token: token, content_type: type, size_bytes: size, status: 'uploading', match_suggestions: suggestions, created_by: actor(by) }).select('id').single()
+  const { data, error } = await supabaseAdmin.from('session_videos').insert({ event_id: eventId, source_ref: name, drive_file_id: fileId, drive_access_token: token, content_type: type, size_bytes: size, status: 'uploading', match_suggestions: suggestions, created_by: actor(by), ...(sessionId ? { agenda_session_id: sessionId } : {}) }).select('id').single()
   if (error) throw new VideoError(error.message, 500)
   const key = keysFor(eventId, data.id as string, name).original
   try {
@@ -229,7 +231,7 @@ export async function approveText(eventId: string, id: string, by: string | null
 export async function retryVideo(eventId: string, id: string) {
   const v = await videoOf(id, eventId)
   const { data: last } = await supabaseAdmin.from('video_jobs').select('kind').eq('session_video_id', id).eq('status', 'failed').order('created_at', { ascending: false }).limit(1).maybeSingle()
-  const kind = (last?.kind as 'drive_import' | 'ingest' | 'transcribe' | 'text_pack' | undefined) ?? (v.status === 'uploaded' ? 'ingest' : null)
+  const kind = (last?.kind as 'drive_import' | 'ingest' | 'transcribe' | 'identify' | 'text_pack' | undefined) ?? (v.status === 'uploaded' ? 'ingest' : null)
   if (!kind) throw new VideoError('Nothing to retry.', 409)
   const nextStatus = kind === 'drive_import' ? 'uploading' : kind === 'ingest' ? 'uploaded' : kind === 'transcribe' ? 'ingested' : 'transcribed'
   await supabaseAdmin.from('session_videos').update({ status: nextStatus, error: null, updated_at: new Date().toISOString() }).eq('id', id)
@@ -246,18 +248,30 @@ export async function listVideos(eventId: string) {
 export async function videoDetail(eventId: string, id: string) {
   const v = await videoOf(id, eventId)
   const [{ data: jobs }, { data: tr }, { data: text }, speakers, ses, thumb] = await Promise.all([
-    supabaseAdmin.from('video_jobs').select('id, kind, status, attempts, error, started_at, finished_at, log').eq('session_video_id', id).order('created_at', { ascending: false }).limit(6),
-    supabaseAdmin.from('session_video_transcripts').select('segments, voices, voices_named_at, model').eq('session_video_id', id).maybeSingle(),
+    supabaseAdmin.from('video_jobs').select('id, kind, status, attempts, error, started_at, finished_at, log').eq('session_video_id', id).order('created_at', { ascending: false }).limit(8),
+    supabaseAdmin.from('session_video_transcripts').select('segments, voices, voices_named_at, model, voice_clips, voice_suggestions').eq('session_video_id', id).maybeSingle(),
     supabaseAdmin.from('session_video_text').select('*').eq('session_video_id', id).maybeSingle(),
     v.agenda_session_id ? sessionSpeakers(eventId, v.agenda_session_id) : Promise.resolve([]),
     v.agenda_session_id ? supabaseAdmin.from('event_agenda_sessions').select('title, content_type').eq('id', v.agenda_session_id).maybeSingle().then(r => r.data) : Promise.resolve(null),
     v.agenda_session_id ? supabaseAdmin.from('session_thumbnails').select('image_png_path, image_jpg_path, status').eq('agenda_session_id', v.agenda_session_id).maybeSingle().then(r => r.data) : Promise.resolve(null),
   ])
   const segments = (tr?.segments as Segment[] | undefined) ?? []
+  // Presign per-voice clip URLs (Phase 2 identify job produces these)
+  const rawClips = ((tr as Record<string, unknown>)?.voice_clips ?? {}) as Record<string, string>
+  const voiceClipUrls: Record<string, string> = {}
+  if (Object.keys(rawClips).length) {
+    await Promise.all(Object.entries(rawClips).map(async ([voiceId, key]) => {
+      if (key) voiceClipUrls[voiceId] = await presignGet(key, 3600).catch(() => '')
+    }))
+  }
   return {
     video: { ...v, upload_id: undefined }, jobs: jobs ?? [], session: ses, speakers,
     proxy_url: v.proxy_path ? await presignGet(v.proxy_path as string, 3600).catch(() => null) : null,
-    transcript: tr ? { voices: tr.voices as VoiceRow[], summaries: voiceSummaries(segments), named_at: tr.voices_named_at, segments, model: tr.model } : null,
+    transcript: tr ? {
+      voices: tr.voices as VoiceRow[], summaries: voiceSummaries(segments), named_at: tr.voices_named_at, segments, model: tr.model,
+      voice_clip_urls: voiceClipUrls,
+      voice_suggestions: (((tr as Record<string, unknown>).voice_suggestions ?? []) as Array<{ voice_id: string; suggested_speaker_id: string | null; confidence: string }>),
+    } : null,
     text: text ?? null,
     thumbnail: thumb ? { png_url: thumb.image_png_path as string | null, jpg_url: thumb.image_jpg_path as string | null, approved: thumb.status === 'approved' } : null,
     footer_approved: !!text && (text.findings as { footer?: string } | null)?.footer === 'ok',
