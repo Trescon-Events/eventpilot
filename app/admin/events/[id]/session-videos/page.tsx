@@ -60,7 +60,7 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
   }, [eventId])
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load() }, [load])
-  useEffect(() => { if (!list?.videos.some(v => BUSY.has(v.status) || v.status === 'uploading')) return; const t = setInterval(() => { void load() }, 6000); return () => clearInterval(t) }, [list, load])
+  useEffect(() => { if (!list?.videos?.some(v => BUSY.has(v.status) || v.status === 'uploading')) return; const t = setInterval(() => { void load() }, 6000); return () => clearInterval(t) }, [list, load])
   // Clear drive link when switching sessions
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setDriveLink('') }, [openId])
