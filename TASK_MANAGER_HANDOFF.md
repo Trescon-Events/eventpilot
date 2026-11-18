@@ -6,7 +6,7 @@ machine. This is scoped to this module only; the platform-wide `HANDOFF.md`
 covers EventPilot in general and is not duplicated here.
 
 **Project Name:** `eventpilot-task-manager`  
-**Last updated:** 2026-09-03, by Madhu (with Claude)
+**Last updated:** 2026-11-18, by Khalifa (with Antigravity)
 
 ---
 
@@ -188,7 +188,7 @@ protocol replaces:**
 
 ## What's deliberately NOT built
 
-- Bulk task actions (multi-select reassign/delete) — per-row actions only
+- Bulk task reassign — per-row actions only (bulk delete built 2026-11-18)
 - A personal daily-hours goal/progress bar (TaskSphere had one) — skipped
   as individual gamification, not core task management
 - Mobile-optimized layouts — matches the rest of EventPilot's admin surface
@@ -229,6 +229,15 @@ historical record.)_
   broken app-wide (unrelated to task-manager) — someone should either fix
   the RLS or decide it's not worth it. Not blocking anything, just sitting
   there doing nothing.
+
+### 2026-11-18 session summary (Khalifa, with Antigravity)
+
+Purpose: Add bulk task deletion capability across the Task Manager Admin Console and main table views (Option A / Hybrid multi-select + floating action bar).
+
+- `app/api/task-manager/bulk-delete/route.ts` (new) — batched deletion taking `{ task_ids: string[] }`, session-authenticated via `canAccessTaskManager()`, atomic Postgres deletion cascading to `task_manager_time_logs`.
+- `app/admin/task-manager/console/AdminTaskTable.tsx` & `app/admin/task-manager/console/page.tsx` — row checkboxes, partial/indeterminate header checkbox, row selection highlight (`var(--teal-light)`), and floating Bulk Action Bar with `"Select all {filteredTasks.length} filtered tasks"`, `"Clear selection"`, and confirmation modal on `"Delete ({count})"`.
+- `app/admin/task-manager/TaskTable.tsx` & `app/admin/task-manager/page.tsx` — full multi-select checkbox and floating bulk delete bar support brought to the main Task Manager table in both flat and event-grouped accordion modes.
+- Verified: `npm run typecheck` (`tsc --noEmit`) clean, `npm run check:keys` passed. Isolated strictly inside `app/admin/task-manager/**` and `app/api/task-manager/**`.
 
 ### 2026-09-03 session summary (Madhu, with Claude)
 

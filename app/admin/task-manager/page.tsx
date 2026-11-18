@@ -39,6 +39,8 @@ export default function TaskManagerPage() {
   const [assignerFilter, setAssignerFilter] = useState<'all' | string>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus>('all')
   const [priorityFilter, setPriorityFilter] = useState<'all' | TaskPriority>('all')
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set())
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false)
 
   const currentStaff = useMemo(() => {
     return staff.find(s => s.id === currentStaffId) ?? null
@@ -345,6 +347,73 @@ export default function TaskManagerPage() {
     const res = await fetch(`/api/task-manager/${taskId}`, { method: 'DELETE' })
     if (!res.ok) { setError('Failed to delete task.'); return }
     setTasks(prev => prev.filter(t => t.id !== taskId))
+    setSelectedTaskIds(prev => {
+      if (!prev.has(taskId)) return prev
+      const next = new Set(prev)
+      next.delete(taskId)
+      return next
+    })
+  }
+
+  function handleToggleSelect(taskId: string) {
+    setSelectedTaskIds(prev => {
+      const next = new Set(prev)
+      if (next.has(taskId)) next.delete(taskId)
+      else next.add(taskId)
+      return next
+    })
+  }
+
+  function handleToggleSelectAll() {
+    const visibleIds = filteredTasks.map(t => t.id)
+    const allSelected = visibleIds.length > 0 && visibleIds.every(id => selectedTaskIds.has(id))
+    if (allSelected) {
+      setSelectedTaskIds(prev => {
+        const next = new Set(prev)
+        visibleIds.forEach(id => next.delete(id))
+        return next
+      })
+    } else {
+      setSelectedTaskIds(prev => new Set([...prev, ...visibleIds]))
+    }
+  }
+
+  function handleSelectAllFiltered() {
+    setSelectedTaskIds(new Set(filteredTasks.map(t => t.id)))
+  }
+
+  function handleClearSelection() {
+    setSelectedTaskIds(new Set())
+  }
+
+  async function handleBulkDelete() {
+    const count = selectedTaskIds.size
+    if (count === 0) return
+    const confirmed = confirm(
+      `Permanently delete ${count} selected task${count === 1 ? '' : 's'}?\n\nThis will also remove their associated time logs and cannot be undone.`
+    )
+    if (!confirmed) return
+
+    setIsBulkDeleting(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/task-manager/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_ids: Array.from(selectedTaskIds) }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.error ?? 'Failed to delete selected tasks')
+      }
+      setSelectedTaskIds(new Set())
+      notify(`Deleted ${count} task${count === 1 ? '' : 's'} successfully`, 'success')
+      await loadTasks()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Bulk delete failed.')
+    } finally {
+      setIsBulkDeleting(false)
+    }
   }
 
   function openNewTaskModal(defaultStatus: TaskStatus = 'Not-Started') {
@@ -780,6 +849,9 @@ export default function TaskManagerPage() {
             currentStaffId={currentStaffId}
             runningTaskId={activeTimer?.task_id ?? null}
             groupByEvent={groupByEvent}
+            selectedTaskIds={selectedTaskIds}
+            onToggleSelect={handleToggleSelect}
+            onToggleSelectAll={handleToggleSelectAll}
             onOpenTask={setEditingTask}
             onStatusChange={handleStatusChange}
             onPriorityChange={handlePriorityChange}
@@ -836,6 +908,109 @@ export default function TaskManagerPage() {
           onClose={() => setShowTimeLogModal(false)}
           onSave={handleSaveManualLog}
         />
+      )}
+
+      {/* Floating Bulk Action Bar (Table View) */}
+      {view === 'table' && selectedTaskIds.size > 0 && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '28px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 100,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '14px',
+            padding: '10px 18px',
+            borderRadius: '12px',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.45)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '20px',
+                height: '20px',
+                borderRadius: '50%',
+                background: 'var(--teal-light)',
+                color: 'var(--teal)',
+                fontSize: '11px',
+                fontWeight: 700,
+              }}
+            >
+              ✓
+            </span>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
+              {selectedTaskIds.size} task{selectedTaskIds.size === 1 ? '' : 's'} selected
+            </span>
+          </div>
+
+          {selectedTaskIds.size < filteredTasks.length && (
+            <button
+              type="button"
+              onClick={handleSelectAllFiltered}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--teal)',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                padding: '2px 4px',
+              }}
+            >
+              Select all {filteredTasks.length} filtered tasks
+            </button>
+          )}
+
+          <div style={{ width: '1px', height: '18px', background: 'var(--border)' }} />
+
+          <button
+            type="button"
+            onClick={handleClearSelection}
+            style={{
+              background: 'none',
+              border: '1px solid var(--border)',
+              borderRadius: '6px',
+              padding: '6px 12px',
+              color: 'var(--ink2)',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Clear selection
+          </button>
+
+          <button
+            type="button"
+            disabled={isBulkDeleting}
+            onClick={handleBulkDelete}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'var(--red)',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '6px 14px',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: isBulkDeleting ? 'not-allowed' : 'pointer',
+              opacity: isBulkDeleting ? 0.7 : 1,
+            }}
+          >
+            <span>🗑️</span> {isBulkDeleting ? 'Deleting…' : `Delete (${selectedTaskIds.size})`}
+          </button>
+        </div>
       )}
     </div>
     </>

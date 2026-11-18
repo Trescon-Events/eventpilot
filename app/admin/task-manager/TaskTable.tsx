@@ -238,6 +238,9 @@ interface Props {
   currentStaffId?: string | null
   runningTaskId?: string | null
   groupByEvent?: boolean
+  selectedTaskIds?: Set<string>
+  onToggleSelect?: (taskId: string) => void
+  onToggleSelectAll?: () => void
   onOpenTask: (task: Task) => void
   onStatusChange: (taskId: string, newStatus: TaskStatus) => void
   onPriorityChange: (taskId: string, newPriority: TaskPriority) => void
@@ -248,6 +251,8 @@ interface Props {
 function TaskRow({
   task: t,
   showEventColumn,
+  isSelected,
+  onToggleSelect,
   onOpenTask,
   onStatusChange,
   onPriorityChange,
@@ -255,6 +260,8 @@ function TaskRow({
 }: {
   task: Task
   showEventColumn: boolean
+  isSelected?: boolean
+  onToggleSelect?: (taskId: string) => void
   onOpenTask: (task: Task) => void
   onStatusChange: (taskId: string, newStatus: TaskStatus) => void
   onPriorityChange: (taskId: string, newPriority: TaskPriority) => void
@@ -269,12 +276,23 @@ function TaskRow({
         borderBottom: '1px solid var(--border-light)',
         cursor: 'pointer',
         transition: 'background 0.1s',
-        opacity: isCompleted ? 0.8 : 1,
-        background: isCompleted ? 'var(--surface)' : 'transparent',
+        opacity: isCompleted && !isSelected ? 0.8 : 1,
+        background: isSelected ? 'var(--teal-light)' : (isCompleted ? 'var(--surface)' : 'transparent'),
       }}
-      onMouseEnter={e => (e.currentTarget.style.background = 'var(--border-light)')}
-      onMouseLeave={e => (e.currentTarget.style.background = isCompleted ? 'var(--surface)' : 'transparent')}
+      onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'var(--border-light)' }}
+      onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = isCompleted ? 'var(--surface)' : 'transparent' }}
     >
+      {onToggleSelect && (
+        <td style={{ width: '38px', padding: '11px 12px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => onToggleSelect(t.id)}
+            aria-label={`Select task ${t.description}`}
+            style={{ cursor: 'pointer', accentColor: 'var(--teal)', width: '15px', height: '15px' }}
+          />
+        </td>
+      )}
       {showEventColumn && (
         <td style={{ padding: '11px 12px', whiteSpace: 'nowrap', maxWidth: '170px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {t.event?.name ? (
@@ -367,7 +385,17 @@ function TaskRow({
   )
 }
 
-export default function TaskTable({ tasks, groupByEvent, onOpenTask, onStatusChange, onPriorityChange, onDelete }: Props) {
+export default function TaskTable({
+  tasks,
+  groupByEvent,
+  selectedTaskIds,
+  onToggleSelect,
+  onToggleSelectAll,
+  onOpenTask,
+  onStatusChange,
+  onPriorityChange,
+  onDelete,
+}: Props) {
   const [collapsedEvents, setCollapsedEvents] = useState<Record<string, boolean>>({})
 
   if (tasks.length === 0) {
@@ -377,6 +405,10 @@ export default function TaskTable({ tasks, groupByEvent, onOpenTask, onStatusCha
       </div>
     )
   }
+
+  const hasSelection = Boolean(selectedTaskIds && onToggleSelect && onToggleSelectAll)
+  const allVisibleSelected = hasSelection && tasks.length > 0 && tasks.every(t => selectedTaskIds!.has(t.id))
+  const someVisibleSelected = hasSelection && tasks.some(t => selectedTaskIds!.has(t.id)) && !allVisibleSelected
 
   // ── Event-Centric Grouping ──────────────────────────────────
   if (groupByEvent) {
@@ -397,6 +429,20 @@ export default function TaskTable({ tasks, groupByEvent, onOpenTask, onStatusCha
           const isCollapsed = !!collapsedEvents[eventName]
           const completedCount = eventTasks.filter(t => t.status === 'Completed').length
           const percent = Math.round((completedCount / eventTasks.length) * 100)
+
+          const allGroupSelected = hasSelection && eventTasks.length > 0 && eventTasks.every(t => selectedTaskIds!.has(t.id))
+          const someGroupSelected = hasSelection && eventTasks.some(t => selectedTaskIds!.has(t.id)) && !allGroupSelected
+
+          const handleToggleGroup = () => {
+            if (!hasSelection) return
+            eventTasks.forEach(t => {
+              if (allGroupSelected) {
+                if (selectedTaskIds!.has(t.id)) onToggleSelect!(t.id)
+              } else {
+                if (!selectedTaskIds!.has(t.id)) onToggleSelect!(t.id)
+              }
+            })
+          }
 
           return (
             <div
@@ -449,6 +495,17 @@ export default function TaskTable({ tasks, groupByEvent, onOpenTask, onStatusCha
                   <table style={{ width: '100%', minWidth: '800px', borderCollapse: 'collapse', fontSize: '13px' }}>
                     <thead>
                       <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', background: 'var(--card)' }}>
+                        {hasSelection && (
+                          <th style={{ width: '38px', padding: '10px 12px', textAlign: 'center' }}>
+                            <input
+                              type="checkbox"
+                              checked={allGroupSelected}
+                              ref={el => { if (el) el.indeterminate = someGroupSelected }}
+                              onChange={handleToggleGroup}
+                              style={{ cursor: 'pointer', accentColor: 'var(--teal)', width: '15px', height: '15px' }}
+                            />
+                          </th>
+                        )}
                         {['Task', 'Created', 'Assigned By', 'Assigned To', 'Deadline', 'Priority', 'Status', ''].map(h => (
                           <th key={h} style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700, color: 'var(--ink4)', textTransform: 'uppercase', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>{h}</th>
                         ))}
@@ -460,6 +517,8 @@ export default function TaskTable({ tasks, groupByEvent, onOpenTask, onStatusCha
                           key={t.id}
                           task={t}
                           showEventColumn={false}
+                          isSelected={selectedTaskIds?.has(t.id)}
+                          onToggleSelect={onToggleSelect}
                           onOpenTask={onOpenTask}
                           onStatusChange={onStatusChange}
                           onPriorityChange={onPriorityChange}
@@ -483,6 +542,18 @@ export default function TaskTable({ tasks, groupByEvent, onOpenTask, onStatusCha
       <table style={{ width: '100%', minWidth: '880px', borderCollapse: 'collapse', fontSize: '13px' }}>
         <thead>
           <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', position: 'sticky', top: 0, background: 'var(--card)', zIndex: 5 }}>
+            {hasSelection && (
+              <th style={{ width: '38px', padding: '10px 12px', textAlign: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  ref={el => { if (el) el.indeterminate = someVisibleSelected }}
+                  onChange={onToggleSelectAll}
+                  aria-label="Select all visible tasks"
+                  style={{ cursor: 'pointer', accentColor: 'var(--teal)', width: '15px', height: '15px' }}
+                />
+              </th>
+            )}
             {['Event', 'Task', 'Created', 'Assigned By', 'Assigned To', 'Deadline', 'Priority', 'Status', ''].map(h => (
               <th key={h} style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700, color: 'var(--ink4)', textTransform: 'uppercase', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>{h}</th>
             ))}
@@ -494,6 +565,8 @@ export default function TaskTable({ tasks, groupByEvent, onOpenTask, onStatusCha
               key={t.id}
               task={t}
               showEventColumn={true}
+              isSelected={selectedTaskIds?.has(t.id)}
+              onToggleSelect={onToggleSelect}
               onOpenTask={onOpenTask}
               onStatusChange={onStatusChange}
               onPriorityChange={onPriorityChange}

@@ -8,24 +8,42 @@ interface Props {
   tasks: Task[]
   staff: StaffLite[]
   now: number // sourced from an effect in the parent, not read directly here — see console/page.tsx
+  selectedTaskIds?: Set<string>
+  onToggleSelect?: (taskId: string) => void
+  onToggleSelectAll?: () => void
   onReassign: (taskId: string, newAssignee: string) => void
   onStatusChange: (taskId: string, newStatus: TaskStatus) => void
   onPriorityChange: (taskId: string, newPriority: TaskPriority) => void
   onDelete: (taskId: string) => void
 }
 
-export default function AdminTaskTable({ tasks, staff, now, onReassign, onStatusChange, onPriorityChange, onDelete }: Props) {
+export default function AdminTaskTable({ tasks, staff, now, selectedTaskIds, onToggleSelect, onToggleSelectAll, onReassign, onStatusChange, onPriorityChange, onDelete }: Props) {
   if (tasks.length === 0) {
     return <div style={{ padding: '48px', textAlign: 'center', color: 'var(--ink4)', fontSize: '13px' }}>No tasks match this filter.</div>
   }
 
   const today = new Date(new Date(now).toDateString())
+  const hasSelection = Boolean(selectedTaskIds && onToggleSelect && onToggleSelectAll)
+  const allVisibleSelected = hasSelection && tasks.length > 0 && tasks.every(t => selectedTaskIds!.has(t.id))
+  const someVisibleSelected = hasSelection && tasks.some(t => selectedTaskIds!.has(t.id)) && !allVisibleSelected
 
   return (
     <div style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
         <thead>
           <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left' }}>
+            {hasSelection && (
+              <th style={{ width: '38px', padding: '10px 12px', textAlign: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  ref={el => { if (el) el.indeterminate = someVisibleSelected }}
+                  onChange={onToggleSelectAll}
+                  aria-label="Select all visible tasks"
+                  style={{ cursor: 'pointer', accentColor: 'var(--teal)', width: '15px', height: '15px' }}
+                />
+              </th>
+            )}
             {['Event', 'Task', 'Created', 'Assigned To', 'Assigned By', 'Deadline', 'Priority', 'Status', 'Last Updated', ''].map(h => (
               <th key={h} style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>{h}</th>
             ))}
@@ -36,9 +54,28 @@ export default function AdminTaskTable({ tasks, staff, now, onReassign, onStatus
             const isOverdue = t.deadline && t.status !== 'Completed' && new Date(t.deadline) < today
             const idleDays = Math.floor((now - new Date(t.updated_at).getTime()) / (1000 * 60 * 60 * 24))
             const isStale = t.status !== 'Completed' && idleDays >= STALE_DAYS
+            const isSelected = selectedTaskIds?.has(t.id) ?? false
 
             return (
-              <tr key={t.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
+              <tr
+                key={t.id}
+                style={{
+                  borderBottom: '1px solid var(--border-light)',
+                  background: isSelected ? 'var(--teal-light)' : undefined,
+                  transition: 'background 0.15s ease',
+                }}
+              >
+                {hasSelection && (
+                  <td style={{ width: '38px', padding: '10px 12px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => onToggleSelect!(t.id)}
+                      aria-label={`Select task ${t.description}`}
+                      style={{ cursor: 'pointer', accentColor: 'var(--teal)', width: '15px', height: '15px' }}
+                    />
+                  </td>
+                )}
                 <td style={{ padding: '10px 12px', color: 'var(--ink3)', whiteSpace: 'nowrap' }}>{t.event?.name ?? '—'}</td>
                 <td style={{ padding: '10px 12px', maxWidth: '260px' }}>
                   <div style={{ color: 'var(--ink)', fontWeight: 600 }}>{t.description}</div>

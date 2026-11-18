@@ -172,7 +172,16 @@ Why: withdrawals were handled by Delete (archive, no reason), so there was no re
 - **Known gaps:** Withdrew only leaves the public website if the checkbox is ticked, and restoring does not put a speaker back on it. `app/api/events/speakers/route.ts` (Website Builder) can hard-delete a speaker, bypassing all this. Thank-you tool not built yet (design agreed: one owner per event, gallery link required, scheduled send, sent from each speaker's own producer, recipients = Confirmed or Spoke).
 - Also uncommitted in the working tree: the subscriptions tracker (`app/lib/registry/subscriptions.ts`, section on Keys & Credentials). R2 was found switched off on 6 Nov (billing), re-added.
 
-## Last Session — Claude Code with Madhu, 18 Nov 2026. Handed off to: next session
+## Last Session — Khalifa + Antigravity, 18 Nov 2026. Handed off to: next session
+Built and verified Task Manager Bulk Deletion across the Admin Console and main table (batch API, row & master checkboxes, floating action bar with "Select all {N} filtered tasks", safe confirmation, atomic database deletion cascading to time logs).
+
+**Built this session (18 Nov) — Task Manager Bulk Deletion**
+- `app/api/task-manager/bulk-delete/route.ts`: batch delete endpoint taking `{ task_ids: string[] }`, authenticated via `canAccessTaskManager()`, cascading time logs in Postgres.
+- `app/admin/task-manager/console/AdminTaskTable.tsx` & `app/admin/task-manager/console/page.tsx`: multi-select checkboxes (with partial/indeterminate master checkbox), row selection styling, and floating bulk action bar with single-click "Select all {filteredTasks.length} filtered tasks", "Clear selection", and danger "Delete ({count})" with confirmation.
+- `app/admin/task-manager/TaskTable.tsx` & `app/admin/task-manager/page.tsx`: exact same multi-select checkbox and floating bulk delete bar support added to the main task manager table (both flat and event-grouped accordion modes).
+- Isolated entirely inside `app/admin/task-manager/**` and `app/api/task-manager/**` (CI auto-classification SAFE).
+
+## Previous Session — Claude Code with Madhu, 18 Nov 2026. Handed off to: next session
 All code is pushed (`main` = `origin/main`, CI queued). Phase 2 is in production; Madhu still needs to run the Phase 2 DB migration and set Gemini API key on the video-worker before voice clips and face detection activate.
 
 **Built / pushed this session (18 Nov) — Session Videos Phase 2**
