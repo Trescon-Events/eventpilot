@@ -41,9 +41,9 @@ declare global {
       }
       picker?: {
         Action: { PICKED: string }
-        DocsView: new (viewId: string) => unknown
+        DocsView: new (viewId?: string) => unknown
         PickerBuilder: new () => PickerBuilderChain
-        ViewId: { DOCS_VIDEOS: string }
+        ViewId: { DOCS_VIDEOS: string; DOCS: string }
       }
     }
     gapi?: { load: (lib: string, cb: () => void) => void }
@@ -61,6 +61,7 @@ function loadScript(src: string): Promise<void> {
 
 export default function DrivePickerButton({ onPick, disabled }: Props) {
   const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
   const tokenRef = useRef<string | null>(null)
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_DRIVE_API_KEY
@@ -69,19 +70,31 @@ export default function DrivePickerButton({ onPick, disabled }: Props) {
 
   async function openPicker(cid: string, akey: string) {
     setLoading(true)
+    setErr(null)
     try {
       await Promise.all([
         loadScript('https://accounts.google.com/gsi/client'),
         loadScript('https://apis.google.com/js/api.js'),
       ])
-      await new Promise<void>(r => window.gapi!.load('picker', r))
+      // Wait for gapi to be available, then load picker library
+      await new Promise<void>((resolve, reject) => {
+        const attempt = () => {
+          if (window.gapi) { window.gapi.load('picker', resolve); return }
+          reject(new Error('gapi did not load'))
+        }
+        attempt()
+      })
 
+      // Request OAuth token (opens popup)
       await new Promise<void>((resolve, reject) => {
         const client = window.google!.accounts.oauth2.initTokenClient({
           client_id: cid,
           scope: 'https://www.googleapis.com/auth/drive.readonly',
           callback: res => {
-            if (res.error || !res.access_token) { reject(new Error(res.error ?? 'No access token')); return }
+            if (res.error || !res.access_token) {
+              reject(new Error(res.error ?? 'No access token returned'))
+              return
+            }
             tokenRef.current = res.access_token
             resolve()
           },
@@ -90,10 +103,13 @@ export default function DrivePickerButton({ onPick, disabled }: Props) {
       })
 
       const token = tokenRef.current!
-      const p = window.google!.picker!
+      const p = window.google?.picker
+      if (!p) throw new Error('Google Picker library not available after load')
 
+      // Use a general docs view — DOCS_VIDEOS can be empty when the signed-in account owns no videos
+      const view = new p.DocsView(p.ViewId.DOCS)
       new p.PickerBuilder()
-        .addView(new p.DocsView(p.ViewId.DOCS_VIDEOS))
+        .addView(view)
         .setOAuthToken(token)
         .setDeveloperKey(akey)
         .setCallback((data: PickerData) => {
@@ -104,15 +120,20 @@ export default function DrivePickerButton({ onPick, disabled }: Props) {
         .build()
         .setVisible(true)
     } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
       console.error('[DrivePickerButton]', e)
+      setErr(msg)
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <Button variant="ghost" disabled={disabled || loading} onClick={() => void openPicker(clientId, apiKey)}>
-      {loading ? 'Opening Drive…' : 'Browse Google Drive'}
-    </Button>
+    <div style={{ display: 'inline-flex', flexDirection: 'column', gap: '4px' }}>
+      <Button variant="ghost" disabled={disabled || loading} onClick={() => void openPicker(clientId, apiKey)}>
+        {loading ? 'Opening Drive…' : 'Browse Google Drive'}
+      </Button>
+      {err && <span style={{ fontSize: '12px', color: 'var(--color-red-600, #dc2626)' }}>{err}</span>}
+    </div>
   )
 }
