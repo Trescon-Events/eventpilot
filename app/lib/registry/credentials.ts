@@ -254,6 +254,17 @@ export const CREDENTIALS: Credential[] = [
     mode: 'old-stays',
     note: 'Always use ?authuser=4 — fresh tabs silently open the wrong Google account.',
   },
+  {
+    id: 'google-drive-picker', platform: 'Google Drive Picker — OAuth 2.0 Client', group: 'File storage',
+    what: 'OAuth 2.0 Web Client ID for the Google Drive Picker (session video import). The client ID is public (NEXT_PUBLIC_*); the API key restricts Picker API access.',
+    vars: ['NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID', 'NEXT_PUBLIC_GOOGLE_DRIVE_API_KEY'], stores: ['railway'],
+    alsoSet: 'Also set in .env.local for local dev',
+    consoleUrl: 'https://console.cloud.google.com/apis/credentials?authuser=4&project=eventpilot-site-operations',
+    login: 'md@tresconglobal.com — Google account index 4 ("md-org"). Project: eventpilot-site-operations.',
+    rotate: 'Create new OAuth 2.0 Client ID or new API key (restrict to Picker API) → update Railway + .env.local → deploy. Authorized JS origins must include https://eventpilot.tresconglobal.com and http://localhost:3000.',
+    mode: 'old-stays',
+    note: 'Enable "Google Picker API" and "Google Drive API" in APIs & Services → Enable APIs & Services for this project.',
+  },
 
   /* ── CRM, social & marketing ──────────────────────────────────────── */
   {

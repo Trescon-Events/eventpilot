@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { actorOf } from '@/app/lib/content/doc-audit'
 import { videoStorageConfigured } from '@/app/lib/session-videos/storage'
-import { approveText, completeUpload, createVideo, listVideos, matchSessions, presignParts, removeVideo, requestTextPack, requireVideos, retryVideo, saveText, saveVoices, setSession, uploadedParts, videoDetail, VideoError } from '@/app/lib/session-videos/service'
+import { approveText, completeUpload, createVideo, createVideoFromDrive, listVideos, matchSessions, presignParts, removeVideo, requestTextPack, requireVideos, retryVideo, saveText, saveVoices, setSession, uploadedParts, videoDetail, VideoError } from '@/app/lib/session-videos/service'
 import { abortMultipart } from '@/app/lib/session-videos/storage'
 import { videoOf } from '@/app/lib/session-videos/service'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
   try {
     switch (b.action) {
       case 'create': return NextResponse.json(await createVideo(eventId, b, by))
+      case 'create_from_drive': return NextResponse.json(await createVideoFromDrive(eventId, b, by))
       case 'presign_parts': return NextResponse.json(await presignParts(eventId, need(), b.part_numbers))
       case 'list_parts': return NextResponse.json(await uploadedParts(eventId, need()))
       case 'complete': await completeUpload(eventId, need()); return NextResponse.json({ ok: true })

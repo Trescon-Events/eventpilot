@@ -87,6 +87,29 @@ export async function completeUpload(eventId: string, id: string) {
   await enqueueJob(id, 'ingest')
 }
 
+export async function createVideoFromDrive(eventId: string, b: { drive_file_id?: unknown; access_token?: unknown; file_name?: unknown; size?: unknown; content_type?: unknown }, by: string | null) {
+  if (!videoStorageConfigured()) throw new VideoError('Video storage is not set up yet (VIDEO_R2_* on Railway).', 503)
+  const fileId = typeof b.drive_file_id === 'string' ? b.drive_file_id.trim() : ''
+  const token = typeof b.access_token === 'string' ? b.access_token.trim() : ''
+  const name = typeof b.file_name === 'string' ? b.file_name.trim() : ''
+  const size = typeof b.size === 'number' && isFinite(b.size) ? Math.floor(b.size) : 0
+  const type = typeof b.content_type === 'string' && /^video\//.test(b.content_type) ? b.content_type : 'video/mp4'
+  if (!fileId || !token || !name || size <= 0) throw new VideoError('drive_file_id, access_token, file_name and size are required.')
+  if (!/\.(mp4|mov|m4v)$/i.test(name)) throw new VideoError('Only MP4 (or MOV) files are supported.')
+  if (size > 30 * 1024 ** 3) throw new VideoError('That file is over 30 GB.')
+  const sessions = await matchSessions(eventId)
+  const suggestions = suggestSessions(name, sessions.map(s => ({ id: s.id, title: s.title, speakers: s.speakers })))
+  const { data, error } = await supabaseAdmin.from('session_videos').insert({ event_id: eventId, source_ref: name, drive_file_id: fileId, drive_access_token: token, content_type: type, size_bytes: size, status: 'uploading', match_suggestions: suggestions, created_by: actor(by) }).select('id').single()
+  if (error) throw new VideoError(error.message, 500)
+  const key = keysFor(eventId, data.id as string, name).original
+  try {
+    const uploadId = await startMultipart(key, type)
+    await supabaseAdmin.from('session_videos').update({ original_path: key, upload_id: uploadId }).eq('id', data.id)
+    await enqueueJob(data.id as string, 'drive_import')
+    return { id: data.id as string, suggestions }
+  } catch (e) { await supabaseAdmin.from('session_videos').delete().eq('id', data.id); throw e }
+}
+
 export async function removeVideo(eventId: string, id: string) {
   const v = await videoOf(id, eventId)
   if (v.upload_id && v.original_path) await abortMultipart(v.original_path, v.upload_id)
@@ -170,16 +193,17 @@ export async function approveText(eventId: string, id: string, by: string | null
 export async function retryVideo(eventId: string, id: string) {
   const v = await videoOf(id, eventId)
   const { data: last } = await supabaseAdmin.from('video_jobs').select('kind').eq('session_video_id', id).eq('status', 'failed').order('created_at', { ascending: false }).limit(1).maybeSingle()
-  const kind = (last?.kind as 'ingest' | 'transcribe' | 'text_pack' | undefined) ?? (v.status === 'uploaded' ? 'ingest' : null)
+  const kind = (last?.kind as 'drive_import' | 'ingest' | 'transcribe' | 'text_pack' | undefined) ?? (v.status === 'uploaded' ? 'ingest' : null)
   if (!kind) throw new VideoError('Nothing to retry.', 409)
-  await supabaseAdmin.from('session_videos').update({ status: kind === 'ingest' ? 'uploaded' : kind === 'transcribe' ? 'ingested' : 'transcribed', error: null, updated_at: new Date().toISOString() }).eq('id', id)
+  const nextStatus = kind === 'drive_import' ? 'uploading' : kind === 'ingest' ? 'uploaded' : kind === 'transcribe' ? 'ingested' : 'transcribed'
+  await supabaseAdmin.from('session_videos').update({ status: nextStatus, error: null, updated_at: new Date().toISOString() }).eq('id', id)
   await enqueueJob(id, kind)
 }
 
 // ── reading ──────────────────────────────────────────────────────────────────
 
 export async function listVideos(eventId: string) {
-  const { data } = await supabaseAdmin.from('session_videos').select('id, source_ref, status, error, duration_s, size_bytes, agenda_session_id, created_at, updated_at').eq('event_id', eventId).order('created_at', { ascending: false })
+  const { data } = await supabaseAdmin.from('session_videos').select('id, source_ref, status, error, duration_s, size_bytes, bytes_transferred, drive_file_id, agenda_session_id, created_at, updated_at').eq('event_id', eventId).order('created_at', { ascending: false })
   return data ?? []
 }
 

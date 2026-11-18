@@ -1,4 +1,5 @@
 import { claimNextJob, failJob, finishJob, logJob, requeueStale } from '@/app/lib/session-videos/jobs'
+import { runDriveImport } from './drive-import'
 import { runIngest } from './ingest'
 import { runTranscribe } from './transcribe'
 import { runTextPack } from './text-pack'
@@ -18,7 +19,8 @@ async function main() {
       if (!job) { if (process.env.VIDEO_WORKER_ONCE) return; await sleep(POLL_MS); continue }
       console.log(`[video-worker] ${job.kind} ${job.session_video_id} (attempt ${job.attempts})`)
       try {
-        if (job.kind === 'ingest') await runIngest(job)
+        if (job.kind === 'drive_import') await runDriveImport(job)
+        else if (job.kind === 'ingest') await runIngest(job)
         else if (job.kind === 'transcribe') await runTranscribe(job)
         else if (job.kind === 'text_pack') await runTextPack(job)
         else throw new Error(`Unknown job kind ${job.kind}`)

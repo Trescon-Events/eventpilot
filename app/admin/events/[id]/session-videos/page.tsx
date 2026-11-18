@@ -5,13 +5,14 @@
 import { use, useCallback, useEffect, useRef, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Card, Input, Select } from '@/app/components/ui'
+import DrivePickerButton, { type DriveFile } from '@/app/components/session-videos/DrivePickerButton'
 import { fmtTime } from '@/app/lib/session-videos/logic'
 
 /* Session Videos, Phase 1 (docs/build_suggestions/session-video-pipeline.md): upload a recorded session, confirm which agenda session it is, name the voices, then review the titles, description,
    chapters and tags. Nothing is published from here. The heavy work (FFmpeg, transcript, text) runs in the worker. */
 
 type Finding = { rule_key: string; severity: 'error' | 'warning'; message: string; match: string }
-type Video = { id: string; source_ref: string | null; status: string; error: string | null; duration_s: number | null; size_bytes: number | null; agenda_session_id: string | null; created_at: string }
+type Video = { id: string; source_ref: string | null; status: string; error: string | null; duration_s: number | null; size_bytes: number | null; bytes_transferred: number | null; drive_file_id: string | null; agenda_session_id: string | null; created_at: string }
 type Sess = { id: string; title: string; content_type: string | null; starts: string | null; speakers: string[] }
 type Job = { id: string; kind: string; status: string; attempts: number; error: string | null; log: Array<{ at: string; line: string }> }
 type Speaker = { id: string; name: string; title: string | null; company: string | null; moderator: boolean }
@@ -94,6 +95,14 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
     } catch (e) { setErr(`${e instanceof Error ? e.message : 'Upload failed.'} Select the same file again with "Resume" to continue where it stopped.`); setUp(null); await load() }
   }
 
+  async function importFromDrive(f: DriveFile) {
+    try {
+      setErr(null)
+      await api('create_from_drive', { drive_file_id: f.id, access_token: f.accessToken, file_name: f.name, size: f.sizeBytes, content_type: f.mimeType })
+      await load()
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Could not start the Drive import.') }
+  }
+
   const uploading = list?.videos.filter(v => v.status === 'uploading') ?? []
   return (
     <div style={{ display: 'grid', gap: '16px' }}>
@@ -106,7 +115,8 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
         <input ref={fileRef} type="file" accept="video/mp4,video/quicktime,.mp4,.mov,.m4v" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; const r = resumeRef.current; resumeRef.current = null; void upload(f, r ?? undefined) }} />
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <Button variant="teal" disabled={!list?.storage_ready || !!up} onClick={() => { resumeRef.current = null; fileRef.current?.click() }}>Choose a video…</Button>
-          {uploading.map(v => <Button key={v.id} variant="ghost" disabled={!!up} onClick={() => { resumeRef.current = { id: v.id }; fileRef.current?.click() }}>Resume {v.source_ref} ({mb(v.size_bytes)})</Button>)}
+          <DrivePickerButton disabled={!list?.storage_ready || !!up} onPick={f => void importFromDrive(f)} />
+          {uploading.filter(v => !v.drive_file_id).map(v => <Button key={v.id} variant="ghost" disabled={!!up} onClick={() => { resumeRef.current = { id: v.id }; fileRef.current?.click() }}>Resume {v.source_ref} ({mb(v.size_bytes)})</Button>)}
         </div>
         {up && <div style={{ marginTop: '10px' }}>
           <div style={{ fontSize: '12.5px', marginBottom: '4px' }}><strong>{up.name}</strong> · {up.pct}% · {up.note}</div>
@@ -122,7 +132,10 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
           {list?.videos.map(v => (
             <button key={v.id} type="button" onClick={() => setOpenId(openId === v.id ? null : v.id)} style={{ textAlign: 'left', border: `1.5px solid ${openId === v.id ? 'var(--teal-mid)' : 'var(--border-light)'}`, background: 'var(--surface)', borderRadius: '10px', padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit', color: 'inherit' }}>
               <span style={{ fontWeight: 800, fontSize: '13px' }}>{v.source_ref}</span> <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>{mb(v.size_bytes)}{v.duration_s ? ` · ${fmtTime(v.duration_s)}` : ''}</span>
-              <span style={{ float: 'right', fontSize: '12px', fontWeight: 800, color: STATUS[v.status]?.color }}>{STATUS[v.status]?.label ?? v.status}</span>
+              <span style={{ float: 'right', fontSize: '12px', fontWeight: 800, color: STATUS[v.status]?.color }}>{v.drive_file_id && v.status === 'uploading' ? `Importing from Drive${v.bytes_transferred && v.size_bytes ? ` · ${Math.round(v.bytes_transferred / v.size_bytes * 100)}%` : ''}` : (STATUS[v.status]?.label ?? v.status)}</span>
+              {v.drive_file_id && v.status === 'uploading' && v.bytes_transferred != null && v.size_bytes && (
+                <div style={{ marginTop: '4px', height: '4px', background: 'var(--border-light)', borderRadius: '99px', overflow: 'hidden' }}><div style={{ width: `${Math.round(v.bytes_transferred / v.size_bytes * 100)}%`, height: '100%', background: 'var(--teal-mid)', transition: 'width .3s' }} /></div>
+              )}
             </button>
           ))}
         </div>
