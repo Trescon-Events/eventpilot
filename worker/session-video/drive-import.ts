@@ -46,10 +46,12 @@ export async function runDriveImport(job: Job): Promise<void> {
     const start = (n - 1) * CHUNK
     const end = Math.min(sizeBytes - 1, n * CHUNK - 1)
 
-    const driveRes = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-      { headers: { Authorization: `Bearer ${token}`, Range: `bytes=${start}-${end}` } }
-    )
+    const driveUrl = token
+      ? `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`
+      : `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${process.env.NEXT_PUBLIC_GOOGLE_DRIVE_API_KEY}`
+    const driveHeaders: Record<string, string> = { Range: `bytes=${start}-${end}` }
+    if (token) driveHeaders['Authorization'] = `Bearer ${token}`
+    const driveRes = await fetch(driveUrl, { headers: driveHeaders })
     if (!driveRes.ok) {
       const body = await driveRes.text().catch(() => '')
       throw new Error(`Drive API returned ${driveRes.status} for bytes ${start}-${end}: ${body.slice(0, 200)}`)

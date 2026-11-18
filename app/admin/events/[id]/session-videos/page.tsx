@@ -38,6 +38,8 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
   const [err, setErr] = useState<string | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
   const [up, setUp] = useState<{ name: string; pct: number; note: string } | null>(null)
+  const [driveLink, setDriveLink] = useState('')
+  const [driveImporting, setDriveImporting] = useState(false)
   const resumeRef = useRef<{ id: string } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -95,6 +97,14 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
     } catch (e) { setErr(`${e instanceof Error ? e.message : 'Upload failed.'} Select the same file again with "Resume" to continue where it stopped.`); setUp(null); await load() }
   }
 
+  async function importFromDriveLink() {
+    if (!driveLink.trim()) return
+    setDriveImporting(true); setErr(null)
+    try { await api('import_drive_link', { url: driveLink.trim() }); setDriveLink(''); await load() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Could not import from that link.') }
+    finally { setDriveImporting(false) }
+  }
+
   async function importFromDrive(f: DriveFile) {
     try {
       setErr(null)
@@ -117,6 +127,10 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
           <Button variant="teal" disabled={!list?.storage_ready || !!up} onClick={() => { resumeRef.current = null; fileRef.current?.click() }}>Choose a video…</Button>
           <DrivePickerButton disabled={!list?.storage_ready || !!up} onPick={f => void importFromDrive(f)} />
           {uploading.filter(v => !v.drive_file_id).map(v => <Button key={v.id} variant="ghost" disabled={!!up} onClick={() => { resumeRef.current = { id: v.id }; fileRef.current?.click() }}>Resume {v.source_ref} ({mb(v.size_bytes)})</Button>)}
+        </div>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '8px' }}>
+          <Input value={driveLink} onChange={e => setDriveLink(e.target.value)} placeholder="Or paste a public Google Drive link…" style={{ flex: 1, maxWidth: '480px' }} onKeyDown={e => { if (e.key === 'Enter' && driveLink.trim() && !driveImporting && list?.storage_ready) void importFromDriveLink() }} />
+          <Button variant="ghost" disabled={!driveLink.trim() || driveImporting || !list?.storage_ready} onClick={() => void importFromDriveLink()}>{driveImporting ? 'Starting…' : 'Import'}</Button>
         </div>
         {up && <div style={{ marginTop: '10px' }}>
           <div style={{ fontSize: '12.5px', marginBottom: '4px' }}><strong>{up.name}</strong> · {up.pct}% · {up.note}</div>

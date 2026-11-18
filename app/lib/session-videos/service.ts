@@ -87,6 +87,42 @@ export async function completeUpload(eventId: string, id: string) {
   await enqueueJob(id, 'ingest')
 }
 
+/** Import a publicly-shared Drive file without OAuth — uses just the API key, so the file must be shared "Anyone with the link". */
+export async function createVideoFromDriveLink(eventId: string, b: { url?: unknown }, by: string | null) {
+  if (!videoStorageConfigured()) throw new VideoError('Video storage is not set up yet (VIDEO_R2_* on Railway).', 503)
+  const url = typeof b.url === 'string' ? b.url.trim() : ''
+  const idMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ?? url.match(/[?&]id=([a-zA-Z0-9_-]+)/)
+  const fileId = idMatch?.[1] ?? ''
+  if (!fileId) throw new VideoError('Could not find a Drive file ID in that URL. Use the "Share" link from Google Drive.')
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_DRIVE_API_KEY
+  if (!apiKey) throw new VideoError('Google Drive API key is not configured.', 503)
+  const metaRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=name%2Csize%2CmimeType&key=${apiKey}`)
+  if (!metaRes.ok) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const err = await metaRes.json().catch(() => ({}) as any)
+    throw new VideoError(`Could not read that Drive file (${metaRes.status}): ${err?.error?.message ?? 'check the file is shared with "Anyone with the link"'}`, 400)
+  }
+  const meta = await metaRes.json() as { name?: string; size?: string; mimeType?: string }
+  if (!meta.name || !meta.size) throw new VideoError('Drive returned no file info — is the file shared with "Anyone with the link"?', 400)
+  const size = Number(meta.size)
+  if (!size || size <= 0) throw new VideoError('Could not determine the file size.', 400)
+  if (size > 30 * 1024 ** 3) throw new VideoError('That file is over 30 GB.', 400)
+  const type = typeof meta.mimeType === 'string' && /^video\//.test(meta.mimeType) ? meta.mimeType : 'video/mp4'
+  const name = meta.name
+  if (!/\.(mp4|mov|m4v)$/i.test(name) && !/^video\//.test(meta.mimeType ?? '')) throw new VideoError('That Drive file does not appear to be a video.', 400)
+  const sessions = await matchSessions(eventId)
+  const suggestions = suggestSessions(name, sessions.map(s => ({ id: s.id, title: s.title, speakers: s.speakers })))
+  const { data, error } = await supabaseAdmin.from('session_videos').insert({ event_id: eventId, source_ref: name, drive_file_id: fileId, content_type: type, size_bytes: size, status: 'uploading', match_suggestions: suggestions, created_by: actor(by) }).select('id').single()
+  if (error) throw new VideoError(error.message, 500)
+  const key = keysFor(eventId, data.id as string, name).original
+  try {
+    const uploadId = await startMultipart(key, type)
+    await supabaseAdmin.from('session_videos').update({ original_path: key, upload_id: uploadId }).eq('id', data.id)
+    await enqueueJob(data.id as string, 'drive_import')
+    return { id: data.id as string, suggestions }
+  } catch (e) { await supabaseAdmin.from('session_videos').delete().eq('id', data.id); throw e }
+}
+
 export async function createVideoFromDrive(eventId: string, b: { drive_file_id?: unknown; access_token?: unknown; file_name?: unknown; size?: unknown; content_type?: unknown }, by: string | null) {
   if (!videoStorageConfigured()) throw new VideoError('Video storage is not set up yet (VIDEO_R2_* on Railway).', 503)
   const fileId = typeof b.drive_file_id === 'string' ? b.drive_file_id.trim() : ''
