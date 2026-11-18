@@ -59,6 +59,22 @@ function loadScript(src: string): Promise<void> {
   })
 }
 
+/** Loads the Google Identity Services library and requests a drive.readonly OAuth token. Opens a popup. */
+export async function requestDriveToken(clientId: string): Promise<string> {
+  await loadScript('https://accounts.google.com/gsi/client')
+  return new Promise<string>((resolve, reject) => {
+    const client = window.google!.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: 'https://www.googleapis.com/auth/drive.readonly',
+      callback: res => {
+        if (res.error || !res.access_token) { reject(new Error(res.error ?? 'No access token returned')); return }
+        resolve(res.access_token)
+      },
+    })
+    client.requestAccessToken()
+  })
+}
+
 export default function DrivePickerButton({ onPick, disabled }: Props) {
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -86,21 +102,7 @@ export default function DrivePickerButton({ onPick, disabled }: Props) {
       })
 
       // Request OAuth token (opens popup)
-      await new Promise<void>((resolve, reject) => {
-        const client = window.google!.accounts.oauth2.initTokenClient({
-          client_id: cid,
-          scope: 'https://www.googleapis.com/auth/drive.readonly',
-          callback: res => {
-            if (res.error || !res.access_token) {
-              reject(new Error(res.error ?? 'No access token returned'))
-              return
-            }
-            tokenRef.current = res.access_token
-            resolve()
-          },
-        })
-        client.requestAccessToken()
-      })
+      tokenRef.current = await requestDriveToken(cid)
 
       const token = tokenRef.current!
       const p = window.google?.picker

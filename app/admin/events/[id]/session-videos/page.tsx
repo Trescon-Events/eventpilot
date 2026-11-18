@@ -5,7 +5,7 @@
 import { use, useCallback, useEffect, useRef, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Card, Input, Select } from '@/app/components/ui'
-import DrivePickerButton, { type DriveFile } from '@/app/components/session-videos/DrivePickerButton'
+import DrivePickerButton, { requestDriveToken, type DriveFile } from '@/app/components/session-videos/DrivePickerButton'
 import { fmtTime } from '@/app/lib/session-videos/logic'
 
 /* Session Videos, Phase 1 (docs/build_suggestions/session-video-pipeline.md): upload a recorded session, confirm which agenda session it is, name the voices, then review the titles, description,
@@ -99,9 +99,22 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
 
   async function importFromDriveLink() {
     if (!driveLink.trim()) return
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID
+    if (!clientId) { setErr('Google Drive is not configured.'); return }
     setDriveImporting(true); setErr(null)
-    try { await api('import_drive_link', { url: driveLink.trim() }); setDriveLink(''); await load() }
-    catch (e) { setErr(e instanceof Error ? e.message : 'Could not import from that link.') }
+    try {
+      const idMatch = driveLink.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ?? driveLink.match(/[?&]id=([a-zA-Z0-9_-]+)/)
+      if (!idMatch) throw new Error('Could not find a file ID in that link. Paste the full Google Drive sharing URL.')
+      const fileId = idMatch[1]
+      // OAuth popup — user signs in with the account that has access to the file
+      const token = await requestDriveToken(clientId)
+      // Fetch metadata using the token (works for "shared with me" files, not just public ones)
+      const metaRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=name%2Csize%2CmimeType`, { headers: { Authorization: `Bearer ${token}` } })
+      if (!metaRes.ok) { const body = await metaRes.text().catch(() => ''); throw new Error(`Could not read that Drive file (${metaRes.status}): ${body.slice(0, 120)}`) }
+      const meta = await metaRes.json() as { name: string; size: string; mimeType: string }
+      await api('create_from_drive', { drive_file_id: fileId, access_token: token, file_name: meta.name, size: parseInt(meta.size, 10), content_type: meta.mimeType })
+      setDriveLink(''); await load()
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Could not import from that link.') }
     finally { setDriveImporting(false) }
   }
 
