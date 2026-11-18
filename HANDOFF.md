@@ -172,10 +172,19 @@ Why: withdrawals were handled by Delete (archive, no reason), so there was no re
 - **Known gaps:** Withdrew only leaves the public website if the checkbox is ticked, and restoring does not put a speaker back on it. `app/api/events/speakers/route.ts` (Website Builder) can hard-delete a speaker, bypassing all this. Thank-you tool not built yet (design agreed: one owner per event, gallery link required, scheduled send, sent from each speaker's own producer, recipients = Confirmed or Spoke).
 - Also uncommitted in the working tree: the subscriptions tracker (`app/lib/registry/subscriptions.ts`, section on Keys & Credentials). R2 was found switched off on 6 Nov (billing), re-added.
 
-## Last Session — Claude Code with Madhu, 16–17 Nov 2026. Handed off to: next session
-All code is pushed (`main` = `origin/main`, CI green). Infra set up during this session; real end-to-end MP4 test still pending.
+## Last Session — Claude Code with Madhu, 18 Nov 2026. Handed off to: next session
+All code is pushed (`main` = `origin/main`, CI queued). Phase 2 is in production; Madhu still needs to run the Phase 2 DB migration and set Gemini API key on the video-worker before voice clips and face detection activate.
 
-**Built / pushed this session (16–17 Nov)**
+**Built / pushed this session (18 Nov) — Session Videos Phase 2**
+- `f56cdfd` Session Videos Phase 2: session-indexed UI, voice clips, Gemini face detection.
+  - **identify job** (`worker/session-video/identify.ts`): after transcription, FFmpeg extracts a 5–28 s clip + frame per voice from the proxy; Gemini Vision matches each frame against session speaker photos and writes suggestions; saves `voice_clips` + `voice_suggestions` to `session_video_transcripts`. Never throws — per-voice errors are caught.
+  - **transcribe** now enqueues the identify job immediately after completing.
+  - **worker/main** handles the new `'identify'` job kind.
+  - **service.ts**: `createVideo` / `createVideoFromDrive` accept `agenda_session_id` so a session-context upload is linked at creation; `videoDetail` presigns per-voice clip URLs and returns `voice_suggestions`; `retryVideo` handles identify kind.
+  - **page.tsx**: sessions are the top-level list (each has a video slot); upload controls live inside each session row; voice naming section uses per-voice clip players (20–28 s each) with speaker chips and an "AI: [name]" badge when face detection matched; full-video player + transcript remain in sections 5 and 6.
+  - **migration** `supabase/session_video_phase2_migration.sql`: adds `voice_clips` / `voice_suggestions` columns to `session_video_transcripts` and adds `'identify'` to the `video_jobs_kind_check` constraint. **Madhu must run this before the new features activate.**
+
+**Previous session built / pushed (16–17 Nov)**
 - `d4e6373` Session Videos Phase 1: R2 multipart upload, session match, Railway video-worker (FFmpeg + Gemini transcript), voice naming, text pack, review/approve page, `sae.videos.manage` gate, migration (4 tables).
 - `ce92795` HANDOFF: session videos migration run + end-to-end test result.
 - `3fce63a` video-worker Dockerfile: copy .npmrc so `npm ci` picks up `legacy-peer-deps`.
@@ -201,7 +210,9 @@ All code is pushed (`main` = `origin/main`, CI green). Infra set up during this 
 - `sae.videos.manage` confirmed already granted on the Producer role.
 
 **What's next / open**
-- **Session video real test:** Madhu provides a clipped DFS session MP4 (DFFW2026 Drive has raw .mov footage, not edited individual sessions). Then: upload via browser UI, confirm R2 multipart, watch the worker process, check transcript + text pack, use the review/approve page.
+- **Run Phase 2 migration:** `supabase/session_video_phase2_migration.sql` — Madhu runs via `!` (psql, pooler) before the identify job can store clips.
+- **Set GEMINI_API_KEY on the video-worker Railway service** — without it, identify still extracts clips but skips face detection. The key already exists on the main eventpilot service; copy it to the video-worker service.
+- **Session video real test:** upload a clipped MP4 from within a session row, watch the worker pipeline through to identify (voice clips appear in the name-the-voices panel as playable clips), name them with chips, generate and approve the text pack.
 - Branches listed "NOT pushed" earlier in this file: **all confirmed merged into origin/main on 17 Nov 2026** (every local branch tip was an ancestor of origin/main). The sections are left as written for reference but their infra/migration notes still apply.
 - DFS: Katerina Zemskova's KonfHub session push still pending (Save and update KonfHub). Confirm FIFF HubSpot speaker arrived.
 - Cloudflare Images Stream Basic subscription + card expiry 12/2024 + billing email `charan@` — check before 4 Dec Workers Paid renewal.
