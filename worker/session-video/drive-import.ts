@@ -7,6 +7,7 @@ import { enqueueJob, logJob, type Job } from '@/app/lib/session-videos/jobs'
    Google OAuth access tokens expire in ~1 hour; files larger than ~4 GB should be expected to complete within that window. */
 
 const CHUNK = UPLOAD_PART_SIZE   // 64 MiB — matches R2 multipart and browser upload part size
+const CONCURRENCY = 3            // fetch+upload this many chunks in parallel
 
 export async function runDriveImport(job: Job): Promise<void> {
   const { data: v, error: ve } = await supabaseAdmin.from('session_videos')
@@ -36,39 +37,45 @@ export async function runDriveImport(job: Job): Promise<void> {
   const done = new Map(existing.map(p => [p.PartNumber, p.ETag]))
   const totalParts = Math.ceil(sizeBytes / CHUNK)
 
-  await logJob(job.id, `Importing ${totalParts} part(s) from Google Drive (${done.size} already done)`)
+  await logJob(job.id, `Importing ${totalParts} part(s) from Google Drive (${done.size} already done, concurrency ${CONCURRENCY})`)
 
   const allParts: Array<{ PartNumber: number; ETag: string }> = [...existing.map(p => ({ PartNumber: p.PartNumber, ETag: p.ETag }))]
+  const queue = Array.from({ length: totalParts }, (_, i) => i + 1).filter(n => !done.has(n))
+  let qi = 0
+  let transferred = done.size * CHUNK
 
-  for (let n = 1; n <= totalParts; n++) {
-    if (done.has(n)) continue
+  const driveUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`
 
+  async function fetchAndUpload(n: number): Promise<void> {
     const start = (n - 1) * CHUNK
     const end = Math.min(sizeBytes - 1, n * CHUNK - 1)
 
-    const driveUrl = token
-      ? `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`
-      : `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${process.env.NEXT_PUBLIC_GOOGLE_DRIVE_API_KEY}`
-    const driveHeaders: Record<string, string> = { Range: `bytes=${start}-${end}` }
-    if (token) driveHeaders['Authorization'] = `Bearer ${token}`
-    const driveRes = await fetch(driveUrl, { headers: driveHeaders })
+    const driveRes = await fetch(driveUrl, { headers: { Authorization: `Bearer ${token}`, Range: `bytes=${start}-${end}` } })
     if (!driveRes.ok) {
       const body = await driveRes.text().catch(() => '')
       throw new Error(`Drive API returned ${driveRes.status} for bytes ${start}-${end}: ${body.slice(0, 200)}`)
     }
     const chunk = await driveRes.arrayBuffer()
 
-    const url = await presignPart(originalPath, uploadId, n)
+    const url = await presignPart(originalPath!, uploadId!, n)
     const r2Res = await fetch(url, { method: 'PUT', body: chunk })
     if (!r2Res.ok) throw new Error(`R2 upload failed for part ${n}/${totalParts} (${r2Res.status}).`)
 
     const etag = r2Res.headers.get('etag') ?? ''
     allParts.push({ PartNumber: n, ETag: etag })
 
-    const transferred = Math.min(sizeBytes, n * CHUNK)
-    await supabaseAdmin.from('session_videos').update({ bytes_transferred: transferred }).eq('id', job.session_video_id)
-    await logJob(job.id, `Part ${n}/${totalParts} done (${Math.round(transferred / sizeBytes * 100)}%)`)
+    transferred += (end - start + 1)
+    await supabaseAdmin.from('session_videos').update({ bytes_transferred: Math.min(sizeBytes, transferred) }).eq('id', job.session_video_id)
+    await logJob(job.id, `Part ${n}/${totalParts} done (${Math.round(Math.min(sizeBytes, transferred) / sizeBytes * 100)}%)`)
   }
+
+  // Process queue with CONCURRENCY workers running in parallel
+  await Promise.all(Array.from({ length: CONCURRENCY }, async () => {
+    while (qi < queue.length) {
+      const n = queue[qi++]
+      await fetchAndUpload(n)
+    }
+  }))
 
   await completeMultipart(originalPath, uploadId, allParts)
 
