@@ -33,6 +33,20 @@ async function handleSweep(req: NextRequest) {
     const twentyHoursAgoIso = new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString()
     const webhookUrl = process.env.TEAMS_TASK_ALERTS_WEBHOOK_URL || ''
 
+    // 0. Auto-archive completed tasks from previous days ("next day" threshold)
+    try {
+      const todayStart = new Date()
+      todayStart.setHours(0, 0, 0, 0)
+      await supabaseAdmin
+        .from('task_manager_tasks')
+        .update({ archived_at: new Date().toISOString() })
+        .eq('status', 'Completed')
+        .is('archived_at', null)
+        .lt('updated_at', todayStart.toISOString())
+    } catch {
+      // Non-fatal if archived_at column is not yet applied
+    }
+
     // 1. Query all active (uncompleted) overdue tasks
     const { data: rawTasks, error: taskErr } = await supabaseAdmin
       .from('task_manager_tasks')

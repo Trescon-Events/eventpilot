@@ -246,6 +246,7 @@ interface Props {
   onPriorityChange: (taskId: string, newPriority: TaskPriority) => void
   onTimerAction?: (taskId: string, action: 'start' | 'pause' | 'stop') => void
   onDelete: (taskId: string) => void
+  onArchive?: (taskId: string, action: 'archive' | 'unarchive') => void
 }
 
 function TaskRow({
@@ -257,6 +258,7 @@ function TaskRow({
   onStatusChange,
   onPriorityChange,
   onDelete,
+  onArchive,
 }: {
   task: Task
   showEventColumn: boolean
@@ -266,6 +268,7 @@ function TaskRow({
   onStatusChange: (taskId: string, newStatus: TaskStatus) => void
   onPriorityChange: (taskId: string, newPriority: TaskPriority) => void
   onDelete: (taskId: string) => void
+  onArchive?: (taskId: string, action: 'archive' | 'unarchive') => void
 }) {
   const isCompleted = t.status === 'Completed'
 
@@ -376,10 +379,35 @@ function TaskRow({
           {STATUSES.map(s => <option key={s} value={s}>{s.replace('-', ' ')}</option>)}
         </PillSelect>
       </td>
-      <td style={{ padding: '10px 12px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
-        <button type="button" onClick={() => onDelete(t.id)} title="Delete task" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink4)', fontSize: '13px' }}>
-          ✕
-        </button>
+      <td style={{ padding: '10px 12px', textAlign: 'center', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+          {onArchive && (
+            t.archived_at ? (
+              <button
+                type="button"
+                onClick={() => onArchive(t.id, 'unarchive')}
+                title="Restore task to active list"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', padding: '2px' }}
+              >
+                ↩️
+              </button>
+            ) : (
+              t.status === 'Completed' && (
+                <button
+                  type="button"
+                  onClick={() => onArchive(t.id, 'archive')}
+                  title="Archive task now"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', padding: '2px' }}
+                >
+                  📦
+                </button>
+              )
+            )
+          )}
+          <button type="button" onClick={() => onDelete(t.id)} title="Delete task" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink4)', fontSize: '13px', padding: '2px' }}>
+            ✕
+          </button>
+        </div>
       </td>
     </tr>
   )
@@ -395,6 +423,7 @@ export default function TaskTable({
   onStatusChange,
   onPriorityChange,
   onDelete,
+  onArchive,
 }: Props) {
   const [collapsedEvents, setCollapsedEvents] = useState<Record<string, boolean>>({})
 
@@ -523,6 +552,7 @@ export default function TaskTable({
                           onStatusChange={onStatusChange}
                           onPriorityChange={onPriorityChange}
                           onDelete={onDelete}
+                          onArchive={onArchive}
                         />
                       ))}
                     </tbody>
@@ -571,6 +601,7 @@ export default function TaskTable({
               onStatusChange={onStatusChange}
               onPriorityChange={onPriorityChange}
               onDelete={onDelete}
+              onArchive={onArchive}
             />
           ))}
         </tbody>

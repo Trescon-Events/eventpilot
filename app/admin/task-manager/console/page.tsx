@@ -23,6 +23,8 @@ export default function TaskManagerConsolePage() {
   const [assigneeFilter, setAssigneeFilter] = useState('') // '' = everyone, matches SearchableSelect's empty-option convention
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set())
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
+  const [archiveScope, setArchiveScope] = useState<'active' | 'archived'>('active')
+  const [isBulkArchiving, setIsBulkArchiving] = useState(false)
   // "Current time" sourced from an effect, not read directly during render —
   // Date.now() during render is flagged as impure by this repo's stricter
   // react-hooks/purity rule. Safe to default to 0 pre-load: every consumer
@@ -57,34 +59,41 @@ export default function TaskManagerConsolePage() {
   }, [])
 
   const today = new Date(new Date(now).toDateString())
-  const isOverdue = (t: Task) => !!t.deadline && t.status !== 'Completed' && new Date(t.deadline) < today
-  const isStale = (t: Task) => t.status !== 'Completed' && Math.floor((now - new Date(t.updated_at).getTime()) / (1000 * 60 * 60 * 24)) >= STALE_DAYS
+  const isOverdue = (t: Task) => !t.archived_at && !!t.deadline && t.status !== 'Completed' && new Date(t.deadline) < today
+  const isStale = (t: Task) => !t.archived_at && t.status !== 'Completed' && Math.floor((now - new Date(t.updated_at).getTime()) / (1000 * 60 * 60 * 24)) >= STALE_DAYS
+
+  const activeTasks = useMemo(() => tasks.filter(t => !t.archived_at), [tasks])
+  const archivedTasks = useMemo(() => tasks.filter(t => !!t.archived_at), [tasks])
 
   const stats = useMemo(() => {
     const weekAgo = now - 7 * 24 * 60 * 60 * 1000
     return {
-      total: tasks.length,
-      overdue: tasks.filter(isOverdue).length,
-      stale: tasks.filter(isStale).length,
-      completedThisWeek: tasks.filter(t => t.status === 'Completed' && new Date(t.updated_at).getTime() >= weekAgo).length,
+      total: activeTasks.length,
+      overdue: activeTasks.filter(isOverdue).length,
+      stale: activeTasks.filter(isStale).length,
+      completedThisWeek: activeTasks.filter(t => t.status === 'Completed' && new Date(t.updated_at).getTime() >= weekAgo).length,
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- isOverdue/isStale close over `today`/`now`, stable per render
-  }, [tasks, now])
+  }, [activeTasks, now])
 
   const workload = useMemo(() => {
     const byStaff = new Map<string, { name: string; open: number }>()
-    for (const t of tasks) {
+    for (const t of activeTasks) {
       if (t.status === 'Completed' || !t.assigned_to_staff) continue
       const cur = byStaff.get(t.assigned_to) ?? { name: t.assigned_to_staff.name, open: 0 }
       cur.open++
       byStaff.set(t.assigned_to, cur)
     }
     return [...byStaff.values()].sort((a, b) => b.open - a.open)
-  }, [tasks])
+  }, [activeTasks])
 
   const filteredTasks = useMemo(() => {
     return tasks
       .filter(t => {
+        const isArchived = Boolean(t.archived_at)
+        if (archiveScope === 'active' && isArchived) return false
+        if (archiveScope === 'archived' && !isArchived) return false
+
         if (assigneeFilter !== '' && t.assigned_to !== assigneeFilter) return false
         if (filter === 'overdue') return isOverdue(t)
         if (filter === 'stale') return isStale(t)
@@ -93,7 +102,7 @@ export default function TaskManagerConsolePage() {
       })
       .sort((a, b) => new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) // stalest first
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks, filter, assigneeFilter])
+  }, [tasks, filter, assigneeFilter, archiveScope])
 
   async function handleReassign(taskId: string, newAssignee: string) {
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, assigned_to: newAssignee } : t))
@@ -186,6 +195,51 @@ export default function TaskManagerConsolePage() {
     }
   }
 
+  async function handleArchive(taskId: string, action: 'archive' | 'unarchive') {
+    setError(null)
+    try {
+      const res = await fetch('/api/task-manager/bulk-archive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_ids: [taskId], action }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? 'Failed to update archive status')
+      await loadTasks()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Archive action failed.')
+    }
+  }
+
+  async function handleBulkArchive(action: 'archive' | 'unarchive') {
+    const count = selectedTaskIds.size
+    if (count === 0) return
+    const msg = action === 'archive'
+      ? `Archive ${count} selected task${count === 1 ? '' : 's'}?\n\nThey will be moved to the archive while preserving all time logs and reports.`
+      : `Restore ${count} selected task${count === 1 ? '' : 's'} back to the active list?`
+    if (!confirm(msg)) return
+
+    setIsBulkArchiving(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/task-manager/bulk-archive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_ids: Array.from(selectedTaskIds), action }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.error ?? 'Bulk archive operation failed')
+      }
+      setSelectedTaskIds(new Set())
+      await loadTasks()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Bulk archive failed.')
+    } finally {
+      setIsBulkArchiving(false)
+    }
+  }
+
   if (loading) return <div style={{ padding: '80px', textAlign: 'center', color: 'var(--ink4)' }}>Loading admin console…</div>
 
   return (
@@ -270,6 +324,50 @@ export default function TaskManagerConsolePage() {
       <div style={{ height: '16px' }} />
 
       <Card padded>
+        {/* Active vs Archived scope tabs */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '16px', paddingBottom: '14px', borderBottom: '1px solid var(--border-light)' }}>
+          <div style={{ display: 'inline-flex', background: 'var(--surface)', padding: '3px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+            <button
+              type="button"
+              onClick={() => { setArchiveScope('active'); setSelectedTaskIds(new Set()) }}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                border: 'none',
+                background: archiveScope === 'active' ? 'var(--teal-mid)' : 'transparent',
+                color: archiveScope === 'active' ? 'var(--surface)' : 'var(--ink3)',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              Active Tasks ({activeTasks.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => { setArchiveScope('archived'); setSelectedTaskIds(new Set()) }}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                border: 'none',
+                background: archiveScope === 'archived' ? 'var(--teal-mid)' : 'transparent',
+                color: archiveScope === 'archived' ? 'var(--surface)' : 'var(--ink3)',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              📦 Archived ({archivedTasks.length})
+            </button>
+          </div>
+
+          <div style={{ fontSize: '11px', color: 'var(--ink4)' }}>
+            {archiveScope === 'active' ? 'Completed tasks auto-archive next day' : 'Archived tasks preserve timesheets & reporting'}
+          </div>
+        </div>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
           <select value={filter} onChange={e => setFilter(e.target.value as FilterMode)} style={PILL_FILTER_STYLE}>
             <option value="all">All tasks</option>
@@ -291,7 +389,9 @@ export default function TaskManagerConsolePage() {
             />
           </div>
 
-          <span style={{ fontSize: '12px', color: 'var(--ink4)' }}>{filteredTasks.length} task{filteredTasks.length === 1 ? '' : 's'} · sorted by longest untouched first</span>
+          <span style={{ fontSize: '12px', color: 'var(--ink4)' }}>
+            {filteredTasks.length} {archiveScope === 'archived' ? 'archived task' : 'task'}{filteredTasks.length === 1 ? '' : 's'} · sorted by longest untouched first
+          </span>
         </div>
 
         <AdminTaskTable
@@ -305,6 +405,7 @@ export default function TaskManagerConsolePage() {
           onStatusChange={handleStatusChange}
           onPriorityChange={handlePriorityChange}
           onDelete={handleDelete}
+          onArchive={handleArchive}
         />
       </Card>
 
@@ -364,7 +465,7 @@ export default function TaskManagerConsolePage() {
                 padding: '2px 4px',
               }}
             >
-              Select all {filteredTasks.length} filtered tasks
+              Select all {filteredTasks.length} {archiveScope === 'archived' ? 'archived' : 'filtered'} tasks
             </button>
           )}
 
@@ -387,9 +488,56 @@ export default function TaskManagerConsolePage() {
             Clear selection
           </button>
 
+          {/* Bulk Archive / Unarchive Action */}
+          {archiveScope === 'active' ? (
+            <button
+              type="button"
+              disabled={isBulkArchiving || isBulkDeleting}
+              onClick={() => handleBulkArchive('archive')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'var(--card)',
+                color: 'var(--teal)',
+                border: '1px solid var(--teal)',
+                borderRadius: '6px',
+                padding: '6px 14px',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: (isBulkArchiving || isBulkDeleting) ? 'not-allowed' : 'pointer',
+                opacity: (isBulkArchiving || isBulkDeleting) ? 0.7 : 1,
+              }}
+            >
+              <span>📦</span> {isBulkArchiving ? 'Archiving…' : `Archive (${selectedTaskIds.size})`}
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={isBulkArchiving || isBulkDeleting}
+              onClick={() => handleBulkArchive('unarchive')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'var(--teal-mid)',
+                color: 'var(--surface)',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '6px 14px',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: (isBulkArchiving || isBulkDeleting) ? 'not-allowed' : 'pointer',
+                opacity: (isBulkArchiving || isBulkDeleting) ? 0.7 : 1,
+              }}
+            >
+              <span>↩️</span> {isBulkArchiving ? 'Restoring…' : `Restore to Active (${selectedTaskIds.size})`}
+            </button>
+          )}
+
           <button
             type="button"
-            disabled={isBulkDeleting}
+            disabled={isBulkDeleting || isBulkArchiving}
             onClick={handleBulkDelete}
             style={{
               display: 'flex',
@@ -402,8 +550,8 @@ export default function TaskManagerConsolePage() {
               padding: '6px 14px',
               fontSize: '12px',
               fontWeight: 700,
-              cursor: isBulkDeleting ? 'not-allowed' : 'pointer',
-              opacity: isBulkDeleting ? 0.7 : 1,
+              cursor: (isBulkDeleting || isBulkArchiving) ? 'not-allowed' : 'pointer',
+              opacity: (isBulkDeleting || isBulkArchiving) ? 0.7 : 1,
             }}
           >
             <span>🗑️</span> {isBulkDeleting ? 'Deleting…' : `Delete (${selectedTaskIds.size})`}

@@ -15,9 +15,10 @@ interface Props {
   onStatusChange: (taskId: string, newStatus: TaskStatus) => void
   onPriorityChange: (taskId: string, newPriority: TaskPriority) => void
   onDelete: (taskId: string) => void
+  onArchive?: (taskId: string, action: 'archive' | 'unarchive') => void
 }
 
-export default function AdminTaskTable({ tasks, staff, now, selectedTaskIds, onToggleSelect, onToggleSelectAll, onReassign, onStatusChange, onPriorityChange, onDelete }: Props) {
+export default function AdminTaskTable({ tasks, staff, now, selectedTaskIds, onToggleSelect, onToggleSelectAll, onReassign, onStatusChange, onPriorityChange, onDelete, onArchive }: Props) {
   if (tasks.length === 0) {
     return <div style={{ padding: '48px', textAlign: 'center', color: 'var(--ink4)', fontSize: '13px' }}>No tasks match this filter.</div>
   }
@@ -113,10 +114,35 @@ export default function AdminTaskTable({ tasks, staff, now, selectedTaskIds, onT
                 <td style={{ padding: '10px 12px', whiteSpace: 'nowrap', color: isStale ? 'var(--amber)' : 'var(--ink4)', fontWeight: isStale ? 700 : 400 }}>
                   {idleDays === 0 ? 'today' : `${idleDays}d ago`}
                 </td>
-                <td style={{ padding: '10px 12px' }}>
-                  <button type="button" onClick={() => onDelete(t.id)} title="Delete task" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink4)', fontSize: '13px' }}>
-                    ✕
-                  </button>
+                <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {onArchive && (
+                      t.archived_at ? (
+                        <button
+                          type="button"
+                          onClick={() => onArchive(t.id, 'unarchive')}
+                          title="Restore task to active list"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', padding: '2px' }}
+                        >
+                          ↩️
+                        </button>
+                      ) : (
+                        t.status === 'Completed' && (
+                          <button
+                            type="button"
+                            onClick={() => onArchive(t.id, 'archive')}
+                            title="Archive task now"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', padding: '2px' }}
+                          >
+                            📦
+                          </button>
+                        )
+                      )
+                    )}
+                    <button type="button" onClick={() => onDelete(t.id)} title="Delete task" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink4)', fontSize: '13px', padding: '2px' }}>
+                      ✕
+                    </button>
+                  </div>
                 </td>
               </tr>
             )

@@ -230,6 +230,18 @@ historical record.)_
   the RLS or decide it's not worth it. Not blocking anything, just sitting
   there doing nothing.
 
+### 2026-11-19 session summary (Khalifa, with Antigravity)
+
+Purpose: Automated Soft-Archiving for completed tasks ("next day" auto-archive) across the Task Manager Admin Console and main table views, preserving timesheets, metrics, and future event-wise completion reports.
+
+- `supabase/task_manager_archive.sql` (new) — migration adding `archived_at TIMESTAMPTZ` and index on `task_manager_tasks`.
+- `app/api/task-manager/bulk-archive/route.ts` (new) — batch endpoint taking `{ task_ids: string[], action: 'archive' | 'unarchive' }` to soft-archive or restore tasks.
+- `app/api/task-manager/route.ts` & `app/api/task-manager/cron/overdue/route.ts` — automated "next day" archiving sweep (completed tasks updated before today automatically set `archived_at`), scope filtering (`active` / `archived` / `all`) with graceful fallback if migration not yet applied.
+- `app/admin/task-manager/console/AdminTaskTable.tsx` & `app/admin/task-manager/console/page.tsx` — `Active Tasks` vs `📦 Archived` view toggle, per-row archive/restore buttons, and floating action bar with `Archive ({count})` in Active view and `Restore to Active ({count})` in Archived view.
+- `app/admin/task-manager/TaskTable.tsx` & `app/admin/task-manager/page.tsx` — full parity for main Task Manager table (Active / Archived view toggle, row actions, and floating action bar archive/restore).
+- `app/admin/task-manager/types.ts` — added `archived_at?: string | null` to `Task`.
+- Verified: `npm run typecheck` (`tsc --noEmit`) clean (0 errors), `npm run check:keys` passed.
+
 ### 2026-11-18 session summary (Khalifa, with Antigravity)
 
 Purpose: Add bulk task deletion capability across the Task Manager Admin Console and main table views (Option A / Hybrid multi-select + floating action bar).

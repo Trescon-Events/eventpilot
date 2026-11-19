@@ -41,6 +41,8 @@ export default function TaskManagerPage() {
   const [priorityFilter, setPriorityFilter] = useState<'all' | TaskPriority>('all')
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set())
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
+  const [archiveScope, setArchiveScope] = useState<'active' | 'archived'>('active')
+  const [isBulkArchiving, setIsBulkArchiving] = useState(false)
 
   const currentStaff = useMemo(() => {
     return staff.find(s => s.id === currentStaffId) ?? null
@@ -142,13 +144,16 @@ export default function TaskManagerPage() {
     loadFirstTime().catch(() => setTimeLogsLoading(false))
   }, [view, timeLogsLoaded])
 
-  // Compute assignees count & team capacities
+  const activeTasks = useMemo(() => tasks.filter(t => !t.archived_at), [tasks])
+  const archivedTasks = useMemo(() => tasks.filter(t => !!t.archived_at), [tasks])
+
+  // Compute assignees count & team capacities (active tasks only)
   const counts = useMemo<AssigneeCounts>(() => {
     const map: AssigneeCounts = {}
     for (const s of staff) {
       map[s.id] = { name: s.name, total: 0, not_started: 0, in_progress: 0, completed: 0 }
     }
-    for (const t of tasks) {
+    for (const t of activeTasks) {
       if (!map[t.assigned_to]) {
         map[t.assigned_to] = {
           name: t.assigned_to_staff?.name ?? 'Unknown',
@@ -165,7 +170,7 @@ export default function TaskManagerPage() {
       if (t.status === 'Completed') entry.completed++
     }
     return map
-  }, [staff, tasks])
+  }, [staff, activeTasks])
 
   // Macro KPI pulse summary metrics for Admin Oversight
   const { totalTasksCount, inProgressCount, completedCount, overdueCount, totalTrackedSeconds } = useMemo(() => {
@@ -175,7 +180,7 @@ export default function TaskManagerPage() {
     let overdue = 0
     let tracked = 0
 
-    for (const t of tasks) {
+    for (const t of activeTasks) {
       if (t.status === 'In-Progress') inProg++
       if (t.status === 'Completed') done++
       if (t.deadline && t.status !== 'Completed' && new Date(t.deadline) < today) overdue++
@@ -183,19 +188,19 @@ export default function TaskManagerPage() {
     }
 
     return {
-      totalTasksCount: tasks.length,
+      totalTasksCount: activeTasks.length,
       inProgressCount: inProg,
       completedCount: done,
       overdueCount: overdue,
       totalTrackedSeconds: tracked,
     }
-  }, [tasks])
+  }, [activeTasks])
 
   // Personal metrics for Focus Mode
   const personalMetrics = useMemo(() => {
     const today = new Date(new Date().toDateString())
-    const myTasks = tasks.filter(t => t.assigned_to === currentStaffId)
-    const delegatedTasks = tasks.filter(t => t.assigned_by === currentStaffId && t.assigned_to !== currentStaffId)
+    const myTasks = activeTasks.filter(t => t.assigned_to === currentStaffId)
+    const delegatedTasks = activeTasks.filter(t => t.assigned_by === currentStaffId && t.assigned_to !== currentStaffId)
     let inProg = 0
     let done = 0
     let overdue = 0
@@ -222,7 +227,7 @@ export default function TaskManagerPage() {
       dueToday,
       tracked,
     }
-  }, [tasks, currentStaffId])
+  }, [activeTasks, currentStaffId])
 
   const filteredTasks = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
@@ -235,6 +240,10 @@ export default function TaskManagerPage() {
     }
 
     const list = tasks.filter(t => {
+      const isArchived = Boolean(t.archived_at)
+      if (archiveScope === 'active' && isArchived) return false
+      if (archiveScope === 'archived' && !isArchived) return false
+
       // In focus mode, filter based on focusSubTab
       if (dashboardMode === 'focus') {
         if (focusSubTab === 'assigned_to_me' && t.assigned_to !== currentStaffId) return false
@@ -292,7 +301,7 @@ export default function TaskManagerPage() {
       // 5. Default by newest created
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     })
-  }, [tasks, dashboardMode, focusSubTab, myTasksOnly, selectedStaffId, currentStaffId, statusFilter, priorityFilter, eventFilter, assignerFilter, searchQuery])
+  }, [tasks, archiveScope, dashboardMode, focusSubTab, myTasksOnly, selectedStaffId, currentStaffId, statusFilter, priorityFilter, eventFilter, assignerFilter, searchQuery])
 
   const categoryChartData = useMemo(() => {
     const byCategory = new Map<string, number>()
@@ -413,6 +422,53 @@ export default function TaskManagerPage() {
       setError(err instanceof Error ? err.message : 'Bulk delete failed.')
     } finally {
       setIsBulkDeleting(false)
+    }
+  }
+
+  async function handleArchive(taskId: string, action: 'archive' | 'unarchive') {
+    setError(null)
+    try {
+      const res = await fetch('/api/task-manager/bulk-archive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_ids: [taskId], action }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? 'Failed to update archive status')
+      notify(action === 'archive' ? 'Task archived' : 'Task restored to active list', 'success')
+      await loadTasks()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Archive action failed.')
+    }
+  }
+
+  async function handleBulkArchive(action: 'archive' | 'unarchive') {
+    const count = selectedTaskIds.size
+    if (count === 0) return
+    const msg = action === 'archive'
+      ? `Archive ${count} selected task${count === 1 ? '' : 's'}?\n\nThey will be moved to the archive while preserving all time logs and reports.`
+      : `Restore ${count} selected task${count === 1 ? '' : 's'} back to the active list?`
+    if (!confirm(msg)) return
+
+    setIsBulkArchiving(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/task-manager/bulk-archive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_ids: Array.from(selectedTaskIds), action }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.error ?? 'Bulk archive operation failed')
+      }
+      setSelectedTaskIds(new Set())
+      notify(action === 'archive' ? `Archived ${count} task${count === 1 ? '' : 's'}` : `Restored ${count} task${count === 1 ? '' : 's'} to active list`, 'success')
+      await loadTasks()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Bulk archive failed.')
+    } finally {
+      setIsBulkArchiving(false)
     }
   }
 
@@ -696,6 +752,17 @@ export default function TaskManagerPage() {
           <ToggleGroup value={view} onChange={setView} options={[['table', 'Table'], ['kanban', 'Kanban'], ['timesheets', 'Timesheets']]} />
 
           {view !== 'timesheets' && (
+            <ToggleGroup
+              value={archiveScope}
+              onChange={v => { setArchiveScope(v); setSelectedTaskIds(new Set()) }}
+              options={[
+                ['active', `Active (${activeTasks.length})`],
+                ['archived', `📦 Archived (${archivedTasks.length})`],
+              ]}
+            />
+          )}
+
+          {view !== 'timesheets' && (
             <>
               {/* Real-time search */}
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center', minWidth: '220px', maxWidth: '320px', flex: '1 1 220px' }}>
@@ -857,6 +924,7 @@ export default function TaskManagerPage() {
             onPriorityChange={handlePriorityChange}
             onTimerAction={handleTimerAction}
             onDelete={handleDelete}
+            onArchive={handleArchive}
           />
         )}
         {view === 'kanban' && (
@@ -989,9 +1057,56 @@ export default function TaskManagerPage() {
             Clear selection
           </button>
 
+          {/* Bulk Archive / Unarchive Action */}
+          {archiveScope === 'active' ? (
+            <button
+              type="button"
+              disabled={isBulkArchiving || isBulkDeleting}
+              onClick={() => handleBulkArchive('archive')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'var(--card)',
+                color: 'var(--teal)',
+                border: '1px solid var(--teal)',
+                borderRadius: '6px',
+                padding: '6px 14px',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: (isBulkArchiving || isBulkDeleting) ? 'not-allowed' : 'pointer',
+                opacity: (isBulkArchiving || isBulkDeleting) ? 0.7 : 1,
+              }}
+            >
+              <span>📦</span> {isBulkArchiving ? 'Archiving…' : `Archive (${selectedTaskIds.size})`}
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={isBulkArchiving || isBulkDeleting}
+              onClick={() => handleBulkArchive('unarchive')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'var(--teal-mid)',
+                color: 'var(--surface)',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '6px 14px',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: (isBulkArchiving || isBulkDeleting) ? 'not-allowed' : 'pointer',
+                opacity: (isBulkArchiving || isBulkDeleting) ? 0.7 : 1,
+              }}
+            >
+              <span>↩️</span> {isBulkArchiving ? 'Restoring…' : `Restore to Active (${selectedTaskIds.size})`}
+            </button>
+          )}
+
           <button
             type="button"
-            disabled={isBulkDeleting}
+            disabled={isBulkDeleting || isBulkArchiving}
             onClick={handleBulkDelete}
             style={{
               display: 'flex',
@@ -1004,8 +1119,8 @@ export default function TaskManagerPage() {
               padding: '6px 14px',
               fontSize: '12px',
               fontWeight: 700,
-              cursor: isBulkDeleting ? 'not-allowed' : 'pointer',
-              opacity: isBulkDeleting ? 0.7 : 1,
+              cursor: (isBulkDeleting || isBulkArchiving) ? 'not-allowed' : 'pointer',
+              opacity: (isBulkDeleting || isBulkArchiving) ? 0.7 : 1,
             }}
           >
             <span>🗑️</span> {isBulkDeleting ? 'Deleting…' : `Delete (${selectedTaskIds.size})`}
