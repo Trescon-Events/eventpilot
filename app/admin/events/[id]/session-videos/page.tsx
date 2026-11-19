@@ -282,7 +282,16 @@ function VideoPanel({ eventId, id, sessions, api, onChanged, onRemoved }: { even
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (d?.text) setEdit({ titles: d.text.titles, selected: d.text.selected_title ?? d.text.titles[0] ?? '', desc: d.text.description_working ?? '', chapters: d.text.chapters, tags: d.text.tags.join(', ') }) }, [textKey]) // eslint-disable-line react-hooks/exhaustive-deps
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { if (d?.transcript && !voices) setVoices(d.transcript.voices) }, [d, voices])
+  useEffect(() => {
+    if (!d?.transcript || voices) return
+    // Pre-select AI-suggested speakers for voices that haven't been manually named yet
+    const sugMap = new Map((d.transcript.voice_suggestions ?? []).map(s => [s.voice_id, s]))
+    setVoices(d.transcript.voices.map(v => {
+      if (v.speaker_id !== null || v.rejected) return v
+      const sug = sugMap.get(v.voice_id)
+      return sug?.suggested_speaker_id && sug.confidence !== 'low' ? { ...v, speaker_id: sug.suggested_speaker_id } : v
+    }))
+  }, [d, voices])
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (d && !pick) setPick(d.video.agenda_session_id ?? d.video.match_suggestions?.[0]?.session_id ?? '') }, [d, pick])
 
@@ -344,7 +353,7 @@ function VideoPanel({ eventId, id, sessions, api, onChanged, onRemoved }: { even
         <div style={{ display: 'grid', gap: '12px' }}>
           <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>
             {d.transcript.summaries.length} voice{d.transcript.summaries.length === 1 ? '' : 's'} detected.
-            {hasClips ? ' Listen to each clip, then pick who is speaking.' : ' Listen to a sample, then say who is speaking.'}
+            {hasClips ? ' Where face detection matched a speaker, the chip is pre-selected — confirm or change, then save.' : ' Listen to a sample, then say who is speaking.'}
             {!v.agenda_session_id ? ' Confirm the agenda session above first.' : ''}
           </div>
           {d.transcript.summaries.map(s => {
@@ -359,7 +368,7 @@ function VideoPanel({ eventId, id, sessions, api, onChanged, onRemoved }: { even
                   <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>{fmtTime(s.seconds)} speaking · {s.segments} turn{s.segments === 1 ? '' : 's'}</span>
                   {suggestedName && (
                     <span style={{ fontSize: '11px', background: 'var(--teal-light, rgba(0,150,136,0.1))', color: 'var(--teal-mid)', borderRadius: '4px', padding: '2px 8px' }}>
-                      AI: {suggestedName}
+                      {cur.speaker_id === suggestion!.suggested_speaker_id ? 'AI detected' : `AI suggested: ${suggestedName}`}
                     </span>
                   )}
                 </div>
