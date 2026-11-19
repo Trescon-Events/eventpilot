@@ -30,7 +30,12 @@
 export type NavExclusion = { path: string; reason: string }
 export type NavExclusionPrefix = { prefix: string; reason: string }
 
-export const REGISTRY_EXEMPT: NavExclusion[] = []
+export const REGISTRY_EXEMPT: NavExclusion[] = [
+  {
+    path: '/admin/events/[id]/session-videos/[sessionId]',
+    reason: 'Per-session video production flow — a child route of session-videos (which has a nav/registry entry). Reached exclusively via the Open/Continue/Start buttons on the Session Videos hub; it is never a top-level nav destination.',
+  },
+]
 export const REGISTRY_EXEMPT_PREFIXES: NavExclusionPrefix[] = []
 
 const VIEW_NAME = { '': 'OperationsHubView', '/licenses': 'LicensesView', '/vendors': 'VendorsView', '/badges': 'BadgePrintingView', '/mementos': 'MementosView', '/speakers': 'SpeakerDocumentsView', '/access': 'OpsAccessView' } as const
