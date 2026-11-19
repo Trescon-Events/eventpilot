@@ -994,7 +994,7 @@ export default function TaskManagerPage() {
             borderRadius: '12px',
             background: 'var(--surface)',
             border: '1px solid var(--border)',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.45)',
+            boxShadow: 'var(--shadow-md)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1113,7 +1113,7 @@ export default function TaskManagerPage() {
               alignItems: 'center',
               gap: '6px',
               background: 'var(--red)',
-              color: '#ffffff',
+              color: 'var(--surface)',
               border: 'none',
               borderRadius: '6px',
               padding: '6px 14px',
