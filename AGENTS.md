@@ -53,3 +53,26 @@ CI (`.github/workflows/ci.yml`) runs lint (changed files), typecheck, **`npm run
 **Whenever you introduce a new platform, API key, token, webhook secret or external system — in an env var, a GitHub Actions secret, a database-stored token, or anything else — add or update its entry in `credentials.ts` in the same change.** Names and URLs only; NEVER a secret value. If you remove a credential, move its vars to `RETIRED_VARS`.
 
 CI runs `npm run check:keys`: it fails if the code reads a secret-looking env var (`…KEY/SECRET/TOKEN/PASSWORD/WEBHOOK…`) that is not in the registry, if a retired var is read again, or if the registry file contains something shaped like a real secret. Run it before pushing. Env vars are the only thing it can detect — the other kinds (GitHub secrets, DB tokens, external systems) are on you.
+
+---
+
+# Parallel sessions — one git worktree per session
+
+Madhu often runs more than one Claude Code session at once (e.g. Session Videos in one, Task Manager in another). **Never run two sessions in the same folder**: they share one working tree, one branch and one `.next` cache, so a checkout/pull in one silently changes the other's files, and `npm run build` during `npm run dev` corrupts `.next`.
+
+**Setup for a new session on a different module:**
+
+1. From the main checkout: `git fetch origin && git worktree add ../EventPilot-<module> -b feat/<module> origin/main` (reuse `~/EventPilot-task-manager` for Task Manager work).
+2. Start `claude` from inside that worktree folder, not from `/Users/madhu/EventPilot`.
+3. `npm ci` in the worktree (or symlink `node_modules` from the main checkout for quick typechecks), and copy `.env.local` across — it is gitignored.
+4. If running a dev server there, use a different port: `npx next dev -p 3002` (port 3000 belongs to the main checkout).
+5. Typecheck with a bigger heap if it runs out of memory: `NODE_OPTIONS=--max-old-space-size=6144 npx tsc --noEmit`.
+
+**Rules that keep sessions from colliding:**
+
+- One branch per session. Never switch branches in another session's folder.
+- Before pushing to `main`: `git fetch origin`, confirm a fast-forward (`git merge-base --is-ancestor origin/main HEAD`), rebase if not. Another session may have pushed in between. Then confirm `gh run list --workflow CI --limit 1` ends `success`.
+- Shared files that every session touches — `HANDOFF.md`, `app/lib/registry/modules.tsx`, `app/lib/registry/credentials.ts` — keep edits small and pull the latest immediately before editing them.
+- Never `git add -A` in a folder that holds another session's uncommitted work; stage files by name.
+- When finished: `git worktree remove <path>` and delete the merged branch. The `.claude/worktrees/agent-*` entries are locked subagent leftovers — leave them alone.
+- Quick shortcut: asking Claude Code to "work in a new worktree" creates and cleans one up for you.

@@ -172,6 +172,13 @@ Why: withdrawals were handled by Delete (archive, no reason), so there was no re
 - **Known gaps:** Withdrew only leaves the public website if the checkbox is ticked, and restoring does not put a speaker back on it. `app/api/events/speakers/route.ts` (Website Builder) can hard-delete a speaker, bypassing all this. Thank-you tool not built yet (design agreed: one owner per event, gallery link required, scheduled send, sent from each speaker's own producer, recipients = Confirmed or Spoke).
 - Also uncommitted in the working tree: the subscriptions tracker (`app/lib/registry/subscriptions.ts`, section on Keys & Credentials). R2 was found switched off on 6 Nov (billing), re-added.
 
+## Dev-approvals fix + CI typecheck + parallel-session guidance (20 Nov 2026) — Claude Code with Madhu, PUSHED to main (`66431ba`, `9169544`), CI green
+- **Approve & Ship was failing**: `GITHUB_APPROVER_TOKEN`'s GitHub token (`eventpilot-approver-2026-10`) had no repo access or permissions (403 on review). Fixed on GitHub (Madhu's login): `Trescon-Events/eventpilot` only, Pull requests + Contents Read and write. No Railway change.
+- Approve/reject routes return 424 (not 502) on GitHub failures so the toast shows the real message; the page falls back to the HTTP status. Approve on an already-merged PR now marks the row approved so the card leaves the queue (PR #14 was merged on GitHub directly, row stayed `pending`).
+- CI typecheck on `main` was red after the session-video Step A merge: fixed `speaker_grid` / `session_stage` / animation types in creative-templates admin page, `text-layer-defaults.ts`, `lower-thirds/render.ts`, and `title-cards/data.ts` now selects `konfhub_primary_role_tag_id` (the primary-role fallback was always undefined). Not yet eyeballed on real session data.
+- `AGENTS.md` gained a "Parallel sessions — one git worktree per session" section.
+- Pre-existing, left alone: 2 ESLint errors in `creative-templates/admin/page.tsx` (raw hex colour, unescaped `'`) — not blocking CI (lint is changed-lines only).
+
 ## Last Session — Khalifa + Antigravity, 19 Nov 2026. Handed off to: next session
 Built and verified Task Manager Automated Soft-Archiving & Restore across the Admin Console and main table (automated "next day" completed task archiving, `Active | Archived` view toggle, batch archive/unarchive endpoint, and row-level restore/archive affordances, fully preserving timesheets, metrics, and future event-wise completion reports).
 
