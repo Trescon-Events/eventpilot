@@ -1,15 +1,222 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getEventRoles, resolvePrimaryRole } from '@/app/lib/konfhub/roles'
-import { normalizeTimezone, utcToZonedLocal } from '@/app/lib/events/timezones'
+import { normalizeTimezone } from '@/app/lib/events/timezones'
 import { isModeratorRole } from '@/app/lib/screens/geometry'
-import { titleCardFingerprint, speakerGridOf, TITLE_CARD_W, TITLE_CARD_H } from './geometry'
-import type { TextLayer, Variant } from '@/app/lib/announcements/composite'
+import { titleCardFingerprint, TITLE_CARD_W, TITLE_CARD_H } from './geometry'
 import type { HeadBox } from '@/app/lib/media/face-alignment'
 
 /* Title card data — reads settings, sessions, speakers, stored images. */
 
+// ---------------------------------------------------------------------------
+// New v2 config types
+// ---------------------------------------------------------------------------
+
+export type TitleCardTextElement = {
+  x?: number; y?: number; width?: number      // canvas position (session text layers only)
+  size: number; weight: number; color: string; upper: boolean
+  font_id?: string | null; max_lines?: number
+  pill?: { fill: string; padding_x: number; padding_y: number; radius: number } | null
+}
+
+export type TitleCardConfig = {
+  card_design: 'website' | 'plain' | 'template'
+  card_variant_id: string | null
+  head_scale: number
+  card_bg_url: string | null
+  background_url: string | null
+  font_id: string | null
+  text_elements: {
+    session_tag?: TitleCardTextElement
+    session_stage?: TitleCardTextElement
+    session_title?: TitleCardTextElement
+    moderator?: TitleCardTextElement
+    speaker_name?: TitleCardTextElement
+    speaker_title?: TitleCardTextElement
+    speaker_company?: TitleCardTextElement
+  }
+  speaker_grid: {
+    x: number; y: number; width: number; height: number
+    columns: number; max_rows: number
+    gap_x: number; gap_y: number
+    card_min_width: number; card_max_width: number
+  }
+  photo_pct: number
+  gap_px: number
+  card_aspect: number
+}
+
+export const DEFAULT_TITLE_CARD_CONFIG: TitleCardConfig = {
+  card_design: 'plain',
+  card_variant_id: null,
+  head_scale: 1.0,
+  card_bg_url: null,
+  background_url: null,
+  font_id: null,
+  text_elements: {
+    session_tag:   { x: 52,   y: 180, width: 500,  size: 32, weight: 700, color: '#FFFFFF', upper: true,  max_lines: 1, pill: { fill: '#00B4D8', padding_x: 18, padding_y: 8, radius: 6 } },
+    session_stage: { x: 580,  y: 180, width: 500,  size: 32, weight: 400, color: '#FFFFFF', upper: false, max_lines: 1 },
+    session_title: { x: 52,   y: 250, width: 1600, size: 72, weight: 700, color: '#FFFFFF', upper: false, max_lines: 3 },
+    moderator:     {                                size: 36, weight: 700, color: '#00B4D8', upper: true,  max_lines: 1 },
+    speaker_name:  {                                size: 68, weight: 700, color: '#FFFFFF', upper: true,  max_lines: 2 },
+    speaker_title: {                                size: 44, weight: 400, color: '#FFFFFF', upper: false, max_lines: 3 },
+    speaker_company: {                              size: 40, weight: 400, color: '#CCCCCC', upper: false, max_lines: 2 },
+  },
+  speaker_grid: { x: 185, y: 540, width: 1735, height: 410, columns: 3, max_rows: 2, gap_x: 20, gap_y: 20, card_min_width: 300, card_max_width: 700 },
+  photo_pct: 38,
+  gap_px: 36,
+  card_aspect: 0.6,
+}
+
+export function mergeTitleCardConfig(raw: unknown): TitleCardConfig {
+  const d = DEFAULT_TITLE_CARD_CONFIG
+  if (!raw || typeof raw !== 'object') return { ...d }
+  const r = raw as Record<string, unknown>
+
+  const hex = (v: unknown, fb: string) => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v : fb
+  const num = (v: unknown, fb: number, min: number, max: number) => typeof v === 'number' && isFinite(v) ? Math.min(max, Math.max(min, v)) : fb
+  const str = (v: unknown) => typeof v === 'string' ? v : null
+  const int = (v: unknown, fb: number, min: number, max: number) => typeof v === 'number' && isFinite(v) ? Math.min(max, Math.max(min, Math.round(v))) : fb
+
+  const mergeEl = (raw: unknown, def?: TitleCardTextElement): TitleCardTextElement => {
+    const fb = def ?? { size: 32, weight: 400, color: '#FFFFFF', upper: false }
+    if (!raw || typeof raw !== 'object') return { ...fb }
+    const e = raw as Record<string, unknown>
+    const hasPosition = def && 'x' in def
+    const pill: TitleCardTextElement['pill'] = (() => {
+      if (e.pill === null) return null
+      if (!e.pill || typeof e.pill !== 'object') return fb.pill ?? undefined
+      const p = e.pill as Record<string, unknown>
+      return { fill: hex(p.fill, '#00B4D8'), padding_x: int(p.padding_x, 18, 0, 100), padding_y: int(p.padding_y, 8, 0, 60), radius: int(p.radius, 6, 0, 50) }
+    })()
+    return {
+      ...(hasPosition ? {
+        x: int(e.x, (def as TitleCardTextElement).x!, 0, 1920),
+        y: int(e.y, (def as TitleCardTextElement).y!, 0, 1080),
+        width: int(e.width, (def as TitleCardTextElement).width!, 50, 1920),
+      } : {}),
+      size: num(e.size, fb.size, 8, 200),
+      weight: num(e.weight, fb.weight, 100, 900),
+      color: hex(e.color, fb.color),
+      upper: e.upper !== false,
+      ...(e.font_id !== undefined ? { font_id: str(e.font_id) } : {}),
+      max_lines: typeof e.max_lines === 'number' ? Math.min(10, Math.max(1, Math.round(e.max_lines))) : fb.max_lines,
+      ...(pill !== undefined ? { pill } : {}),
+    }
+  }
+
+  const te = r.text_elements && typeof r.text_elements === 'object' ? r.text_elements as Record<string, unknown> : {}
+  const dg = d.speaker_grid
+  const rg = r.speaker_grid && typeof r.speaker_grid === 'object' ? r.speaker_grid as Record<string, unknown> : {}
+
+  return {
+    card_design: r.card_design === 'website' ? 'website' : r.card_design === 'template' ? 'template' : 'plain',
+    card_variant_id: str(r.card_variant_id),
+    head_scale: num(r.head_scale, d.head_scale, 0.5, 3.0),
+    card_bg_url: str(r.card_bg_url),
+    background_url: str(r.background_url),
+    font_id: str(r.font_id),
+    text_elements: {
+      session_tag:     mergeEl(te.session_tag,     d.text_elements.session_tag),
+      session_stage:   mergeEl(te.session_stage,   d.text_elements.session_stage),
+      session_title:   mergeEl(te.session_title,   d.text_elements.session_title),
+      moderator:       mergeEl(te.moderator,       d.text_elements.moderator),
+      speaker_name:    mergeEl(te.speaker_name,    d.text_elements.speaker_name),
+      speaker_title:   mergeEl(te.speaker_title,   d.text_elements.speaker_title),
+      speaker_company: mergeEl(te.speaker_company, d.text_elements.speaker_company),
+    },
+    speaker_grid: {
+      x:            int(rg.x,            dg.x,            0,   1920),
+      y:            int(rg.y,            dg.y,            0,   1080),
+      width:        int(rg.width,        dg.width,        50,  1920),
+      height:       int(rg.height,       dg.height,       50,  1080),
+      columns:      int(rg.columns,      dg.columns,      1,   10),
+      max_rows:     int(rg.max_rows,     dg.max_rows,     1,   8),
+      gap_x:        int(rg.gap_x,        dg.gap_x,        0,   200),
+      gap_y:        int(rg.gap_y,        dg.gap_y,        0,   200),
+      card_min_width: int(rg.card_min_width, dg.card_min_width, 50, 1000),
+      card_max_width: int(rg.card_max_width, dg.card_max_width, 100, 1920),
+    },
+    photo_pct:   num(r.photo_pct,   d.photo_pct,   10, 70),
+    gap_px:      num(r.gap_px,      d.gap_px,      0,  200),
+    card_aspect: num(r.card_aspect, d.card_aspect, 0.3, 1.5),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Legacy types — kept for backwards compatibility with renderTitleCard() callers
+// that have not yet been updated to v2.
+// ---------------------------------------------------------------------------
+
+export type TitleCardSpeakerSettings = {
+  photo_source: 'website' | 'cleaned'
+  photo_pct: number; gap_px: number; card_aspect: number
+  name_color: string; name_weight: number; name_size: number; name_upper: boolean
+  title_color: string; title_weight: number; title_size: number
+  company_color: string; company_size: number
+  moderator_color: string
+}
+
+export const DEFAULT_TITLE_CARD_SPEAKER_SETTINGS: TitleCardSpeakerSettings = {
+  photo_source: 'website',
+  photo_pct: 38, gap_px: 36, card_aspect: 0.6,
+  name_color: '#FFFFFF', name_weight: 700, name_size: 68, name_upper: true,
+  title_color: '#FFFFFF', title_weight: 400, title_size: 44,
+  company_color: '#CCCCCC', company_size: 40,
+  moderator_color: '#00B4D8',
+}
+
+export function speakerSettingsFromConfig(c: TitleCardConfig): TitleCardSpeakerSettings {
+  const te = c.text_elements
+  return {
+    photo_source: c.card_design === 'website' ? 'website' : 'cleaned',
+    photo_pct: c.photo_pct, gap_px: c.gap_px, card_aspect: c.card_aspect,
+    name_color:    te.speaker_name?.color    ?? DEFAULT_TITLE_CARD_SPEAKER_SETTINGS.name_color,
+    name_weight:   te.speaker_name?.weight   ?? DEFAULT_TITLE_CARD_SPEAKER_SETTINGS.name_weight,
+    name_size:     te.speaker_name?.size     ?? DEFAULT_TITLE_CARD_SPEAKER_SETTINGS.name_size,
+    name_upper:    te.speaker_name?.upper    ?? DEFAULT_TITLE_CARD_SPEAKER_SETTINGS.name_upper,
+    title_color:   te.speaker_title?.color   ?? DEFAULT_TITLE_CARD_SPEAKER_SETTINGS.title_color,
+    title_weight:  te.speaker_title?.weight  ?? DEFAULT_TITLE_CARD_SPEAKER_SETTINGS.title_weight,
+    title_size:    te.speaker_title?.size    ?? DEFAULT_TITLE_CARD_SPEAKER_SETTINGS.title_size,
+    company_color: te.speaker_company?.color ?? DEFAULT_TITLE_CARD_SPEAKER_SETTINGS.company_color,
+    company_size:  te.speaker_company?.size  ?? DEFAULT_TITLE_CARD_SPEAKER_SETTINGS.company_size,
+    moderator_color: te.moderator?.color     ?? DEFAULT_TITLE_CARD_SPEAKER_SETTINGS.moderator_color,
+  }
+}
+
+export function mergeSpeakerSettings(raw: unknown): TitleCardSpeakerSettings {
+  const d = DEFAULT_TITLE_CARD_SPEAKER_SETTINGS
+  if (!raw || typeof raw !== 'object') return { ...d }
+  const r = raw as Record<string, unknown>
+  const hex = (v: unknown, fallback: string) => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v : fallback
+  const num = (v: unknown, fallback: number, min: number, max: number) => typeof v === 'number' && isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback
+  return {
+    photo_source: r.photo_source === 'cleaned' ? 'cleaned' : 'website',
+    photo_pct: num(r.photo_pct, d.photo_pct, 10, 70),
+    gap_px: num(r.gap_px, d.gap_px, 0, 200),
+    card_aspect: num(r.card_aspect, d.card_aspect, 0.3, 1.5),
+    name_color: hex(r.name_color, d.name_color),
+    name_weight: num(r.name_weight, d.name_weight, 100, 900),
+    name_size: num(r.name_size, d.name_size, 10, 200),
+    name_upper: r.name_upper !== false,
+    title_color: hex(r.title_color, d.title_color),
+    title_weight: num(r.title_weight, d.title_weight, 100, 900),
+    title_size: num(r.title_size, d.title_size, 8, 160),
+    company_color: hex(r.company_color, d.company_color),
+    company_size: num(r.company_size, d.company_size, 8, 160),
+    moderator_color: hex(r.moderator_color, d.moderator_color),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Setup types (v2 — config-based)
+// ---------------------------------------------------------------------------
+
 export type TitleCardSettings = { layoutVariantId: string | null; cardVariantId: string | null }
-export type TitleCardSetup = { settings: TitleCardSettings; layout: Variant | null; card: Variant | null; missing: string[] }
+export type TitleCardSetup = {
+  config: TitleCardConfig
+  speakerSettings: TitleCardSpeakerSettings
+  missing: string[]
+}
 
 export type TitleCardCardRow = {
   speakerId: string; moderator: boolean; name: string; title: string; company: string
@@ -26,39 +233,19 @@ export type TitleCardSession = {
 const clean = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
 
 export async function loadTitleCardSetup(eventId: string): Promise<TitleCardSetup> {
-  const [{ data: s }, { data: ev }] = await Promise.all([
-    supabaseAdmin.from('event_thumbnail_settings').select('title_card_layout_variant_id, title_card_card_variant_id').eq('event_id', eventId).maybeSingle(),
-    supabaseAdmin.from('events').select('creative_template_config').eq('id', eventId).maybeSingle(),
-  ])
-  const all = ((ev?.creative_template_config as { speaker?: { variants?: Variant[] } } | null)?.speaker?.variants ?? []) as Variant[]
-  const fallbackFont = all.filter(v => !v.category?.startsWith('thumbnail_') && !v.category?.startsWith('title_card') && v.category !== 'lower_third').flatMap(v => v.layers).find((l): l is TextLayer => l.type === 'text' && !!l.font_family)?.font_family ?? null
-  const withFont = (v: Variant | undefined): Variant | undefined => v && fallbackFont ? { ...v, layers: v.layers.map(l => l.type === 'text' && !l.font_family ? { ...l, font_family: fallbackFont } : l) } : v
-  const settings: TitleCardSettings = {
-    layoutVariantId: (s?.title_card_layout_variant_id as string | null) ?? null,
-    cardVariantId: (s?.title_card_card_variant_id as string | null) ?? null,
-  }
-  const layout = withFont(all.find(v => v.id === settings.layoutVariantId && v.category === 'title_card_layout')) ?? null
-  const card = withFont(all.find(v => v.id === settings.cardVariantId && v.category === 'title_card_card')) ?? null
+  const { data: s } = await supabaseAdmin.from('event_thumbnail_settings').select('title_card_config').eq('event_id', eventId).maybeSingle()
+  const config = mergeTitleCardConfig((s as Record<string, unknown> | null)?.title_card_config)
+  const speakerSettings = speakerSettingsFromConfig(config)
   const missing: string[] = []
-  if (!layout) missing.push('Title card layout template')
-  else if (layout.canvas_width !== TITLE_CARD_W || layout.canvas_height !== TITLE_CARD_H) missing.push(`Title card layout must be ${TITLE_CARD_W}x${TITLE_CARD_H}`)
-  else if (!speakerGridOf(layout.layers)) missing.push('Title card layout needs a Speaker Grid layer')
-  if (!card) missing.push('Title card card template')
-  else if (!card.layers.some(l => l.type === 'photo_slot' && l.source === 'speaker_photo')) missing.push('Title card card template needs a speaker photo slot')
-  return { settings, layout, card, missing }
+  if (!config.background_url) missing.push('Title card background image not set')
+  return { config, speakerSettings, missing }
 }
 
-export async function loadPreviewTitleCard(eventId: string): Promise<{ card: Variant | null; withFont: (v: Variant) => Variant }> {
-  const [{ data: s }, { data: ev }] = await Promise.all([
-    supabaseAdmin.from('event_thumbnail_settings').select('title_card_card_variant_id').eq('event_id', eventId).maybeSingle(),
-    supabaseAdmin.from('events').select('creative_template_config').eq('id', eventId).maybeSingle(),
-  ])
-  const all = ((ev?.creative_template_config as { speaker?: { variants?: Variant[] } } | null)?.speaker?.variants ?? []) as Variant[]
-  const font = all.filter(v => !v.category?.startsWith('title_card') && v.category !== 'lower_third').flatMap(v => v.layers).find((l): l is TextLayer => l.type === 'text' && !!l.font_family)?.font_family ?? null
-  const withFont = (v: Variant): Variant => (font ? { ...v, layers: v.layers.map(l => (l.type === 'text' && !l.font_family ? { ...l, font_family: font } : l)) } : v)
-  const cards = all.filter(v => v.category === 'title_card_card')
-  const card = cards.find(v => v.id === (s?.title_card_card_variant_id as string | null)) ?? cards[0] ?? null
-  return { card: card ? withFont(card) : null, withFont }
+export async function loadPreviewTitleCard(eventId: string): Promise<{ config: TitleCardConfig; speakerSettings: TitleCardSpeakerSettings }> {
+  const { data: s } = await supabaseAdmin.from('event_thumbnail_settings').select('title_card_config').eq('event_id', eventId).maybeSingle()
+  const config = mergeTitleCardConfig((s as Record<string, unknown> | null)?.title_card_config)
+  const speakerSettings = speakerSettingsFromConfig(config)
+  return { config, speakerSettings }
 }
 
 export type LoadTitleCardOpts = { sessionIds?: string[] }
@@ -83,12 +270,13 @@ export async function loadTitleCardSessions(eventId: string, opts: LoadTitleCard
   ])
   const speakerIds = [...new Set((links ?? []).map(l => l.speaker_id as string))]
   const { data: people } = speakerIds.length
-    ? await supabaseAdmin.from('event_speakers').select('id, name, public_name, job_title, company, photo_processed_url, photo_head_box, konfhub_primary_role_tag_id').eq('event_id', eventId).eq('active', true).in('id', speakerIds)
+    ? await supabaseAdmin.from('event_speakers').select('id, name, public_name, job_title, company, website_card_url, photo_processed_url, photo_head_box, konfhub_primary_role_tag_id').eq('event_id', eventId).eq('active', true).in('id', speakerIds)
     : { data: [] as Record<string, unknown>[] }
   const person = new Map((people ?? []).map(p => [p.id as string, p]))
   const roleLabel = new Map(roles.map(r => [r.tag_id, r.label]))
   const savedBy = new Map((saved ?? []).map(r => [r.agenda_session_id as string, r]))
   const trackName = new Map((tracks ?? []).map(t => [t.id as string, t.name as string]))
+  const useWebsite = setup.config.card_design !== 'template'
 
   const out: TitleCardSession[] = []
   for (const s of want) {
@@ -108,24 +296,25 @@ export async function loadTitleCardSessions(eventId: string, opts: LoadTitleCard
       .sort((a, b) => Number(b[1].moderator) - Number(a[1].moderator) || a[1].order - b[1].order)
       .map(([id, m]) => {
         const p = person.get(id)!
+        const websiteUrl = (p.website_card_url as string | null) ?? null
+        const cleanedUrl = (p.photo_processed_url as string | null) ?? null
+        const photoUrl = useWebsite ? (websiteUrl ?? cleanedUrl) : (cleanedUrl ?? websiteUrl)
+        const headBox = (useWebsite && websiteUrl) ? null : ((p.photo_head_box as HeadBox | null) ?? null)
         return {
           speakerId: id, moderator: m.moderator, name: nameOf(id),
           title: clean(p.job_title), company: clean(p.company),
-          photoUrl: (p.photo_processed_url as string | null) ?? null,
-          headBox: (p.photo_head_box as HeadBox | null) ?? null,
-          ready: !!p.photo_processed_url && !!(p.photo_head_box),
+          photoUrl, headBox,
+          ready: !!(useWebsite ? websiteUrl : cleanedUrl),
         }
       })
     if (!cards.length) continue
-    const a = s.start_timestamp ? utcToZonedLocal(s.start_timestamp as string, tz) : null
     const title = clean(s.title)
     const stage = s.track_id ? trackName.get(s.track_id as string) ?? null : null
     const contentType = (s.content_type as string | null) ?? null
     const tag = contentType ? contentType.toUpperCase() : null
     const live = titleCardFingerprint({
       title, stage, tag, cards: cards.map(c => ({ id: c.speakerId, mod: c.moderator, name: c.name, title: c.title, company: c.company, photo: c.photoUrl, head: c.headBox })),
-      layout: setup.layout && { ...setup.layout, last_preview_url: undefined },
-      card: setup.card && { ...setup.card, last_preview_url: undefined },
+      config: setup.config,
     })
     const state: TitleCardState = !sv?.title_card_png_path ? 'new'
       : sv.status === 'approved' ? 'approved'

@@ -9,6 +9,7 @@ import PageHeader from '@/app/components/PageHeader'
 import { Button, Badge, Input, Select, ProcessingOverlay, Toast, type ToastType } from '@/app/components/ui'
 import AccessTab from '@/app/components/AccessTab'
 import StageSpeakerPicSettings from '@/app/components/screens/StageSpeakerPicSettings'
+import TitleCardSettings from '@/app/components/title-cards/TitleCardSettings'
 import { consoleTabsFor, CONSOLE_TAB_LABEL, type ConsoleTab } from '@/app/lib/access/admin-console'
 import type { Layer, ImageLayer, PhotoSlotLayer, TextLayer, SpeakerAreaLayer, SpeakerGridLayer, Variant, CreativeTemplateConfig, TextLayerDiagnostics, PlaceholderProfile, GlobalPlaceholderDefault } from '@/app/lib/announcements/composite'
 import { withTextLayerDefaults } from '@/app/lib/announcements/text-layer-defaults'
@@ -932,6 +933,8 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
           <AccessTab moduleKey="sae" moduleLabel="Stakeholder Announcement Engine" />
         ) : activeTab === 'stage' ? (
           <StageSpeakerPicSettings eventId={eventId} />
+        ) : activeTab === 'title_cards' ? (
+          <TitleCardSettings eventId={eventId} />
         ) : (
           <>
             <Toast message={msg} type={msgType} onClose={() => setMsg(null)} />
@@ -952,7 +955,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
             {loading ? (
               <div style={{ color: 'var(--ink3)', fontSize: '13px' }}>Loading…</div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr 1fr', gap: '24px', alignItems: 'flex-start' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '180px minmax(0, 400px) 1fr', gap: '24px', alignItems: 'flex-start' }}>
                 {/* Variant list */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   {variants.map(v => (
@@ -1237,8 +1240,9 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--teal-mid)', letterSpacing: '0.6px', textTransform: 'uppercase' }}>Sample session for this preview</div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 1fr) minmax(120px, 1fr) 2fr', gap: '8px' }}>
                         <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'grid', gap: '3px' }}>Session type
-                          <Input list="title-card-session-types" value={titleCardSample.type} placeholder="KEYNOTE" onChange={e => changeTitleCardSample({ type: e.target.value })} />
-                          <datalist id="title-card-session-types">{['KEYNOTE', 'FIRESIDE CHAT', 'PANEL DISCUSSION', 'WORKSHOP', 'PRESENTATION', 'MASTERCLASS', 'DEMO'].map(t => <option key={t} value={t} />)}</datalist>
+                          <Select value={titleCardSample.type || 'KEYNOTE'} onChange={e => changeTitleCardSample({ type: e.target.value })}>
+                            {['KEYNOTE', 'FIRESIDE CHAT', 'PANEL DISCUSSION', 'WORKSHOP', 'PRESENTATION', 'MASTERCLASS', 'DEMO'].map(t => <option key={t} value={t}>{t}</option>)}
+                          </Select>
                         </label>
                         <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'grid', gap: '3px' }}>Stage
                           <Input value={titleCardSample.stage} placeholder="Plenary - 1" onChange={e => changeTitleCardSample({ stage: e.target.value })} />
@@ -1280,7 +1284,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       screens the full-width preview (tall, ~4:5 for a real
                       1080x1350 canvas) didn't fit in one look, forcing a
                       scroll just to see the whole creative. */}
-                  <div style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', background: 'var(--surface)', border: '1px solid var(--border-light)', aspectRatio: activeVariant ? `${activeVariant.canvas_width} / ${activeVariant.canvas_height}` : '4 / 5', display: 'flex', alignItems: 'center', justifyContent: 'center', maxWidth: '80%' }}>
+                  <div style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', background: 'var(--surface)', border: '1px solid var(--border-light)', aspectRatio: activeVariant ? `${activeVariant.canvas_width} / ${activeVariant.canvas_height}` : '4 / 5', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
                     {previewDataUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element -- data: URL preview, next/image can't handle these
                       <img src={previewDataUrl} alt="Creative preview" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', opacity: previewStale ? 0.45 : 1, transition: 'opacity 0.15s ease' }} />
@@ -1348,7 +1352,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
         )}
       </div>
       {quickPreviewOpen && activeVariant && (
-        <QuickPreviewModal variant={activeVariant} eventId={eventId} activeType={activeType} onClose={() => setQuickPreviewOpen(false)} />
+        <QuickPreviewModal variant={activeVariant} eventId={eventId} activeType={activeType} titleCardSample={activeVariant.category === 'title_card_layout' ? titleCardSample : undefined} onClose={() => setQuickPreviewOpen(false)} />
       )}
       {copyDialog && (() => {
         const v = variants.find(x => x.id === copyDialog.variantId)
@@ -1989,7 +1993,7 @@ const artworkFileName = (v: Variant) => `${(v.name || 'memento').replace(/[^a-z0
 // Quick preview: a clean, full-size render of the draft in a popup (no drag boxes, mockup/preview layers left out) so
 // branding can verify the template. Badge templates also get "Download print PDF": a real sample print file built from
 // the same placeholder content (instruction page, badge, common back) to inspect in Illustrator.
-function QuickPreviewModal({ variant, eventId, activeType, onClose }: { variant: Variant; eventId: string; activeType: StakeholderKind; onClose: () => void }) {
+function QuickPreviewModal({ variant, eventId, activeType, titleCardSample, onClose }: { variant: Variant; eventId: string; activeType: StakeholderKind; titleCardSample?: { type: string; stage: string; title: string; count: number; moderator: boolean }; onClose: () => void }) {
   const [image, setImage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -2003,7 +2007,7 @@ function QuickPreviewModal({ variant, eventId, activeType, onClose }: { variant:
     try {
       const res = await fetch('/api/events/templates/preview', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event_id: eventId, stakeholder_type: activeType, variant, full_res: true, hide_reference_layers: true }),
+        body: JSON.stringify({ event_id: eventId, stakeholder_type: activeType, variant, full_res: true, hide_reference_layers: true, ...(titleCardSample ? { title_card_preview: { session_type: titleCardSample.type, session_stage: titleCardSample.stage, session_title: titleCardSample.title, count: titleCardSample.count, moderator: titleCardSample.moderator } } : {}) }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error ?? `Preview failed (${res.status})`)
@@ -2455,7 +2459,7 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
   allLayers: Layer[]
 }) {
   const snapCandidates = allLayers.filter((l): l is TextLayer => l.type === 'text' && l.id !== layer.id)
-  const fieldOptions: TextLayer['field'][] = variantCategory === 'thumbnail_layout' ? ['session_type', 'session_title', 'custom'] : activeType === 'speaker'
+  const fieldOptions: TextLayer['field'][] = (variantCategory === 'thumbnail_layout' || variantCategory === 'title_card_layout') ? ['session_type', 'session_stage', 'session_title', 'custom'] : activeType === 'speaker'
     ? ['name', 'title', 'company', 'country', 'tier', 'headline_lead', 'headline_emphasis', 'headline_trail', 'headline_full', 'custom']
     : ['tier', 'custom']
   const [analyzing, setAnalyzing] = useState(false)
@@ -2539,7 +2543,7 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
           {fieldOptions.map(f => <option key={f} value={f}>{f}</option>)}
         </Select>
       </label>
-      {variantCategory === 'thumbnail_layout' && (
+      {(variantCategory === 'thumbnail_layout' || variantCategory === 'title_card_layout') && (
         <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '8px', alignItems: 'end' }}>
           <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'flex', gap: '6px', alignItems: 'center' }}>
             <input type="checkbox" checked={!!layer.pill} onChange={e => onChange({ pill: e.target.checked ? DEFAULT_PILL : undefined })} />Pill (filled box sized to the text)

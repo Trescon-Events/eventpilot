@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
       missing: setup.missing, variants: setup.variants,
       sessions: sessions.map(brief),
       title_cards: {
-        setup: { missing: tcData.setup.missing, layout_variant_id: tcData.setup.settings.layoutVariantId, card_variant_id: tcData.setup.settings.cardVariantId },
+        setup: { missing: tcData.setup.missing, layout_variant_id: tcData.setup.config.background_url ? '__config__' : null, card_variant_id: '__config__' },
         sessions: tcData.sessions.map(s => ({ id: s.id, state: s.state, png_url: s.pngUrl, fingerprint: s.fingerprint })),
       },
       lower_thirds: {

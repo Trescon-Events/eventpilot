@@ -3,7 +3,6 @@ import { drawThumbnail, type DrawPerson } from '@/app/lib/thumbnails/render'
 import { MAX_SPEAKERS, speakerAreaOf } from '@/app/lib/thumbnails/geometry'
 import { loadPreviewTitleCard } from '@/app/lib/title-cards/data'
 import { drawTitleCard, type TitleCardPerson } from '@/app/lib/title-cards/render'
-import { speakerGridOf } from '@/app/lib/title-cards/geometry'
 import { composeMementoLayers } from '@/app/lib/mementos/render'
 import { toMonochrome } from '@/app/lib/media/monochrome'
 import { NextRequest, NextResponse } from 'next/server'
@@ -136,28 +135,29 @@ export async function POST(req: NextRequest) {
     const stageText = (tcp.session_stage ?? '').trim() || 'Plenary - 1'
     const titleText = (tcp.session_title ?? '').trim() || 'The Future of Finance: Innovation at Scale'
     texts.session_type = typeText; texts.session_stage = stageText; texts.session_title = titleText
-    const { card, withFont } = body.event_id ? await loadPreviewTitleCard(body.event_id) : { card: null, withFont: (v: Variant) => v }
-    const layout = withFont(body.variant)
-    if (!card) titleCardNote = 'No title card card template configured yet — set one in Session Videos settings, or add a Title Card — Speaker Card variant first.'
-    else if (!speakerGridOf(layout.layers)) titleCardNote = 'Add a Speaker Grid layer to this layout to see the cards.'
-    else {
+    // v2: title cards are config-driven; the variant editor is now used for reference only.
+    // Use the event's saved title_card_config (or defaults) to build the layout and draw the full composite.
+    const { config } = body.event_id ? await loadPreviewTitleCard(body.event_id) : { config: null }
+    if (!config) {
+      titleCardNote = 'No title card config found — configure the title card in the Title Cards settings tab.'
+    } else {
       try {
-        const cardInputs = await resolvePreviewInputs({ stakeholder_type: 'speaker', variant: card, event_id: body.event_id })
-        const photo = cardInputs.assets.speaker_photo
-        if (!photo?.url || !photo.head_box) titleCardNote = 'The placeholder speaker has no photo with a detected head yet (Brand & Content > Placeholder Defaults): showing the layout alone.'
-        else {
-          const n = Math.min(6, Math.max(1, Math.round(tcp.count ?? 1)))
-          const people: TitleCardPerson[] = Array.from({ length: n }, (_, i) => ({
-            name: String(cardInputs.texts.name ?? ''),
-            title: String(cardInputs.texts.title ?? ''),
-            company: String(cardInputs.texts.company ?? ''),
-            moderator: !!tcp.moderator && n > 1 && i === 0,
-            buffer: photo.buffer,
-            url: photo.url!,
-            headBox: photo.head_box!,
-          }))
-          titleCardFull = await drawTitleCard(layout, card, { tag: typeText, stage: stageText, title: titleText }, people)
-        }
+        const n = Math.min(6, Math.max(1, Math.round(tcp.count ?? 1)))
+        const fakeSlot: Variant = { id: '_tc_ph', name: '', canvas_width: 300, canvas_height: 300, layers: [{ id: 'ph', type: 'photo_slot' as const, source: 'speaker_photo' as const, x: 0, y: 0, width: 300, height: 300 }] }
+        const phInputs = body.event_id ? await resolvePreviewInputs({ stakeholder_type: 'speaker', variant: fakeSlot, event_id: body.event_id }) : null
+        const phAsset = phInputs?.assets.speaker_photo
+        const placeholderBuffer = phAsset?.buffer ?? await sharp({ create: { width: 300, height: 300, channels: 4, background: { r: 140, g: 140, b: 150, alpha: 1 } } }).png().toBuffer()
+        const PLACEHOLDER_NAMES = ['Jane Doe', 'John Smith', 'Alex Lee', 'Maria Garcia', 'Sam Park', 'Chris Johnson']
+        const people: TitleCardPerson[] = Array.from({ length: n }, (_, i) => ({
+          name: PLACEHOLDER_NAMES[i] ?? `Speaker ${i + 1}`,
+          title: 'Chief Executive Officer',
+          company: 'Acme Corporation',
+          moderator: !!tcp.moderator && n > 1 && i === 0,
+          buffer: placeholderBuffer,
+          url: phAsset?.url ?? 'placeholder',
+          headBox: phAsset?.head_box ?? null,
+        }))
+        titleCardFull = await drawTitleCard(config, { tag: typeText, stage: stageText, title: titleText }, people)
       } catch (e) { titleCardNote = `Could not draw the cards: ${e instanceof Error ? e.message : 'unknown error'}. Showing the layout alone.` }
     }
   }
