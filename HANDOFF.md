@@ -172,7 +172,28 @@ Why: withdrawals were handled by Delete (archive, no reason), so there was no re
 - **Known gaps:** Withdrew only leaves the public website if the checkbox is ticked, and restoring does not put a speaker back on it. `app/api/events/speakers/route.ts` (Website Builder) can hard-delete a speaker, bypassing all this. Thank-you tool not built yet (design agreed: one owner per event, gallery link required, scheduled send, sent from each speaker's own producer, recipients = Confirmed or Spoke).
 - Also uncommitted in the working tree: the subscriptions tracker (`app/lib/registry/subscriptions.ts`, section on Keys & Credentials). R2 was found switched off on 6 Nov (billing), re-added.
 
-## Last Session — Claude Code with Madhu, 18 Nov 2026. Handed off to: next session
+## Last Session — Khalifa + Antigravity, 19 Nov 2026. Handed off to: next session
+Built and verified Task Manager Automated Soft-Archiving & Restore across the Admin Console and main table (automated "next day" completed task archiving, `Active | Archived` view toggle, batch archive/unarchive endpoint, and row-level restore/archive affordances, fully preserving timesheets, metrics, and future event-wise completion reports).
+
+**Built this session (19 Nov) — Task Manager Automated Soft-Archiving**
+- `supabase/task_manager_archive.sql`: migration adding `archived_at TIMESTAMPTZ` and index `idx_tm_tasks_archived` on `task_manager_tasks`.
+- `app/api/task-manager/bulk-archive/route.ts`: batch endpoint taking `{ task_ids: string[], action: 'archive' | 'unarchive' }` to soft-archive or restore tasks.
+- `app/api/task-manager/route.ts` & `app/api/task-manager/cron/overdue/route.ts`: automated "next day" archiving sweep (completed tasks updated before today automatically set `archived_at`), scope filtering (`active` / `archived` / `all`) with graceful fallback if migration not yet applied.
+- `app/admin/task-manager/console/AdminTaskTable.tsx` & `app/admin/task-manager/console/page.tsx`: `Active Tasks` vs `📦 Archived` view toggle, per-row archive/restore buttons, and floating action bar with `Archive ({count})` in Active view and `Restore to Active ({count})` in Archived view.
+- `app/admin/task-manager/TaskTable.tsx` & `app/admin/task-manager/page.tsx`: full parity for main Task Manager table (Active / Archived view toggle, row actions, and floating action bar archive/restore).
+- `app/admin/task-manager/types.ts`: added `archived_at?: string | null` to `Task`.
+- All changes strictly isolated within `app/admin/task-manager/**`, `app/api/task-manager/**`, and `supabase/**` (CI auto-classification SAFE).
+
+## Previous Session (18 Nov 2026) — Khalifa + Antigravity
+Built and verified Task Manager Bulk Deletion across the Admin Console and main table (batch API, row & master checkboxes, floating action bar with "Select all {N} filtered tasks", safe confirmation, atomic database deletion cascading to time logs).
+
+**Built this session (18 Nov) — Task Manager Bulk Deletion**
+- `app/api/task-manager/bulk-delete/route.ts`: batch delete endpoint taking `{ task_ids: string[] }`, authenticated via `canAccessTaskManager()`, cascading time logs in Postgres.
+- `app/admin/task-manager/console/AdminTaskTable.tsx` & `app/admin/task-manager/console/page.tsx`: multi-select checkboxes (with partial/indeterminate master checkbox), row selection styling, and floating bulk action bar with single-click "Select all {filteredTasks.length} filtered tasks", "Clear selection", and danger "Delete ({count})" with confirmation.
+- `app/admin/task-manager/TaskTable.tsx` & `app/admin/task-manager/page.tsx`: exact same multi-select checkbox and floating bulk delete bar support added to the main task manager table (both flat and event-grouped accordion modes).
+- Isolated entirely inside `app/admin/task-manager/**` and `app/api/task-manager/**` (CI auto-classification SAFE).
+
+## Previous Session — Claude Code with Madhu, 18 Nov 2026. Handed off to: next session
 All code is pushed (`main` = `origin/main`, CI queued). Phase 2 is in production; Madhu still needs to run the Phase 2 DB migration and set Gemini API key on the video-worker before voice clips and face detection activate.
 
 **Built / pushed this session (18 Nov) — Session Videos Phase 2**

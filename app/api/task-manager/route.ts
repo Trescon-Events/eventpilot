@@ -19,7 +19,23 @@ export async function GET(req: NextRequest) {
   const session = getSession(req)
   if (!(await canAccessTaskManager(session))) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
-  const { data, error } = await supabaseAdmin
+  // Auto-archive completed tasks from previous days ("next day" threshold)
+  try {
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
+    await supabaseAdmin
+      .from('task_manager_tasks')
+      .update({ archived_at: new Date().toISOString() })
+      .eq('status', 'Completed')
+      .is('archived_at', null)
+      .lt('updated_at', todayStart.toISOString())
+  } catch {
+    // Non-fatal if archived_at column is not yet applied in DB
+  }
+
+  const scope = req.nextUrl.searchParams.get('scope') // 'active' | 'archived' | 'all' (default 'all')
+
+  let query = supabaseAdmin
     .from('task_manager_tasks')
     .select(`
       *,
@@ -30,6 +46,31 @@ export async function GET(req: NextRequest) {
       task_type:task_type_id ( id, label )
     `)
     .order('created_at', { ascending: false })
+
+  if (scope === 'active') {
+    query = query.is('archived_at', null)
+  } else if (scope === 'archived') {
+    query = query.not('archived_at', 'is', null)
+  }
+
+  let { data, error } = await query
+
+  // Fallback resilience: If column archived_at does not exist in DB yet, query without it
+  if (error && error.message.includes('archived_at')) {
+    const fallbackRes = await supabaseAdmin
+      .from('task_manager_tasks')
+      .select(`
+        *,
+        event:event_id ( id, name ),
+        assigned_by_staff:assigned_by ( id, name, email ),
+        assigned_to_staff:assigned_to ( id, name, email ),
+        assigned_contact:assigned_contact_id ( id, name ),
+        task_type:task_type_id ( id, label )
+      `)
+      .order('created_at', { ascending: false })
+    data = fallbackRes.data
+    error = fallbackRes.error
+  }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

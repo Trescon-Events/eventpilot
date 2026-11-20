@@ -55,6 +55,7 @@ export type Task = {
   tracked_seconds: number
   last_overdue_notified_at?: string | null
   overdue_reminder_count?: number
+  archived_at?: string | null
   created_at: string
   updated_at: string
 }
