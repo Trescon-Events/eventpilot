@@ -96,7 +96,7 @@ export default function TitleCardSettings({ eventId }: { eventId: string }) {
     setData(d as Data)
     const cfg = (d as Data).config
     setSaved(cfg); setDraft(cfg); setApplied(cur => cur ?? cfg)
-    setSample(cur => cur || (([...(d as Data).sessions].sort((a: SessionRow, b: SessionRow) => Math.abs((b as unknown as { cards?: unknown[] }).cards?.length ?? 3) - Math.abs((a as unknown as { cards?: unknown[] }).cards?.length ?? 3))[0]?.id ?? '')))
+    setSample(cur => cur || ((d as Data).sessions[0]?.id ?? ''))
   }, [eventId])
 
   useEffect(() => {

@@ -236,9 +236,7 @@ export async function loadTitleCardSetup(eventId: string): Promise<TitleCardSetu
   const { data: s } = await supabaseAdmin.from('event_thumbnail_settings').select('title_card_config').eq('event_id', eventId).maybeSingle()
   const config = mergeTitleCardConfig((s as Record<string, unknown> | null)?.title_card_config)
   const speakerSettings = speakerSettingsFromConfig(config)
-  const missing: string[] = []
-  if (!config.background_url) missing.push('Title card background image not set')
-  return { config, speakerSettings, missing }
+  return { config, speakerSettings, missing: [] }
 }
 
 export async function loadPreviewTitleCard(eventId: string): Promise<{ config: TitleCardConfig; speakerSettings: TitleCardSpeakerSettings }> {
