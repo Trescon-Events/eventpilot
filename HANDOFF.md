@@ -172,6 +172,25 @@ Why: withdrawals were handled by Delete (archive, no reason), so there was no re
 - **Known gaps:** Withdrew only leaves the public website if the checkbox is ticked, and restoring does not put a speaker back on it. `app/api/events/speakers/route.ts` (Website Builder) can hard-delete a speaker, bypassing all this. Thank-you tool not built yet (design agreed: one owner per event, gallery link required, scheduled send, sent from each speaker's own producer, recipients = Confirmed or Spoke).
 - Also uncommitted in the working tree: the subscriptions tracker (`app/lib/registry/subscriptions.ts`, section on Keys & Credentials). R2 was found switched off on 6 Nov (billing), re-added.
 
+## Title Cards Phase 2 — config-driven settings page (21 Nov 2026) — PUSHED to main (`9fcc999`, `1c10734`), CI green
+Replaced the Admin Console variant-editor approach for title cards with a purpose-built 5-section settings page, mirroring `StageSpeakerPicSettings.tsx`.
+- **New `TitleCardConfig` JSONB** column on `event_thumbnail_settings` (migration `supabase/title_card_config_migration.sql` **run on production**). Old columns (`title_card_layout_variant_id`, `title_card_card_variant_id`, `title_card_speaker_settings`) left in place but inert.
+- **`app/lib/title-cards/data.ts`**: `TitleCardConfig` type (text_elements + speaker_grid + photo dims), `DEFAULT_TITLE_CARD_CONFIG`, `mergeTitleCardConfig()`, updated `TitleCardSetup` (config + speakerSettings + missing), `loadTitleCardSetup`, `loadPreviewTitleCard`. Legacy `TitleCardSpeakerSettings` kept for reference; `speakerSettingsFromConfig()` bridges the two.
+- **`app/lib/title-cards/render.ts`**: `buildLayoutVariant(config)` builds the 1920×1080 Variant from config at render time; `drawTitleCard(config, text, people)` new signature (no longer takes a layout Variant or speakerSettings directly); `buildSpeakerCard()` reads from `TitleCardConfig.text_elements`.
+- **`app/api/events/title-cards/settings/route.ts`**: GET returns `config + sessions + card_variants + fonts`; PUT saves `title_card_config`.
+- **`app/api/events/title-cards/preview/route.ts`**: accepts `config + optional session_id`; uses real speakers when session_id given; returns PNG blob.
+- **`app/api/events/title-cards/background/route.ts`** (new): multipart upload → R2 `events/{id}/title-cards/bg-{ts}.{ext}`.
+- **`app/components/title-cards/TitleCardSettings.tsx`**: full 5-section rewrite — (1) card design, (2) background upload, (3) text styles+positions+pill for each element, (4) speaker grid on canvas + card proportions, (5) real-session preview selector.
+- **`app/api/events/templates/preview/route.ts`**: `title_card_layout` case updated to use `loadPreviewTitleCard()` (config path) instead of the stored variant + speakerSettings.
+- **`app/api/events/thumbnails/route.ts`**: adapted to new `TitleCardSetup.config` shape.
+
+**What's next**
+- Configure title cards for DFS: go to Creative Templates → Title Cards tab, upload the 1920×1080 background, adjust text positions/styles, set speaker grid, pick a real session, Apply → check the preview, Save.
+- Run `supabase/session_video_phase2_migration.sql` (session Videos Phase 2 identify job) if not done yet.
+- Set `GEMINI_API_KEY` on the video-worker Railway service.
+
+---
+
 ## Dev-approvals fix + CI typecheck + parallel-session guidance (20 Nov 2026) — Claude Code with Madhu, PUSHED to main (`66431ba`, `9169544`), CI green
 - **Approve & Ship was failing**: `GITHUB_APPROVER_TOKEN`'s GitHub token (`eventpilot-approver-2026-10`) had no repo access or permissions (403 on review). Fixed on GitHub (Madhu's login): `Trescon-Events/eventpilot` only, Pull requests + Contents Read and write. No Railway change.
 - Approve/reject routes return 424 (not 502) on GitHub failures so the toast shows the real message; the page falls back to the HTTP status. Approve on an already-merged PR now marks the row approved so the card leaves the queue (PR #14 was merged on GitHub directly, row stayed `pending`).
