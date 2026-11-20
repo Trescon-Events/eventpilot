@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS event_video_kit (
   outro_path TEXT,
   music_path TEXT,
   updated_at TIMESTAMPTZ DEFAULT now(),
-  updated_by UUID REFERENCES staff(id),
+  updated_by UUID,
   UNIQUE(event_id)
 );
 
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS session_video_cues (
   start_s NUMERIC(10,3) NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
-  created_by UUID REFERENCES staff(id)
+  created_by UUID
 );
 
 ALTER TABLE session_videos
