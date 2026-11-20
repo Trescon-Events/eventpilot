@@ -265,7 +265,7 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
 
   return (
     <div style={{ display: 'grid', gap: 0 }}>
-      <PageHeader eyebrow="Event Workspace" title="Session Videos" description="Upload recorded session videos, name the detected voices, then review and approve the generated titles and descriptions. Thumbnails are generated and approved here too." backHref={`/admin/events/${eventId}`} />
+      <PageHeader eyebrow="Stakeholder Hub" title="Session Videos" description="Upload recorded session videos, name the detected voices, then review and approve the generated titles and descriptions. Thumbnails are generated and approved here too." backHref={`/admin/events/${eventId}/stakeholders`} backLabel="Stakeholder Hub" />
 
       {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border-light)', marginBottom: '20px' }}>

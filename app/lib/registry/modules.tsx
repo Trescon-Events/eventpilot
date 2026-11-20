@@ -1235,7 +1235,7 @@ export function getModuleRegistry(): ModuleDef[] {
       icon: I.doc, color: '#0291DB',
       href: ctx => `/admin/events/${ctx.eventId}/session-videos`,
       needsEvent: true,
-      breadcrumbPattern: '/admin/events/:eventId/session-videos', breadcrumbParent: 'admin-event-workspace',
+      breadcrumbPattern: '/admin/events/:eventId/session-videos', breadcrumbParent: 'admin-event-stakeholders',
       // Gate matches layout.tsx: any sae.* permission suffices.
       access: { kind: 'event_permission', permissionKey: 'sae.stakeholders.view' },
       sidebar: { section: 'events', parent: 'events', order: 6.7 },

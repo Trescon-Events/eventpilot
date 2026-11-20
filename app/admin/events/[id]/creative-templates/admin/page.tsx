@@ -130,6 +130,11 @@ const variantPickerGroups = (activeType: StakeholderKind): { title: string; item
       ['table_standby', 'Table Screen — standby', 'What the table screens show between sessions: the event logo on the common background. 1080×1920'] as PickerItem,
     ] : []),
   ] },
+  ...(activeType === 'speaker' ? [{ title: 'Session videos', items: [
+    ['title_card_layout', 'Title Card — Layout', 'Full-screen background shown at the start of the session video (1920×1080)'] as PickerItem,
+    ['title_card_card', 'Title Card — Speaker Card', 'Speaker card composited over the title card layout (name, title, photo)'] as PickerItem,
+    ['lower_third', 'Lower Third', 'Name bug shown over the speaker during the session (1920×1080, transparent)'] as PickerItem,
+  ] }] : []),
   { title: 'Print and keepsakes', items: [
     ['badge', 'Speaker Badge (print)', 'PVC card — you set the size next; vector layers uploaded as PDFs'],
     ['common_badge', 'Common badge (print)', 'One finished artwork, no names — printed in a quantity (security, protocol, organiser…). You set the size, then upload the one artwork PDF'],
@@ -552,7 +557,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   // wrong canvas size (1080x1350) by mistake, only caught once a layer
   // inside it was already wrong too. Gating on the choice up front means
   // canvas dimensions are correct from the variant's very first layer.
-  function addVariant(category: 'promo' | 'self_promo' | 'website_photo' | 'badge' | 'memento' | 'stage_screen' | 'table_screen' | 'thumbnail_card' | 'thumbnail_layout', badgeSpec?: { width_mm: number; height_mm: number; bleed_mm: number }, common?: boolean, tableStandby?: boolean, thumbKind?: 'keynote' | 'fireside' | 'panel') {
+  function addVariant(category: 'promo' | 'self_promo' | 'website_photo' | 'badge' | 'memento' | 'stage_screen' | 'table_screen' | 'thumbnail_card' | 'thumbnail_layout' | 'title_card_layout' | 'title_card_card' | 'lower_third', badgeSpec?: { width_mm: number; height_mm: number; bleed_mm: number }, common?: boolean, tableStandby?: boolean, thumbKind?: 'keynote' | 'fireside' | 'panel') {
     pushUndo()
     const size = category === 'website_photo' ? CLEANING_CYCLE_CANVAS_SIZE : null
     // Badge (2026-10-02): page = trim + bleed, entered in the setup step; canvas = that page at ~300 ppi.
@@ -1335,7 +1340,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                     <div style={{ fontSize: '11.5px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>{g.title}</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px' }}>
                       {g.items.map(([value, label, hint]) => (
-                        <button key={value} onClick={() => value.startsWith('thumbnail_layout_') ? addVariant('thumbnail_layout', undefined, undefined, undefined, value.slice('thumbnail_layout_'.length) as 'keynote' | 'fireside' | 'panel') : value === 'table_standby' ? addVariant('table_screen', undefined, undefined, true) : value === 'common_badge' ? setBadgeSetup({ kind: 'badge', common: true, trim_w: String(BADGE_DEFAULT.trim_w), trim_h: String(BADGE_DEFAULT.trim_h), bleed: String(BADGE_DEFAULT.bleed) }) : value === 'badge' ? setBadgeSetup({ kind: 'badge', trim_w: String(BADGE_DEFAULT.trim_w), trim_h: String(BADGE_DEFAULT.trim_h), bleed: String(BADGE_DEFAULT.bleed) }) : value === 'memento_print' ? setBadgeSetup({ kind: 'memento', trim_w: String(MEMENTO_DEFAULT.trim_w), trim_h: String(MEMENTO_DEFAULT.trim_h), bleed: String(MEMENTO_DEFAULT.bleed) }) : addVariant(value as 'promo' | 'self_promo' | 'website_photo' | 'memento' | 'stage_screen' | 'thumbnail_card')} style={{ display: 'block', width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1.5px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+                        <button key={value} onClick={() => value.startsWith('thumbnail_layout_') ? addVariant('thumbnail_layout', undefined, undefined, undefined, value.slice('thumbnail_layout_'.length) as 'keynote' | 'fireside' | 'panel') : value === 'table_standby' ? addVariant('table_screen', undefined, undefined, true) : value === 'common_badge' ? setBadgeSetup({ kind: 'badge', common: true, trim_w: String(BADGE_DEFAULT.trim_w), trim_h: String(BADGE_DEFAULT.trim_h), bleed: String(BADGE_DEFAULT.bleed) }) : value === 'badge' ? setBadgeSetup({ kind: 'badge', trim_w: String(BADGE_DEFAULT.trim_w), trim_h: String(BADGE_DEFAULT.trim_h), bleed: String(BADGE_DEFAULT.bleed) }) : value === 'memento_print' ? setBadgeSetup({ kind: 'memento', trim_w: String(MEMENTO_DEFAULT.trim_w), trim_h: String(MEMENTO_DEFAULT.trim_h), bleed: String(MEMENTO_DEFAULT.bleed) }) : addVariant(value as 'promo' | 'self_promo' | 'website_photo' | 'memento' | 'stage_screen' | 'thumbnail_card' | 'title_card_layout' | 'title_card_card' | 'lower_third')} style={{ display: 'block', width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1.5px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
                           <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>{label}</div>
                           <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginTop: '3px', lineHeight: 1.45 }}>{hint}</div>
                         </button>
