@@ -126,7 +126,9 @@ Per session video: transcript (searchable, named), titles (pick one or edit), de
 
 ---
 
-## 8. Phases 2–4 (agreed behaviour, specified later)
+## 8. Phases 2–4 — SUPERSEDED (19 Nov 2026)
+
+Replaced by `session-video-finish-and-publish.md` (title cards, transcript-based lower thirds, music, render, YouTube publishing with stage playlists). Face detection and Premiere export are dropped. The text below is kept for history only.
 
 ### Phase 2: faces and lower thirds
 - **Face grouping and suggestions**: detect faces on sampled frames, cluster per person, suggest names by comparing with the session speakers' headshots; producer confirms, re-assigns or rejects each group. **DECISION before Phase 2:** service. Options: AWS Rekognition Video (face search against a per-session collection + shot detection; strongest fit), Google Video Intelligence (face detection + shots, recognition would need our own matching), or self-hosted InsightFace on the worker. Depends on whether Trescon has AWS or Google Cloud accounts.

@@ -38,7 +38,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ prN
     pr = await fetchPr(prNumber)
   } catch (err) {
     console.error(err)
-    return NextResponse.json({ error: 'Could not reach GitHub to fetch the PR' }, { status: 502 })
+    return NextResponse.json({ error: 'Could not reach GitHub to fetch the PR' }, { status: 424 })
   }
 
   if (pr.merged) return NextResponse.json({ error: 'Already merged' }, { status: 409 })
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ prN
     await approveReview(prNumber)
   } catch (err) {
     console.error(err)
-    return NextResponse.json({ error: `Approved review failed: ${err instanceof Error ? err.message : String(err)}` }, { status: 502 })
+    return NextResponse.json({ error: `Approved review failed: ${err instanceof Error ? err.message : String(err)}` }, { status: 424 })
   }
 
   let mergeResult = await mergePr(prNumber)
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ prN
 
     return NextResponse.json({
       error: `Approved on GitHub, but couldn't merge automatically: ${mergeResult.message}. Try again shortly, or finish it on GitHub.`,
-    }, { status: 502 })
+    }, { status: 424 })
   }
 
   await supabaseAdmin.from('github_pr_reviews').update({

@@ -41,7 +41,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ prN
     await requestChanges(prNumber, note)
   } catch (err) {
     console.error(err)
-    return NextResponse.json({ error: `GitHub request-changes failed: ${err instanceof Error ? err.message : String(err)}` }, { status: 502 })
+    return NextResponse.json({ error: `GitHub request-changes failed: ${err instanceof Error ? err.message : String(err)}` }, { status: 424 })
   }
 
   await supabaseAdmin.from('github_pr_reviews').update({

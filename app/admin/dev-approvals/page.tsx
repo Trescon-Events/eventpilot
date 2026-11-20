@@ -72,7 +72,7 @@ export default function DevApprovalsPage() {
     const data = await res.json().catch(() => ({}))
     setBusy(null)
     if (res.ok) { setMsg({ type: 'success', text: `PR #${prNumber} approved and merged — Railway is deploying it now.` }); fetchAll() }
-    else { setMsg({ type: 'error', text: data.error || 'Approve failed.' }); fetchAll() }
+    else { setMsg({ type: 'error', text: data.error || `Approve failed (HTTP ${res.status}) — see server logs.` }); fetchAll() }
   }
 
   async function reject(prNumber: number) {
@@ -85,7 +85,7 @@ export default function DevApprovalsPage() {
     const data = await res.json().catch(() => ({}))
     setBusy(null)
     if (res.ok) { setMsg({ type: 'success', text: `Sent back to Khalifa with your note.` }); setOpenId(null); setNote(''); fetchAll() }
-    else setMsg({ type: 'error', text: data.error || 'Send back failed.' })
+    else setMsg({ type: 'error', text: data.error || `Send back failed (HTTP ${res.status}) — see server logs.` })
   }
 
   const pending = reviews.filter(r => r.status === 'pending')
