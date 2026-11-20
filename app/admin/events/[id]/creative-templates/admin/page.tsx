@@ -305,6 +305,8 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   // Thumbnail layouts: the sample session the preview draws (type, title, how many placeholder speakers, first one a moderator). Kept in this browser per layout, never saved on the template.
   const [thumbSample, setThumbSample] = useState<{ type: string; title: string; count: number; moderator: boolean }>({ type: '', title: '', count: 1, moderator: false })
   const [thumbNote, setThumbNote] = useState<string | null>(null)
+  const [titleCardSample, setTitleCardSample] = useState<{ type: string; stage: string; title: string; count: number; moderator: boolean }>({ type: '', stage: '', title: '', count: 1, moderator: false })
+  const [titleCardNote, setTitleCardNote] = useState<string | null>(null)
   const [previewRole, setPreviewRole] = useState<'speaker' | 'moderator'>('speaker')   // Table Screen cards: which kind of speaker the preview draws
   const previewReqIdRef = useRef(0)
 
@@ -336,6 +338,21 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     const next = { ...thumbSample, ...patch }
     setThumbSample(next); setPreviewStale(true)
     try { if (thumbVariantId) localStorage.setItem(`thumb-sample-${thumbVariantId}`, JSON.stringify(next)) } catch { /* not saved */ }
+  }
+
+  const titleCardLayoutId = activeVariant?.category === 'title_card_layout' ? activeVariant.id : null
+  useEffect(() => {
+    if (!titleCardLayoutId) return
+    const def = { type: '', stage: '', title: '', count: 1, moderator: false }
+    let saved: Partial<typeof def> = {}
+    try { saved = JSON.parse(localStorage.getItem(`title-card-sample-${titleCardLayoutId}`) ?? '{}') } catch { /* private window: defaults */ }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- restores this layout's own sample when switching to it
+    setTitleCardSample({ ...def, ...saved }); setTitleCardNote(null)
+  }, [titleCardLayoutId])
+  function changeTitleCardSample(patch: Partial<{ type: string; stage: string; title: string; count: number; moderator: boolean }>) {
+    const next = { ...titleCardSample, ...patch }
+    setTitleCardSample(next); setPreviewStale(true)
+    try { if (titleCardLayoutId) localStorage.setItem(`title-card-sample-${titleCardLayoutId}`, JSON.stringify(next)) } catch { /* not saved */ }
   }
 
   // Drag-to-reorder layers (2026-09-27, replacing ▲▼ buttons per Madhu —
@@ -412,7 +429,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     // photo half of "placeholder" already comes from whatever's uploaded as
     // the Photo/Logo Slot's own reference layer, so there was never a case
     // this couldn't already cover.
-    const body: Record<string, unknown> = { event_id: eventId, stakeholder_type: activeType, variant: activeVariant, ...(activeVariant.category === 'table_screen' ? { preview_role: previewRole } : {}), ...(activeVariant.category === 'thumbnail_layout' ? { thumb_preview: { session_type: thumbSample.type, session_title: thumbSample.title, count: thumbSample.count, moderator: thumbSample.moderator } } : {}) }
+    const body: Record<string, unknown> = { event_id: eventId, stakeholder_type: activeType, variant: activeVariant, ...(activeVariant.category === 'table_screen' ? { preview_role: previewRole } : {}), ...(activeVariant.category === 'thumbnail_layout' ? { thumb_preview: { session_type: thumbSample.type, session_title: thumbSample.title, count: thumbSample.count, moderator: thumbSample.moderator } } : {}), ...(activeVariant.category === 'title_card_layout' ? { title_card_preview: { session_type: titleCardSample.type, session_stage: titleCardSample.stage, session_title: titleCardSample.title, count: titleCardSample.count, moderator: titleCardSample.moderator } } : {}) }
     const res = await fetch('/api/events/templates/preview', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     })
@@ -421,6 +438,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     setPreviewDataUrl(res.ok ? data.preview_data_url : null)
     setPreviewStale(false)
     setThumbNote(res.ok && typeof data.thumb_note === 'string' ? data.thumb_note : null)
+    setTitleCardNote(res.ok && typeof data.title_card_note === 'string' ? data.title_card_note : null)
     setTextDiagnostics(res.ok ? (data.text_diagnostics ?? {}) : {})
     // A failed render used to leave a silent blank preview; surface the server's reason instead.
     setWebsitePhotoError(!res.ok ? (data.error ?? `Preview failed (${res.status})`) : (activeVariant.category === 'website_photo' || activeVariant.category === 'memento') ? (data.website_photo_error ?? null) : null)
@@ -1212,6 +1230,35 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       </div>
                       <div style={{ fontSize: '11.5px', color: 'var(--ink3)', lineHeight: 1.5 }}>The placeholder speaker (Edit Placeholder) is repeated for every card, drawn with this event&apos;s thumbnail card. Only the moderator&apos;s card shows the moderator label. Blank fields use a sample. These are kept in this browser, not on the template.</div>
                       {thumbNote && <div style={{ fontSize: '12px', color: 'var(--amber)', fontWeight: 700 }}>{thumbNote}</div>}
+                    </div>
+                  )}
+                  {activeVariant?.category === 'title_card_layout' && (
+                    <div style={{ marginBottom: '10px', padding: '10px 12px', border: '1px solid var(--border-light)', borderRadius: '10px', display: 'grid', gap: '8px', background: 'var(--surface)' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--teal-mid)', letterSpacing: '0.6px', textTransform: 'uppercase' }}>Sample session for this preview</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 1fr) minmax(120px, 1fr) 2fr', gap: '8px' }}>
+                        <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'grid', gap: '3px' }}>Session type
+                          <Input list="title-card-session-types" value={titleCardSample.type} placeholder="KEYNOTE" onChange={e => changeTitleCardSample({ type: e.target.value })} />
+                          <datalist id="title-card-session-types">{['KEYNOTE', 'FIRESIDE CHAT', 'PANEL DISCUSSION', 'WORKSHOP', 'PRESENTATION', 'MASTERCLASS', 'DEMO'].map(t => <option key={t} value={t} />)}</datalist>
+                        </label>
+                        <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'grid', gap: '3px' }}>Stage
+                          <Input value={titleCardSample.stage} placeholder="Plenary - 1" onChange={e => changeTitleCardSample({ stage: e.target.value })} />
+                        </label>
+                        <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'grid', gap: '3px' }}>Session title
+                          <Input value={titleCardSample.title} placeholder="The Future of Finance: Innovation at Scale" onChange={e => changeTitleCardSample({ title: e.target.value })} />
+                        </label>
+                      </div>
+                      <div style={{ display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px' }}>Speakers shown
+                          <Select value={String(titleCardSample.count)} onChange={e => changeTitleCardSample({ count: Number(e.target.value) })}>
+                            {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}</option>)}
+                          </Select>
+                        </label>
+                        <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px', opacity: titleCardSample.count < 2 ? 0.5 : 1 }}>
+                          <input type="checkbox" checked={titleCardSample.moderator && titleCardSample.count > 1} disabled={titleCardSample.count < 2} onChange={e => changeTitleCardSample({ moderator: e.target.checked })} /> First one is the moderator
+                        </label>
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: 'var(--ink3)', lineHeight: 1.5 }}>The placeholder speaker is repeated for every card, drawn with this event&apos;s title card card template. Set the card template in Session Videos settings. Blank fields use a sample. These are kept in this browser, not on the template.</div>
+                      {titleCardNote && <div style={{ fontSize: '12px', color: 'var(--amber)', fontWeight: 700 }}>{titleCardNote}</div>}
                     </div>
                   )}
                   {showPlaceholderPanel && (

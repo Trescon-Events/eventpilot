@@ -1,6 +1,9 @@
 import { loadPreviewCard } from '@/app/lib/thumbnails/data'
 import { drawThumbnail, type DrawPerson } from '@/app/lib/thumbnails/render'
 import { MAX_SPEAKERS, speakerAreaOf } from '@/app/lib/thumbnails/geometry'
+import { loadPreviewTitleCard } from '@/app/lib/title-cards/data'
+import { drawTitleCard, type TitleCardPerson } from '@/app/lib/title-cards/render'
+import { speakerGridOf } from '@/app/lib/title-cards/geometry'
 import { composeMementoLayers } from '@/app/lib/mementos/render'
 import { toMonochrome } from '@/app/lib/media/monochrome'
 import { NextRequest, NextResponse } from 'next/server'
@@ -80,6 +83,8 @@ type PreviewBody = {
   preview_role?: 'speaker' | 'moderator'
   // Thumbnail layouts: the sample session and how many placeholder speakers to draw (the event's thumbnail card, the placeholder speaker repeated; the first is the moderator when asked).
   thumb_preview?: { session_type?: string; session_title?: string; count?: number; moderator?: boolean }
+  // Title card layouts: same idea — sample session text + how many placeholder speaker cards to draw.
+  title_card_preview?: { session_type?: string; session_stage?: string; session_title?: string; count?: number; moderator?: boolean }
 }
 
 export async function POST(req: NextRequest) {
@@ -117,6 +122,43 @@ export async function POST(req: NextRequest) {
           thumbFull = await drawThumbnail(layout, card, { tag: typeText, title: titleText }, people)
         }
       } catch (e) { thumbNote = `Could not draw the cards: ${e instanceof Error ? e.message : 'unknown error'}. Showing the layout alone.` }
+    }
+  }
+
+  // Title card layouts: same pattern as thumbnail layouts above — draw the
+  // event's configured title card card over the layout with placeholder
+  // speaker(s) so the full composite is visible while editing.
+  let titleCardNote: string | null = null
+  let titleCardFull: Buffer | null = null
+  if (body.variant.category === 'title_card_layout') {
+    const tcp = body.title_card_preview ?? {}
+    const typeText = (tcp.session_type ?? '').trim() || 'KEYNOTE'
+    const stageText = (tcp.session_stage ?? '').trim() || 'Plenary - 1'
+    const titleText = (tcp.session_title ?? '').trim() || 'The Future of Finance: Innovation at Scale'
+    texts.session_type = typeText; texts.session_stage = stageText; texts.session_title = titleText
+    const { card, withFont } = body.event_id ? await loadPreviewTitleCard(body.event_id) : { card: null, withFont: (v: Variant) => v }
+    const layout = withFont(body.variant)
+    if (!card) titleCardNote = 'No title card card template configured yet — set one in Session Videos settings, or add a Title Card — Speaker Card variant first.'
+    else if (!speakerGridOf(layout.layers)) titleCardNote = 'Add a Speaker Grid layer to this layout to see the cards.'
+    else {
+      try {
+        const cardInputs = await resolvePreviewInputs({ stakeholder_type: 'speaker', variant: card, event_id: body.event_id })
+        const photo = cardInputs.assets.speaker_photo
+        if (!photo?.url || !photo.head_box) titleCardNote = 'The placeholder speaker has no photo with a detected head yet (Brand & Content > Placeholder Defaults): showing the layout alone.'
+        else {
+          const n = Math.min(6, Math.max(1, Math.round(tcp.count ?? 1)))
+          const people: TitleCardPerson[] = Array.from({ length: n }, (_, i) => ({
+            name: String(cardInputs.texts.name ?? ''),
+            title: String(cardInputs.texts.title ?? ''),
+            company: String(cardInputs.texts.company ?? ''),
+            moderator: !!tcp.moderator && n > 1 && i === 0,
+            buffer: photo.buffer,
+            url: photo.url!,
+            headBox: photo.head_box!,
+          }))
+          titleCardFull = await drawTitleCard(layout, card, { tag: typeText, stage: stageText, title: titleText }, people)
+        }
+      } catch (e) { titleCardNote = `Could not draw the cards: ${e instanceof Error ? e.message : 'unknown error'}. Showing the layout alone.` }
     }
   }
 
@@ -188,7 +230,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const fullBuffer = thumbFull ?? websitePhotoFinalBuffer ?? await compositeAnnouncement(renderVariant, assets, texts, { showReferenceLayers: !body.hide_reference_layers })
+    const fullBuffer = titleCardFull ?? thumbFull ?? websitePhotoFinalBuffer ?? await compositeAnnouncement(renderVariant, assets, texts, { showReferenceLayers: !body.hide_reference_layers })
     const draftBuffer = body.full_res
       ? fullBuffer
       : await sharp(fullBuffer)
@@ -203,6 +245,7 @@ export async function POST(req: NextRequest) {
       preview_data_url: `data:image/png;base64,${draftBuffer.toString('base64')}`,
       text_diagnostics,
       ...(thumbNote ? { thumb_note: thumbNote } : {}),
+      ...(titleCardNote ? { title_card_note: titleCardNote } : {}),
       ...(body.variant.category === 'website_photo' || isMemento ? { website_photo_error: websitePhotoError } : {}),
     })
   } catch (e) {
