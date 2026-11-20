@@ -9,6 +9,8 @@ import { enqueueJob } from './jobs'
 import { checkChapters, cleanTags, eventFigureHits, titleProblems, unresolvedPlaceholders, voiceSummaries, suggestSessions, type Chapter, type Segment, type VoiceRow } from './logic'
 import { sessionSpeakers } from './speakers'
 import { abortMultipart, completeMultipart, deleteObject, keysFor, listParts, presignGet, presignPart, startMultipart, UPLOAD_PART_SIZE, videoStorageConfigured } from './storage'
+import { generateCues, saveCues, loadCues, cuesFingerprint } from './cues'
+import { getKit } from './kit'
 
 /* Session videos — access and every action. Nothing here publishes or sends anything. The original is only ever read (removing a video deletes OUR uploaded copy and its derived files). */
 
@@ -228,20 +230,58 @@ export async function approveText(eventId: string, id: string, by: string | null
   if (t.footer_item_id && t.footer_version) await recordUsage({ item_id: t.footer_item_id as string, version: t.footer_version as number, consumer_type: 'session_video', consumer_id: id, mode: 'live' })
 }
 
+export async function generateCuesForVideo(eventId: string, id: string, by: string | null): Promise<void> {
+  const v = await videoOf(id, eventId)
+  if (!v.agenda_session_id) throw new VideoError('Pick the agenda session first.')
+  const { data: tr } = await supabaseAdmin.from('session_video_transcripts').select('segments, voices').eq('session_video_id', id).maybeSingle()
+  if (!tr) throw new VideoError('No transcript yet.', 409)
+  const { data: ses } = await supabaseAdmin.from('event_agenda_sessions').select('content_type').eq('id', v.agenda_session_id).maybeSingle()
+  const contentType = (ses?.content_type as string | null) ?? null
+  const cues = generateCues(tr.segments as Segment[], tr.voices as VoiceRow[], contentType)
+  await saveCues(id, cues, by)
+  const saved = await loadCues(id)
+  const fp = cuesFingerprint(saved)
+  await supabaseAdmin.from('session_videos').update({ cues_fingerprint: fp, updated_at: new Date().toISOString() }).eq('id', id)
+}
+
+export async function requestRenderPreview(eventId: string, id: string, _by: string | null): Promise<void> {
+  const v = await videoOf(id, eventId)
+  if (!['approved', 'ready'].includes(v.status)) throw new VideoError('Text must be approved before rendering.')
+  const { data: text } = await supabaseAdmin.from('session_video_text').select('description_approved').eq('session_video_id', id).maybeSingle()
+  if (!text?.description_approved) throw new VideoError('Approve the video text first.', 409)
+  const cues = await loadCues(id)
+  if (!cues.length) throw new VideoError('Generate cues first.', 409)
+  const kit = await getKit(eventId)
+  if (!kit.intro_path) throw new VideoError('Upload the intro/outro clip in the Video kit first.', 409)
+  await supabaseAdmin.from('session_videos').update({ render_status: 'preview_rendering', render_error: null, updated_at: new Date().toISOString() }).eq('id', id)
+  await enqueueJob(id, 'render_preview')
+}
+
+export async function requestRender(eventId: string, id: string, _by: string | null): Promise<void> {
+  const v = await videoOf(id, eventId)
+  if ((v.render_status as string | null) !== 'preview_done') throw new VideoError('Preview must be done and approved before the final render.')
+  await supabaseAdmin.from('session_videos').update({ render_status: 'rendering', render_error: null, updated_at: new Date().toISOString() }).eq('id', id)
+  await enqueueJob(id, 'render')
+}
+
 export async function retryVideo(eventId: string, id: string) {
   const v = await videoOf(id, eventId)
   const { data: last } = await supabaseAdmin.from('video_jobs').select('kind').eq('session_video_id', id).eq('status', 'failed').order('created_at', { ascending: false }).limit(1).maybeSingle()
-  const kind = (last?.kind as 'drive_import' | 'ingest' | 'transcribe' | 'identify' | 'text_pack' | undefined) ?? (v.status === 'uploaded' ? 'ingest' : null)
+  const kind = (last?.kind as 'drive_import' | 'ingest' | 'transcribe' | 'identify' | 'text_pack' | 'render_preview' | 'render' | undefined) ?? (v.status === 'uploaded' ? 'ingest' : null)
   if (!kind) throw new VideoError('Nothing to retry.', 409)
-  const nextStatus = kind === 'drive_import' ? 'uploading' : kind === 'ingest' ? 'uploaded' : kind === 'transcribe' ? 'ingested' : 'transcribed'
-  await supabaseAdmin.from('session_videos').update({ status: nextStatus, error: null, updated_at: new Date().toISOString() }).eq('id', id)
+  const nextStatus = kind === 'drive_import' ? 'uploading' : kind === 'ingest' ? 'uploaded' : kind === 'transcribe' ? 'ingested' : kind === 'render_preview' || kind === 'render' ? undefined : 'transcribed'
+  const patch: Record<string, unknown> = { error: null, updated_at: new Date().toISOString() }
+  if (kind === 'render_preview') patch.render_status = 'preview_rendering'
+  else if (kind === 'render') patch.render_status = 'rendering'
+  else patch.status = nextStatus
+  await supabaseAdmin.from('session_videos').update(patch).eq('id', id)
   await enqueueJob(id, kind)
 }
 
 // ── reading ──────────────────────────────────────────────────────────────────
 
 export async function listVideos(eventId: string) {
-  const { data } = await supabaseAdmin.from('session_videos').select('id, source_ref, status, error, duration_s, size_bytes, bytes_transferred, drive_file_id, agenda_session_id, created_at, updated_at').eq('event_id', eventId).order('created_at', { ascending: false })
+  const { data } = await supabaseAdmin.from('session_videos').select('id, source_ref, status, error, duration_s, size_bytes, bytes_transferred, drive_file_id, agenda_session_id, render_status, render_error, preview_path, render_path, cues_fingerprint, created_at, updated_at').eq('event_id', eventId).order('created_at', { ascending: false })
   return data ?? []
 }
 
@@ -267,6 +307,7 @@ export async function videoDetail(eventId: string, id: string) {
   return {
     video: { ...v, upload_id: undefined }, jobs: jobs ?? [], session: ses, speakers,
     proxy_url: v.proxy_path ? await presignGet(v.proxy_path as string, 3600).catch(() => null) : null,
+    preview_url: v.preview_path ? await presignGet(v.preview_path as string, 3600).catch(() => null) : null,
     transcript: tr ? {
       voices: tr.voices as VoiceRow[], summaries: voiceSummaries(segments), named_at: tr.voices_named_at, segments, model: tr.model,
       voice_clip_urls: voiceClipUrls,

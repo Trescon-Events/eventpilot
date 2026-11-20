@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { actorOf } from '@/app/lib/content/doc-audit'
 import { videoStorageConfigured } from '@/app/lib/session-videos/storage'
-import { approveText, completeUpload, createVideo, createVideoFromDrive, createVideoFromDriveLink, listVideos, matchSessions, presignParts, removeVideo, requestTextPack, requireVideos, retryVideo, saveText, saveVoices, setSession, uploadedParts, videoDetail, VideoError } from '@/app/lib/session-videos/service'
+import { approveText, completeUpload, createVideo, createVideoFromDrive, createVideoFromDriveLink, generateCuesForVideo, listVideos, matchSessions, presignParts, removeVideo, requestRender, requestRenderPreview, requestTextPack, requireVideos, retryVideo, saveText, saveVoices, setSession, uploadedParts, videoDetail, VideoError } from '@/app/lib/session-videos/service'
 import { abortMultipart } from '@/app/lib/session-videos/storage'
 import { videoOf } from '@/app/lib/session-videos/service'
 import { supabaseAdmin } from '@/app/lib/supabase'
@@ -55,6 +55,9 @@ export async function POST(req: NextRequest) {
       case 'approve': await approveText(eventId, need(), by); return NextResponse.json({ ok: true })
       case 'retry': await retryVideo(eventId, need()); return NextResponse.json({ ok: true })
       case 'remove': await removeVideo(eventId, need()); return NextResponse.json({ ok: true })
+      case 'generate_cues': await generateCuesForVideo(eventId, need(), by); return NextResponse.json({ ok: true })
+      case 'request_render_preview': await requestRenderPreview(eventId, need(), by); return NextResponse.json({ ok: true })
+      case 'request_render': await requestRender(eventId, need(), by); return NextResponse.json({ ok: true })
       default: return NextResponse.json({ error: 'Unknown action.' }, { status: 400 })
     }
   } catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : 'Failed.' }, { status: e instanceof VideoError ? e.status : 500 }) }

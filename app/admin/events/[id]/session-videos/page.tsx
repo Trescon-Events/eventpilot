@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- thumbnail previews are arbitrary stored images */
 
-import { use, useCallback, useEffect, useMemo, useState } from 'react'
+import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Card, Input, Select } from '@/app/components/ui'
 
@@ -65,6 +65,14 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
   const [tcBusy, setTcBusy] = useState<Set<string>>(new Set())
   const [ltBusy, setLtBusy] = useState<Set<string>>(new Set())
 
+  // Video kit
+  const [kitData, setKitData] = useState<{ intro_path: string | null; outro_path: string | null; music_path: string | null } | null>(null)
+  const [kitMsg, setKitMsg] = useState<string | null>(null)
+  const [kitOpen, setKitOpen] = useState(false)
+  const [kitUploading, setKitUploading] = useState<'intro' | 'outro' | 'music' | null>(null)
+  const kitIntroRef = useRef<HTMLInputElement>(null)
+  const kitMusicRef = useRef<HTMLInputElement>(null)
+
   // Filters
   const [vidType, setVidType] = useState('all')
   const [vidStatus, setVidStatus] = useState('all')
@@ -84,10 +92,48 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
     if (r.ok && j) { setThumbErr(null); setThumbData(j) } else setThumbErr(j?.error || 'Could not load thumbnails.')
   }, [eventId])
 
+  const loadKit = useCallback(async () => {
+    const r = await fetch(`/api/events/video-kit?event_id=${eventId}`, { cache: 'no-store' })
+    const j = await r.json().catch(() => null)
+    if (r.ok && j) setKitData(j)
+  }, [eventId])
+
+  async function kitPost(body: Record<string, unknown>) {
+    const r = await fetch('/api/events/video-kit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, ...body }) })
+    const j = await r.json().catch(() => ({}))
+    if (!r.ok) throw new Error(j.error ?? 'Failed.')
+    return j
+  }
+
+  async function uploadKitFile(field: 'intro' | 'music', file: File) {
+    setKitMsg(null); setKitUploading(field)
+    try {
+      const r1 = await kitPost({ action: 'start_upload', field, file_name: file.name, size: file.size, content_type: file.type || 'video/mp4' })
+      const { upload_id, key, part_size, parts } = r1 as { upload_id: string; key: string; part_size: number; parts: number }
+      for (let p = 1; p <= parts; p++) {
+        const r2 = await kitPost({ action: 'presign_parts', field, key, upload_id, part_numbers: [p] })
+        const url = (r2.urls as Array<{ url: string }>)[0].url
+        await fetch(url, { method: 'PUT', body: file.slice((p - 1) * part_size, p * part_size) })
+      }
+      await kitPost({ action: 'complete_upload', field, key, upload_id })
+      setKitMsg(`${field === 'intro' ? 'Intro/outro' : 'Music'} uploaded.`)
+      await loadKit()
+    } catch (e) { setKitMsg(e instanceof Error ? e.message : 'Upload failed.') }
+    finally { setKitUploading(null) }
+  }
+
+  async function removeKitFile(field: 'intro' | 'outro' | 'music') {
+    setKitMsg(null)
+    try { await kitPost({ action: 'remove', field }); await loadKit() }
+    catch (e) { setKitMsg(e instanceof Error ? e.message : 'Failed.') }
+  }
+
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void loadVideos() }, [loadVideos])
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void loadThumbs() }, [loadThumbs])
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void loadKit() }, [loadKit])
   useEffect(() => {
     if (!videoData?.videos?.some(v => BUSY.has(v.status) || v.status === 'uploading')) return
     const t = setInterval(() => { void loadVideos() }, 6000); return () => clearInterval(t)
@@ -234,6 +280,48 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
           {videoData && !videoData.storage_ready && (
             <Card padded><div style={{ fontSize: '13px', color: 'var(--amber)' }}><strong>Video storage is not set up.</strong> The VIDEO_R2_* environment variables are missing, so uploads are switched off.</div></Card>
           )}
+
+          {/* Video kit panel */}
+          <div style={{ border: '1.5px solid var(--border-light)', borderRadius: 10, overflow: 'hidden' }}>
+            <button type="button" onClick={() => setKitOpen(o => !o)}
+              style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 14px', width: '100%', background: 'var(--card)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+              <span style={{ fontSize: 13, fontWeight: 800 }}>Video kit</span>
+              <span style={{ fontSize: 12, color: 'var(--ink3)', marginLeft: 4 }}>
+                {!kitData ? 'Loading…'
+                  : !kitData.intro_path ? 'Intro/outro missing — render blocked'
+                  : !kitData.music_path ? 'Ready (no music — will render without it)'
+                  : 'Ready'}
+              </span>
+              {!kitData?.intro_path && <span style={{ marginLeft: 4, fontSize: 11, color: 'var(--red)', fontWeight: 700 }}>●</span>}
+              <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--ink3)' }}>▼</span>
+            </button>
+            {kitOpen && (
+              <div style={{ padding: '0 14px 14px', borderTop: '1px solid var(--border-light)' }}>
+                {kitMsg && <div style={{ fontSize: 12.5, color: kitMsg.endsWith('.') && !kitMsg.includes('failed') && !kitMsg.includes('Failed') ? 'var(--green)' : 'var(--red)', margin: '10px 0 4px' }}>{kitMsg}</div>}
+                <input ref={kitIntroRef} type="file" accept="video/mp4,video/quicktime,.mp4,.mov" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) void uploadKitFile('intro', f); e.target.value = '' }} />
+                <input ref={kitMusicRef} type="file" accept="audio/mpeg,audio/wav,audio/aac,audio/m4a,.mp3,.wav,.aac,.m4a" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) void uploadKitFile('music', f); e.target.value = '' }} />
+                <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, minWidth: 100 }}>Intro / outro</span>
+                    {kitData?.intro_path
+                      ? <><span style={{ fontSize: 12, color: 'var(--green)' }}>✓ Uploaded</span>
+                          <Button variant="ghost" disabled={!!kitUploading} onClick={() => void removeKitFile('intro')}>Remove</Button></>
+                      : <Button variant={kitUploading === 'intro' ? 'ghost' : 'teal'} disabled={!!kitUploading} onClick={() => kitIntroRef.current?.click()}>{kitUploading === 'intro' ? 'Uploading…' : 'Upload MP4/MOV'}</Button>
+                    }
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, minWidth: 100 }}>Background music</span>
+                    {kitData?.music_path
+                      ? <><span style={{ fontSize: 12, color: 'var(--green)' }}>✓ Uploaded</span>
+                          <Button variant="ghost" disabled={!!kitUploading} onClick={() => void removeKitFile('music')}>Remove</Button></>
+                      : <><Button variant="ghost" disabled={!!kitUploading} onClick={() => kitMusicRef.current?.click()}>{kitUploading === 'music' ? 'Uploading…' : 'Upload MP3/WAV/M4A'}</Button>
+                          <span style={{ fontSize: 11.5, color: 'var(--ink3)' }}>Optional — renders without music if missing</span></>
+                    }
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Type filter chips */}
           {vidTypes.length > 1 && (

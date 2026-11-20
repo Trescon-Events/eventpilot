@@ -13,11 +13,12 @@ type VoiceSummary = { voice_id: string; seconds: number; segments: number; quote
 type Speaker = { id: string; name: string; public_name: string | null }
 type Job = { id: string; kind: string; status: string; error: string | null; log: string | null }
 type TextRec = { titles: string[]; selected_title: string | null; description_working: string; tags: string[]; findings: Record<string, unknown>; approved_at: string | null }
-type VideoRec = { id: string; status: string; source_ref: string | null; size_bytes: number | null; bytes_transferred: number | null; drive_file_id: string | null; agenda_session_id: string | null; duration_s: number | null; error: string | null }
+type VideoRec = { id: string; status: string; source_ref: string | null; size_bytes: number | null; bytes_transferred: number | null; drive_file_id: string | null; agenda_session_id: string | null; duration_s: number | null; error: string | null; render_status: string | null; render_error: string | null; preview_path: string | null; render_path: string | null; cues_fingerprint: string | null }
+type Cue = { id: string; session_video_id: string; speaker_id: string; start_s: number }
 type Detail = {
   video: VideoRec; jobs: Job[]
   session: { title: string; content_type: string | null } | null
-  speakers: Speaker[]; proxy_url: string | null
+  speakers: Speaker[]; proxy_url: string | null; preview_url: string | null
   transcript: { voices: VoiceRow[]; summaries: VoiceSummary[]; named_at: string | null; voice_clip_urls: Record<string, string>; voice_suggestions: Suggestion[] } | null
   text: TextRec | null
   thumbnail: { png_url: string | null; jpg_url: string | null; approved: boolean } | null
@@ -71,6 +72,14 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
   const [openStep, setOpenStep] = useState<number | null>(null)
   const [confirmRemove, setConfirmRemove] = useState(false)
 
+  // Cues + render
+  const [cues, setCues] = useState<Cue[] | null>(null)
+  const [cuesBusy, setCuesBusy] = useState(false)
+  const [cuesMsg, setCuesMsg] = useState<string | null>(null)
+  const [renderBusy, setRenderBusy] = useState(false)
+  const [renderMsg, setRenderMsg] = useState<string | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+
   // ── API helpers ─────────────────────────────────────────────────────────────
 
   const vpost = useCallback(async (body: Record<string, unknown>) => {
@@ -91,6 +100,23 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
     const j = await r.json().catch(() => ({})) as Record<string, unknown>
     if (!r.ok) throw new Error((j.error as string | undefined) ?? 'Failed.')
     return j
+  }, [eventId])
+
+  const cpost = useCallback(async (videoId: string, action: string, body: Record<string, unknown> = {}) => {
+    const r = await fetch(`/api/events/session-videos/${videoId}/cues`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_id: eventId, action, ...body }),
+    })
+    const j = await r.json().catch(() => ({})) as Record<string, unknown>
+    if (!r.ok) throw new Error((j.error as string | undefined) ?? 'Failed.')
+    if (Array.isArray(j.cues)) setCues(j.cues as Cue[])
+    return j
+  }, [eventId])
+
+  const loadCuesForVideo = useCallback(async (videoId: string) => {
+    const r = await fetch(`/api/events/session-videos/${videoId}/cues?event_id=${eventId}`, { cache: 'no-store' })
+    const j = await r.json().catch(() => null) as { cues: Cue[] } | null
+    if (r.ok && j) setCues(j.cues)
   }, [eventId])
 
   // ── Load ─────────────────────────────────────────────────────────────────────
@@ -123,9 +149,12 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
     const j = await loadList()
     if (!j) return
     const v = j.videos.find(v => v.agenda_session_id === sessionId) ?? null
-    if (v) await loadDetail(v.id)
+    if (v) {
+      await loadDetail(v.id)
+      await loadCuesForVideo(v.id)
+    }
     await loadThumb()
-  }, [loadList, loadDetail, loadThumb, sessionId])
+  }, [loadList, loadDetail, loadThumb, loadCuesForVideo, sessionId])
 
   useEffect(() => { void reload() }, [reload])
 
@@ -269,6 +298,50 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
     catch (e) { setActionErr(e instanceof Error ? e.message : 'Failed.') }
   }
 
+  // ── Cues ──────────────────────────────────────────────────────────────────────
+
+  async function doGenerateCues() {
+    if (!video) return
+    setCuesBusy(true); setCuesMsg(null)
+    try { await vpost({ action: 'generate_cues', id: video.id }); await loadCuesForVideo(video.id); setCuesMsg('Cues generated.') }
+    catch (e) { setCuesMsg(e instanceof Error ? e.message : 'Failed.') }
+    finally { setCuesBusy(false) }
+  }
+
+  async function doMoveCue(cueId: string, deltaSec: number) {
+    if (!video) return
+    setCuesBusy(true)
+    try { await cpost(video.id, 'move', { cue_id: cueId, delta_s: deltaSec }) }
+    catch (e) { setCuesMsg(e instanceof Error ? e.message : 'Failed.') }
+    finally { setCuesBusy(false) }
+  }
+
+  async function doDeleteCue(cueId: string) {
+    if (!video) return
+    setCuesBusy(true)
+    try { await cpost(video.id, 'delete', { cue_id: cueId }) }
+    catch (e) { setCuesMsg(e instanceof Error ? e.message : 'Failed.') }
+    finally { setCuesBusy(false) }
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────────
+
+  async function doRequestPreview() {
+    if (!video) return
+    setRenderBusy(true); setRenderMsg(null)
+    try { await vpost({ action: 'request_render_preview', id: video.id }); await reload() }
+    catch (e) { setRenderMsg(e instanceof Error ? e.message : 'Failed.') }
+    finally { setRenderBusy(false) }
+  }
+
+  async function doRequestRender() {
+    if (!video) return
+    setRenderBusy(true); setRenderMsg(null)
+    try { await vpost({ action: 'request_render', id: video.id }); await reload() }
+    catch (e) { setRenderMsg(e instanceof Error ? e.message : 'Failed.') }
+    finally { setRenderBusy(false) }
+  }
+
   // ── Thumbnail ─────────────────────────────────────────────────────────────────
 
   async function thumbGenerate() {
@@ -284,6 +357,11 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
     catch (e) { setThumbMsg(e instanceof Error ? e.message : 'Failed.') }
     finally { setThumbBusy(false) }
   }
+
+  // Sync preview URL from detail when it changes
+  useEffect(() => {
+    if (detail?.preview_url) setPreviewUrl(detail.preview_url)
+  }, [detail?.preview_url])
 
   // ── Loading / not found states ────────────────────────────────────────────────
 
@@ -303,6 +381,10 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
   )
 
   const isApproved = video?.status === 'approved'
+  const renderStatus = (detail?.video as VideoRec | null)?.render_status ?? null
+  const hasCues = cues !== null && cues.length > 0
+  const renderDone = renderStatus === 'done'
+  const previewDone = renderStatus === 'preview_done' || renderStatus === 'rendering' || renderDone
 
   return (
     <div style={{ display: 'grid', gap: 0 }}>
@@ -634,6 +716,93 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
               )}
             </div>
           )}
+        </StepCard>
+
+        {/* ── Step 7: Lower-third cues ──────────────────────────── */}
+        <StepCard n={7} active={active === 7} done={hasCues}
+          title="Lower-third cues" summary={hasCues ? `${cues!.length} cue${cues!.length === 1 ? '' : 's'}` : (isApproved ? 'Ready to generate' : 'Approve text first')}
+          onToggle={() => setOpenStep(p => p === 7 ? null : 7)}>
+          <div style={{ display: 'grid', gap: 12 }}>
+            {!isApproved ? (
+              <div style={{ fontSize: 13, color: 'var(--ink3)' }}>Approve the text first (Step 6).</div>
+            ) : (
+              <>
+                <div>
+                  <Button variant={hasCues ? 'ghost' : 'teal'} disabled={cuesBusy || !detail?.transcript?.named_at} onClick={() => void doGenerateCues()}>
+                    {cuesBusy ? 'Generating…' : hasCues ? 'Regenerate cues' : 'Generate cues from transcript'}
+                  </Button>
+                  {!detail?.transcript?.named_at && <span style={{ fontSize: 12, color: 'var(--ink3)', marginLeft: 8 }}>Name the voices first (Step 4).</span>}
+                </div>
+                {cuesMsg && <div style={{ fontSize: 12.5, color: cuesMsg === 'Cues generated.' ? 'var(--green)' : 'var(--red)' }}>{cuesMsg}</div>}
+                {hasCues && (
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    {(cues ?? []).map(cue => {
+                      const sp = detail?.speakers.find(s => s.id === cue.speaker_id)
+                      return (
+                        <div key={cue.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '7px 10px', background: 'var(--surface)', borderRadius: 7, border: '1px solid var(--border-light)', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, minWidth: 60, fontFamily: 'monospace' }}>{fmt(cue.start_s)}</span>
+                          <span style={{ fontSize: 13, flex: 1 }}>{sp ? spkName(sp) : cue.speaker_id.slice(0, 8)}</span>
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <button type="button" disabled={cuesBusy} onClick={() => void doMoveCue(cue.id, -5)} style={{ padding: '3px 8px', fontSize: 11, border: '1px solid var(--border-light)', borderRadius: 5, background: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>−5s</button>
+                            <button type="button" disabled={cuesBusy} onClick={() => void doMoveCue(cue.id, -1)} style={{ padding: '3px 8px', fontSize: 11, border: '1px solid var(--border-light)', borderRadius: 5, background: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>−1s</button>
+                            <button type="button" disabled={cuesBusy} onClick={() => void doMoveCue(cue.id, 1)} style={{ padding: '3px 8px', fontSize: 11, border: '1px solid var(--border-light)', borderRadius: 5, background: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>+1s</button>
+                            <button type="button" disabled={cuesBusy} onClick={() => void doMoveCue(cue.id, 5)} style={{ padding: '3px 8px', fontSize: 11, border: '1px solid var(--border-light)', borderRadius: 5, background: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>+5s</button>
+                            <button type="button" disabled={cuesBusy} onClick={() => void doDeleteCue(cue.id)} style={{ padding: '3px 8px', fontSize: 11, border: '1px solid var(--red)', borderRadius: 5, background: 'none', color: 'var(--red)', cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </StepCard>
+
+        {/* ── Step 8: Render & preview ──────────────────────────── */}
+        <StepCard n={8} active={active === 8} done={renderDone}
+          title="Render & preview" summary={
+            renderDone ? 'Final render done' :
+            renderStatus === 'rendering' ? 'Rendering final…' :
+            previewDone ? 'Preview ready — approve to render final' :
+            renderStatus === 'preview_rendering' ? 'Generating preview…' :
+            (isApproved && hasCues) ? 'Ready to generate preview' : 'Complete steps 6 & 7 first'
+          }
+          onToggle={() => setOpenStep(p => p === 8 ? null : 8)}>
+          <div style={{ display: 'grid', gap: 12 }}>
+            {!(isApproved && hasCues) ? (
+              <div style={{ fontSize: 13, color: 'var(--ink3)' }}>Complete text approval (Step 6) and cues (Step 7) first.</div>
+            ) : (
+              <>
+                {renderMsg && <div style={{ fontSize: 12.5, color: 'var(--red)' }}>{renderMsg}</div>}
+                {(detail?.video as VideoRec | null)?.render_error && <div style={{ fontSize: 12, color: 'var(--red)', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>{(detail!.video as VideoRec).render_error}</div>}
+
+                {!previewDone && (
+                  <Button variant="teal" disabled={renderBusy || renderStatus === 'preview_rendering'} onClick={() => void doRequestPreview()}>
+                    {renderStatus === 'preview_rendering' ? 'Generating preview…' : 'Generate preview'}
+                  </Button>
+                )}
+
+                {previewDone && previewUrl && (
+                  <div>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>Preview</div>
+                    <video controls src={previewUrl} style={{ width: '100%', maxHeight: 320, borderRadius: 8, background: '#000', display: 'block' }} />
+                  </div>
+                )}
+                {previewDone && !previewUrl && renderStatus === 'preview_done' && (
+                  <div style={{ fontSize: 12.5, color: 'var(--ink3)' }}>Preview ready — loading playback link…</div>
+                )}
+
+                {previewDone && renderStatus === 'preview_done' && (
+                  <Button variant="lime" disabled={renderBusy} onClick={() => void doRequestRender()}>
+                    Approve & render final →
+                  </Button>
+                )}
+                {renderStatus === 'rendering' && <div style={{ fontSize: 13, color: 'var(--amber)' }}>Rendering final video…</div>}
+                {renderDone && <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--green)' }}>✓ Final render complete</div>}
+              </>
+            )}
+          </div>
         </StepCard>
 
       </div>
