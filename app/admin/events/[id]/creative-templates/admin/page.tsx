@@ -568,7 +568,9 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     const commonBadge = badge && !!common
     const variant: Variant = category === 'thumbnail_card' ? thumbnailCardStarter() : category === 'thumbnail_layout' ? thumbnailLayoutStarter(thumbKind ?? 'panel') : category === 'table_screen' ? tableScreenStarter(!!tableStandby) : stage ? stageScreenStarter() : {
       id: crypto.randomUUID(), name: commonBadge ? 'Common badge' : badge ? 'Speaker badge' : mementoPrint ? 'Speaker memento (print)' : category === 'memento' ? 'Speaker memento' : 'Untitled Variant', category,
-      canvas_width: grid ? grid.w : category === 'memento' ? 1024 : size ?? 1080, canvas_height: grid ? grid.h : category === 'memento' ? 1024 : size ?? 1350, layers: category === 'memento' ? [newLayer('photo_slot', activeType, grid ? grid.w : 1024, grid ? grid.h : 1024, null, 'memento')] : commonBadge ? [newLayer('image', activeType, grid!.w, grid!.h)] : [],
+      canvas_width: grid ? grid.w : category === 'memento' ? 1024 : (category === 'title_card_layout' || category === 'title_card_card' || category === 'lower_third') ? 1920 : size ?? 1080,
+      canvas_height: grid ? grid.h : category === 'memento' ? 1024 : (category === 'title_card_layout' || category === 'title_card_card' || category === 'lower_third') ? 1080 : size ?? 1350,
+      layers: category === 'memento' ? [newLayer('photo_slot', activeType, grid ? grid.w : 1024, grid ? grid.h : 1024, null, 'memento')] : commonBadge ? [newLayer('image', activeType, grid!.w, grid!.h)] : [],
       ...(badge || mementoPrint ? { print: { ...badgeSpec! } } : {}),
       ...(commonBadge ? { common: true } : {}),
     }
@@ -981,7 +983,10 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                         {(activeVariant.category === 'thumbnail_card' || activeVariant.category === 'thumbnail_layout') && (
                           <Badge>{activeVariant.category === 'thumbnail_card' ? 'Session thumbnail card' : `Session thumbnail layout · ${activeVariant.thumbnail_layout_kind ?? 'panel'}`}</Badge>
                         )}
-                        {activeVariant.category !== 'badge' && activeVariant.category !== 'memento' && activeVariant.category !== 'stage_screen' && activeVariant.category !== 'table_screen' && activeVariant.category !== 'thumbnail_card' && activeVariant.category !== 'thumbnail_layout' && (
+                        {(activeVariant.category === 'title_card_layout' || activeVariant.category === 'title_card_card' || activeVariant.category === 'lower_third') && (
+                          <Badge color="teal">{activeVariant.category === 'title_card_layout' ? 'Title card — layout' : activeVariant.category === 'title_card_card' ? 'Title card — speaker card' : 'Lower third'}</Badge>
+                        )}
+                        {activeVariant.category !== 'badge' && activeVariant.category !== 'memento' && activeVariant.category !== 'stage_screen' && activeVariant.category !== 'table_screen' && activeVariant.category !== 'thumbnail_card' && activeVariant.category !== 'thumbnail_layout' && activeVariant.category !== 'title_card_layout' && activeVariant.category !== 'title_card_card' && activeVariant.category !== 'lower_third' && (
                         <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                           Use
                           <Select
@@ -1052,6 +1057,21 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       {activeVariant.category === 'thumbnail_layout' && (
                         <div style={{ marginBottom: '14px', fontSize: '12.5px', color: 'var(--ink2)', lineHeight: 1.6 }}>
                           <strong>Thumbnail layout ({activeVariant.thumbnail_layout_kind ?? 'panel'})</strong> — the 1920×1080 background of a YouTube thumbnail. Add the header and footer art as <strong>Image layers</strong>. The <strong>session_type</strong> text layer is the tag (it has a <em>Pill</em> that sizes to the word); the <strong>session_title</strong> layer is the title: one colour, it shrinks to fit its box down to its <em>Minimum size</em>, and a longer title is flagged &ldquo;title too long&rdquo;. The <strong>Speaker Area</strong> is the box the speaker cards are placed in, in one row (up to six): drag it on the preview. Cards are drawn on top of every layer.
+                        </div>
+                      )}
+                      {activeVariant.category === 'title_card_layout' && (
+                        <div style={{ marginBottom: '14px', fontSize: '12.5px', color: 'var(--ink2)', lineHeight: 1.6 }}>
+                          <strong>Title card — layout</strong> — the full-screen background shown at the start of a session video (1920×1080). Add <strong>Image layers</strong> for the event background, logo, and any decorative elements. The speaker card is composited on top by the renderer — no photo or name layers here. Set this variant in Session Videos › Thumbnails › Template settings.
+                        </div>
+                      )}
+                      {activeVariant.category === 'title_card_card' && (
+                        <div style={{ marginBottom: '14px', fontSize: '12.5px', color: 'var(--ink2)', lineHeight: 1.6 }}>
+                          <strong>Title card — speaker card</strong> — the speaker card composited over the title card layout. Add a <strong>Photo/Logo Slot</strong> (source: speaker photo) and <strong>name</strong>, <strong>title</strong> (job title), and <strong>company</strong> text layers. Position the card within the 1920×1080 canvas where it should appear on the final title card. Use <em>Upload Reference Layer (auto-position)</em> to fix the head position.
+                        </div>
+                      )}
+                      {activeVariant.category === 'lower_third' && (
+                        <div style={{ marginBottom: '14px', fontSize: '12.5px', color: 'var(--ink2)', lineHeight: 1.6 }}>
+                          <strong>Lower third</strong> — a 1920×1080 transparent overlay composited over the session video at each speaker cue. Add one <strong>Image layer</strong> and upload a <em>transparent PNG at 1920×1080</em> with the strip design exactly positioned (everything outside the strip must be transparent — export from your design tool at full canvas size, not cropped). Then add <strong>name</strong>, <strong>title</strong> (job title), and <strong>company</strong> text layers positioned inside the strip. Each layer can be animated — open a layer and use the <strong>Animation</strong> section to set fade-in/out timings. The whole overlay is 6 seconds long.
                         </div>
                       )}
                       {activeVariant.category === 'table_screen' && (
@@ -1452,6 +1472,46 @@ function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onTog
             {layer.type === 'photo_slot' && <PhotoSlotLayerFields layer={layer} activeType={activeType} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} canvasWidth={canvasWidth} canvasHeight={canvasHeight} variantCategory={variantCategory} variantPrint={variantPrint} />}
             {layer.type === 'text' && <TextLayerFields layer={layer} activeType={activeType} brandFonts={brandFonts} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} allLayers={allLayers} variantCategory={variantCategory} />}
             {layer.type === 'speaker_area' && <SpeakerAreaFields layer={layer} onChange={onChange as (patch: Partial<SpeakerAreaLayer>) => void} />}
+            {variantCategory === 'lower_third' && (layer.type === 'image' || layer.type === 'photo_slot' || layer.type === 'text') && (() => {
+              type A = { style: 'fade' | 'slide_up'; in_start: number; in_dur: number; out_start: number; out_dur: number; slide_px?: number }
+              const anim = (layer as { animation?: A }).animation
+              const DEFAULT_ANIM: A = { style: 'fade', in_start: 0, in_dur: 0.3, out_start: 5.2, out_dur: 0.4 }
+              const setAnim = (patch: Partial<A>) => onChange({ animation: { ...(anim ?? DEFAULT_ANIM), ...patch } } as Partial<Layer>)
+              const numField = (k: 'in_start' | 'in_dur' | 'out_start' | 'out_dur' | 'slide_px', label: string) => (
+                <label key={k} style={{ fontSize: '11px', color: 'var(--ink3)' }}>
+                  {label}
+                  <Input type="number" step="0.1" min="0" max="6" value={anim ? (anim[k] ?? '') : ''} onChange={e => setAnim({ [k]: Number(e.target.value) })} style={{ width: '100%', marginTop: '3px' }} />
+                </label>
+              )
+              return (
+                <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--border-light)', paddingTop: '10px', display: 'grid', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Animation</span>
+                    {anim ? (
+                      <button onClick={() => onChange({ animation: undefined } as Partial<Layer>)} style={{ fontSize: '10px', color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Remove</button>
+                    ) : (
+                      <button onClick={() => onChange({ animation: DEFAULT_ANIM } as Partial<Layer>)} style={{ fontSize: '10px', color: 'var(--teal)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>+ Add</button>
+                    )}
+                  </div>
+                  {anim && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+                      <label style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--ink3)' }}>
+                        Style
+                        <Select value={anim.style} onChange={e => setAnim({ style: e.target.value as A['style'] })} style={{ width: '100%', marginTop: '3px' }}>
+                          <option value="fade">Fade</option>
+                          <option value="slide_up">Slide up from below</option>
+                        </Select>
+                      </label>
+                      {numField('in_start', 'In at (s)')}
+                      {numField('in_dur', 'In duration (s)')}
+                      {numField('out_start', 'Out at (s)')}
+                      {numField('out_dur', 'Out duration (s)')}
+                      {anim.style === 'slide_up' && numField('slide_px', 'Slide offset (px)')}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
           </div>
         )}
       </div>
