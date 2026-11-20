@@ -10,7 +10,7 @@ import { Button, Badge, Input, Select, ProcessingOverlay, Toast, type ToastType 
 import AccessTab from '@/app/components/AccessTab'
 import StageSpeakerPicSettings from '@/app/components/screens/StageSpeakerPicSettings'
 import { consoleTabsFor, CONSOLE_TAB_LABEL, type ConsoleTab } from '@/app/lib/access/admin-console'
-import type { Layer, ImageLayer, PhotoSlotLayer, TextLayer, SpeakerAreaLayer, Variant, CreativeTemplateConfig, TextLayerDiagnostics, PlaceholderProfile, GlobalPlaceholderDefault } from '@/app/lib/announcements/composite'
+import type { Layer, ImageLayer, PhotoSlotLayer, TextLayer, SpeakerAreaLayer, SpeakerGridLayer, Variant, CreativeTemplateConfig, TextLayerDiagnostics, PlaceholderProfile, GlobalPlaceholderDefault } from '@/app/lib/announcements/composite'
 import { withTextLayerDefaults } from '@/app/lib/announcements/text-layer-defaults'
 import { CLEANING_CYCLE_CANVAS_SIZE } from '@/app/lib/media/cleaning-cycle-constants'
 import type { ResolvedFont, BrandRulesSnapshot } from '@/app/lib/branding/brand-rules'
@@ -85,6 +85,8 @@ function newLayer(type: Layer['type'], activeType: StakeholderKind, canvasWidth:
   // the design team to the variant's exact canvas — default to that instead
   // of an arbitrary box, since there's no manual resize UI for this layer type.
   if (type === 'speaker_area') return { id, type: 'speaker_area', x: Math.round(canvasWidth * 0.046), y: Math.round(canvasHeight * 0.47), width: Math.round(canvasWidth * 0.908), height: Math.round(canvasHeight * 0.39), gap: 24, align: 'left', max_card_width: Math.round(canvasWidth * 0.215) }
+  // Title card layout: speaker grid defaults to lower ~40% of the canvas, 3 columns, 2 rows.
+  if (type === 'speaker_grid') return { id, type: 'speaker_grid', x: Math.round(canvasWidth * 0.03), y: Math.round(canvasHeight * 0.57), width: Math.round(canvasWidth * 0.94), height: Math.round(canvasHeight * 0.38), columns: 3, max_rows: 2, gap_x: 24, gap_y: 20, card_min_width: 120, card_max_width: Math.round(canvasWidth * 0.3) }
   if (type === 'image') return { id, type: 'image', asset_url: '', x: 0, y: 0, width: canvasWidth, height: canvasHeight }
   if (type === 'photo_slot') {
     // A website_photo variant's Photo/Logo Slot is ALWAYS the full canvas
@@ -1133,6 +1135,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                         <Button variant="ghost" title="A slot that fills in with each real speaker/partner's own photo or logo at generation time. Not static art." onClick={() => addLayer('photo_slot')} disabled={!!activeVariant.common || activeVariant.category === 'table_screen' || activeVariant.category === 'thumbnail_layout'}>+ Photo/Logo Slot</Button>
                         <Button variant="ghost" title="A field of text (name, title, company, a static caption, etc.) rendered live at generation time." onClick={() => addLayer('text')} disabled={activeVariant.category === 'memento' || !!activeVariant.common}>+ Text Layer</Button>
                         {activeVariant.category === 'thumbnail_layout' && <Button variant="ghost" title="The box the speaker cards are placed in, in one row. One per layout." onClick={() => addLayer('speaker_area')} disabled={activeVariant.layers.some(l => l.type === 'speaker_area')}>+ Speaker Area</Button>}
+                        {activeVariant.category === 'title_card_layout' && <Button variant="ghost" title="The grid zone where speaker cards are placed — 1 card (keynote), 2 (fireside), up to 6 (panel). One per layout." onClick={() => addLayer('speaker_grid')} disabled={activeVariant.layers.some(l => l.type === 'speaker_grid')}>+ Speaker Grid</Button>}
                         {activeVariant.category === 'thumbnail_card' && <Button variant="ghost" title="Adds a text layer that only moderators get — the Moderator label on the moderator's card." onClick={addModeratorTag}>+ Moderator Tag</Button>}
                         {activeVariant.category === 'table_screen' && !activeVariant.table_standby && <Button variant="ghost" title="Adds a text layer that only moderators get — the MODERATOR tag above the name." onClick={addModeratorTag}>+ Moderator Tag</Button>}
                         <Button variant="ghost" title="A mockup to place text and photos against. Shown in Generate Preview only — never in real announcements, website photos or print." onClick={addPreviewLayer}>+ Preview Layer</Button>
@@ -1472,6 +1475,7 @@ function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onTog
             {layer.type === 'photo_slot' && <PhotoSlotLayerFields layer={layer} activeType={activeType} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} canvasWidth={canvasWidth} canvasHeight={canvasHeight} variantCategory={variantCategory} variantPrint={variantPrint} />}
             {layer.type === 'text' && <TextLayerFields layer={layer} activeType={activeType} brandFonts={brandFonts} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} allLayers={allLayers} variantCategory={variantCategory} />}
             {layer.type === 'speaker_area' && <SpeakerAreaFields layer={layer} onChange={onChange as (patch: Partial<SpeakerAreaLayer>) => void} />}
+            {layer.type === 'speaker_grid' && <SpeakerGridFields layer={layer} onChange={onChange as (patch: Partial<SpeakerGridLayer>) => void} />}
             {variantCategory === 'lower_third' && (layer.type === 'image' || layer.type === 'photo_slot' || layer.type === 'text') && (() => {
               type A = { style: 'fade' | 'slide_up'; in_start: number; in_dur: number; out_start: number; out_dur: number; slide_px?: number }
               const anim = (layer as { animation?: A }).animation
@@ -1533,6 +1537,21 @@ function SpeakerAreaFields({ layer, onChange }: { layer: SpeakerAreaLayer; onCha
       <label style={{ fontSize: '11px', color: 'var(--ink3)' }}>Align
         <Select value={layer.align} onChange={e => onChange({ align: e.target.value as SpeakerAreaLayer['align'] })} style={{ width: '100%', marginTop: '3px' }}><option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option></Select>
       </label>
+    </>
+  )
+}
+
+function SpeakerGridFields({ layer, onChange }: { layer: SpeakerGridLayer; onChange: (patch: Partial<SpeakerGridLayer>) => void }) {
+  const num = (k: keyof SpeakerGridLayer, label: string, min = 0) => (
+    <label key={k} style={{ fontSize: '11px', color: 'var(--ink3)' }}>{label}<Input type="number" min={min} value={layer[k] as number} onChange={e => onChange({ [k]: Math.max(min, Number(e.target.value) || 0) } as Partial<SpeakerGridLayer>)} style={{ width: '100%', marginTop: '3px' }} /></label>
+  )
+  return (
+    <>
+      <div style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--ink3)', lineHeight: 1.5 }}>Defines the zone where speaker cards are placed. 1 card (Keynote) fills the left; 2 (Fireside) go side by side; up to 6 (Panel) fill the grid. Cards are scaled to fit the grid proportionally.</div>
+      {num('x', 'Left')}{num('y', 'Top')}{num('width', 'Width')}{num('height', 'Height')}
+      {num('columns', 'Columns (max per row)', 1)}{num('max_rows', 'Max rows', 1)}
+      {num('gap_x', 'Gap X (between cols)')}{num('gap_y', 'Gap Y (between rows)')}
+      {num('card_min_width', 'Min card width')}{num('card_max_width', 'Max card width')}
     </>
   )
 }

@@ -14,6 +14,7 @@ const PLACEHOLDER_TEXT = {
   name: 'Jane Doe', title: 'Chief Officer', company: 'Acme Corp', country: 'United Arab Emirates', tier: 'LEAD SPONSOR',
   headline_lead: 'THE', headline_emphasis: 'TECHNOLOGY BEHIND', headline_trail: 'MODERN BANKING',
   headline_full: 'THE TECHNOLOGY BEHIND MODERN BANKING',
+  session_type: 'KEYNOTE', session_stage: 'Plenary - 1', session_title: 'The Future of Finance: Innovation at Scale',
 }
 const PLACEHOLDER_COLOR = { r: 140, g: 140, b: 150, alpha: 1 }
 
@@ -140,6 +141,9 @@ export async function resolvePreviewInputs(body: PreviewInputsRequest): Promise<
     headline_emphasis: textSource?.headline_emphasis || PLACEHOLDER_TEXT.headline_emphasis,
     headline_trail: textSource?.headline_trail || PLACEHOLDER_TEXT.headline_trail,
     headline_full: textSource?.headline_full || PLACEHOLDER_TEXT.headline_full,
+    session_type: PLACEHOLDER_TEXT.session_type,
+    session_stage: PLACEHOLDER_TEXT.session_stage,
+    session_title: PLACEHOLDER_TEXT.session_title,
   }
 
 
