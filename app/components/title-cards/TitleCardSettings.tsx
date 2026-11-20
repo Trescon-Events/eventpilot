@@ -99,11 +99,17 @@ export default function TitleCardSettings({ eventId }: { eventId: string }) {
     setSample(cur => cur || (([...(d as Data).sessions].sort((a: SessionRow, b: SessionRow) => Math.abs((b as unknown as { cards?: unknown[] }).cards?.length ?? 3) - Math.abs((a as unknown as { cards?: unknown[] }).cards?.length ?? 3))[0]?.id ?? '')))
   }, [eventId])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    let cancelled = false
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- load() fetches and sets state; cancellation guard matches StageSpeakerPicSettings pattern
+    void (async () => { if (!cancelled) await load() })()
+    return () => { cancelled = true }
+  }, [load])
 
   useEffect(() => {
     if (!applied) return
     const mine = ++draw.current
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- shows drawing state while the request runs
     setDrawing(true); setPreviewError(null)
     void (async () => {
       const r = await fetch('/api/events/title-cards/preview', {
