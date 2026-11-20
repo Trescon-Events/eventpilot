@@ -25,7 +25,7 @@ export const DEFAULT_MAX_LINES: Record<TextLayer['field'], number> = {
   // headline as one continuous line instead of split.
   headline_full: 4,
   // Session thumbnails: the tag is one line (a pill), the title wraps over a few lines.
-  session_type: 1, session_title: 3,
+  session_type: 1, session_title: 3, session_stage: 1,
 }
 const DEFAULT_LINE_HEIGHT_RATIO = 1.2
 const DEFAULT_BOX_WIDTH_RATIO = 0.4 // of canvas width — a reasonable starting guess for a migrated layer, not a design decision

@@ -89,7 +89,7 @@ export async function compositeAnimatedFrame(variant: Variant, speaker: LowerThi
   }
   if (!compositeOps.length) return base
   // Start from the static layers (no animation), then add animated layers on top
-  const staticVariant = { ...variant, layers: variant.layers.filter(l => !l.animation) }
+  const staticVariant = { ...variant, layers: variant.layers.filter(l => !('animation' in l && l.animation)) }
   const staticBase = await compositeAnnouncement(staticVariant, assets, texts, { showReferenceLayers: false })
   return sharp(staticBase).composite(compositeOps).png().toBuffer()
 }

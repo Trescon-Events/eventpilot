@@ -70,7 +70,7 @@ export async function loadTitleCardSessions(eventId: string, opts: LoadTitleCard
   ])
   const speakerIds = [...new Set((links ?? []).map(l => l.speaker_id as string))]
   const { data: people } = speakerIds.length
-    ? await supabaseAdmin.from('event_speakers').select('id, name, public_name, job_title, company, photo_processed_url, photo_head_box').eq('event_id', eventId).eq('active', true).in('id', speakerIds)
+    ? await supabaseAdmin.from('event_speakers').select('id, name, public_name, job_title, company, photo_processed_url, photo_head_box, konfhub_primary_role_tag_id').eq('event_id', eventId).eq('active', true).in('id', speakerIds)
     : { data: [] as Record<string, unknown>[] }
   const person = new Map((people ?? []).map(p => [p.id as string, p]))
   const roleLabel = new Map(roles.map(r => [r.tag_id, r.label]))

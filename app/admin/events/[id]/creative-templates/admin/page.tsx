@@ -41,7 +41,7 @@ export type StakeholderOption = {
 type EditorSnapshot = { speakerVariants: Variant[]; partnerVariants: Variant[]; activeType: StakeholderKind; activeVariantId: string | null }
 const MAX_UNDO_ENTRIES = 50
 
-const LAYER_TYPE_LABEL: Record<Layer['type'], string> = { image: 'Image', photo_slot: 'Photo/Logo Slot', text: 'Text', speaker_area: 'Speaker Area' }
+const LAYER_TYPE_LABEL: Record<Layer['type'], string> = { image: 'Image', photo_slot: 'Photo/Logo Slot', text: 'Text', speaker_area: 'Speaker Area', speaker_grid: 'Speaker Grid' }
 
 // Speaker text-layer fields that are actually backed by a PlaceholderProfile/
 // GlobalPlaceholderDefault value (2026-09-27) — 'tier' and 'custom' are
@@ -57,7 +57,7 @@ const SPEAKER_PLACEHOLDER_FIELDS = ['name', 'title', 'company', 'country', 'head
 // runtime fallback; the two are allowed to diverge without breaking anything.
 const DEFAULT_MAX_LINES_BY_FIELD: Record<TextLayer['field'], number> = {
   name: 3, title: 2, company: 2, country: 1, tier: 2, custom: 2,
-  headline_lead: 2, headline_emphasis: 3, headline_trail: 2, headline_full: 4, session_type: 1, session_title: 3,
+  headline_lead: 2, headline_emphasis: 3, headline_trail: 2, headline_full: 4, session_type: 1, session_title: 3, session_stage: 1,
 }
 
 // Editor-local — maps a text layer's `field` to the content-type slug the
@@ -76,7 +76,7 @@ const badgeGrid = (spec: { width_mm: number; height_mm: number }) => ({ w: Math.
 
 const FIELD_TO_CONTENT_TYPE: Record<TextLayer['field'], string> = {
   name: 'heading', title: 'subheading', company: 'body', country: 'body', tier: 'body', custom: 'body',
-  headline_lead: 'heading', headline_emphasis: 'heading', headline_trail: 'heading', headline_full: 'heading', session_type: 'body', session_title: 'heading',
+  headline_lead: 'heading', headline_emphasis: 'heading', headline_trail: 'heading', headline_full: 'heading', session_type: 'body', session_title: 'heading', session_stage: 'body',
 }
 
 function newLayer(type: Layer['type'], activeType: StakeholderKind, canvasWidth: number, canvasHeight: number, fontSuggestion?: ResolvedFont | null, category?: Variant['category']): Layer {
@@ -1477,6 +1477,7 @@ function layerSummary(layer: Layer): string {
   if (layer.type === 'image') return layer.asset_url ? `Image (${layer.width}×${layer.height})` : 'Image (no file uploaded)'
   if (layer.type === 'photo_slot') return `${layer.source.replace(/_/g, ' ')} (${layer.width}×${layer.height})`
   if (layer.type === 'speaker_area') return `Speaker area (${layer.width}×${layer.height}, gap ${layer.gap}, ${layer.align})`
+  if (layer.type === 'speaker_grid') return `Speaker grid (${layer.width}×${layer.height}, ${layer.columns} × ${layer.max_rows})`
   return `Text: ${layer.field}${layer.field === 'custom' || layer.field === 'tier' ? ` "${layer.value ?? ''}"` : ''}`
 }
 
