@@ -30,6 +30,7 @@ export type ImageLayer = {
   id: string
   type: 'image'
   show_for?: ShowFor
+  animation?: LowerThirdAnim   // lower_third variants only; ignored by compositeAnnouncement
   asset_url: string
   // Badge variants only (2026-10-02): the layer's true VECTOR art as a single-page PDF exported from
   // Illustrator at the full bleed size. The print PDF embeds this as vector; `asset_url` then holds the
@@ -61,10 +62,38 @@ export type SpeakerAreaLayer = {
   max_card_width: number
 }
 
+/** Title card layouts only (2026-11-19): a 2-row speaker card grid. Never drawn by compositeAnnouncement — the title-card renderer interprets it. */
+export type SpeakerGridLayer = {
+  id: string
+  type: 'speaker_grid'
+  show_for?: ShowFor
+  x: number
+  y: number
+  width: number
+  height: number
+  columns: number        // max cards per row (≤ 3 per spec)
+  max_rows: number       // 1 or 2
+  gap_x: number
+  gap_y: number
+  card_min_width: number
+  card_max_width: number
+}
+
+/** Per-layer animation spec for lower_third variants (2026-11-19). Ignored by compositeAnnouncement (static renders). The worker's compositeAnimatedFrame() reads it. */
+export type LowerThirdAnim = {
+  style: 'fade' | 'slide_up'
+  in_start: number    // seconds from t=0 when in-anim begins
+  in_dur: number      // duration of in-transition
+  out_start: number   // seconds from t=0 when out-anim begins
+  out_dur: number     // duration of out-transition
+  slide_px?: number   // initial Y offset (positive = from below) for slide_up
+}
+
 export type PhotoSlotLayer = {
   id: string
   type: 'photo_slot'
   show_for?: ShowFor
+  animation?: LowerThirdAnim   // lower_third variants only; ignored by compositeAnnouncement
   source: 'speaker_photo' | 'speaker_logo' | 'partner_logo'
   x: number
   y: number
@@ -111,7 +140,7 @@ export type TextLayer = {
   id: string
   type: 'text'
   show_for?: ShowFor
-  field: 'name' | 'title' | 'company' | 'tier' | 'country' | 'custom' | 'headline_lead' | 'headline_emphasis' | 'headline_trail' | 'headline_full' | 'session_type' | 'session_title'   // session_* : YouTube thumbnail layouts only (see app/lib/thumbnails); they resolve from the session, not a speaker
+  field: 'name' | 'title' | 'company' | 'tier' | 'country' | 'custom' | 'headline_lead' | 'headline_emphasis' | 'headline_trail' | 'headline_full' | 'session_type' | 'session_title' | 'session_stage'   // session_* : YouTube thumbnail / title card layouts only (see app/lib/thumbnails); they resolve from the session, not a speaker
   value?: string             // static text for 'custom', or a fallback for 'tier'
   x: number                  // box top-left (SAE Phase C v5, 2026-07-29) — was a single SVG baseline
   y: number                  // point before this; see withTextLayerDefaults() for the migration from that shape
@@ -186,6 +215,8 @@ export type TextLayer = {
   pill?: { fill: string; padding_x: number; padding_y: number; radius: number }
   // Smallest size (px, on this variant's canvas) the thumbnail renderer accepts for this layer. Below it the thumbnail is marked "title too long".
   min_font_size?: number
+  // Per-layer animation (2026-11-19, lower_third variants only). Ignored by compositeAnnouncement (static renders).
+  animation?: LowerThirdAnim
 }
 
 /** The variant as drawn for a moderator or another speaker: layers limited to the other kind are left out. */
@@ -212,9 +243,10 @@ export type ResolvedTexts = {
   headline_full?: string
   session_type?: string
   session_title?: string
+  session_stage?: string
 }
 
-export type Layer = ImageLayer | PhotoSlotLayer | TextLayer | SpeakerAreaLayer
+export type Layer = ImageLayer | PhotoSlotLayer | TextLayer | SpeakerAreaLayer | SpeakerGridLayer
 
 export type Variant = {
   id: string
@@ -268,7 +300,7 @@ export type Variant = {
   // generate route both read as an already-clean input. That version uses
   // two annotated reference images plus a mandatory second manual confirm,
   // which is what the earlier abandoned attempt lacked.
-  category?: 'promo' | 'self_promo' | 'website_photo' | 'badge' | 'memento' | 'stage_screen' | 'table_screen' | 'thumbnail_card' | 'thumbnail_layout'
+  category?: 'promo' | 'self_promo' | 'website_photo' | 'badge' | 'memento' | 'stage_screen' | 'table_screen' | 'thumbnail_card' | 'thumbnail_layout' | 'title_card_layout' | 'title_card_card' | 'lower_third'
   // 'memento' (2026-10-22) — the speaker's photo cut-out for a physical memento, handed to the memento vendor (see
   // app/lib/mementos/render.ts). ONE layer: a Photo/Logo Slot (source: speaker photo) with `alignment` traced from an uploaded
   // reference exactly like Website Photo — but NO background and NO other layers; the output is a transparent PNG of exactly
@@ -553,6 +585,7 @@ export async function compositeAnnouncement(
     }
 
     if (layer.type === 'speaker_area') return null // thumbnail layouts: a placement box only, never drawn
+    if (layer.type === 'speaker_grid') return null  // title card layouts: a placement box only, never drawn
 
     // text
     const value = resolveTextValue(layer, texts)
@@ -633,6 +666,7 @@ export function resolveTextValue(layer: TextLayer, texts: ResolvedTexts): string
     : layer.field === 'headline_full' ? texts.headline_full
     : layer.field === 'session_type' ? texts.session_type
     : layer.field === 'session_title' ? texts.session_title
+    : layer.field === 'session_stage' ? texts.session_stage
     : (texts.tier ?? layer.value) // 'tier' — runtime value wins, falls back to the layer's own hardcoded label
   return layer.uppercase && raw ? raw.toUpperCase() : raw
 }

@@ -4,6 +4,9 @@ import { deletePublicAssetByUrl, uploadPublicAsset } from '@/app/lib/events/stor
 import { loadSetup, loadThumbnailSessions, LAYOUTS, type ThumbSession } from './data'
 import { renderThumbnail } from './render'
 import { cleanOverrides, type CardTextMode, type ThumbLayout, type ThumbOverrides } from './geometry'
+import { loadTitleCardSessions, loadTitleCardSetup } from '@/app/lib/title-cards/data'
+import { renderTitleCard } from '@/app/lib/title-cards/render'
+import { titleCardFingerprint } from '@/app/lib/title-cards/geometry'
 
 /* Session thumbnails — generation, overrides, settings, approval and the ZIP. Every change is audited (session_thumbnail_changes). Access is checked by the routes (requireScreens). */
 
@@ -19,6 +22,49 @@ async function sessionOf(eventId: string, sessionId: string): Promise<ThumbSessi
   const s = sessions[0]
   if (!s) throw new ThumbError('That session has no speakers on the agenda, or is not in this event.', 404)
   return s
+}
+
+export async function saveTitleCardSettings(eventId: string, body: { title_card_layout_variant_id?: unknown; title_card_card_variant_id?: unknown; lower_third_variant_id?: unknown }, by: string | null) {
+  const before = await supabaseAdmin.from('event_thumbnail_settings').select('title_card_layout_variant_id, title_card_card_variant_id, lower_third_variant_id').eq('event_id', eventId).maybeSingle()
+  const { data: ev } = await supabaseAdmin.from('events').select('creative_template_config').eq('id', eventId).maybeSingle()
+  const all = ((ev?.creative_template_config as { speaker?: { variants?: Array<{ id: string; category?: string }> } } | null)?.speaker?.variants ?? [])
+  const known = new Map(all.map(v => [v.id, v]))
+  const tcLayout = typeof body.title_card_layout_variant_id === 'string' && body.title_card_layout_variant_id ? body.title_card_layout_variant_id : null
+  const tcCard = typeof body.title_card_card_variant_id === 'string' && body.title_card_card_variant_id ? body.title_card_card_variant_id : null
+  const ltVariant = typeof body.lower_third_variant_id === 'string' && body.lower_third_variant_id ? body.lower_third_variant_id : null
+  if (tcLayout && known.get(tcLayout)?.category !== 'title_card_layout') throw new ThumbError('That is not a title card layout template.')
+  if (tcCard && known.get(tcCard)?.category !== 'title_card_card') throw new ThumbError('That is not a title card card template.')
+  if (ltVariant && known.get(ltVariant)?.category !== 'lower_third') throw new ThumbError('That is not a lower-third template.')
+  const { error } = await supabaseAdmin.from('event_thumbnail_settings').upsert({
+    event_id: eventId, title_card_layout_variant_id: tcLayout, title_card_card_variant_id: tcCard, lower_third_variant_id: ltVariant,
+    updated_by: actor(by), updated_at: new Date().toISOString(),
+  }, { onConflict: 'event_id' })
+  if (error) throw new ThumbError(error.message, 500)
+  await audit({ event_id: eventId, action: 'title_card_settings', before: before.data, after: { tcLayout, tcCard, ltVariant }, by })
+}
+
+export async function generateTitleCards(eventId: string, sessionIds: string[], by: string | null): Promise<{ done: { id: string }[]; failed: { id: string; error: string }[] }> {
+  const { setup, sessions } = await loadTitleCardSessions(eventId, { sessionIds })
+  const done: { id: string }[] = [], failed: { id: string; error: string }[] = []
+  if (setup.missing.length) return { done, failed: sessionIds.map(id => ({ id, error: `Set up the title card templates first: ${setup.missing.join('; ')}` })) }
+  for (const s of sessions) {
+    try {
+      const notReady = s.cards.filter(c => !c.ready)
+      if (notReady.length) throw new Error(`Photo missing for: ${notReady.map(c => c.name).join(', ')}`)
+      const { png } = await renderTitleCard(s, setup)
+      const stamp = `${s.fingerprint}-${Date.now()}`
+      const pngUrl = await uploadPublicAsset(`events/${eventId}/title-cards/${s.id}/${stamp}.png`, png, 'image/png')
+      await supabaseAdmin.from('session_thumbnails').upsert({
+        event_id: eventId, agenda_session_id: s.id,
+        title_card_png_path: pngUrl, title_card_fingerprint: s.fingerprint,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'agenda_session_id' })
+      await audit({ event_id: eventId, session_id: s.id, action: 'generate_title_card', after: { fingerprint: s.fingerprint }, by })
+      done.push({ id: s.id })
+    } catch (e) { failed.push({ id: s.id, error: e instanceof Error ? e.message : 'Could not generate.' }) }
+  }
+  for (const id of sessionIds) if (!done.some(d => d.id === id) && !failed.some(f => f.id === id)) failed.push({ id, error: 'Session has no speakers on it yet.' })
+  return { done, failed }
 }
 
 export async function saveSettings(eventId: string, body: { card_variant_id?: unknown; layout_variant_ids?: unknown; card_text?: unknown }, by: string | null) {
@@ -102,6 +148,31 @@ export async function unapproveThumbnail(eventId: string, sessionId: string, by:
   const { error } = await supabaseAdmin.from('session_thumbnails').update({ status: 'generated', approved_by: null, approved_at: null, updated_at: new Date().toISOString() }).eq('agenda_session_id', sessionId)
   if (error) throw new ThumbError(error.message, 500)
   await audit({ event_id: eventId, session_id: sessionId, action: 'unapprove', before: { status: 'approved' }, after: { status: 'generated' }, by })
+}
+
+/** Approve thumbnail + title card together (one click). Both must be generated and up-to-date. The existing thumbnail-only "approve" action still works for events without title cards. */
+export async function approveAll(eventId: string, sessionId: string, by: string | null) {
+  const [s, { sessions: tcSessions }] = await Promise.all([
+    sessionOf(eventId, sessionId),
+    loadTitleCardSessions(eventId, { sessionIds: [sessionId] }),
+  ])
+  if (s.state === 'approved') return
+  if (s.state !== 'ready') throw new ThumbError(s.state === 'changed' ? 'Thumbnail is out of date: generate it first.' : s.state === 'needs_attention' ? 'Thumbnail needs attention.' : 'Generate the thumbnail first.')
+  const err = s.issues.find(i => i.level === 'error')
+  if (err) throw new ThumbError(`Rule error: ${err.text}`)
+  const tc = tcSessions[0]
+  if (tc && tc.state !== 'approved' && tc.state !== 'ready') throw new ThumbError(tc.state === 'new' ? 'Generate the title card first.' : 'Title card is out of date: generate it first.')
+  const { error } = await supabaseAdmin.from('session_thumbnails').update({ status: 'approved', approved_by: actor(by), approved_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('agenda_session_id', sessionId)
+  if (error) throw new ThumbError(error.message, 500)
+  await audit({ event_id: eventId, session_id: sessionId, action: 'approve_all', after: { status: 'approved', thumb: s.fingerprint, title_card: tc?.fingerprint ?? null }, by })
+}
+
+export async function unapproveAll(eventId: string, sessionId: string, by: string | null) {
+  const s = await sessionOf(eventId, sessionId)
+  if (s.thumbId === null || s.approvedAt === null) return
+  const { error } = await supabaseAdmin.from('session_thumbnails').update({ status: 'generated', approved_by: null, approved_at: null, updated_at: new Date().toISOString() }).eq('agenda_session_id', sessionId)
+  if (error) throw new ThumbError(error.message, 500)
+  await audit({ event_id: eventId, session_id: sessionId, action: 'unapprove_all', before: { status: 'approved' }, after: { status: 'generated' }, by })
 }
 
 async function fetchBuf(url: string): Promise<Buffer | null> {

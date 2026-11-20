@@ -22,10 +22,15 @@ type ThumbSession = {
   png_url: string | null; jpg_url: string | null; generated_at: string | null; approved_at: string | null; file_base: string
 }
 type ThumbVariant = { id: string; name: string; category: string; kind?: string; w: number; h: number }
+type TitleCardSession = { id: string; state: 'new' | 'ready' | 'changed' | 'approved'; png_url: string | null; fingerprint: string | null }
+type LtSpeaker = { speaker_id: string; name: string; status: 'draft' | 'generating' | 'generated'; still_url: string | null; preview_url: string | null }
+type LtSession = { id: string; speakers: LtSpeaker[] }
 type ThumbData = {
   max_speakers: number; can_edit: boolean
   settings: { card_variant_id: string | null; layout_variant_ids: Record<string, string>; card_text: 'name' | 'name_company' }
   missing: string[]; variants: ThumbVariant[]; sessions: ThumbSession[]
+  title_cards?: { setup: { missing: string[]; layout_variant_id: string | null; card_variant_id: string | null }; sessions: TitleCardSession[] }
+  lower_thirds?: { setup: { missing: string[]; variant_id: string | null }; sessions: LtSession[] }
 }
 type Tab = 'videos' | 'thumbnails'
 
@@ -57,6 +62,8 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
   const [thumbProgress, setThumbProgress] = useState<string | null>(null)
   const [thumbEditing, setThumbEditing] = useState<ThumbSession | null>(null)
   const [stamp, setStamp] = useState(0)
+  const [tcBusy, setTcBusy] = useState<Set<string>>(new Set())
+  const [ltBusy, setLtBusy] = useState<Set<string>>(new Set())
 
   // Filters
   const [vidType, setVidType] = useState('all')
@@ -86,6 +93,14 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
     const t = setInterval(() => { void loadVideos() }, 6000); return () => clearInterval(t)
   }, [videoData, loadVideos])
 
+  const tcBySession = useMemo(() => new Map((thumbData?.title_cards?.sessions ?? []).map(s => [s.id, s])), [thumbData])
+  const ltBySession = useMemo(() => new Map((thumbData?.lower_thirds?.sessions ?? []).map(s => [s.id, s])), [thumbData])
+
+  useEffect(() => {
+    if (!thumbData?.lower_thirds?.sessions.some(s => s.speakers.some(sp => sp.status === 'generating'))) return
+    const t = setInterval(() => { void loadThumbs() }, 5000); return () => clearInterval(t)
+  }, [thumbData, loadThumbs])
+
   async function thumbPost(body: Record<string, unknown>) {
     const r = await fetch('/api/events/thumbnails', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, ...body }) })
     const j = await r.json().catch(() => ({}))
@@ -111,6 +126,46 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
   async function thumbAct(action: 'approve' | 'unapprove', id: string) {
     setThumbMsg(null)
     try { await thumbPost({ action, session_id: id }); await loadThumbs() } catch (e) { setThumbMsg(e instanceof Error ? e.message : 'Failed.') }
+  }
+
+  async function approveAll(id: string) {
+    setThumbMsg(null)
+    try { await thumbPost({ action: 'approve_all', session_id: id }); await loadThumbs() } catch (e) { setThumbMsg(e instanceof Error ? e.message : 'Failed.') }
+  }
+
+  async function unapproveAll(id: string) {
+    setThumbMsg(null)
+    try { await thumbPost({ action: 'unapprove_all', session_id: id }); await loadThumbs() } catch (e) { setThumbMsg(e instanceof Error ? e.message : 'Failed.') }
+  }
+
+  async function generateTitleCards(ids: string[]) {
+    setThumbMsg(null); setTcBusy(b => new Set([...b, ...ids]))
+    const failures: string[] = []
+    try {
+      for (let i = 0; i < ids.length; i += 3) {
+        const r = await thumbPost({ action: 'generate_title_cards', session_ids: ids.slice(i, i + 3) })
+        for (const f of r.failed ?? []) failures.push(`${thumbData?.sessions.find(s => s.id === f.id)?.title ?? f.id}: ${f.error}`)
+      }
+    } catch (e) { failures.push(e instanceof Error ? e.message : 'Failed.') }
+    setTcBusy(new Set())
+    setThumbMsg(failures.length ? `Title cards not generated:\n${failures.join('\n')}` : `Title cards generated for ${ids.length} session(s).`)
+    await loadThumbs()
+  }
+
+  async function generateLtStill(sessionId: string, speakerId: string) {
+    const key = `${sessionId}:${speakerId}`
+    setThumbMsg(null); setLtBusy(b => new Set([...b, key]))
+    try { await thumbPost({ action: 'generate_lower_third_still', session_id: sessionId, speaker_id: speakerId }); await loadThumbs() }
+    catch (e) { setThumbMsg(e instanceof Error ? e.message : 'Failed.') }
+    finally { setLtBusy(b => { const n = new Set(b); n.delete(key); return n }) }
+  }
+
+  async function enqueueLtMov(sessionId: string, speakerId: string) {
+    const key = `${sessionId}:${speakerId}`
+    setThumbMsg(null); setLtBusy(b => new Set([...b, key]))
+    try { await thumbPost({ action: 'enqueue_lower_third_mov', session_id: sessionId, speaker_id: speakerId }); setThumbMsg('Lower-third MOV queued.'); await loadThumbs() }
+    catch (e) { setThumbMsg(e instanceof Error ? e.message : 'Failed.') }
+    finally { setLtBusy(b => { const n = new Set(b); n.delete(key); return n }) }
   }
 
   const videoBySession = useMemo(() => {
@@ -141,6 +196,7 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
   const thumbTodo = filteredThumbSessions.filter(s => (s.state === 'new' || s.state === 'changed') && !s.issues.some(i => i.level === 'attention'))
   const thumbApproved = (thumbData?.sessions ?? []).filter(s => s.state === 'approved').length
   const canEditThumbs = !!thumbData?.can_edit
+  const tcTodo = filteredThumbSessions.filter(s => { const tc = tcBySession.get(s.id); return !tc || tc.state === 'new' || tc.state === 'changed' }).map(s => s.id)
 
   function videoCTA(s: Sess): { label: string; variant: 'teal' | 'ghost' } {
     const v = videoBySession.get(s.id)
@@ -250,6 +306,12 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
                 data={thumbData} canEdit={canEditThumbs} eventId={eventId}
                 onSave={async b => { try { await thumbPost({ action: 'save_settings', ...b }); setThumbMsg('Settings saved.'); await loadThumbs() } catch (e) { setThumbMsg(e instanceof Error ? e.message : 'Failed.') } }}
               />
+              {thumbData.title_cards !== undefined && (
+                <TitleCardSettings
+                  data={thumbData} canEdit={canEditThumbs}
+                  onSave={async b => { try { await thumbPost({ action: 'save_title_card_settings', ...b }); setThumbMsg('Title card settings saved.'); await loadThumbs() } catch (e) { setThumbMsg(e instanceof Error ? e.message : 'Failed.') } }}
+                />
+              )}
 
               {thumbMsg && <pre style={{ whiteSpace: 'pre-wrap', margin: 0, padding: '10px 14px', background: 'var(--card)', border: '1px solid var(--border-light)', borderRadius: '10px', fontSize: '13px', fontFamily: 'inherit' }}>{thumbMsg}</pre>}
 
@@ -260,6 +322,11 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
                 {canEditThumbs && (
                   <Button variant="teal" disabled={!thumbTodo.length || !!thumbProgress || thumbData.missing.length > 0} onClick={() => void thumbGenerate(thumbTodo.map(s => s.id))}>
                     {thumbProgress ?? `Generate ${thumbTodo.length}`}
+                  </Button>
+                )}
+                {canEditThumbs && thumbData.title_cards !== undefined && tcTodo.length > 0 && (
+                  <Button variant="ghost" disabled={tcBusy.size > 0 || (thumbData.title_cards.setup.missing.length > 0)} onClick={() => void generateTitleCards(tcTodo)}>
+                    {tcBusy.size > 0 ? 'Generating title cards…' : `Title cards: gen. ${tcTodo.length}`}
                   </Button>
                 )}
                 {thumbApproved > 0 && <Button variant="ghost" href={`/api/events/thumbnails/download?event_id=${eventId}&zip=1`}>Download all approved (ZIP)</Button>}
@@ -288,9 +355,14 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
                 {filteredThumbSessions.map(s => {
                   const blocked = s.issues.some(i => i.level === 'attention')
                   const show = s.state === 'ready' || s.state === 'approved'
+                  const tc = tcBySession.get(s.id)
+                  const ltSession = ltBySession.get(s.id)
+                  const tcConfigured = !!(thumbData.title_cards?.setup.layout_variant_id && thumbData.title_cards?.setup.card_variant_id)
+                  const ltConfigured = !!thumbData.lower_thirds?.setup.variant_id
+                  const useAllApprove = tcConfigured
                   return (
                     <div key={s.id} style={{ display: 'flex', gap: '12px', background: 'var(--card)', border: `${s.state === 'changed' ? 3 : 1}px solid ${s.state === 'changed' ? 'var(--red)' : 'var(--border-light)'}`, borderRadius: '12px', padding: '12px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                      {/* 16:9 thumbnail preview — 112px wide */}
+                      {/* Thumbnail preview */}
                       <div style={{ width: '112px', flexShrink: 0, aspectRatio: '16 / 9', background: '#111', border: '1px solid var(--border-light)', borderRadius: '6px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {show && s.jpg_url
                           ? <img src={s.jpg_url} alt="" loading="lazy" style={{ width: '100%', display: 'block' }} />
@@ -298,25 +370,79 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
                           ? <span style={{ color: 'var(--ink3)', fontSize: '10px', textAlign: 'center', padding: '4px' }}>Not ready</span>
                           : <img src={`/api/events/thumbnails/preview?event_id=${eventId}&session_id=${s.id}&v=${s.state}${stamp}`} alt="" loading="lazy" style={{ width: '100%', display: 'block' }} />}
                       </div>
+                      {/* Title card preview */}
+                      {tcConfigured && (
+                        <div style={{ width: '112px', flexShrink: 0, aspectRatio: '16 / 9', background: '#111', border: `1px solid ${tc?.state === 'ready' || tc?.state === 'approved' ? 'var(--border-light)' : 'var(--border-light)'}`, borderRadius: '6px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {tc?.png_url
+                            ? <img src={tc.png_url} alt="Title card" loading="lazy" style={{ width: '100%', display: 'block' }} />
+                            : <span style={{ color: 'var(--ink3)', fontSize: '9px', textAlign: 'center', padding: '4px' }}>Title card</span>}
+                        </div>
+                      )}
                       {/* Info + actions */}
                       <div style={{ flex: 1, minWidth: '180px', display: 'grid', gap: '4px', alignContent: 'start' }}>
                         <div style={{ fontSize: '11.5px', color: 'var(--ink3)', fontWeight: 600 }}>{s.stage ?? 'No stage'} · {s.format ?? 'No format'} · {s.date} {s.start}</div>
                         <div style={{ fontSize: '14px', fontWeight: 800, lineHeight: 1.3 }}>{s.title}</div>
                         <div style={{ fontSize: '12.5px', color: 'var(--ink2)' }}>{s.cards.map(c => `${c.name}${c.moderator ? ' (Mod)' : ''}`).join(' · ')}</div>
-                        <div style={{ fontSize: '12.5px', fontWeight: 800, color: THUMB_COLOR[s.state] }}>● {THUMB_LABEL[s.state]}{s.approved_at ? ` · ${new Date(s.approved_at).toLocaleDateString()}` : ''}</div>
+                        <div style={{ fontSize: '12.5px', fontWeight: 800, color: THUMB_COLOR[s.state] }}>
+                          ● {THUMB_LABEL[s.state]}{s.approved_at ? ` · ${new Date(s.approved_at).toLocaleDateString()}` : ''}
+                          {tcConfigured && tc && tc.state !== 'new' && <span style={{ fontWeight: 400, color: 'var(--ink3)' }}> · Title card: {tc.state === 'approved' ? 'approved' : tc.state === 'ready' ? 'ready' : 'outdated'}</span>}
+                        </div>
                         {s.issues.length > 0 && <ul style={{ margin: '2px 0 0', paddingLeft: '16px', fontSize: '12px', lineHeight: 1.5 }}>{s.issues.map((i, k) => <li key={k} style={{ color: i.level === 'info' ? 'var(--ink3)' : i.level === 'warning' ? 'var(--amber)' : 'var(--red)' }}>{i.text}</li>)}</ul>}
                         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
                           {canEditThumbs && (
                             <Button variant={s.state === 'new' || s.state === 'changed' ? 'teal' : 'ghost'} disabled={thumbBusy.has(s.id) || !!thumbProgress || blocked || thumbData.missing.length > 0} onClick={() => void thumbGenerate([s.id])}>
-                              {thumbBusy.has(s.id) ? 'Generating…' : s.png_url ? 'Regenerate' : 'Generate'}
+                              {thumbBusy.has(s.id) ? 'Generating…' : s.png_url ? 'Regen thumb' : 'Generate'}
+                            </Button>
+                          )}
+                          {canEditThumbs && tcConfigured && (
+                            <Button variant={!tc || tc.state === 'new' || tc.state === 'changed' ? 'teal' : 'ghost'} disabled={tcBusy.has(s.id) || (thumbData.title_cards?.setup.missing.length ?? 0) > 0} onClick={() => void generateTitleCards([s.id])}>
+                              {tcBusy.has(s.id) ? 'Generating…' : tc?.png_url ? 'Regen title card' : 'Gen title card'}
                             </Button>
                           )}
                           {canEditThumbs && <Button variant="ghost" onClick={() => setThumbEditing(s)}>Edit text / speakers</Button>}
-                          {canEditThumbs && s.state === 'ready' && <Button variant="lime" onClick={() => void thumbAct('approve', s.id)}>Approve</Button>}
-                          {canEditThumbs && s.state === 'approved' && <Button variant="ghost" onClick={() => void thumbAct('unapprove', s.id)}>Remove approval</Button>}
+                          {canEditThumbs && s.state === 'ready' && !useAllApprove && <Button variant="lime" onClick={() => void thumbAct('approve', s.id)}>Approve</Button>}
+                          {canEditThumbs && s.state === 'ready' && useAllApprove && <Button variant="lime" onClick={() => void approveAll(s.id)}>Approve all</Button>}
+                          {canEditThumbs && s.state === 'approved' && !useAllApprove && <Button variant="ghost" onClick={() => void thumbAct('unapprove', s.id)}>Remove approval</Button>}
+                          {canEditThumbs && s.state === 'approved' && useAllApprove && <Button variant="ghost" onClick={() => void unapproveAll(s.id)}>Remove all approvals</Button>}
                           {s.jpg_url && s.state !== 'new' && <Button variant="ghost" href={`/api/events/thumbnails/download?event_id=${eventId}&session_id=${s.id}&format=jpg`}>JPG</Button>}
                           {s.png_url && s.state !== 'new' && <Button variant="ghost" href={`/api/events/thumbnails/download?event_id=${eventId}&session_id=${s.id}&format=png`}>PNG</Button>}
                         </div>
+                        {/* Lower-thirds per speaker */}
+                        {ltConfigured && ltSession && ltSession.speakers.length > 0 && (
+                          <div style={{ marginTop: '8px', borderTop: '1px solid var(--border-light)', paddingTop: '8px', display: 'grid', gap: '6px' }}>
+                            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Lower thirds</div>
+                            {ltSession.speakers.map(sp => {
+                              const key = `${s.id}:${sp.speaker_id}`
+                              const busy = ltBusy.has(key)
+                              const ltMissing = (thumbData.lower_thirds?.setup.missing.length ?? 0) > 0
+                              return (
+                                <div key={sp.speaker_id} style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                  <div style={{ width: '80px', flexShrink: 0, aspectRatio: '16 / 9', background: '#0a0a0a', border: '1px solid var(--border-light)', borderRadius: '4px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    {sp.still_url
+                                      ? <img src={sp.still_url} alt="" loading="lazy" style={{ width: '100%', display: 'block' }} />
+                                      : <span style={{ color: 'var(--ink3)', fontSize: '8px' }}>Still</span>}
+                                  </div>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: '12px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sp.name}</div>
+                                    <div style={{ fontSize: '11px', color: sp.status === 'generated' ? 'var(--green)' : sp.status === 'generating' ? 'var(--amber)' : 'var(--ink3)' }}>
+                                      {sp.status === 'generating' ? '● Rendering…' : sp.status === 'generated' ? '● Done' : '● Not generated'}
+                                    </div>
+                                  </div>
+                                  {canEditThumbs && (
+                                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                                      <Button variant="ghost" disabled={busy || ltMissing} onClick={() => void generateLtStill(s.id, sp.speaker_id)}>
+                                        {busy ? '…' : sp.still_url ? 'Regen still' : 'Still'}
+                                      </Button>
+                                      <Button variant="ghost" disabled={busy || ltMissing || sp.status === 'generating'} onClick={() => void enqueueLtMov(s.id, sp.speaker_id)}>
+                                        {sp.status === 'generating' ? 'Rendering…' : sp.status === 'generated' ? 'Regen MOV' : 'Gen MOV'}
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )
@@ -381,6 +507,62 @@ function ThumbSettings({ data, canEdit, eventId, onSave }: { data: ThumbData; ca
             </label>
           </div>
           {canEdit && <div><Button variant="teal" onClick={() => onSave({ card_variant_id: card || null, layout_variant_ids: Object.fromEntries(Object.entries(layouts).filter(([, v]) => v)), card_text: text })}>Save settings</Button></div>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TitleCardSettings({ data, canEdit, onSave }: {
+  data: ThumbData
+  canEdit: boolean
+  onSave: (b: { title_card_layout_variant_id: string | null; title_card_card_variant_id: string | null; lower_third_variant_id: string | null }) => Promise<void>
+}) {
+  const [open, setOpen] = useState(false)
+  const [tcLayout, setTcLayout] = useState(data.title_cards?.setup.layout_variant_id ?? '')
+  const [tcCard, setTcCard] = useState(data.title_cards?.setup.card_variant_id ?? '')
+  const [ltVariant, setLtVariant] = useState(data.lower_thirds?.setup.variant_id ?? '')
+  const tcLayouts = data.variants.filter(v => v.category === 'title_card_layout')
+  const tcCards = data.variants.filter(v => v.category === 'title_card_card')
+  const ltVariants = data.variants.filter(v => v.category === 'lower_third')
+  const allMissing = [...(data.title_cards?.setup.missing ?? []), ...(data.lower_thirds?.setup.missing ?? [])]
+  return (
+    <div style={{ border: `1px solid ${allMissing.length ? 'var(--border-light)' : 'var(--border-light)'}`, borderRadius: '10px', overflow: 'hidden' }}>
+      <button type="button" onClick={() => setOpen(o => !o)} style={{ width: '100%', textAlign: 'left', background: 'var(--surface)', border: 'none', padding: '10px 14px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <span style={{ fontWeight: 800, fontSize: '13px', flex: 1 }}>Title cards &amp; lower thirds</span>
+        {allMissing.length > 0 && <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>Not configured</span>}
+        <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border-light)', display: 'grid', gap: '10px' }}>
+          <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>Title card templates are built in Admin Console › Variants with category <em>title_card_layout</em> / <em>title_card_card</em>. Lower-third variants use category <em>lower_third</em>.</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
+            <label style={{ fontSize: '12.5px', fontWeight: 700 }}>Title card layout
+              <Select value={tcLayout} disabled={!canEdit} onChange={e => setTcLayout(e.target.value)}>
+                <option value="">Choose…</option>
+                {tcLayouts.map(v => <option key={v.id} value={v.id}>{v.name} ({v.w}×{v.h})</option>)}
+              </Select>
+            </label>
+            <label style={{ fontSize: '12.5px', fontWeight: 700 }}>Title card card
+              <Select value={tcCard} disabled={!canEdit} onChange={e => setTcCard(e.target.value)}>
+                <option value="">Choose…</option>
+                {tcCards.map(v => <option key={v.id} value={v.id}>{v.name} ({v.w}×{v.h})</option>)}
+              </Select>
+            </label>
+            <label style={{ fontSize: '12.5px', fontWeight: 700 }}>Lower-third variant
+              <Select value={ltVariant} disabled={!canEdit} onChange={e => setLtVariant(e.target.value)}>
+                <option value="">Choose…</option>
+                {ltVariants.map(v => <option key={v.id} value={v.id}>{v.name} ({v.w}×{v.h})</option>)}
+              </Select>
+            </label>
+          </div>
+          {canEdit && (
+            <div>
+              <Button variant="teal" onClick={() => onSave({ title_card_layout_variant_id: tcLayout || null, title_card_card_variant_id: tcCard || null, lower_third_variant_id: ltVariant || null })}>
+                Save title card &amp; lower-third settings
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>
