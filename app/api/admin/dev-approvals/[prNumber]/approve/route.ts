@@ -41,7 +41,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ prN
     return NextResponse.json({ error: 'Could not reach GitHub to fetch the PR' }, { status: 424 })
   }
 
-  if (pr.merged) return NextResponse.json({ error: 'Already merged' }, { status: 409 })
+  if (pr.merged) {
+    // Merged outside this page (e.g. directly on GitHub) — our row would stay 'pending' forever and the card
+    // would never leave the queue. Reconcile it so the page reflects reality.
+    if (row.status === 'pending') {
+      await supabaseAdmin.from('github_pr_reviews').update({
+        status: 'approved',
+        decided_by: access.staffId,
+        decided_at: new Date().toISOString(),
+        merge_error: null,
+        updated_at: new Date().toISOString(),
+      }).eq('pr_number', prNumber)
+    }
+    return NextResponse.json({ error: 'Already merged on GitHub — moved out of the queue.' }, { status: 409 })
+  }
   if (pr.state !== 'open') return NextResponse.json({ error: `PR is ${pr.state}, not open` }, { status: 409 })
 
   const checks = await fetchCheckRunsSummary(pr.head.sha).catch(() => ({ state: 'none' as const, runs: [] }))
