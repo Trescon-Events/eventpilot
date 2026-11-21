@@ -1,8 +1,9 @@
 import sharp from 'sharp'
 import { compositeAnnouncement, layersForRole } from '@/app/lib/announcements/composite'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
+import { supabaseAdmin } from '@/app/lib/supabase'
 import { TITLE_CARD_W, TITLE_CARD_H, gridCardSize, gridCardPositions } from './geometry'
-import type { TextLayer, Variant } from '@/app/lib/announcements/composite'
+import type { TextLayer, TextLayerFont, Variant } from '@/app/lib/announcements/composite'
 import type { TitleCardSession, TitleCardSetup, TitleCardConfig } from './data'
 
 /* Title card rendering — same pattern as app/lib/thumbnails/render.ts.
@@ -13,10 +14,26 @@ export type TitleCardPerson = { name: string; title: string; company: string; mo
 
 const REF_W = 600  // reference cell width for font size / gap scaling
 
+/** Loads all TextLayerFont objects referenced by font IDs in the config. Returns a map from font ID → font. */
+export async function loadFontsForConfig(config: TitleCardConfig): Promise<Map<string, TextLayerFont>> {
+  const ids = new Set<string>()
+  if (config.font_id) ids.add(config.font_id)
+  for (const el of Object.values(config.text_elements)) {
+    if (el?.font_id) ids.add(el.font_id)
+  }
+  if (!ids.size) return new Map()
+  const { data } = await supabaseAdmin.from('brand_fonts').select('id, family_name, regular_url, bold_url, weights').in('id', [...ids])
+  const map = new Map<string, TextLayerFont>()
+  for (const row of data ?? []) {
+    map.set(row.id as string, { family_name: row.family_name as string, regular_url: row.regular_url as string, bold_url: row.bold_url as string | null | undefined, weights: row.weights as Record<number, string> | null | undefined })
+  }
+  return map
+}
+
 /** Builds the 1920×1080 layout Variant dynamically from config (background + session text layers + speaker grid area). */
-export function buildLayoutVariant(config: TitleCardConfig): Variant {
+export function buildLayoutVariant(config: TitleCardConfig, fonts: Map<string, TextLayerFont> = new Map()): Variant {
   const te = config.text_elements
-  const font = (id: string | null | undefined): TextLayer['font_family'] | undefined => id ? (id as unknown as TextLayer['font_family']) : undefined
+  const font = (id: string | null | undefined): TextLayer['font_family'] | undefined => (id && fonts.has(id)) ? fonts.get(id) : undefined
 
   const textLayer = (id: string, field: 'session_type' | 'session_stage' | 'session_title', el: typeof te.session_tag): TextLayer | null => {
     if (!el) return null
@@ -74,6 +91,7 @@ function buildSpeakerCard(
   config: TitleCardConfig,
   cellW: number,
   cellH: number,
+  fonts: Map<string, TextLayerFont> = new Map(),
 ): Variant {
   const te = config.text_elements
   const sc = cellW / REF_W
@@ -90,7 +108,10 @@ function buildSpeakerCard(
   const photoH = Math.min(photoW, cellH)
   const nameY = Math.round((cellH - photoH) / 2)
 
-  const fontId = (el: { font_id?: string | null }) => (el.font_id ?? config.font_id ?? null) as TextLayer['font_family'] | undefined | null
+  const fontId = (el: { font_id?: string | null }): TextLayerFont | undefined => {
+    const id = el.font_id ?? config.font_id ?? null
+    return id && fonts.has(id) ? fonts.get(id) : undefined
+  }
 
   const baseText = (id: string) => ({
     id, type: 'text' as const, x: textX, width: textW,
@@ -146,15 +167,17 @@ function buildSpeakerCard(
 export async function drawTitleCard(
   config: TitleCardConfig,
   text: { tag?: string; stage?: string; title: string },
-  people: TitleCardPerson[]
+  people: TitleCardPerson[],
+  fonts?: Map<string, TextLayerFont>,
 ): Promise<Buffer> {
-  const layout = buildLayoutVariant(config)
+  const fontMap = fonts ?? await loadFontsForConfig(config)
+  const layout = buildLayoutVariant(config, fontMap)
   const { speaker_grid: sg } = config
   const area = { x: sg.x, y: sg.y, width: sg.width, height: sg.height, columns: sg.columns, max_rows: sg.max_rows, gap_x: sg.gap_x, gap_y: sg.gap_y, card_min_width: sg.card_min_width, card_max_width: sg.card_max_width }
   const base = await compositeAnnouncement(layout, {}, { session_type: text.tag, session_stage: text.stage, session_title: text.title }, { showReferenceLayers: false })
   const size = gridCardSize(people.length, area, config.card_aspect)
   const spots = gridCardPositions(people.length, size, area)
-  const card = buildSpeakerCard(config, size.width, size.height)
+  const card = buildSpeakerCard(config, size.width, size.height, fontMap)
   const pieces = await Promise.all(people.map(p =>
     compositeAnnouncement(
       layersForRole(card, p.moderator),
