@@ -64,13 +64,13 @@ const same = (a: TitleCardConfig | null, b: TitleCardConfig | null) =>
 type TextElKey = keyof TitleCardConfig['text_elements']
 
 const TEXT_ELEMENT_ROWS: { key: TextElKey; label: string; hasPosition: boolean; hasPill: boolean }[] = [
-  { key: 'session_tag',   label: 'Session tag',   hasPosition: true,  hasPill: true },
-  { key: 'session_stage', label: 'Session stage', hasPosition: true,  hasPill: false },
-  { key: 'session_title', label: 'Session title', hasPosition: true,  hasPill: false },
-  { key: 'moderator',     label: 'Moderator',     hasPosition: false, hasPill: false },
-  { key: 'speaker_name',  label: 'Name',          hasPosition: false, hasPill: false },
-  { key: 'speaker_title', label: 'Job title',     hasPosition: false, hasPill: false },
-  { key: 'speaker_company', label: 'Company',     hasPosition: false, hasPill: false },
+  { key: 'session_tag',     label: 'Session tag',   hasPosition: true,  hasPill: true },
+  { key: 'session_stage',   label: 'Session stage', hasPosition: true,  hasPill: true },
+  { key: 'session_title',   label: 'Session title', hasPosition: true,  hasPill: true },
+  { key: 'moderator',       label: 'Moderator',     hasPosition: false, hasPill: true },
+  { key: 'speaker_name',    label: 'Name',          hasPosition: false, hasPill: true },
+  { key: 'speaker_title',   label: 'Job title',     hasPosition: false, hasPill: true },
+  { key: 'speaker_company', label: 'Company',       hasPosition: false, hasPill: true },
 ]
 
 export default function TitleCardSettings({ eventId }: { eventId: string }) {
