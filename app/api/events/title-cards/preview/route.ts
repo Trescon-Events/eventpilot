@@ -34,23 +34,30 @@ export async function POST(req: NextRequest) {
   const config = mergeTitleCardConfig(b.config)
   const sessionId = typeof b.session_id === 'string' && UUID.test(b.session_id) ? b.session_id : null
 
+  type SessionMeta = { title: string; content_type: string | null; track_id: string | null }
+  let sessionMeta: SessionMeta | null = null
+  let trackNameMap: Map<string, string> | null = null
   let people: TitleCardPerson[]
 
   if (sessionId) {
     // Real session: load actual speakers
-    const [{ data: sessionRow }, { data: links }, roles] = await Promise.all([
+    const [{ data: sessionRow }, { data: links }, roles, { data: tracksRaw }] = await Promise.all([
       supabaseAdmin.from('event_agenda_sessions').select('title, content_type, track_id').eq('id', sessionId).maybeSingle(),
       supabaseAdmin.from('event_agenda_session_speakers').select('speaker_id, role_tag_id, order_index').eq('session_id', sessionId).order('order_index'),
       getEventRoles(eventId),
+      supabaseAdmin.from('event_agenda_tracks').select('id, name').eq('event_id', eventId),
     ])
     if (!sessionRow) return NextResponse.json({ error: 'Session not found.' }, { status: 404 })
+    sessionMeta = sessionRow as SessionMeta
+    trackNameMap = new Map((tracksRaw ?? []).map(t => [t.id as string, t.name as string]))
 
     const speakerIds = [...new Set((links ?? []).map(l => l.speaker_id as string))]
-    if (!speakerIds.length) return NextResponse.json({ error: 'No speakers on this session.' }, { status: 400 })
 
-    const { data: speakers } = await supabaseAdmin.from('event_speakers')
-      .select('id, name, public_name, job_title, company, website_card_url, photo_processed_url, photo_head_box, konfhub_primary_role_tag_id')
-      .eq('event_id', eventId).eq('active', true).in('id', speakerIds)
+    const { data: speakers } = speakerIds.length
+      ? await supabaseAdmin.from('event_speakers')
+          .select('id, name, public_name, job_title, company, website_card_url, photo_processed_url, photo_head_box, konfhub_primary_role_tag_id')
+          .eq('event_id', eventId).eq('active', true).in('id', speakerIds)
+      : { data: [] }
 
     const person = new Map((speakers ?? []).map(p => [p.id as string, p]))
     const roleLabel = new Map(roles.map(r => [r.tag_id, r.label]))
@@ -67,10 +74,15 @@ export async function POST(req: NextRequest) {
     const placeholderGrey = await sharp({ create: { width: 300, height: 300, channels: 4, background: PLACEHOLDER_GREY } }).png().toBuffer()
     const clean = (v: unknown) => typeof v === 'string' ? v.trim() : ''
 
-    people = await Promise.all([...byPerson.entries()]
+    const sorted = [...byPerson.entries()]
       .filter(([id]) => person.has(id))
       .sort((a, b) => Number(b[1].moderator) - Number(a[1].moderator) || a[1].order - b[1].order)
-      .map(async ([id, m]) => {
+
+    if (sorted.length === 0) {
+      // Session has no speakers — render with a single placeholder so the layout is still visible
+      people = [{ name: 'No speakers assigned', title: '', company: '', moderator: false, buffer: placeholderGrey, url: 'placeholder', headBox: null }]
+    } else {
+      people = await Promise.all(sorted.map(async ([id, m]) => {
         const p = person.get(id)!
         const websiteUrl = (p.website_card_url as string | null) ?? null
         const cleanedUrl = (p.photo_processed_url as string | null) ?? null
@@ -87,6 +99,7 @@ export async function POST(req: NextRequest) {
           headBox,
         }
       }))
+    }
   } else {
     // Placeholder preview
     const placeholderGrey = await sharp({ create: { width: 300, height: 300, channels: 4, background: PLACEHOLDER_GREY } }).png().toBuffer()
@@ -103,9 +116,12 @@ export async function POST(req: NextRequest) {
     }))
   }
 
-  const tagStr = typeof b.session_tag === 'string' ? b.session_tag.trim() : 'KEYNOTE'
-  const stageStr = typeof b.session_stage === 'string' ? b.session_stage.trim() : 'Plenary - 1'
-  const titleStr = typeof b.session_title === 'string' ? b.session_title.trim() : 'The Future of Finance: Innovation at Scale'
+  // Use real session data when available; fall back to body overrides then static placeholders.
+  const tagStr = sessionMeta?.content_type?.trim() ?? (typeof b.session_tag === 'string' ? b.session_tag.trim() : 'KEYNOTE')
+  const stageStr = sessionMeta?.track_id && trackNameMap
+    ? (trackNameMap.get(sessionMeta.track_id) ?? '')
+    : (typeof b.session_stage === 'string' ? b.session_stage.trim() : 'Plenary - 1')
+  const titleStr = sessionMeta?.title?.trim() ?? (typeof b.session_title === 'string' ? b.session_title.trim() : 'The Future of Finance: Innovation at Scale')
 
   try {
     const png = await drawTitleCard(config, { tag: tagStr || undefined, stage: stageStr || undefined, title: titleStr }, people)
