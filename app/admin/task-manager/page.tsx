@@ -173,18 +173,16 @@ export default function TaskManagerPage() {
   }, [staff, activeTasks])
 
   // Macro KPI pulse summary metrics for Admin Oversight
-  const { totalTasksCount, inProgressCount, completedCount, overdueCount, totalTrackedSeconds } = useMemo(() => {
+  const { totalTasksCount, inProgressCount, completedCount, overdueCount } = useMemo(() => {
     const today = new Date(new Date().toDateString())
     let inProg = 0
     let done = 0
     let overdue = 0
-    let tracked = 0
 
     for (const t of activeTasks) {
       if (t.status === 'In-Progress') inProg++
       if (t.status === 'Completed') done++
       if (t.deadline && t.status !== 'Completed' && new Date(t.deadline) < today) overdue++
-      tracked += t.tracked_seconds ?? 0
     }
 
     return {
@@ -192,7 +190,6 @@ export default function TaskManagerPage() {
       inProgressCount: inProg,
       completedCount: done,
       overdueCount: overdue,
-      totalTrackedSeconds: tracked,
     }
   }, [activeTasks])
 
@@ -627,7 +624,6 @@ export default function TaskManagerPage() {
           inProgressCount={inProgressCount}
           completedCount={completedCount}
           overdueCount={overdueCount}
-          totalTrackedSeconds={totalTrackedSeconds}
         />
       )}
 

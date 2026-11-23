@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import StatCard from '@/app/components/ui/StatCard'
 import { Avatar, CUSTOM_SCROLLBAR_STYLE } from './ui'
-import { StaffLite, formatHours } from './types'
+import { StaffLite } from './types'
 
 export type AssigneeCounts = Record<string, { name: string; total: number; not_started: number; in_progress: number; completed: number }>
 
@@ -16,7 +16,6 @@ interface Props {
   inProgressCount: number
   completedCount: number
   overdueCount: number
-  totalTrackedSeconds: number
 }
 
 export default function SummaryBar({
@@ -29,7 +28,6 @@ export default function SummaryBar({
   inProgressCount,
   completedCount,
   overdueCount,
-  totalTrackedSeconds,
 }: Props) {
   const [showIdleTray, setShowIdleTray] = useState(false)
 
@@ -96,20 +94,6 @@ export default function SummaryBar({
               <span style={{ fontSize: '12px', color: 'var(--ink4)' }}>
                 {overdueCount === 1 ? 'needs attention' : overdueCount > 1 ? 'require action' : 'all on schedule'}
               </span>
-            </div>
-          </div>
-        </StatCard>
-
-        <StatCard color="teal">
-          <div style={{ padding: '14px 16px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '6px' }}>
-              Time Logged
-            </div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-              <span style={{ fontSize: '26px', fontWeight: 800, color: 'var(--teal-mid)', lineHeight: 1 }}>
-                {formatHours(totalTrackedSeconds)}
-              </span>
-              <span style={{ fontSize: '12px', color: 'var(--ink4)' }}>total effort</span>
             </div>
           </div>
         </StatCard>
