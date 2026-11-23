@@ -13,9 +13,11 @@ export interface TeamsActionPayload {
   newDeadline?: string
 }
 
+export const FOLLOWUP_LOCAL_HOURS = [9, 13, 17] as const
+
 /**
- * Calculates if a given staff member's local office time is within the 09:00 AM window (09:00–09:59)
- * and whether today is a configured working business day for their region.
+ * Calculates if a given staff member's local office time is within one of the 3 daily
+ * follow-up windows (09:00, 13:00, 17:00) and whether today is a configured working day (Mon–Fri).
  */
 export function isStaffMorningWindow(
   timezone: string = 'Asia/Dubai',
@@ -35,12 +37,17 @@ export function isStaffMorningWindow(
     const isoDay = rawDay === 0 ? 7 : rawDay
 
     const isWorkingDay = workingDays.includes(isoDay)
-    const isMorning = localHour === 9
+    const isMorning = (FOLLOWUP_LOCAL_HOURS as readonly number[]).includes(localHour)
 
     return { isMorning, isWorkingDay, localHour, localDay: isoDay }
   } catch {
-    const hour = refDate.getUTCHours() + 4 // Dubai UTC+4 default
-    return { isMorning: hour === 9, isWorkingDay: true, localHour: hour, localDay: 1 }
+    const hour = (refDate.getUTCHours() + 4) % 24 // Dubai UTC+4 default
+    return {
+      isMorning: (FOLLOWUP_LOCAL_HOURS as readonly number[]).includes(hour),
+      isWorkingDay: true,
+      localHour: hour,
+      localDay: 1,
+    }
   }
 }
 
@@ -86,14 +93,14 @@ export function generateOverdueDigestCard(
               items: [
                 {
                   type: 'TextBlock',
-                  text: 'DAILY OVERDUE TASK DIGEST',
+                  text: 'TASK FOLLOW-UP REMINDER',
                   weight: 'Bolder',
                   size: 'Medium',
                   color: 'Attention',
                 },
                 {
                   type: 'TextBlock',
-                  text: `${totalCount} overdue task${totalCount === 1 ? '' : 's'} require attention`,
+                  text: `${totalCount} task${totalCount === 1 ? '' : 's'} need a deadline or status update`,
                   size: 'Small',
                   isSubtle: true,
                   spacing: 'None',
@@ -106,24 +113,32 @@ export function generateOverdueDigestCard(
     },
     {
       type: 'TextBlock',
-      text: `Good morning ${mentionTag}, here is your automated morning task briefing:`,
+      text: `Hi ${mentionTag}, kindly update the deadline or update the task status for the following task${totalCount === 1 ? '' : 's'}:`,
       wrap: true,
       spacing: 'Medium',
     },
   ]
 
+  const formatAlertLabel = (deadline: string | null, daysOverdue: number, idleDays?: number) => {
+    const tags: string[] = []
+    if (daysOverdue > 0) tags.push(`${daysOverdue}d overdue`)
+    if ((idleDays ?? 0) >= 3) tags.push(`untouched ${idleDays}d`)
+    const suffix = tags.length > 0 ? ` (${tags.join(' · ')})` : ''
+    return `⚠️ ${deadline ?? 'No deadline'}${suffix}`
+  }
+
   // Section 1: Tasks Awaiting Recipient's Action (Assignee)
   if (assigneeTasks.length > 0) {
     cardBody.push({
       type: 'TextBlock',
-      text: `**📌 Tasks Awaiting Your Action (${assigneeTasks.length})**`,
+      text: `**📌 Tasks Assigned to You (${assigneeTasks.length})**`,
       weight: 'Bolder',
       size: 'Medium',
       spacing: 'Large',
       color: 'Warning',
     })
 
-    assigneeTasks.forEach(({ task, daysOverdue }, idx) => {
+    assigneeTasks.forEach(({ task, daysOverdue, idleDays }, idx) => {
       const eventLabel = task.event?.name ? `[${task.event.name}] ` : ''
       const assignerName = task.assigned_by_staff?.name ?? 'Manager'
       const contactLabel = task.assigned_contact ? ` — for: ${task.assigned_contact.name}` : ''
@@ -142,7 +157,7 @@ export function generateOverdueDigestCard(
           {
             type: 'FactSet',
             facts: [
-              { title: 'Deadline:', value: `⚠️ ${task.deadline ?? 'None'} (${daysOverdue}d overdue)` },
+              { title: 'Deadline / Alert:', value: formatAlertLabel(task.deadline, daysOverdue, idleDays) },
               { title: 'Assigned By:', value: assignerName },
               { title: 'Priority:', value: task.priority },
               { title: 'Current Status:', value: task.status.replace('-', ' ') },
@@ -157,14 +172,14 @@ export function generateOverdueDigestCard(
   if (assignorTasks.length > 0) {
     cardBody.push({
       type: 'TextBlock',
-      text: `**👀 Tasks You Assigned That Are Overdue (${assignorTasks.length})**`,
+      text: `**👀 Tasks You Assigned Needing Update (${assignorTasks.length})**`,
       weight: 'Bolder',
       size: 'Medium',
       spacing: 'Large',
       color: 'Accent',
     })
 
-    assignorTasks.forEach(({ task, daysOverdue }, idx) => {
+    assignorTasks.forEach(({ task, daysOverdue, idleDays }, idx) => {
       const eventLabel = task.event?.name ? `[${task.event.name}] ` : ''
       const assigneeName = task.assigned_to_staff?.name ?? 'Team Member'
       const assigneeEmail = task.assigned_to_staff?.email ?? ''
@@ -184,7 +199,7 @@ export function generateOverdueDigestCard(
             facts: [
               { title: 'Assignee:', value: assigneeName },
               ...(task.assigned_contact ? [{ title: 'For:', value: task.assigned_contact.name }] : []),
-              { title: 'Deadline:', value: `⚠️ ${task.deadline ?? 'None'} (${daysOverdue}d overdue)` },
+              { title: 'Deadline / Alert:', value: formatAlertLabel(task.deadline, daysOverdue, idleDays) },
               { title: 'Status:', value: task.status.replace('-', ' ') },
             ],
           },
@@ -195,7 +210,7 @@ export function generateOverdueDigestCard(
                 {
                   type: 'Action.OpenUrl',
                   title: `💬 Ping ${assigneeName} on Teams`,
-                  url: `https://teams.microsoft.com/l/chat/0/0?users=${encodeURIComponent(assigneeEmail)}&message=${encodeURIComponent(`Hi ${assigneeName}, following up on the overdue task: "${task.description}".`)}`,
+                  url: `https://teams.microsoft.com/l/chat/0/0?users=${encodeURIComponent(assigneeEmail)}&message=${encodeURIComponent(`Hi ${assigneeName}, kindly update the deadline or task status for: "${task.description}".`)}`,
                 },
               ],
             },
