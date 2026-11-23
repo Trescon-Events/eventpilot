@@ -1,8 +1,7 @@
 'use client'
-import { useState } from 'react'
 import StatCard from '@/app/components/ui/StatCard'
 import { Avatar, CUSTOM_SCROLLBAR_STYLE } from './ui'
-import { StaffLite } from './types'
+import { StaffLite, isBrandingStaff } from './types'
 
 export type AssigneeCounts = Record<string, { name: string; total: number; not_started: number; in_progress: number; completed: number }>
 
@@ -41,8 +40,6 @@ export default function SummaryBar({
   highPriorityOpenCount,
   highPriorityOverdueCount,
 }: Props) {
-  const [showIdleTray, setShowIdleTray] = useState(false)
-
   // Only show staff members who currently have active (in-progress or not-started) tasks
   const entries = Object.entries(counts)
     .filter(([, r]) => (r.in_progress + r.not_started) > 0)
@@ -50,8 +47,10 @@ export default function SummaryBar({
   const activeTasksCount = Math.max(0, totalTasksCount - completedCount)
   const completionRate = totalTasksCount > 0 ? Math.round((completedCount / totalTasksCount) * 100) : 0
 
-  // Staff members with 0 active tasks (available capacity)
+  // Branding/creative team + external vendors (Cactus, Pixelate) with 0 active tasks
   const idleStaff = staff.filter(s => {
+    const isCreativeOrVendor = isBrandingStaff(s) || s.account_type === 'vendor'
+    if (!isCreativeOrVendor) return false
     const r = counts[s.id]
     const active = r ? r.in_progress + r.not_started : 0
     return active === 0
@@ -157,124 +156,53 @@ export default function SummaryBar({
         </StatCard>
       </div>
 
-      {/* ── Team Capacity Strip (Smooth Horizontal Scroll) ─────── */}
+      {/* ── Team Capacity & Workload Strip (Design 1: Horizontal Person Pills) ── */}
       {(entries.length > 0 || idleStaff.length > 0) && (
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '8px', padding: '0 2px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '10px', padding: '0 2px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
                 Team Capacity & Workload
               </span>
               {idleStaff.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setShowIdleTray(!showIdleTray)}
+                <span
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '5px',
-                    padding: '2px 8px',
+                    padding: '2px 9px',
                     borderRadius: '12px',
-                    background: showIdleTray ? 'var(--teal)' : 'var(--teal-light)',
-                    color: showIdleTray ? 'var(--surface)' : 'var(--teal-mid)',
+                    background: 'var(--teal-light)',
+                    color: 'var(--teal-mid)',
                     border: '1px solid var(--border)',
                     fontSize: '11px',
                     fontWeight: 700,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
                   }}
-                  title="Click to view team members with 0 active tasks"
                 >
                   <span style={{ fontSize: '9px' }}>🟢</span>
                   <span>{idleStaff.length} Available (0 tasks)</span>
-                  <span style={{ fontSize: '9px', opacity: 0.8 }}>{showIdleTray ? '▲' : '▼'}</span>
-                </button>
+                </span>
               )}
             </div>
 
             <span style={{ fontSize: '11px', color: 'var(--ink4)' }}>
-              Click any team member to filter
+              Click any busy member to filter · Click + Assign on available members
             </span>
           </div>
-
-          {/* ── Expandable Available / Idle Tray ───────────────── */}
-          {showIdleTray && idleStaff.length > 0 && (
-            <div
-              className="tm-scroll"
-              style={{
-                display: 'flex',
-                gap: '10px',
-                overflowX: 'auto',
-                padding: '12px 14px',
-                marginBottom: '12px',
-                background: 'var(--surface)',
-                borderRadius: '10px',
-                border: '1px solid var(--border-light)',
-                ...CUSTOM_SCROLLBAR_STYLE,
-              }}
-            >
-              {idleStaff.map(s => {
-                const r = counts[s.id]
-                const completed = r?.completed ?? 0
-
-                return (
-                  <div
-                    key={s.id}
-                    style={{
-                      flex: '0 0 auto',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '8px 12px',
-                      background: 'var(--card)',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border)',
-                    }}
-                  >
-                    <Avatar name={s.name} size={22} />
-                    <div>
-                      <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink)' }}>{s.name}</div>
-                      <div style={{ fontSize: '10px', color: 'var(--teal)', fontWeight: 600 }}>
-                        🟢 0 active {completed > 0 ? `· ${completed} done` : ''}
-                      </div>
-                    </div>
-                    {onQuickAssignForStaff && (
-                      <button
-                        type="button"
-                        onClick={() => onQuickAssignForStaff(s.id)}
-                        style={{
-                          marginLeft: '4px',
-                          padding: '3px 8px',
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          borderRadius: '6px',
-                          border: 'none',
-                          background: 'var(--teal-light)',
-                          color: 'var(--teal-mid)',
-                          cursor: 'pointer',
-                        }}
-                        title={`Assign a new task to ${s.name}`}
-                      >
-                        + Assign
-                      </button>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
 
           <div
             className="tm-scroll"
             style={{
               display: 'flex',
-              gap: '12px',
+              alignItems: 'stretch',
+              gap: '10px',
               overflowX: 'auto',
               paddingBottom: '8px',
               scrollSnapType: 'x mandatory',
               ...CUSTOM_SCROLLBAR_STYLE,
             }}
           >
+            {/* Busy Team Members (Horizontal Compact Person Pills) */}
             {entries.map(([staffId, r]) => {
               const isSelected = selectedStaffId === staffId
               const activeCount = r.in_progress + r.not_started
@@ -286,101 +214,200 @@ export default function SummaryBar({
                   key={staffId}
                   onClick={() => onSelectStaff && onSelectStaff(isSelected ? null : staffId)}
                   style={{
-                    flex: '0 0 240px',
-                    width: '240px',
-                    height: '136px',
-                    cursor: onSelectStaff ? 'pointer' : 'default',
+                    flex: '0 0 auto',
+                    minWidth: '235px',
+                    maxWidth: '265px',
+                    padding: '10px 14px',
                     borderRadius: '12px',
+                    background: isSelected ? 'var(--teal-light)' : 'var(--card)',
+                    border: isSelected ? '1px solid var(--teal-mid)' : '1px solid var(--border)',
+                    cursor: onSelectStaff ? 'pointer' : 'default',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
                     transition: 'all 0.15s ease',
-                    outline: isSelected ? '2px solid var(--teal-mid)' : 'none',
-                    transform: isSelected ? 'translateY(-2px)' : 'none',
+                    transform: isSelected ? 'translateY(-1px)' : 'none',
                     scrollSnapAlign: 'start',
                     boxSizing: 'border-box',
                   }}
                 >
-                  <StatCard color="indigo">
-                    <div style={{ padding: '14px 16px', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxSizing: 'border-box', position: 'relative' }}>
+                  <div style={{ flexShrink: 0 }}>
+                    <Avatar name={r.name} size={32} />
+                  </div>
+
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span
+                        style={{
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          color: 'var(--ink)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                        title={r.name}
+                      >
+                        {r.name}
+                      </span>
                       {isSelected && (
-                        <div
+                        <span
                           style={{
-                            position: 'absolute',
-                            top: '10px',
-                            right: '10px',
-                            fontSize: '10px',
-                            fontWeight: 700,
+                            fontSize: '9px',
+                            fontWeight: 800,
                             textTransform: 'uppercase',
-                            letterSpacing: '0.5px',
                             color: 'var(--teal-mid)',
-                            background: 'var(--border-light)',
-                            padding: '2px 6px',
+                            background: 'var(--surface)',
+                            padding: '1px 5px',
                             borderRadius: '4px',
+                            flexShrink: 0,
                           }}
                         >
                           Filtered
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Avatar name={r.name} size={20} />
-                        <span
-                          style={{
-                            fontSize: '12px',
-                            fontWeight: 700,
-                            color: 'var(--ink2)',
-                            maxWidth: isSelected ? '120px' : '170px',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {r.name}
                         </span>
-                      </div>
-
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '6px' }}>
-                          <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-                            <span style={{ fontSize: '22px', fontWeight: 800, color: 'var(--ink)', lineHeight: 1 }}>{activeCount}</span>
-                            <span style={{ fontSize: '11px', color: 'var(--ink4)' }}>{activeCount === 1 ? 'active task' : 'active tasks'}</span>
-                          </div>
-                          {r.completed > 0 && (
-                            <span style={{ fontSize: '11px', color: 'var(--teal)', fontWeight: 700 }}>
-                              {r.completed} done
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Segmented Active Progress bar (In Progress vs Not Started) */}
-                        <div
-                          style={{
-                            height: '4px',
-                            width: '100%',
-                            borderRadius: '2px',
-                            background: 'var(--border-light)',
-                            display: 'flex',
-                            overflow: 'hidden',
-                            marginBottom: '8px',
-                          }}
-                        >
-                          <div style={{ width: `${inProgressPercent}%`, background: 'var(--purple)', height: '100%' }} title={`In Progress: ${r.in_progress}`} />
-                          <div style={{ width: `${notStartedPercent}%`, background: 'var(--ink4)', height: '100%' }} title={`Not Started: ${r.not_started}`} />
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--purple)', flexShrink: 0 }} />
-                            <span style={{ color: 'var(--ink3)' }}>{r.in_progress} In progress</span>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--ink4)', flexShrink: 0 }} />
-                            <span style={{ color: 'var(--ink4)' }}>{r.not_started} Not started</span>
-                          </div>
-                        </div>
-                      </div>
+                      )}
                     </div>
-                  </StatCard>
+
+                    <div style={{ fontSize: '11px', color: 'var(--ink4)', marginTop: '2px', whiteSpace: 'nowrap' }}>
+                      <span style={{ color: 'var(--purple)', fontWeight: 600 }}>{r.in_progress} prog</span>
+                      {' · '}
+                      <span>{r.not_started} queue</span>
+                    </div>
+
+                    <div
+                      style={{
+                        height: '3px',
+                        width: '100%',
+                        borderRadius: '2px',
+                        background: 'var(--border-light)',
+                        display: 'flex',
+                        overflow: 'hidden',
+                        marginTop: '6px',
+                      }}
+                    >
+                      <div style={{ width: `${inProgressPercent}%`, background: 'var(--purple)', height: '100%' }} title={`In Progress: ${r.in_progress}`} />
+                      <div style={{ width: `${notStartedPercent}%`, background: 'var(--ink4)', height: '100%' }} title={`Not Started: ${r.not_started}`} />
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      flexShrink: 0,
+                      minWidth: '30px',
+                      height: '30px',
+                      padding: '0 6px',
+                      borderRadius: '8px',
+                      background: isSelected ? 'var(--teal-mid)' : 'var(--surface)',
+                      border: isSelected ? 'none' : '1px solid var(--border-light)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '14px',
+                      fontWeight: 800,
+                      color: isSelected ? 'var(--surface)' : 'var(--ink)',
+                    }}
+                    title={`${activeCount} active task${activeCount === 1 ? '' : 's'}`}
+                  >
+                    {activeCount}
+                  </div>
                 </div>
               )
             })}
+
+            {/* Visual separator between busy & available members */}
+            {entries.length > 0 && idleStaff.length > 0 && (
+              <div
+                style={{
+                  flex: '0 0 1px',
+                  background: 'var(--border)',
+                  margin: '6px 2px',
+                }}
+              />
+            )}
+
+            {/* Available / Free Team Members Inline (0 active tasks — Branding & Vendors) */}
+            {idleStaff.map(s => (
+              <div
+                key={s.id}
+                style={{
+                  flex: '0 0 auto',
+                  minWidth: '235px',
+                  padding: '10px 14px',
+                  borderRadius: '12px',
+                  background: 'var(--surface)',
+                  border: '1px dashed var(--teal-mid)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  scrollSnapAlign: 'start',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <div style={{ flexShrink: 0 }}>
+                  <Avatar name={s.name} size={32} />
+                </div>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span
+                      style={{
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        color: 'var(--ink)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title={s.name}
+                    >
+                      {s.name}
+                    </span>
+                    {s.account_type === 'vendor' && (
+                      <span
+                        style={{
+                          fontSize: '9px',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          color: 'var(--purple)',
+                          background: 'var(--purple-light)',
+                          padding: '1px 5px',
+                          borderRadius: '4px',
+                          flexShrink: 0,
+                        }}
+                      >
+                        Vendor
+                      </span>
+                    )}
+                  </div>
+
+                  <div style={{ fontSize: '11px', color: 'var(--teal-mid)', fontWeight: 600, marginTop: '3px', whiteSpace: 'nowrap' }}>
+                    🟢 Available · 0 tasks
+                  </div>
+                </div>
+
+                {onQuickAssignForStaff && (
+                  <button
+                    type="button"
+                    onClick={() => onQuickAssignForStaff(s.id)}
+                    style={{
+                      flexShrink: 0,
+                      padding: '5px 10px',
+                      borderRadius: '7px',
+                      background: 'var(--teal-light)',
+                      color: 'var(--teal-mid)',
+                      border: '1px solid var(--teal-mid)',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title={`Assign a new task to ${s.name}`}
+                  >
+                    + Assign
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}
