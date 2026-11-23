@@ -46,6 +46,8 @@ export const CORE_BRANDING_NAMES = [
   'lohith',
   'krishanu',
   'sohaila',
+  'durai',
+  'rajesh vm',
 ] as const
 
 export function isCoreBrandingOrVendor(s: StaffLite): boolean {

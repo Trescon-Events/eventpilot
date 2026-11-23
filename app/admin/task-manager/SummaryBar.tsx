@@ -50,7 +50,7 @@ export default function SummaryBar({
   const activeTasksCount = Math.max(0, totalTasksCount - completedCount)
   const completionRate = totalTasksCount > 0 ? Math.round((completedCount / totalTasksCount) * 100) : 0
 
-  // Core Branding team (Nazim, Waseem, Sajeesh, Shafi, Lohith, Krishanu, Sohaila) + Vendors with 0 active tasks
+  // Core Branding team (Nazim, Waseem, Sajeesh, Shafi, Lohith, Krishanu, Sohaila, Durai, Rajesh VM) + Vendors with 0 active tasks
   const idleStaff = staff.filter(s => {
     if (!isCoreBrandingOrVendor(s)) return false
     const r = counts[s.id]
