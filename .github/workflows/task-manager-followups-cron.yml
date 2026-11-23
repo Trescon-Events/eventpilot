@@ -1,0 +1,24 @@
+name: Task Manager Follow-Up Reminders
+
+# Fires /api/task-manager/cron/overdue hourly on working days (Mon–Fri).
+# The endpoint evaluates each recipient's local office timezone and dispatches
+# Email + MS Teams digests 3 times daily (09:00, 13:00, 17:00 local time) for
+# overdue and 3+ days untouched tasks, with a 3-hour cooldown.
+# Uses the Railway direct URL: the primary host is behind Cloudflare.
+
+on:
+  schedule:
+    - cron: '0 * * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Call Task Manager follow-up sweep endpoint
+        run: |
+          curl --fail-with-body --silent --show-error --max-time 120 \
+            -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://eventpilot-production-90c6.up.railway.app/api/task-manager/cron/overdue"

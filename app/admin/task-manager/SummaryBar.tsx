@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import StatCard from '@/app/components/ui/StatCard'
 import { Avatar, CUSTOM_SCROLLBAR_STYLE } from './ui'
-import { StaffLite, formatHours } from './types'
+import { StaffLite } from './types'
 
 export type AssigneeCounts = Record<string, { name: string; total: number; not_started: number; in_progress: number; completed: number }>
 
@@ -14,9 +14,14 @@ interface Props {
   onSelectStaff?: (staffId: string | null) => void
   totalTasksCount: number
   inProgressCount: number
+  notStartedCount: number
+  notStartedHighCount: number
   completedCount: number
   overdueCount: number
-  totalTrackedSeconds: number
+  dueTodayCount: number
+  dueTomorrowCount: number
+  highPriorityOpenCount: number
+  highPriorityOverdueCount: number
 }
 
 export default function SummaryBar({
@@ -27,9 +32,14 @@ export default function SummaryBar({
   onSelectStaff,
   totalTasksCount,
   inProgressCount,
+  notStartedCount,
+  notStartedHighCount,
   completedCount,
   overdueCount,
-  totalTrackedSeconds,
+  dueTodayCount,
+  dueTomorrowCount,
+  highPriorityOpenCount,
+  highPriorityOverdueCount,
 }: Props) {
   const [showIdleTray, setShowIdleTray] = useState(false)
 
@@ -53,7 +63,7 @@ export default function SummaryBar({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
           gap: '12px',
           marginBottom: '16px',
         }}
@@ -84,7 +94,53 @@ export default function SummaryBar({
           </div>
         </StatCard>
 
+        <StatCard color="teal">
+          <div style={{ padding: '14px 16px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '6px' }}>
+              Not Started
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+              <span style={{ fontSize: '26px', fontWeight: 800, color: 'var(--teal-mid)', lineHeight: 1 }}>{notStartedCount}</span>
+              <span style={{ fontSize: '12px', color: 'var(--ink4)' }}>
+                {notStartedHighCount > 0 ? `${notStartedHighCount} high priority` : 'in queue'}
+              </span>
+            </div>
+          </div>
+        </StatCard>
+
         <StatCard color="amber">
+          <div style={{ padding: '14px 16px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: dueTodayCount > 0 ? 'var(--amber)' : 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '6px' }}>
+              Due Today
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+              <span style={{ fontSize: '26px', fontWeight: 800, color: dueTodayCount > 0 ? 'var(--amber)' : 'var(--ink)', lineHeight: 1 }}>
+                {dueTodayCount}
+              </span>
+              <span style={{ fontSize: '12px', color: 'var(--ink4)' }}>
+                {dueTomorrowCount > 0 ? `${dueTomorrowCount} tomorrow` : 'clear tomorrow'}
+              </span>
+            </div>
+          </div>
+        </StatCard>
+
+        <StatCard color="red">
+          <div style={{ padding: '14px 16px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: highPriorityOpenCount > 0 ? 'var(--red)' : 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '6px' }}>
+              High Priority Open
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+              <span style={{ fontSize: '26px', fontWeight: 800, color: highPriorityOpenCount > 0 ? 'var(--red)' : 'var(--ink)', lineHeight: 1 }}>
+                {highPriorityOpenCount}
+              </span>
+              <span style={{ fontSize: '12px', color: 'var(--ink4)' }}>
+                {highPriorityOverdueCount > 0 ? `${highPriorityOverdueCount} overdue` : 'urgent open'}
+              </span>
+            </div>
+          </div>
+        </StatCard>
+
+        <StatCard color={overdueCount > 0 ? 'red' : 'lime'}>
           <div style={{ padding: '14px 16px' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, color: overdueCount > 0 ? 'var(--red)' : 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '6px' }}>
               {overdueCount > 0 ? '⚠️ Overdue Tasks' : 'Deadlines On-Track'}
@@ -96,20 +152,6 @@ export default function SummaryBar({
               <span style={{ fontSize: '12px', color: 'var(--ink4)' }}>
                 {overdueCount === 1 ? 'needs attention' : overdueCount > 1 ? 'require action' : 'all on schedule'}
               </span>
-            </div>
-          </div>
-        </StatCard>
-
-        <StatCard color="teal">
-          <div style={{ padding: '14px 16px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '6px' }}>
-              Time Logged
-            </div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-              <span style={{ fontSize: '26px', fontWeight: 800, color: 'var(--teal-mid)', lineHeight: 1 }}>
-                {formatHours(totalTrackedSeconds)}
-              </span>
-              <span style={{ fontSize: '12px', color: 'var(--ink4)' }}>total effort</span>
             </div>
           </div>
         </StatCard>

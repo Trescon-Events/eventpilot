@@ -69,6 +69,8 @@ export type StaffWithTimezone = StaffLite & {
 export type OverdueTaskDigestItem = {
   task: Task
   daysOverdue: number
+  idleDays?: number
+  reason?: 'overdue' | 'stale' | 'both'
   isAssignee: boolean
 }
 

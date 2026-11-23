@@ -285,10 +285,10 @@ export default function TaskManagerConsolePage() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
           <div>
             <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>💬</span> Microsoft Teams Automated Overdue Reminders
+              <span>💬</span> Automated Follow-Up Reminders (Email + MS Teams)
             </div>
             <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '2px' }}>
-              Delivers automated 09:00 AM local morning digests to Assignors and Assignees until resolved or rescheduled.
+              Sends 3x daily digests (09:00, 13:00, 17:00 local time, Mon–Fri) to both Assigned To &amp; Assigned By (including vendors) for overdue or 3+ days untouched tasks.
             </div>
           </div>
           <Button
@@ -297,26 +297,30 @@ export default function TaskManagerConsolePage() {
               try {
                 const res = await fetch('/api/task-manager/cron/overdue?force=true', { method: 'POST' })
                 const data = await res.json()
-                alert(`Teams Sweeper Triggered:\n• Evaluated: ${data.recipients_evaluated ?? 0} staff\n• Digests Dispatched: ${data.digests_dispatched ?? 0}\n• Tasks Notified: ${data.tasks_notified ?? 0}`)
+                alert(`Follow-Up Sweep Triggered:\n• Staff Evaluated: ${data.recipients_evaluated ?? 0}\n• Emails Sent: ${data.emails_sent ?? 0}\n• Teams Dispatched: ${data.teams_dispatched ?? 0}\n• Tasks Notified: ${data.tasks_notified ?? 0}`)
                 await loadTasks()
               } catch (err: unknown) {
                 alert(`Sweep trigger error: ${err instanceof Error ? err.message : 'Unknown'}`)
               }
             }}
           >
-            ⚡ Run Overdue Sweep Test Now
+            ⚡ Run Follow-Up Sweep Now
           </Button>
         </div>
 
         <div style={{ padding: '12px 14px', background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border-light)', fontSize: '12px', color: 'var(--ink2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
           <div>
             <span style={{ fontWeight: 700, color: stats.overdue > 0 ? 'var(--red)' : 'var(--teal)' }}>
-              {stats.overdue} overdue task{stats.overdue === 1 ? '' : 's'}
+              {stats.overdue} overdue
+            </span>
+            {' · '}
+            <span style={{ fontWeight: 700, color: stats.stale > 0 ? 'var(--amber)' : 'var(--teal)' }}>
+              {stats.stale} stale
             </span>{' '}
-            currently eligible for morning digest dispatch.
+            tasks eligible for follow-up.
           </div>
           <span style={{ fontSize: '11px', color: 'var(--ink4)' }}>
-            Schedule: Mon–Fri @ 09:00 AM recipient local time
+            Schedule: Mon–Fri @ 09:00, 13:00, 17:00 recipient local time
           </span>
         </div>
       </Card>
