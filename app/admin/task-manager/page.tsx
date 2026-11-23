@@ -173,23 +173,67 @@ export default function TaskManagerPage() {
   }, [staff, activeTasks])
 
   // Macro KPI pulse summary metrics for Admin Oversight
-  const { totalTasksCount, inProgressCount, completedCount, overdueCount } = useMemo(() => {
+  const {
+    totalTasksCount,
+    inProgressCount,
+    notStartedCount,
+    notStartedHighCount,
+    completedCount,
+    overdueCount,
+    dueTodayCount,
+    dueTomorrowCount,
+    highPriorityOpenCount,
+    highPriorityOverdueCount,
+  } = useMemo(() => {
     const today = new Date(new Date().toDateString())
+    const tomorrow = new Date(today)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+
     let inProg = 0
+    let notStarted = 0
+    let notStartedHigh = 0
     let done = 0
     let overdue = 0
+    let dueToday = 0
+    let dueTomorrow = 0
+    let highOpen = 0
+    let highOverdue = 0
 
     for (const t of activeTasks) {
       if (t.status === 'In-Progress') inProg++
+      if (t.status === 'Not-Started') {
+        notStarted++
+        if (t.priority === 'High') notStartedHigh++
+      }
       if (t.status === 'Completed') done++
-      if (t.deadline && t.status !== 'Completed' && new Date(t.deadline) < today) overdue++
+
+      if (t.status !== 'Completed') {
+        if (t.priority === 'High') highOpen++
+        if (t.deadline) {
+          const d = new Date(new Date(t.deadline).toDateString())
+          if (d < today) {
+            overdue++
+            if (t.priority === 'High') highOverdue++
+          } else if (d.getTime() === today.getTime()) {
+            dueToday++
+          } else if (d.getTime() === tomorrow.getTime()) {
+            dueTomorrow++
+          }
+        }
+      }
     }
 
     return {
       totalTasksCount: activeTasks.length,
       inProgressCount: inProg,
+      notStartedCount: notStarted,
+      notStartedHighCount: notStartedHigh,
       completedCount: done,
       overdueCount: overdue,
+      dueTodayCount: dueToday,
+      dueTomorrowCount: dueTomorrow,
+      highPriorityOpenCount: highOpen,
+      highPriorityOverdueCount: highOverdue,
     }
   }, [activeTasks])
 
@@ -622,8 +666,14 @@ export default function TaskManagerPage() {
           onSelectStaff={setSelectedStaffId}
           totalTasksCount={totalTasksCount}
           inProgressCount={inProgressCount}
+          notStartedCount={notStartedCount}
+          notStartedHighCount={notStartedHighCount}
           completedCount={completedCount}
           overdueCount={overdueCount}
+          dueTodayCount={dueTodayCount}
+          dueTomorrowCount={dueTomorrowCount}
+          highPriorityOpenCount={highPriorityOpenCount}
+          highPriorityOverdueCount={highPriorityOverdueCount}
         />
       )}
 
