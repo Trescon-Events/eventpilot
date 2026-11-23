@@ -28,7 +28,7 @@ export default function TaskManagerPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [dashboardMode, setDashboardMode] = useState<'focus' | 'admin'>('focus')
+  const [dashboardMode, setDashboardMode] = useState<'focus' | 'admin'>('admin')
   const [focusSubTab, setFocusSubTab] = useState<'assigned_to_me' | 'assigned_by_me' | 'all'>('assigned_to_me')
   const [groupByEvent, setGroupByEvent] = useState(false)
   const [view, setView] = useState<ViewMode>('table')
