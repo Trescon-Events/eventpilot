@@ -1,7 +1,8 @@
 'use client'
+import { useRef } from 'react'
 import StatCard from '@/app/components/ui/StatCard'
 import { Avatar, CUSTOM_SCROLLBAR_STYLE } from './ui'
-import { StaffLite, isBrandingStaff } from './types'
+import { StaffLite, isCoreBrandingOrVendor } from './types'
 
 export type AssigneeCounts = Record<string, { name: string; total: number; not_started: number; in_progress: number; completed: number }>
 
@@ -40,6 +41,8 @@ export default function SummaryBar({
   highPriorityOpenCount,
   highPriorityOverdueCount,
 }: Props) {
+  const firstAvailableRef = useRef<HTMLDivElement | null>(null)
+
   // Only show staff members who currently have active (in-progress or not-started) tasks
   const entries = Object.entries(counts)
     .filter(([, r]) => (r.in_progress + r.not_started) > 0)
@@ -47,10 +50,9 @@ export default function SummaryBar({
   const activeTasksCount = Math.max(0, totalTasksCount - completedCount)
   const completionRate = totalTasksCount > 0 ? Math.round((completedCount / totalTasksCount) * 100) : 0
 
-  // Branding/creative team + external vendors (Cactus, Pixelate) with 0 active tasks
+  // Core Branding team (Nazim, Waseem, Sajeesh, Shafi, Lohith, Krishanu, Sohaila, Durai, Rajesh VM) + Vendors with 0 active tasks
   const idleStaff = staff.filter(s => {
-    const isCreativeOrVendor = isBrandingStaff(s) || s.account_type === 'vendor'
-    if (!isCreativeOrVendor) return false
+    if (!isCoreBrandingOrVendor(s)) return false
     const r = counts[s.id]
     const active = r ? r.in_progress + r.not_started : 0
     return active === 0
@@ -165,7 +167,9 @@ export default function SummaryBar({
                 Team Capacity & Workload
               </span>
               {idleStaff.length > 0 && (
-                <span
+                <button
+                  type="button"
+                  onClick={() => firstAvailableRef.current?.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -177,11 +181,13 @@ export default function SummaryBar({
                     border: '1px solid var(--border)',
                     fontSize: '11px',
                     fontWeight: 700,
+                    cursor: 'pointer',
                   }}
+                  title="Jump to available Branding team & Vendors"
                 >
                   <span style={{ fontSize: '9px' }}>🟢</span>
                   <span>{idleStaff.length} Available (0 tasks)</span>
-                </span>
+                </button>
               )}
             </div>
 
@@ -325,13 +331,15 @@ export default function SummaryBar({
               />
             )}
 
-            {/* Available / Free Team Members Inline (0 active tasks — Branding & Vendors) */}
-            {idleStaff.map(s => (
+            {/* Available / Free Team Members Inline (0 active tasks — Core Branding & Vendors) */}
+            {idleStaff.map((s, idx) => (
               <div
                 key={s.id}
+                ref={idx === 0 ? firstAvailableRef : undefined}
                 style={{
                   flex: '0 0 auto',
                   minWidth: '235px',
+                  maxWidth: '305px',
                   padding: '10px 14px',
                   borderRadius: '12px',
                   background: 'var(--surface)',

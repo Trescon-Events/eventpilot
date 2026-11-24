@@ -34,6 +34,28 @@ export function isBrandingStaff(s: StaffLite): boolean {
   )
 }
 
+/**
+ * Core Branding team members + external vendor accounts shown in the
+ * Team Capacity "Available (0 tasks)" strip when idle.
+ */
+export const CORE_BRANDING_NAMES = [
+  'nazim',
+  'waseem',
+  'sajeesh',
+  'shafi',
+  'lohith',
+  'krishanu',
+  'sohaila',
+  'durai',
+  'rajesh vm',
+] as const
+
+export function isCoreBrandingOrVendor(s: StaffLite): boolean {
+  if (s.account_type === 'vendor') return true
+  const name = (s.name || '').toLowerCase().trim()
+  return CORE_BRANDING_NAMES.some(k => name.includes(k))
+}
+
 export type Task = {
   id: string
   event_id: string | null
