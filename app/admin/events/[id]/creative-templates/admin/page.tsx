@@ -905,10 +905,17 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
         eyebrow="Event Workspace · Admin Console"
         title="Stakeholder Announcement Engine"
         description="Branding-team console — build and edit creative variants (layer stacks), and manage who has access to this tool."
-        actions={activeTab === 'variants' && allowedTabs ? (
+        actions={allowedTabs ? (
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <Button variant="ghost" onClick={undo} disabled={undoCount === 0} title="Undo (Cmd/Ctrl+Z)">↶ Undo</Button>
-            <Button variant="ghost" onClick={redo} disabled={redoCount === 0} title="Redo (Cmd/Ctrl+Shift+Z)">↷ Redo</Button>
+            {activeTab === 'variants' && (
+              <>
+                <Button variant="ghost" onClick={undo} disabled={undoCount === 0} title="Undo (Cmd/Ctrl+Z)">↶ Undo</Button>
+                <Button variant="ghost" onClick={redo} disabled={redoCount === 0} title="Redo (Cmd/Ctrl+Shift+Z)">↷ Redo</Button>
+              </>
+            )}
+            <Button variant="ghost" onClick={() => setShowPlaceholderPanel(s => !s)}>
+              {showPlaceholderPanel ? 'Close Placeholder' : 'Edit Placeholder'}
+            </Button>
           </div>
         ) : undefined}
       />
@@ -926,6 +933,24 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
             </button>
           ))}
         </div>
+
+        {/* Placeholder panel — rendered here (below the tab bar) when on Stage / Title Cards / Access tabs.
+            The Variants tab has its own inline placement in the preview column with variant-specific usedFields. */}
+        {showPlaceholderPanel && allowedTabs && activeTab !== 'variants' && (
+          <div style={{ marginBottom: '20px', padding: '16px 20px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', display: 'grid', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '13.5px', fontWeight: 800, color: 'var(--ink)' }}>Placeholder Speaker</span>
+              <span style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>Used in layout previews as a stand-in for real speakers.</span>
+            </div>
+            <PlaceholderSourceControl
+              activeType="speaker"
+              profile={placeholderProfiles.speaker}
+              globalValue={globalDefaults.speaker}
+              onSave={savePlaceholder}
+              usedFields={new Set(SPEAKER_PLACEHOLDER_FIELDS)}
+            />
+          </div>
+        )}
 
         {!allowedTabs ? (
           <div style={{ color: 'var(--ink3)' }}>Loading…</div>

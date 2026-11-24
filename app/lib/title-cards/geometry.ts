@@ -8,11 +8,18 @@ export const TITLE_CARD_H = 1080
 
 export type GridArea = Pick<SpeakerGridLayer, 'x' | 'y' | 'width' | 'height' | 'columns' | 'max_rows' | 'gap_x' | 'gap_y' | 'card_min_width' | 'card_max_width'>
 
+/** Optimal column count: for 1-2 speakers use exactly that many; for 3+ use the minimum needed to fill max_rows.
+ *  This gives 2+1 for 3 speakers, 2+2 for 4, 3+2 for 5, 3+3 for 6 — maximising card size. */
+function optimalColumns(n: number, maxCols: number, maxRows: number): number {
+  if (n <= 2) return Math.min(Math.max(1, n), maxCols)
+  return Math.min(maxCols, Math.ceil(n / maxRows))
+}
+
 /** How many rows and columns given n speakers and the grid spec. Respects max_rows and columns. */
 export function gridLayout(n: number, area: GridArea): { rows: number; cols: number[] } {
   const count = Math.max(1, n)
-  const maxCols = Math.min(area.columns, count)
-  const rows = Math.min(area.max_rows, Math.ceil(count / maxCols))
+  const useCols = optimalColumns(count, area.columns, area.max_rows)
+  const rows = Math.min(area.max_rows, Math.ceil(count / useCols))
   // Fill rows evenly: first row gets the remainder (5 speakers = 3 + 2 for 2 rows of 3)
   const perRow = Math.ceil(count / rows)
   const cols: number[] = []
@@ -21,16 +28,14 @@ export function gridLayout(n: number, area: GridArea): { rows: number; cols: num
   return { rows, cols }
 }
 
-/** Card size for n cards given the grid spec. Fits width within max_card_width and height within area. aspect = card h/w. */
-export function gridCardSize(n: number, area: GridArea, aspect: number): { width: number; height: number } {
+/** Card size for n cards given the grid spec.
+ *  Cards fill the grid area completely — width divided by column count, height divided by row count.
+ *  No aspect-ratio constraint on the card itself; the photo inside self-clips to a square. */
+export function gridCardSize(n: number, area: GridArea, _aspect: number): { width: number; height: number } {
   const { rows, cols } = gridLayout(n, area)
   const maxCols = Math.max(...cols)
-  let width = Math.min(area.card_max_width, (area.width - area.gap_x * (maxCols - 1)) / maxCols)
-  let height = width * aspect
-  const totalH = rows * height + Math.max(0, rows - 1) * area.gap_y
-  if (totalH > area.height) { height = (area.height - Math.max(0, rows - 1) * area.gap_y) / rows; width = height / aspect }
-  width = Math.max(area.card_min_width, Math.floor(width))
-  height = Math.max(1, Math.floor(width * aspect))
+  const width  = Math.max(area.card_min_width, Math.floor((area.width  - area.gap_x * Math.max(0, maxCols - 1)) / maxCols))
+  const height = Math.max(1,                   Math.floor((area.height - area.gap_y * Math.max(0, rows    - 1)) / rows))
   return { width, height }
 }
 

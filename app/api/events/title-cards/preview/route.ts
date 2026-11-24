@@ -38,30 +38,35 @@ export async function POST(req: NextRequest) {
   let sessionMeta: SessionMeta | null = null
   let trackNameMap: Map<string, string> | null = null
   let people: TitleCardPerson[]
+  let _dbg = ''
 
   if (sessionId) {
     // Real session: load actual speakers
-    const [{ data: sessionRow }, { data: links }, roles, { data: tracksRaw }] = await Promise.all([
+    const [{ data: sessionRow }, { data: links, error: linksErr }, roles, { data: tracksRaw }] = await Promise.all([
       supabaseAdmin.from('event_agenda_sessions').select('title, content_type, track_id').eq('id', sessionId).maybeSingle(),
       supabaseAdmin.from('event_agenda_session_speakers').select('speaker_id, role_tag_id, order_index').eq('session_id', sessionId).order('order_index'),
       getEventRoles(eventId),
       supabaseAdmin.from('event_agenda_tracks').select('id, name').eq('event_id', eventId),
     ])
     if (!sessionRow) return NextResponse.json({ error: 'Session not found.' }, { status: 404 })
+    if (linksErr) console.error('[tc-preview] session_speakers error:', linksErr)
     sessionMeta = sessionRow as SessionMeta
     trackNameMap = new Map((tracksRaw ?? []).map(t => [t.id as string, t.name as string]))
 
     const speakerIds = [...new Set((links ?? []).map(l => l.speaker_id as string))]
+    console.log('[tc-preview] session', sessionId, 'links:', links?.length ?? 0, 'speakerIds:', speakerIds.length)
 
-    const { data: speakers } = speakerIds.length
+    const { data: speakers, error: speakersErr } = speakerIds.length
       ? await supabaseAdmin.from('event_speakers')
-          .select('id, name, public_name, job_title, company, website_card_url, photo_processed_url, photo_head_box, konfhub_primary_role_tag_id')
-          .eq('event_id', eventId).eq('active', true).in('id', speakerIds)
-      : { data: [] }
+          .select('id, name, public_name, role, company, website_card_url, photo_processed_url, photo_head_box, konfhub_primary_role_tag_id')
+          .eq('active', true).in('id', speakerIds)
+      : { data: [], error: null }
+    if (speakersErr) console.error('[tc-preview] event_speakers error:', speakersErr)
+    console.log('[tc-preview] speakers fetched:', speakers?.length ?? 0)
 
     const person = new Map((speakers ?? []).map(p => [p.id as string, p]))
     const roleLabel = new Map(roles.map(r => [r.tag_id, r.label]))
-    const useWebsite = config.card_design !== 'template'
+    const useWebsite = config.card_design === 'website'
 
     const byPerson = new Map<string, { moderator: boolean; order: number }>()
     for (const l of links ?? []) {
@@ -78,6 +83,8 @@ export async function POST(req: NextRequest) {
       .filter(([id]) => person.has(id))
       .sort((a, b) => Number(b[1].moderator) - Number(a[1].moderator) || a[1].order - b[1].order)
 
+    _dbg = `links=${links?.length ?? 0}${linksErr ? '(ERR)' : ''},spk=${speakers?.length ?? 0}${speakersErr ? '(ERR:' + speakersErr.message.slice(0, 20) + ')' : ''},sorted=${sorted.length}`
+
     if (sorted.length === 0) {
       // Session has no speakers — render with a single placeholder so the layout is still visible
       people = [{ name: 'No speakers assigned', title: '', company: '', moderator: false, buffer: placeholderGrey, url: 'placeholder', headBox: null }]
@@ -91,7 +98,7 @@ export async function POST(req: NextRequest) {
         const buffer = photoUrl ? (await fetchAssetBuffer(photoUrl)) ?? placeholderGrey : placeholderGrey
         return {
           name: clean(p.public_name) || clean(p.name) || `Speaker ${id.slice(0, 4)}`,
-          title: clean(p.job_title),
+          title: clean(p.role),
           company: clean(p.company),
           moderator: m.moderator,
           buffer,
@@ -101,18 +108,27 @@ export async function POST(req: NextRequest) {
       }))
     }
   } else {
-    // Placeholder preview
+    // Placeholder preview — use the global platform placeholder speaker if available.
+    const { data: gdRow } = await supabaseAdmin.from('template_placeholder_defaults').select('*').eq('stakeholder_type', 'speaker').maybeSingle()
+    const gd = gdRow as { name: string | null; job_title: string | null; company_name: string | null; photo_url: string | null; photo_head_box: HeadBox | null } | null
     const placeholderGrey = await sharp({ create: { width: 300, height: 300, channels: 4, background: PLACEHOLDER_GREY } }).png().toBuffer()
+    // For website design, prefer the pre-generated placeholder website card URL stored on the config,
+    // then fall back to the plain placeholder photo.
+    const useWebsite = config.card_design === 'website'
+    const rawPhotoUrl = useWebsite ? (config.placeholder_website_card_url ?? gd?.photo_url) : gd?.photo_url
+    const buffer = rawPhotoUrl ? ((await fetchAssetBuffer(rawPhotoUrl)) ?? placeholderGrey) : placeholderGrey
+    const headBox = (useWebsite || !gd?.photo_head_box) ? null : (gd.photo_head_box as HeadBox | null)
+
     const count = typeof b.speaker_count === 'number' ? Math.max(1, Math.min(6, Math.round(b.speaker_count))) : 3
     const hasModerator = b.has_moderator === true
     people = Array.from({ length: count }, (_, i) => ({
-      name: PLACEHOLDER_NAMES[i] ?? `Speaker ${i + 1}`,
-      title: PLACEHOLDER_TITLE,
-      company: PLACEHOLDER_COMPANY,
+      name: gd?.name ?? PLACEHOLDER_NAMES[i] ?? `Speaker ${i + 1}`,
+      title: gd?.job_title ?? PLACEHOLDER_TITLE,
+      company: gd?.company_name ?? PLACEHOLDER_COMPANY,
       moderator: hasModerator && i === 0,
-      buffer: placeholderGrey,
-      url: 'placeholder',
-      headBox: null,
+      buffer,
+      url: rawPhotoUrl ?? 'placeholder',
+      headBox,
     }))
   }
 
@@ -123,11 +139,14 @@ export async function POST(req: NextRequest) {
     : (typeof b.session_stage === 'string' ? b.session_stage.trim() : 'Plenary - 1')
   const titleStr = sessionMeta?.title?.trim() ?? (typeof b.session_title === 'string' ? b.session_title.trim() : 'The Future of Finance: Innovation at Scale')
 
+  const debugInfo = sessionId ? `eid=${eventId.slice(0, 8)},sid=${sessionId.slice(0, 8)},${_dbg},first=${people[0]?.name?.slice(0, 12) ?? '?'}` : `placeholder=${people.length}`
+  const dbgHeader = { 'X-TC-Debug': debugInfo, 'Access-Control-Expose-Headers': 'X-TC-Debug' }
+
   try {
     const png = await drawTitleCard(config, { tag: tagStr || undefined, stage: stageStr || undefined, title: titleStr }, people)
-    const small = await sharp(png).resize({ width: 1600, withoutEnlargement: true }).png().toBuffer()
-    return new NextResponse(new Uint8Array(small), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' } })
+    const small = await sharp(png).resize({ width: 960, withoutEnlargement: true }).png().toBuffer()
+    return new NextResponse(new Uint8Array(small), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'no-store', ...dbgHeader } })
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'Render failed.' }, { status: 500 })
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Render failed.' }, { status: 500, headers: dbgHeader })
   }
 }

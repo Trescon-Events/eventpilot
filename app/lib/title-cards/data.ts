@@ -18,6 +18,28 @@ export type TitleCardTextElement = {
   pill?: { fill: string; padding_x: number; padding_y: number; radius: number } | null
 }
 
+export type TitleCardTextElements = {
+  session_tag?: TitleCardTextElement
+  session_stage?: TitleCardTextElement
+  session_title?: TitleCardTextElement
+  moderator?: TitleCardTextElement
+  speaker_name?: TitleCardTextElement
+  speaker_title?: TitleCardTextElement
+  speaker_company?: TitleCardTextElement
+}
+
+/** Per-layout style overrides — stored under layout_overrides['1'|'2'|'4'|'6'] */
+export type TitleCardLayoutOverride = {
+  text_elements: TitleCardTextElements
+  font_id: string | null
+  stage_tag_gap: number
+  session_title_top_gap: number    // gap between pill-row bottom and session title top
+  session_title_bottom_gap: number // gap between session title area bottom and speaker grid top
+  card_gap: number                 // uniform H+V gap between speaker cards
+  grid_x?: number                  // per-tab override for the grid's left edge (canvas px)
+  grid_width?: number              // per-tab override for the grid width (canvas px)
+}
+
 export type TitleCardConfig = {
   card_design: 'website' | 'plain' | 'template'
   card_variant_id: string | null
@@ -25,15 +47,7 @@ export type TitleCardConfig = {
   card_bg_url: string | null
   background_url: string | null
   font_id: string | null
-  text_elements: {
-    session_tag?: TitleCardTextElement
-    session_stage?: TitleCardTextElement
-    session_title?: TitleCardTextElement
-    moderator?: TitleCardTextElement
-    speaker_name?: TitleCardTextElement
-    speaker_title?: TitleCardTextElement
-    speaker_company?: TitleCardTextElement
-  }
+  text_elements: TitleCardTextElements
   speaker_grid: {
     x: number; y: number; width: number; height: number
     columns: number; max_rows: number
@@ -43,6 +57,11 @@ export type TitleCardConfig = {
   photo_pct: number
   gap_px: number
   card_aspect: number
+  stage_tag_gap: number            // global default; overridden per-layout
+  session_title_top_gap: number    // gap between pill-row bottom and session title (default 24)
+  session_title_bottom_gap: number // gap between session title and speaker grid (default 25)
+  layout_overrides: Partial<Record<'1' | '2' | '4' | '6', TitleCardLayoutOverride>>
+  placeholder_website_card_url: string | null  // pre-generated website card for the placeholder speaker
 }
 
 export const DEFAULT_TITLE_CARD_CONFIG: TitleCardConfig = {
@@ -53,18 +72,24 @@ export const DEFAULT_TITLE_CARD_CONFIG: TitleCardConfig = {
   background_url: null,
   font_id: null,
   text_elements: {
-    session_tag:   { x: 52,   y: 180, width: 500,  size: 32, weight: 700, color: '#FFFFFF', upper: true,  max_lines: 1, pill: { fill: '#00B4D8', padding_x: 18, padding_y: 8, radius: 6 } },
-    session_stage: { x: 580,  y: 180, width: 500,  size: 32, weight: 400, color: '#FFFFFF', upper: false, max_lines: 1 },
-    session_title: { x: 52,   y: 250, width: 1600, size: 72, weight: 700, color: '#FFFFFF', upper: false, max_lines: 3 },
-    moderator:     {                                size: 36, weight: 700, color: '#00B4D8', upper: true,  max_lines: 1 },
-    speaker_name:  {                                size: 68, weight: 700, color: '#FFFFFF', upper: true,  max_lines: 2 },
-    speaker_title: {                                size: 44, weight: 400, color: '#FFFFFF', upper: false, max_lines: 3 },
-    speaker_company: {                              size: 40, weight: 400, color: '#CCCCCC', upper: false, max_lines: 2 },
+    // Stage pill first (x=52), session type plain text second (x=250)
+    session_stage: { x: 52,  y: 175, width: 400,  size: 24, weight: 700, color: '#FFFFFF', upper: true,  max_lines: 1, pill: { fill: '#00B4D8', padding_x: 18, padding_y: 8, radius: 6 } },
+    session_tag:   { x: 220, y: 175, width: 700,  size: 24, weight: 400, color: '#FFFFFF', upper: false, max_lines: 1 },
+    session_title: { x: 52,  y: 228, width: 1856, size: 96, weight: 700, color: '#FFFFFF', upper: false, max_lines: 2 },
+    moderator:     {                               size: 42, weight: 700, color: '#00B4D8', upper: true,  max_lines: 1 },
+    speaker_name:  {                               size: 62, weight: 700, color: '#FFFFFF', upper: true,  max_lines: 2 },
+    speaker_title: {                               size: 36, weight: 400, color: '#FFFFFF', upper: false, max_lines: 2 },
+    speaker_company: {                             size: 34, weight: 400, color: '#CCCCCC', upper: false, max_lines: 2 },
   },
-  speaker_grid: { x: 185, y: 540, width: 1735, height: 410, columns: 3, max_rows: 2, gap_x: 20, gap_y: 20, card_min_width: 300, card_max_width: 700 },
-  photo_pct: 38,
-  gap_px: 36,
-  card_aspect: 0.6,
+  speaker_grid: { x: 52, y: 525, width: 1768, height: 440, columns: 3, max_rows: 2, gap_x: 20, gap_y: 25, card_min_width: 300, card_max_width: 900 },
+  photo_pct: 37,
+  gap_px: 20,
+  card_aspect: 0.325,
+  stage_tag_gap: 10,
+  session_title_top_gap: 24,
+  session_title_bottom_gap: 25,
+  layout_overrides: {},
+  placeholder_website_card_url: null,
 }
 
 export function mergeTitleCardConfig(raw: unknown): TitleCardConfig {
@@ -108,6 +133,18 @@ export function mergeTitleCardConfig(raw: unknown): TitleCardConfig {
   const dg = d.speaker_grid
   const rg = r.speaker_grid && typeof r.speaker_grid === 'object' ? r.speaker_grid as Record<string, unknown> : {}
 
+  // Merge global text elements first so overrides can inherit from the user's global values
+  // (not the system defaults) when the override doesn't explicitly set a field like max_lines.
+  const mergedGlobalTe = {
+    session_tag:     mergeEl(te.session_tag,     d.text_elements.session_tag),
+    session_stage:   mergeEl(te.session_stage,   d.text_elements.session_stage),
+    session_title:   mergeEl(te.session_title,   d.text_elements.session_title),
+    moderator:       mergeEl(te.moderator,       d.text_elements.moderator),
+    speaker_name:    mergeEl(te.speaker_name,    d.text_elements.speaker_name),
+    speaker_title:   mergeEl(te.speaker_title,   d.text_elements.speaker_title),
+    speaker_company: mergeEl(te.speaker_company, d.text_elements.speaker_company),
+  }
+
   return {
     card_design: r.card_design === 'website' ? 'website' : r.card_design === 'template' ? 'template' : 'plain',
     card_variant_id: str(r.card_variant_id),
@@ -115,15 +152,7 @@ export function mergeTitleCardConfig(raw: unknown): TitleCardConfig {
     card_bg_url: str(r.card_bg_url),
     background_url: str(r.background_url),
     font_id: str(r.font_id),
-    text_elements: {
-      session_tag:     mergeEl(te.session_tag,     d.text_elements.session_tag),
-      session_stage:   mergeEl(te.session_stage,   d.text_elements.session_stage),
-      session_title:   mergeEl(te.session_title,   d.text_elements.session_title),
-      moderator:       mergeEl(te.moderator,       d.text_elements.moderator),
-      speaker_name:    mergeEl(te.speaker_name,    d.text_elements.speaker_name),
-      speaker_title:   mergeEl(te.speaker_title,   d.text_elements.speaker_title),
-      speaker_company: mergeEl(te.speaker_company, d.text_elements.speaker_company),
-    },
+    text_elements: mergedGlobalTe,
     speaker_grid: {
       x:            int(rg.x,            dg.x,            0,   1920),
       y:            int(rg.y,            dg.y,            0,   1080),
@@ -136,9 +165,43 @@ export function mergeTitleCardConfig(raw: unknown): TitleCardConfig {
       card_min_width: int(rg.card_min_width, dg.card_min_width, 50, 1000),
       card_max_width: int(rg.card_max_width, dg.card_max_width, 100, 1920),
     },
-    photo_pct:   num(r.photo_pct,   d.photo_pct,   10, 70),
-    gap_px:      num(r.gap_px,      d.gap_px,      0,  200),
-    card_aspect: num(r.card_aspect, d.card_aspect, 0.3, 1.5),
+    photo_pct:     num(r.photo_pct,     d.photo_pct,     10, 70),
+    gap_px:        num(r.gap_px,        d.gap_px,        0,  200),
+    card_aspect:   num(r.card_aspect,   d.card_aspect,   0.3, 1.5),
+    stage_tag_gap:            int(r.stage_tag_gap,            d.stage_tag_gap,            0, 200),
+    session_title_top_gap:    int(r.session_title_top_gap,    d.session_title_top_gap,    0, 500),
+    session_title_bottom_gap: int(r.session_title_bottom_gap, d.session_title_bottom_gap, 0, 500),
+    placeholder_website_card_url: str(r.placeholder_website_card_url),
+    layout_overrides: (() => {
+      if (!r.layout_overrides || typeof r.layout_overrides !== 'object') return {}
+      const raw = r.layout_overrides as Record<string, unknown>
+      const result: TitleCardConfig['layout_overrides'] = {}
+      for (const key of ['1', '2', '4', '6'] as const) {
+        const ov = raw[key]
+        if (!ov || typeof ov !== 'object') continue
+        const o = ov as Record<string, unknown>
+        const ote = o.text_elements && typeof o.text_elements === 'object' ? o.text_elements as Record<string, unknown> : {}
+        result[key] = {
+          text_elements: {
+            session_tag:     mergeEl(ote.session_tag,     mergedGlobalTe.session_tag),
+            session_stage:   mergeEl(ote.session_stage,   mergedGlobalTe.session_stage),
+            session_title:   mergeEl(ote.session_title,   mergedGlobalTe.session_title),
+            moderator:       mergeEl(ote.moderator,       mergedGlobalTe.moderator),
+            speaker_name:    mergeEl(ote.speaker_name,    mergedGlobalTe.speaker_name),
+            speaker_title:   mergeEl(ote.speaker_title,   mergedGlobalTe.speaker_title),
+            speaker_company: mergeEl(ote.speaker_company, mergedGlobalTe.speaker_company),
+          },
+          font_id:                  str(o.font_id),
+          stage_tag_gap:            int(o.stage_tag_gap,            d.stage_tag_gap,            0, 200),
+          session_title_top_gap:    int(o.session_title_top_gap,    d.session_title_top_gap,    0, 500),
+          session_title_bottom_gap: int(o.session_title_bottom_gap, d.session_title_bottom_gap, 0, 500),
+          card_gap:                 int(o.card_gap,                 dg.gap_x,                   0, 200),
+          ...(typeof o.grid_x    === 'number' ? { grid_x:    int(o.grid_x,    dg.x,     0, 1920) } : {}),
+          ...(typeof o.grid_width === 'number' ? { grid_width: int(o.grid_width, dg.width, 50, 1920) } : {}),
+        }
+      }
+      return result
+    })(),
   }
 }
 
@@ -268,13 +331,13 @@ export async function loadTitleCardSessions(eventId: string, opts: LoadTitleCard
   ])
   const speakerIds = [...new Set((links ?? []).map(l => l.speaker_id as string))]
   const { data: people } = speakerIds.length
-    ? await supabaseAdmin.from('event_speakers').select('id, name, public_name, job_title, company, website_card_url, photo_processed_url, photo_head_box, konfhub_primary_role_tag_id').eq('event_id', eventId).eq('active', true).in('id', speakerIds)
+    ? await supabaseAdmin.from('event_speakers').select('id, name, public_name, role, company, website_card_url, photo_processed_url, photo_head_box, konfhub_primary_role_tag_id').eq('active', true).in('id', speakerIds)
     : { data: [] as Record<string, unknown>[] }
   const person = new Map((people ?? []).map(p => [p.id as string, p]))
   const roleLabel = new Map(roles.map(r => [r.tag_id, r.label]))
   const savedBy = new Map((saved ?? []).map(r => [r.agenda_session_id as string, r]))
   const trackName = new Map((tracks ?? []).map(t => [t.id as string, t.name as string]))
-  const useWebsite = setup.config.card_design !== 'template'
+  const useWebsite = setup.config.card_design === 'website'
 
   const out: TitleCardSession[] = []
   for (const s of want) {
@@ -300,7 +363,7 @@ export async function loadTitleCardSessions(eventId: string, opts: LoadTitleCard
         const headBox = (useWebsite && websiteUrl) ? null : ((p.photo_head_box as HeadBox | null) ?? null)
         return {
           speakerId: id, moderator: m.moderator, name: nameOf(id),
-          title: clean(p.job_title), company: clean(p.company),
+          title: clean(p.role), company: clean(p.company),
           photoUrl, headBox,
           ready: !!(useWebsite ? websiteUrl : cleanedUrl),
         }
