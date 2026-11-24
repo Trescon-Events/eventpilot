@@ -11,6 +11,8 @@ import { encryptToken, decryptToken } from '@/app/lib/security/token-crypto'
 
 export const GLOBAL_SECRET_IDS = {
   hubspotCrmServiceKey: 'hubspot_crm_service_key',
+  youtubeOauthClientId: 'youtube_oauth_client_id',
+  youtubeOauthClientSecret: 'youtube_oauth_client_secret',
 } as const
 
 export async function getGlobalSecret(id: string): Promise<string | null> {

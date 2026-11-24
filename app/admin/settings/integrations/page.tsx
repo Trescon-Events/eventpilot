@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import { Card, Button, Badge, Input, Toast } from '@/app/components/ui'
+import YouTubeAccountsCard from '@/app/components/youtube/YouTubeAccountsCard'
 
 /* Global Integrations (2026-09-21) — credentials shared across every
    event, not scoped to any one of them (contrast with each event's own
@@ -94,6 +95,8 @@ export default function GlobalIntegrationsSettingsPage() {
             </>
           )}
         </Card>
+
+        <div style={{ marginTop: '16px' }}><YouTubeAccountsCard /></div>
       </div>
     </div>
   )

@@ -268,6 +268,16 @@ export const CREDENTIALS: Credential[] = [
 
   /* ── CRM, social & marketing ──────────────────────────────────────── */
   {
+    id: 'youtube-oauth', platform: 'YouTube — OAuth client + connected channels', group: 'CRM, social & marketing',
+    what: 'Session-video upload to YouTube. The Google OAuth client ID/secret are pasted at Admin → Settings → Global Integrations (stored encrypted in the DB, no env var); each connected channel stores its own encrypted refresh token in youtube_connections. Each event picks its channel on its Integrations page.',
+    vars: [], stores: ['database'],
+    consoleUrl: 'https://console.cloud.google.com/apis/credentials?authuser=4&project=eventpilot-site-operations',
+    login: 'OAuth client: whichever Google Cloud project it was created in (confirm). Channels: each channel owner connects their own login.',
+    rotate: 'OAuth client: create a new client, paste id + secret again in Global Integrations, then reconnect every channel. A channel: Disconnect in Global Integrations (revokes at Google), connect again.',
+    mode: 'old-stays',
+    note: 'Needs the YouTube Data API v3 enabled, and redirect URIs https://eventpilot.tresconglobal.com/api/admin/youtube/callback + http://localhost:3000/api/admin/youtube/callback. While the consent screen is in Testing mode, refresh tokens expire after 7 days and only listed test users can connect — publish the app (Google verification for the youtube.upload scope) for permanent connections. API quota: an upload costs 1,600 of the default 10,000 units/day (~6 uploads/day) until a quota extension is approved.',
+  },
+  {
     id: 'hubspot-crm', platform: 'HubSpot — CRM Sync service key', group: 'CRM, social & marketing',
     what: 'Speaker/sponsor sync to HubSpot (service key "EventPilot CRM Sync"). Can ALSO be pasted at Admin → Settings → Global Integrations (stored encrypted in the DB).',
     vars: ['HUBSPOT_CRM_SERVICE_KEY'], stores: ['railway', 'database'],

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 import { Card, Button, Input, Select, Badge, Toast } from '@/app/components/ui'
 import AgendaMappingCard from './AgendaMappingCard'
+import EventYouTubeCard from '@/app/components/youtube/EventYouTubeCard'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import { FORM_TYPES, FORM_TITLES, type FormType } from '@/app/lib/forms/types'
 import { FEATURE_REGISTRY, getFeatureDef, type FeatureKey } from '@/app/lib/registry/feature-flags'
@@ -27,6 +28,7 @@ const NAV_SECTIONS = [
   { id: 'agenda-structure', label: 'Agenda Structure' },
   { id: 'hubspot', label: 'HubSpot Forms' },
   { id: 'postiz', label: 'Postiz' },
+  { id: 'youtube', label: 'YouTube' },
   { id: 'client-approval', label: 'Client Approval Contacts' },
   { id: 'badge-approval', label: 'Client Approval — Badges' },
   { id: 'content-guidelines', label: 'Content Guidelines API' },
@@ -191,6 +193,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
   const [eventName, setEventName] = useState('')
   const [loading, setLoading] = useState(true)
   const [canManage, setCanManage] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   // Per-event feature toggles (2026-09-27) — see app/lib/registry/feature-flags.ts.
   // Client Approval Contacts isn't in that registry (it's downstream of the
   // existing events.requires_client_approval, not a new key) — hidden only
@@ -395,6 +398,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
     setClientApprovalOn(ev?.requires_client_approval !== false)
     const permData = await permRes.json().catch(() => ({ permissions: [] }))
     const perms: string[] = permData.permissions ?? []
+    setIsAdmin(perms.includes('*'))
     setCanManage(perms.includes('*') || perms.some(p => p === 'sae.integrations.manage' || p === 'sae.*'))
     const fieldsData = await fieldsRes.json().catch(() => ({ fields: [], autoFields: [] }))
     setRegistrationFields(fieldsData.fields ?? [])
@@ -960,6 +964,7 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
     'agenda-structure': enabledFeatures.has('integration-agenda-structure'),
     hubspot: enabledFeatures.has('integration-hubspot-forms'),
     postiz: enabledFeatures.has('integration-postiz'),
+    youtube: true,
     'client-approval': clientApprovalOn,
     'badge-approval': true,
     'content-guidelines': enabledFeatures.has('integration-content-guidelines-api'),
@@ -1502,6 +1507,12 @@ export default function IntegrationsPage({ params }: { params: Promise<{ id: str
             </div>
           )}
         </Card></div>
+        </section>
+        )}
+
+        {sectionEnabled.youtube && (
+        <section id="youtube" ref={el => { sectionRefs.current.youtube = el }} style={{ scrollMarginTop: '20px' }}>
+          <div style={{ marginTop: '16px' }}><EventYouTubeCard eventId={eventId} canManage={canManage} isAdmin={isAdmin} /></div>
         </section>
         )}
 
