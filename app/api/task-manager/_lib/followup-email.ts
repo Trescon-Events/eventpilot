@@ -90,10 +90,12 @@ function renderSection(title: string, subtitle: string, items: OverdueTaskDigest
 
 export async function sendTaskManagerFollowupDigest({
   to,
+  cc,
   recipientName,
   items,
 }: {
   to: string
+  cc?: string[]
   recipientName: string
   items: OverdueTaskDigestItem[]
 }): Promise<{ success: boolean; error?: string }> {
@@ -161,10 +163,15 @@ export async function sendTaskManagerFollowupDigest({
     </html>
   `
 
+  const toLower = to.trim().toLowerCase()
+  const dedupedCc = [...new Set((cc ?? []).map(e => e.trim()).filter(Boolean))]
+    .filter(e => e.toLowerCase() !== toLower)
+
   try {
     const res = await getResend().emails.send({
       from: systemFrom(),
       to,
+      ...(dedupedCc.length > 0 ? { cc: dedupedCc } : {}),
       subject: `Task Follow-Up: ${totalCount} task${totalCount === 1 ? '' : 's'} need a status or deadline update`,
       html,
     })

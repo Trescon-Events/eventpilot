@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { dispatchTeamsWebhook, generateOverdueDigestCard, isStaffMorningWindow } from '@/app/admin/task-manager/teams-digest'
-import { OverdueTaskDigestItem, StaffWithTimezone, Task } from '@/app/admin/task-manager/types'
+import { OverdueTaskDigestItem, StaffWithTimezone, Task, isCoreBrandingOrVendor } from '@/app/admin/task-manager/types'
 import { sendTaskManagerFollowupDigest } from '../../_lib/followup-email'
 
 export const runtime = 'nodejs'
 
 const STALE_DAYS_THRESHOLD = 3
 const COOLDOWN_HOURS = 3
+const BRANDING_HEAD_EMAIL = 'khalifa@tresconglobal.com'
+
+type StaffWithManager = StaffWithTimezone & {
+  manager_id?: string | null
+}
 
 export async function GET(req: NextRequest) {
   return handleSweep(req)
@@ -119,31 +124,33 @@ async function handleSweep(req: NextRequest) {
       })
     }
 
-    // 2. Query all staff members (including external vendors like Pixelate / Cactus)
-    let rawStaff: StaffWithTimezone[] = []
+    // 2. Query all staff members (including external vendors like Pixelate / Cactus + manager_id for CC)
+    let rawStaff: StaffWithManager[] = []
     const { data: staffData, error: staffErr } = await supabaseAdmin
       .from('staff_members')
-      .select('id, name, email, aad_object_id, office_timezone, working_days')
+      .select('id, name, email, department, role, account_type, manager_id, aad_object_id, office_timezone, working_days')
 
     if (staffErr) {
       const fallback = await supabaseAdmin
         .from('staff_members')
-        .select('id, name, email')
+        .select('id, name, email, department, role, account_type, manager_id')
       if (fallback.error) {
         return NextResponse.json({ error: fallback.error.message }, { status: 500 })
       }
-      rawStaff = (fallback.data ?? []) as unknown as StaffWithTimezone[]
+      rawStaff = (fallback.data ?? []) as unknown as StaffWithManager[]
     } else {
-      rawStaff = (staffData ?? []) as StaffWithTimezone[]
+      rawStaff = (staffData ?? []) as StaffWithManager[]
     }
 
-    const staffList: StaffWithTimezone[] = rawStaff
+    const staffList: StaffWithManager[] = rawStaff
+    const staffById = new Map(staffList.map(s => [s.id, s]))
 
     // 3. Evaluate each recipient (both Assigned To & Assigned By)
     const dispatchResults: Array<{
       staffId: string
       name: string
       email?: string
+      cc?: string[]
       localHour: number
       isWorkingDay: boolean
       tasksCount: number
@@ -185,6 +192,25 @@ async function handleSweep(req: NextRequest) {
 
       if (userDigestItems.length === 0) continue
 
+      // Resolve Team Manager CC:
+      // - Always CC Branding Head (khalifa@tresconglobal.com) for Branding team & Vendors
+      // - Also CC the recipient's configured manager_id email (if any)
+      const ccSet = new Set<string>()
+      const recipientIsBrandingOrVendor = isCoreBrandingOrVendor(staff)
+      const hasBrandingOrVendorTask = userDigestItems.some(item => {
+        const assignee = staffById.get(item.task.assigned_to)
+        return assignee ? isCoreBrandingOrVendor(assignee) : false
+      })
+      if (recipientIsBrandingOrVendor || hasBrandingOrVendorTask) {
+        ccSet.add(BRANDING_HEAD_EMAIL)
+      }
+      if (staff.manager_id) {
+        const mgrEmail = staffById.get(staff.manager_id)?.email?.trim()
+        if (mgrEmail) ccSet.add(mgrEmail)
+      }
+      const recipientEmailLower = (staff.email ?? '').trim().toLowerCase()
+      const ccEmails = [...ccSet].filter(e => e.toLowerCase() !== recipientEmailLower)
+
       const errors: string[] = []
       let emailSent = false
       let teamsSent = false
@@ -193,6 +219,7 @@ async function handleSweep(req: NextRequest) {
       if (staff.email) {
         const emailRes = await sendTaskManagerFollowupDigest({
           to: staff.email,
+          cc: ccEmails,
           recipientName: staff.name,
           items: userDigestItems,
         })
@@ -228,6 +255,7 @@ async function handleSweep(req: NextRequest) {
         staffId: staff.id,
         name: staff.name,
         email: staff.email,
+        cc: ccEmails,
         localHour,
         isWorkingDay,
         tasksCount: userDigestItems.length,
