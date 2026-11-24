@@ -192,7 +192,7 @@ export default function SummaryBar({
             </div>
 
             <span style={{ fontSize: '11px', color: 'var(--ink4)' }}>
-              Click any busy member to filter · Click + Assign on available members
+              Click + Assign on available members · Click any busy member to filter
             </span>
           </div>
 
@@ -208,6 +208,103 @@ export default function SummaryBar({
               ...CUSTOM_SCROLLBAR_STYLE,
             }}
           >
+            {/* Available / Free Team Members FIRST (0 active tasks — Core Branding & Vendors) */}
+            {idleStaff.map((s, idx) => (
+              <div
+                key={s.id}
+                ref={idx === 0 ? firstAvailableRef : undefined}
+                style={{
+                  flex: '0 0 auto',
+                  minWidth: '235px',
+                  maxWidth: '305px',
+                  padding: '10px 14px',
+                  borderRadius: '12px',
+                  background: 'var(--surface)',
+                  border: '1px dashed var(--teal-mid)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  scrollSnapAlign: 'start',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <div style={{ flexShrink: 0 }}>
+                  <Avatar name={s.name} size={32} />
+                </div>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span
+                      style={{
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        color: 'var(--ink)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title={s.name}
+                    >
+                      {s.name}
+                    </span>
+                    {s.account_type === 'vendor' && (
+                      <span
+                        style={{
+                          fontSize: '9px',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          color: 'var(--purple)',
+                          background: 'var(--purple-light)',
+                          padding: '1px 5px',
+                          borderRadius: '4px',
+                          flexShrink: 0,
+                        }}
+                      >
+                        Vendor
+                      </span>
+                    )}
+                  </div>
+
+                  <div style={{ fontSize: '11px', color: 'var(--teal-mid)', fontWeight: 600, marginTop: '3px', whiteSpace: 'nowrap' }}>
+                    🟢 Available · 0 tasks
+                  </div>
+                </div>
+
+                {onQuickAssignForStaff && (
+                  <button
+                    type="button"
+                    onClick={() => onQuickAssignForStaff(s.id)}
+                    style={{
+                      flexShrink: 0,
+                      padding: '5px 10px',
+                      borderRadius: '7px',
+                      background: 'var(--teal-light)',
+                      color: 'var(--teal-mid)',
+                      border: '1px solid var(--teal-mid)',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title={`Assign a new task to ${s.name}`}
+                  >
+                    + Assign
+                  </button>
+                )}
+              </div>
+            ))}
+
+            {/* Visual separator between available & busy members */}
+            {idleStaff.length > 0 && entries.length > 0 && (
+              <div
+                style={{
+                  flex: '0 0 1px',
+                  background: 'var(--border)',
+                  margin: '6px 2px',
+                }}
+              />
+            )}
+
             {/* Busy Team Members (Horizontal Compact Person Pills) */}
             {entries.map(([staffId, r]) => {
               const isSelected = selectedStaffId === staffId
@@ -319,103 +416,6 @@ export default function SummaryBar({
                 </div>
               )
             })}
-
-            {/* Visual separator between busy & available members */}
-            {entries.length > 0 && idleStaff.length > 0 && (
-              <div
-                style={{
-                  flex: '0 0 1px',
-                  background: 'var(--border)',
-                  margin: '6px 2px',
-                }}
-              />
-            )}
-
-            {/* Available / Free Team Members Inline (0 active tasks — Core Branding & Vendors) */}
-            {idleStaff.map((s, idx) => (
-              <div
-                key={s.id}
-                ref={idx === 0 ? firstAvailableRef : undefined}
-                style={{
-                  flex: '0 0 auto',
-                  minWidth: '235px',
-                  maxWidth: '305px',
-                  padding: '10px 14px',
-                  borderRadius: '12px',
-                  background: 'var(--surface)',
-                  border: '1px dashed var(--teal-mid)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  scrollSnapAlign: 'start',
-                  boxSizing: 'border-box',
-                }}
-              >
-                <div style={{ flexShrink: 0 }}>
-                  <Avatar name={s.name} size={32} />
-                </div>
-
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span
-                      style={{
-                        fontSize: '13px',
-                        fontWeight: 700,
-                        color: 'var(--ink)',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                      title={s.name}
-                    >
-                      {s.name}
-                    </span>
-                    {s.account_type === 'vendor' && (
-                      <span
-                        style={{
-                          fontSize: '9px',
-                          fontWeight: 700,
-                          textTransform: 'uppercase',
-                          color: 'var(--purple)',
-                          background: 'var(--purple-light)',
-                          padding: '1px 5px',
-                          borderRadius: '4px',
-                          flexShrink: 0,
-                        }}
-                      >
-                        Vendor
-                      </span>
-                    )}
-                  </div>
-
-                  <div style={{ fontSize: '11px', color: 'var(--teal-mid)', fontWeight: 600, marginTop: '3px', whiteSpace: 'nowrap' }}>
-                    🟢 Available · 0 tasks
-                  </div>
-                </div>
-
-                {onQuickAssignForStaff && (
-                  <button
-                    type="button"
-                    onClick={() => onQuickAssignForStaff(s.id)}
-                    style={{
-                      flexShrink: 0,
-                      padding: '5px 10px',
-                      borderRadius: '7px',
-                      background: 'var(--teal-light)',
-                      color: 'var(--teal-mid)',
-                      border: '1px solid var(--teal-mid)',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                    }}
-                    title={`Assign a new task to ${s.name}`}
-                  >
-                    + Assign
-                  </button>
-                )}
-              </div>
-            ))}
           </div>
         </div>
       )}

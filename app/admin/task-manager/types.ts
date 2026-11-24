@@ -39,13 +39,13 @@ export function isBrandingStaff(s: StaffLite): boolean {
  * Team Capacity "Available (0 tasks)" strip when idle.
  */
 export const CORE_BRANDING_NAMES = [
-  'nazim',
-  'waseem',
-  'sajeesh',
-  'shafi',
-  'lohith',
-  'krishanu',
-  'sohaila',
+  'nazimuddin sunna',
+  'vasimuddin waseem',
+  'sajeesh kombath',
+  'kalander shafi',
+  'lohith bc',
+  'krishanu karmakar',
+  'sohaila alkaser',
   'durai',
   'rajesh vm',
 ] as const
@@ -53,7 +53,7 @@ export const CORE_BRANDING_NAMES = [
 export function isCoreBrandingOrVendor(s: StaffLite): boolean {
   if (s.account_type === 'vendor') return true
   const name = (s.name || '').toLowerCase().trim()
-  return CORE_BRANDING_NAMES.some(k => name.includes(k))
+  return (CORE_BRANDING_NAMES as readonly string[]).includes(name)
 }
 
 export type Task = {
