@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import type { Segment, VoiceRow } from './logic'
+import { LT_TOTAL_DEFAULT } from '@/app/lib/lower-thirds/config'
 
 export type Cue = { id: string; session_video_id: string; speaker_id: string; start_s: number }
 
-const LT_DURATION = 6     // seconds each lower third is on screen
+const LT_DURATION = LT_TOTAL_DEFAULT  // seconds each lower third is on screen (slide in + hold + slide out)
 const MIN_TURN   = 8      // minimum continuous speech to earn a cue
 const CUE_OFFSET = 2      // cue starts 2s into the qualifying turn
 const MIN_GAP_SAME = 480  // same speaker: at least 8 min between cues

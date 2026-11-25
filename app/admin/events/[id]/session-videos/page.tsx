@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- thumbnail previews are arbitrary stored images */
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import LowerThirdSettings from '@/app/components/lower-thirds/LowerThirdSettings'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Card, Input, Select } from '@/app/components/ui'
 
@@ -32,7 +33,7 @@ type ThumbData = {
   title_cards?: { setup: { missing: string[]; layout_variant_id: string | null; card_variant_id: string | null }; sessions: TitleCardSession[] }
   lower_thirds?: { setup: { missing: string[]; variant_id: string | null }; sessions: LtSession[] }
 }
-type Tab = 'videos' | 'thumbnails'
+type Tab = 'videos' | 'thumbnails' | 'lower_thirds'
 
 const VIDEO_STATUS: Record<string, { label: string; color: string }> = {
   uploading: { label: 'Uploading', color: 'var(--amber)' }, uploaded: { label: 'Processing', color: 'var(--amber)' },
@@ -271,6 +272,7 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border-light)', marginBottom: '20px' }}>
         <button type="button" style={tabBtn(tab === 'videos')} onClick={() => setTab('videos')}>Videos</button>
         <button type="button" style={tabBtn(tab === 'thumbnails')} onClick={() => setTab('thumbnails')}>Thumbnails</button>
+        <button type="button" style={tabBtn(tab === 'lower_thirds')} onClick={() => setTab('lower_thirds')}>Lower thirds</button>
       </div>
 
       {/* ── Videos tab ── */}
@@ -382,6 +384,9 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
           </Card>
         </div>
       )}
+
+      {/* ── Lower thirds tab ── */}
+      {tab === 'lower_thirds' && <LowerThirdSettings eventId={eventId} canEdit={canEditThumbs} />}
 
       {/* ── Thumbnails tab ── */}
       {tab === 'thumbnails' && (

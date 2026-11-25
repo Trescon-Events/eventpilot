@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/app/components/ui'
+import { LT_TOTAL_DEFAULT } from '@/app/lib/lower-thirds/config'
 
 /* Step 7 — review the lower-third cues before any render starts.
    For every cue the producer sees a snapshot of the actual video at that moment with the speaker's lower third drawn over it,
@@ -18,7 +19,7 @@ type Speaker = { id: string; name: string; public_name: string | null }
 
 export type CueReviewSummary = { count: number; confirmed: boolean }
 
-const LT_SECONDS = 6
+const LT_SECONDS = LT_TOTAL_DEFAULT
 const fmt = (s: number) => { const m = Math.floor(s / 60); return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}` }
 const parseTime = (v: string): number | null => {
   const m = v.trim().match(/^(\d+):([0-5]?\d)$/) ; if (m) return Number(m[1]) * 60 + Number(m[2])
@@ -30,7 +31,7 @@ function Frame({ src, at, duration, still, name }: { src: string; at: number; du
   const ref = useRef<HTMLVideoElement>(null)
   const [shown, setShown] = useState(false)
   // Look a little after the cue starts so the lower third has finished fading in.
-  const seekTo = Math.max(0, Math.min(at + 1.2, (duration ?? at + 10) - 0.2))
+  const seekTo = Math.max(0, Math.min(at + 1.5, (duration ?? at + 10) - 0.2))
   useEffect(() => { const v = ref.current; if (v && v.readyState >= 1) { setShown(false); v.currentTime = seekTo } }, [seekTo])
   return (
     <div style={{ position: 'relative', aspectRatio: '16 / 9', background: 'var(--card)', borderRadius: 8, overflow: 'hidden' }}>
@@ -143,7 +144,7 @@ export default function CueReview({ eventId, videoId, proxyUrl, durationS, speak
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
                 <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--ink)' }}>{i + 1}. {nameOf(cue.speaker_id)}</div>
                 <div style={{ fontSize: 12, color: 'var(--ink3)' }}>
-                  shows at <b style={{ fontFamily: 'monospace' }}>{fmt(cue.start_s)}</b>{durationS ? ` of ${fmt(durationS)}` : ''} · {LT_SECONDS}s
+                  shows at <b style={{ fontFamily: 'monospace' }}>{fmt(cue.start_s)}</b>{durationS ? ` of ${fmt(durationS)}` : ''} · {LT_SECONDS.toFixed(1)}s
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>

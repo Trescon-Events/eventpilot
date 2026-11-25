@@ -3,13 +3,14 @@ import { compositeAnnouncement } from '@/app/lib/announcements/composite'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 import type { Variant, ResolvedTexts, ResolvedAssets } from '@/app/lib/announcements/composite'
 import type { LowerThirdSpeaker } from './data'
+import { ltTransform, LT_W, LT_H, type LtAnim } from './config'
 
 /* Lower-third rendering.
    drawLowerThirdStill() — web app: composites the hold frame as a PNG for browser preview (no animation applied).
    compositeAnimatedFrame() — worker: computes per-layer opacity/Y at time t, then composites. */
 
 export const LT_FPS = 30
-export const LT_DURATION = 6.0  // total cue length in seconds
+export const LT_DURATION = 6.0  // total length of an older hand-built lower third (config templates use ltTotal())
 
 /** Easing: ease-out cubic for in, ease-in cubic for out. */
 function ease(x: number): number { return 1 - Math.pow(1 - x, 3) }
@@ -92,4 +93,27 @@ export async function compositeAnimatedFrame(variant: Variant, speaker: LowerThi
   const staticVariant = { ...variant, layers: variant.layers.filter(l => !('animation' in l && l.animation)) }
   const staticBase = await compositeAnnouncement(staticVariant, assets, texts, { showReferenceLayers: false })
   return sharp(staticBase).composite(compositeOps).png().toBuffer()
+}
+
+
+/** One frame of a config-template lower third at time t: the rendered card slid/faded as a single unit on a transparent 1920×1080 canvas. */
+export async function cardFrame(card: Buffer, anim: LtAnim, t: number): Promise<Buffer> {
+  const { opacity, dx } = ltTransform(anim, t)
+  const blank = { create: { width: LT_W, height: LT_H, channels: 4 as const, background: { r: 0, g: 0, b: 0, alpha: 0 } } }
+  if (opacity <= 0.001) return sharp(blank).png().toBuffer()
+  const offset = Math.round(dx)
+  let piece = card
+  let left = 0
+  if (offset < 0) {
+    const keep = LT_W + offset
+    if (keep <= 0) return sharp(blank).png().toBuffer()
+    piece = await sharp(card).extract({ left: -offset, top: 0, width: keep, height: LT_H }).png().toBuffer()
+  } else if (offset > 0) {
+    const keep = LT_W - offset
+    if (keep <= 0) return sharp(blank).png().toBuffer()
+    piece = await sharp(card).extract({ left: 0, top: 0, width: keep, height: LT_H }).png().toBuffer()
+    left = offset
+  }
+  if (opacity < 1) piece = await applyOpacity(piece, opacity)
+  return sharp(blank).composite([{ input: piece, left, top: 0 }]).png().toBuffer()
 }

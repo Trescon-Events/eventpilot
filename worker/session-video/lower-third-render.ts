@@ -5,10 +5,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadFile, presignGet } from '@/app/lib/session-videos/storage'
-import { LT_FPS, LT_DURATION, compositeAnimatedFrame } from '@/app/lib/lower-thirds/render'
-import { lowerThirdFingerprint } from '@/app/lib/lower-thirds/data'
+import { LT_DURATION, compositeAnimatedFrame, cardFrame, drawLowerThirdStill } from '@/app/lib/lower-thirds/render'
+import { LT_FPS, ltTotal } from '@/app/lib/lower-thirds/config'
+import { lowerThirdFingerprint, loadLowerThirdSetup } from '@/app/lib/lower-thirds/data'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
-import type { Variant } from '@/app/lib/announcements/composite'
 
 /* Lower-third worker: renders 180 frames → ProRes 4444 alpha MOV + H.264 preview MP4. */
 
@@ -27,38 +27,38 @@ export type CreativeJob = { id: string; event_id: string; agenda_session_id: str
 export async function runLowerThirdJob(job: CreativeJob): Promise<void> {
   const { event_id: eventId, agenda_session_id: sessionId, speaker_id: speakerId } = job
 
-  // Load speaker + variant
-  const [{ data: p }, { data: ev }] = await Promise.all([
+  // Load speaker + the event's lower-third template (Lower Thirds tab, or an older hand-built variant)
+  const [{ data: p }, setup] = await Promise.all([
     supabaseAdmin.from('event_speakers').select('name, public_name, job_title, company, photo_processed_url, photo_head_box').eq('id', speakerId).eq('event_id', eventId).single(),
-    supabaseAdmin.from('events').select('creative_template_config').eq('id', eventId).maybeSingle(),
+    loadLowerThirdSetup(eventId),
   ])
   if (!p) throw new Error('Speaker not found.')
-  const all = ((ev?.creative_template_config as { speaker?: { variants?: Variant[] } } | null)?.speaker?.variants ?? []) as Variant[]
-  const variant = all.find(v => v.id === job.params.variant_id && v.category === 'lower_third')
-  if (!variant) throw new Error(`lower_third variant ${job.params.variant_id} not found.`)
+  const variant = setup.variant
+  if (!variant || setup.missing.length) throw new Error(`Lower-third template not set up: ${setup.missing.join('; ')}`)
+  const cardAnim = setup.cardAnim
 
   const name = (typeof p.public_name === 'string' && p.public_name.trim()) || (typeof p.name === 'string' && p.name.trim()) || ''
   const title = typeof p.job_title === 'string' ? p.job_title.trim() : ''
   const company = typeof p.company === 'string' ? p.company.trim() : ''
   const photoUrl = (p.photo_processed_url as string | null) ?? null
   const headBox = (p.photo_head_box as unknown) ?? null
-  const fp = lowerThirdFingerprint({ name, title, company, photo: photoUrl, variant: variant.id })
+  const fp = lowerThirdFingerprint({ name, title, company, photo: photoUrl, variant, anim: cardAnim })
 
   // Pre-fetch speaker photo
   if (photoUrl) await fetchAssetBuffer(photoUrl)
 
   const dir = mkdtempSync(join(tmpdir(), 'lt-'))
   try {
-    const totalFrames = Math.round(LT_FPS * LT_DURATION)
-    console.log(`[lower-third] rendering ${totalFrames} frames for ${name}`)
+    const total = cardAnim ? ltTotal(cardAnim) : LT_DURATION
+    const totalFrames = Math.round(LT_FPS * total)
+    console.log(`[lower-third] rendering ${totalFrames} frames (${total.toFixed(1)}s) for ${name}`)
+    const speaker = { speakerId, name, title, company, photoUrl, headBox: headBox as never, stillUrl: null, movUrl: null, previewUrl: null, status: 'generating' as const, fingerprint: null }
 
-    // Render all frames
+    // Config templates: draw the card once, then slide/fade that single image per frame (fast). Older variants animate per layer.
+    const card = cardAnim ? await drawLowerThirdStill(variant, speaker) : null
     for (let i = 0; i < totalFrames; i++) {
       const t = i / LT_FPS
-      const frame = await compositeAnimatedFrame(variant, {
-        speakerId, name, title, company, photoUrl, headBox: headBox as never,
-        stillUrl: null, movUrl: null, previewUrl: null, status: 'generating', fingerprint: null,
-      }, t)
+      const frame = card && cardAnim ? await cardFrame(card, cardAnim, t) : await compositeAnimatedFrame(variant, speaker, t)
       writeFileSync(join(dir, `frame_${String(i).padStart(4, '0')}.png`), frame)
     }
 
@@ -101,10 +101,7 @@ export async function runLowerThirdJob(job: CreativeJob): Promise<void> {
     const previewUrl = await presignGet(previewKey)
 
     // Also render still (hold frame at 2.0s)
-    const holdFrame = await compositeAnimatedFrame(variant, {
-      speakerId, name, title, company, photoUrl, headBox: headBox as never,
-      stillUrl: null, movUrl: null, previewUrl: null, status: 'generating', fingerprint: null,
-    }, 2.0)
+    const holdFrame = card ?? await compositeAnimatedFrame(variant, speaker, 2.0)
     const stillKey = `lower-thirds/${eventId}/${sessionId}/${speakerId}/still_${fp}.png`
     writeFileSync(join(dir, 'still.png'), holdFrame)
     await uploadFile(stillKey, join(dir, 'still.png'), 'image/png')

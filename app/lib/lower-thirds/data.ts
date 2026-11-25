@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getEventRoles, resolvePrimaryRole } from '@/app/lib/konfhub/roles'
 import { isModeratorRole } from '@/app/lib/screens/geometry'
-import type { TextLayer, Variant } from '@/app/lib/announcements/composite'
+import type { TextLayer, TextLayerFont, Variant } from '@/app/lib/announcements/composite'
+import { mergeLowerThirdConfig, LT_W, LT_H, type LowerThirdConfig, type LtAnim, type LtTextEl } from './config'
 import type { HeadBox } from '@/app/lib/media/face-alignment'
 
 /* Lower-thirds data. */
@@ -21,6 +22,9 @@ export type LowerThirdSession = {
 
 export type LowerThirdSetup = {
   variantId: string | null; variant: Variant | null; missing: string[]
+  /** Set when the template comes from the Lower Thirds tab (whole card slides as one unit); null for an older hand-built variant. */
+  cardAnim: LtAnim | null
+  config: LowerThirdConfig | null
 }
 
 const clean = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
@@ -29,23 +33,62 @@ export function lowerThirdFingerprint(input: unknown): string {
   return createHash('sha1').update(JSON.stringify(input)).digest('hex').slice(0, 16)
 }
 
+/** Loads brand fonts by id → the font objects the compositor draws with. */
+export async function loadLtFonts(ids: Array<string | null | undefined>): Promise<Map<string, TextLayerFont>> {
+  const want = [...new Set(ids.filter((x): x is string => !!x))]
+  if (!want.length) return new Map()
+  const { data } = await supabaseAdmin.from('brand_fonts').select('id, family_name, regular_url, bold_url, weights').in('id', want)
+  const map = new Map<string, TextLayerFont>()
+  for (const r of data ?? []) map.set(r.id as string, { family_name: r.family_name as string, regular_url: r.regular_url as string, bold_url: r.bold_url as string | null | undefined, weights: r.weights as Record<number, string> | null | undefined })
+  return map
+}
+
+export function lowerThirdFontIds(c: LowerThirdConfig): string[] {
+  return [c.font_id, c.name.font_id, c.title.font_id, c.company.font_id].filter((x): x is string => !!x)
+}
+
+/** The 1920×1080 card (background graphic + name/title/company text) built from the saved template config. */
+export function buildLowerThirdVariant(c: LowerThirdConfig, fonts: Map<string, TextLayerFont>): Variant {
+  const layers: Variant['layers'] = []
+  if (c.background_url) layers.push({ type: 'image', id: 'bg', asset_url: c.background_url, x: 0, y: 0, width: LT_W, height: LT_H } as Variant['layers'][number])
+  const text = (id: 'name' | 'title' | 'company', e: LtTextEl): TextLayer => {
+    const fid = e.font_id ?? c.font_id
+    return {
+      type: 'text', id, field: id, x: e.x, y: e.y, width: e.width, height: Math.ceil(e.size * 1.25 * e.max_lines),
+      font_size: e.size, font_weight: e.weight as TextLayer['font_weight'], font_color: e.color, uppercase: e.upper,
+      max_lines: e.max_lines, align: 'left', allow_shrink: true, font_family: fid && fonts.has(fid) ? fonts.get(fid) : undefined,
+    } as TextLayer
+  }
+  layers.push(text('name', c.name), text('title', c.title), text('company', c.company))
+  return { id: '__lower_third_config__', name: 'Lower third', category: 'lower_third', canvas_width: LT_W, canvas_height: LT_H, layers } as Variant
+}
+
 export async function loadLowerThirdSetup(eventId: string): Promise<LowerThirdSetup> {
   const [{ data: s }, { data: ev }] = await Promise.all([
-    supabaseAdmin.from('event_thumbnail_settings').select('lower_third_variant_id').eq('event_id', eventId).maybeSingle(),
+    supabaseAdmin.from('event_thumbnail_settings').select('lower_third_variant_id, lower_third_config').eq('event_id', eventId).maybeSingle(),
     supabaseAdmin.from('events').select('creative_template_config').eq('id', eventId).maybeSingle(),
   ])
+  // Preferred: the template built in the Lower Thirds tab.
+  const cfgRaw = (s as Record<string, unknown> | null)?.lower_third_config
+  if (cfgRaw) {
+    const config = mergeLowerThirdConfig(cfgRaw)
+    if (config.background_url) {
+      const fonts = await loadLtFonts(lowerThirdFontIds(config))
+      return { variantId: '__lower_third_config__', variant: buildLowerThirdVariant(config, fonts), missing: [], cardAnim: config.animation, config }
+    }
+  }
   const all = ((ev?.creative_template_config as { speaker?: { variants?: Variant[] } } | null)?.speaker?.variants ?? []) as Variant[]
   const fallbackFont = all.filter(v => !v.category?.startsWith('thumbnail_') && !v.category?.startsWith('title_card') && v.category !== 'lower_third').flatMap(v => v.layers).find((l): l is TextLayer => l.type === 'text' && !!l.font_family)?.font_family ?? null
   const withFont = (v: Variant | undefined): Variant | undefined => v && fallbackFont ? { ...v, layers: v.layers.map(l => l.type === 'text' && !l.font_family ? { ...l, font_family: fallbackFont } : l) } : v
   const variantId = (s?.lower_third_variant_id as string | null) ?? null
   const variant = withFont(all.find(v => v.id === variantId && v.category === 'lower_third')) ?? null
   const missing: string[] = []
-  if (!variant) missing.push('Lower-third variant (create one in the variant editor)')
+  if (!variant) missing.push('Lower-third template (upload the background in the Lower Thirds tab)')
   else {
     const hasName = variant.layers.some(l => l.type === 'text' && l.field === 'name')
     if (!hasName) missing.push('Lower-third variant needs a text layer with field = name')
   }
-  return { variantId, variant, missing }
+  return { variantId, variant, missing, cardAnim: null, config: null }
 }
 
 export type LoadLowerThirdOpts = { sessionIds?: string[] }

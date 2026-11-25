@@ -8,9 +8,9 @@ import { drawLowerThirdStill } from './render'
 const actor = (by: string | null) => (by && /^[0-9a-f-]{36}$/i.test(by) ? by : null)
 
 export async function generateLowerThirdStill(eventId: string, sessionId: string, speakerId: string, by: string | null): Promise<{ stillUrl: string }> {
-  const { variant, missing } = await loadLowerThirdSetup(eventId)
-  if (missing.length) throw new Error(`Set up the lower-third variant first: ${missing.join('; ')}`)
-  if (!variant) throw new Error('No lower-third variant configured.')
+  const { variant, missing, cardAnim } = await loadLowerThirdSetup(eventId)
+  if (missing.length) throw new Error(`Set up the lower-third template first: ${missing.join('; ')}`)
+  if (!variant) throw new Error('No lower-third template configured.')
   // Load speaker data
   const { data: p } = await supabaseAdmin.from('event_speakers').select('name, public_name, job_title, company, photo_processed_url, photo_head_box').eq('id', speakerId).eq('event_id', eventId).single()
   if (!p) throw new Error('Speaker not found.')
@@ -19,7 +19,7 @@ export async function generateLowerThirdStill(eventId: string, sessionId: string
   const company = typeof p.company === 'string' ? p.company.trim() : ''
   const photoUrl = (p.photo_processed_url as string | null) ?? null
   const headBox = (p.photo_head_box as unknown) ?? null
-  const fp = lowerThirdFingerprint({ name, title, company, photo: photoUrl, variant: variant.id })
+  const fp = lowerThirdFingerprint({ name, title, company, photo: photoUrl, variant, anim: cardAnim })
   const still = await drawLowerThirdStill(variant, { speakerId, name, title, company, photoUrl, headBox: headBox as never, stillUrl: null, movUrl: null, previewUrl: null, status: 'draft', fingerprint: null })
   const stillUrl = await uploadPublicAsset(`events/${eventId}/lower-thirds/${sessionId}/${speakerId}/still.png`, still, 'image/png')
   await supabaseAdmin.from('session_lower_thirds').upsert({
@@ -32,8 +32,8 @@ export async function generateLowerThirdStill(eventId: string, sessionId: string
 
 export async function enqueueLowerThirdJob(eventId: string, sessionId: string, speakerId: string, by: string | null): Promise<void> {
   const { variant, missing } = await loadLowerThirdSetup(eventId)
-  if (missing.length) throw new Error(`Set up the lower-third variant first: ${missing.join('; ')}`)
-  if (!variant) throw new Error('No lower-third variant configured.')
+  if (missing.length) throw new Error(`Set up the lower-third template first: ${missing.join('; ')}`)
+  if (!variant) throw new Error('No lower-third template configured.')
   await supabaseAdmin.from('session_lower_thirds').upsert({
     event_id: eventId, agenda_session_id: sessionId, speaker_id: speakerId,
     variant_id: variant.id, status: 'generating', updated_at: new Date().toISOString(),
