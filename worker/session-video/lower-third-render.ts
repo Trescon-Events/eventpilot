@@ -106,7 +106,6 @@ export async function runLowerThirdJob(job: CreativeJob): Promise<void> {
       stillUrl: null, movUrl: null, previewUrl: null, status: 'generating', fingerprint: null,
     }, 2.0)
     const stillKey = `lower-thirds/${eventId}/${sessionId}/${speakerId}/still_${fp}.png`
-    await uploadFile(stillKey, join(dir, 'still.png'), 'image/png')
     writeFileSync(join(dir, 'still.png'), holdFrame)
     await uploadFile(stillKey, join(dir, 'still.png'), 'image/png')
     const stillUrl = await presignGet(stillKey)
