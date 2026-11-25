@@ -13,7 +13,9 @@ export interface TeamsActionPayload {
   newDeadline?: string
 }
 
-export const FOLLOWUP_LOCAL_HOURS = [9, 13, 17] as const
+// 2-hour windows per slot absorb GitHub Actions cron jitter; the 3-hour cooldown
+// in cron/overdue/route.ts ensures each task still notifies at most 3x per working day.
+export const FOLLOWUP_LOCAL_HOURS = [9, 10, 13, 14, 17, 18] as const
 
 /**
  * Calculates if a given staff member's local office time is within one of the 3 daily
