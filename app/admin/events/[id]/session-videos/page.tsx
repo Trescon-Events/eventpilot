@@ -3,9 +3,8 @@
 /* eslint-disable @next/next/no-img-element -- thumbnail previews are arbitrary stored images */
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import LowerThirdSettings from '@/app/components/lower-thirds/LowerThirdSettings'
 import PageHeader from '@/app/components/PageHeader'
-import { Button, Card, Input, Select } from '@/app/components/ui'
+import { Button, Card, Input } from '@/app/components/ui'
 
 /* Session Videos hub: two tabs — Videos (session list → per-session flow) and Thumbnails (inline generate/approve). */
 
@@ -33,7 +32,7 @@ type ThumbData = {
   title_cards?: { setup: { missing: string[]; layout_variant_id: string | null; card_variant_id: string | null }; sessions: TitleCardSession[] }
   lower_thirds?: { setup: { missing: string[]; variant_id: string | null }; sessions: LtSession[] }
 }
-type Tab = 'videos' | 'thumbnails' | 'lower_thirds'
+type Tab = 'videos' | 'thumbnails'
 
 const VIDEO_STATUS: Record<string, { label: string; color: string }> = {
   uploading: { label: 'Uploading', color: 'var(--amber)' }, uploaded: { label: 'Processing', color: 'var(--amber)' },
@@ -45,7 +44,6 @@ const VIDEO_STATUS: Record<string, { label: string; color: string }> = {
 const BUSY = new Set(['uploaded', 'ingesting', 'ingested', 'transcribing', 'text_pending'])
 const THUMB_LABEL: Record<ThumbState, string> = { new: 'Not generated', ready: 'Ready', changed: 'Out of date', needs_attention: 'Needs attention', approved: 'Approved' }
 const THUMB_COLOR: Record<ThumbState, string> = { new: 'var(--ink3)', ready: 'var(--teal-mid)', changed: 'var(--red)', needs_attention: 'var(--amber)', approved: 'var(--green)' }
-const LAYOUTS = ['keynote', 'fireside', 'panel'] as const
 
 export default function SessionVideosPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = use(params)
@@ -272,7 +270,6 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border-light)', marginBottom: '20px' }}>
         <button type="button" style={tabBtn(tab === 'videos')} onClick={() => setTab('videos')}>Videos</button>
         <button type="button" style={tabBtn(tab === 'thumbnails')} onClick={() => setTab('thumbnails')}>Thumbnails</button>
-        <button type="button" style={tabBtn(tab === 'lower_thirds')} onClick={() => setTab('lower_thirds')}>Lower thirds</button>
       </div>
 
       {/* ── Videos tab ── */}
@@ -385,9 +382,6 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
         </div>
       )}
 
-      {/* ── Lower thirds tab ── */}
-      {tab === 'lower_thirds' && <LowerThirdSettings eventId={eventId} canEdit={canEditThumbs} />}
-
       {/* ── Thumbnails tab ── */}
       {tab === 'thumbnails' && (
         <div style={{ display: 'grid', gap: '14px' }}>
@@ -395,16 +389,10 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
 
           {thumbData && (
             <>
-              <ThumbSettings
-                data={thumbData} canEdit={canEditThumbs} eventId={eventId}
-                onSave={async b => { try { await thumbPost({ action: 'save_settings', ...b }); setThumbMsg('Settings saved.'); await loadThumbs() } catch (e) { setThumbMsg(e instanceof Error ? e.message : 'Failed.') } }}
-              />
-              {thumbData.title_cards !== undefined && (
-                <TitleCardSettings
-                  data={thumbData} canEdit={canEditThumbs}
-                  onSave={async b => { try { await thumbPost({ action: 'save_title_card_settings', ...b }); setThumbMsg('Title card settings saved.'); await loadThumbs() } catch (e) { setThumbMsg(e instanceof Error ? e.message : 'Failed.') } }}
-                />
-              )}
+              <div style={{ fontSize: '12.5px', color: 'var(--ink3)', padding: '10px 14px', border: `1px solid ${thumbData.missing.length ? 'var(--amber)' : 'var(--border-light)'}`, borderRadius: '10px' }}>
+                Thumbnail templates are set up in <a href={`/admin/events/${eventId}/creative-templates/admin?tab=thumbnails`} style={{ color: 'var(--teal)', fontWeight: 700 }}>Admin Console → Thumbnails</a>.
+                {thumbData.missing.length > 0 && <span style={{ color: 'var(--amber)', fontWeight: 700 }}> Missing: {thumbData.missing.join(' · ')}</span>}
+              </div>
 
               {thumbMsg && <pre style={{ whiteSpace: 'pre-wrap', margin: 0, padding: '10px 14px', background: 'var(--card)', border: '1px solid var(--border-light)', borderRadius: '10px', fontSize: '13px', fontFamily: 'inherit' }}>{thumbMsg}</pre>}
 
@@ -557,106 +545,6 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
             catch (e) { setThumbMsg(e instanceof Error ? e.message : 'Failed.'); setThumbEditing(null) }
           }}
         />
-      )}
-    </div>
-  )
-}
-
-function ThumbSettings({ data, canEdit, eventId, onSave }: { data: ThumbData; canEdit: boolean; eventId: string; onSave: (b: { card_variant_id: string | null; layout_variant_ids: Record<string, string>; card_text: string }) => Promise<void> }) {
-  const [open, setOpen] = useState(false)
-  const [card, setCard] = useState(data.settings.card_variant_id ?? '')
-  const [layouts, setLayouts] = useState<Record<string, string>>(data.settings.layout_variant_ids ?? {})
-  const [text, setText] = useState(data.settings.card_text)
-  const cards = data.variants.filter(v => v.category === 'thumbnail_card')
-  const lays = data.variants.filter(v => v.category === 'thumbnail_layout')
-  void eventId // used by parent for its own API calls; kept in props for potential future use
-  return (
-    <div style={{ border: `1px solid ${data.missing.length ? 'var(--amber)' : 'var(--border-light)'}`, borderRadius: '10px', overflow: 'hidden' }}>
-      <button type="button" onClick={() => setOpen(o => !o)} style={{ width: '100%', textAlign: 'left', background: 'var(--surface)', border: 'none', padding: '10px 14px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', gap: '8px', alignItems: 'center' }}>
-        <span style={{ fontWeight: 800, fontSize: '13px', flex: 1 }}>Template settings</span>
-        {data.missing.length > 0 && <span style={{ fontSize: '12px', color: 'var(--amber)', fontWeight: 700 }}>Missing: {data.missing.join(' · ')}</span>}
-        <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>{open ? '▲' : '▼'}</span>
-      </button>
-      {open && (
-        <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border-light)', display: 'grid', gap: '10px' }}>
-          <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>Built in Admin Console › Variants. Nothing generates until the card and all three layouts are chosen.</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
-            <label style={{ fontSize: '12.5px', fontWeight: 700 }}>Speaker card
-              <Select value={card} disabled={!canEdit} onChange={e => setCard(e.target.value)}>
-                <option value="">Choose…</option>{cards.map(v => <option key={v.id} value={v.id}>{v.name} ({v.w}×{v.h})</option>)}
-              </Select>
-            </label>
-            {LAYOUTS.map(k => (
-              <label key={k} style={{ fontSize: '12.5px', fontWeight: 700, textTransform: 'capitalize' }}>{k} layout
-                <Select value={layouts[k] ?? ''} disabled={!canEdit} onChange={e => setLayouts(l => ({ ...l, [k]: e.target.value }))}>
-                  <option value="">Choose…</option>{lays.filter(v => !v.kind || v.kind === k).map(v => <option key={v.id} value={v.id}>{v.name} ({v.w}×{v.h})</option>)}
-                </Select>
-              </label>
-            ))}
-            <label style={{ fontSize: '12.5px', fontWeight: 700 }}>Text on card
-              <Select value={text} disabled={!canEdit} onChange={e => setText(e.target.value as 'name' | 'name_company')}>
-                <option value="name">Name only</option><option value="name_company">Name and company</option>
-              </Select>
-            </label>
-          </div>
-          {canEdit && <div><Button variant="teal" onClick={() => onSave({ card_variant_id: card || null, layout_variant_ids: Object.fromEntries(Object.entries(layouts).filter(([, v]) => v)), card_text: text })}>Save settings</Button></div>}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function TitleCardSettings({ data, canEdit, onSave }: {
-  data: ThumbData
-  canEdit: boolean
-  onSave: (b: { title_card_layout_variant_id: string | null; title_card_card_variant_id: string | null; lower_third_variant_id: string | null }) => Promise<void>
-}) {
-  const [open, setOpen] = useState(false)
-  const [tcLayout, setTcLayout] = useState(data.title_cards?.setup.layout_variant_id ?? '')
-  const [tcCard, setTcCard] = useState(data.title_cards?.setup.card_variant_id ?? '')
-  const [ltVariant, setLtVariant] = useState(data.lower_thirds?.setup.variant_id ?? '')
-  const tcLayouts = data.variants.filter(v => v.category === 'title_card_layout')
-  const tcCards = data.variants.filter(v => v.category === 'title_card_card')
-  const ltVariants = data.variants.filter(v => v.category === 'lower_third')
-  const allMissing = [...(data.title_cards?.setup.missing ?? []), ...(data.lower_thirds?.setup.missing ?? [])]
-  return (
-    <div style={{ border: `1px solid ${allMissing.length ? 'var(--border-light)' : 'var(--border-light)'}`, borderRadius: '10px', overflow: 'hidden' }}>
-      <button type="button" onClick={() => setOpen(o => !o)} style={{ width: '100%', textAlign: 'left', background: 'var(--surface)', border: 'none', padding: '10px 14px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', gap: '8px', alignItems: 'center' }}>
-        <span style={{ fontWeight: 800, fontSize: '13px', flex: 1 }}>Title cards &amp; lower thirds</span>
-        {allMissing.length > 0 && <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>Not configured</span>}
-        <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>{open ? '▲' : '▼'}</span>
-      </button>
-      {open && (
-        <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border-light)', display: 'grid', gap: '10px' }}>
-          <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>Title card templates are built in Admin Console › Variants with category <em>title_card_layout</em> / <em>title_card_card</em>. Lower-third variants use category <em>lower_third</em>.</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
-            <label style={{ fontSize: '12.5px', fontWeight: 700 }}>Title card layout
-              <Select value={tcLayout} disabled={!canEdit} onChange={e => setTcLayout(e.target.value)}>
-                <option value="">Choose…</option>
-                {tcLayouts.map(v => <option key={v.id} value={v.id}>{v.name} ({v.w}×{v.h})</option>)}
-              </Select>
-            </label>
-            <label style={{ fontSize: '12.5px', fontWeight: 700 }}>Title card card
-              <Select value={tcCard} disabled={!canEdit} onChange={e => setTcCard(e.target.value)}>
-                <option value="">Choose…</option>
-                {tcCards.map(v => <option key={v.id} value={v.id}>{v.name} ({v.w}×{v.h})</option>)}
-              </Select>
-            </label>
-            <label style={{ fontSize: '12.5px', fontWeight: 700 }}>Lower-third variant
-              <Select value={ltVariant} disabled={!canEdit} onChange={e => setLtVariant(e.target.value)}>
-                <option value="">Choose…</option>
-                {ltVariants.map(v => <option key={v.id} value={v.id}>{v.name} ({v.w}×{v.h})</option>)}
-              </Select>
-            </label>
-          </div>
-          {canEdit && (
-            <div>
-              <Button variant="teal" onClick={() => onSave({ title_card_layout_variant_id: tcLayout || null, title_card_card_variant_id: tcCard || null, lower_third_variant_id: ltVariant || null })}>
-                Save title card &amp; lower-third settings
-              </Button>
-            </div>
-          )}
-        </div>
       )}
     </div>
   )

@@ -10,7 +10,9 @@ import { Button, Badge, Input, Select, ProcessingOverlay, Toast, type ToastType 
 import AccessTab from '@/app/components/AccessTab'
 import StageSpeakerPicSettings from '@/app/components/screens/StageSpeakerPicSettings'
 import TitleCardSettings from '@/app/components/title-cards/TitleCardSettings'
-import { consoleTabsFor, CONSOLE_TAB_LABEL, type ConsoleTab } from '@/app/lib/access/admin-console'
+import ThumbnailTemplateSettings from '@/app/components/thumbnails/ThumbnailTemplateSettings'
+import LowerThirdSettings from '@/app/components/lower-thirds/LowerThirdSettings'
+import { consoleTabsFor, CONSOLE_TAB_LABEL, CONSOLE_TAB_KEY, type ConsoleTab } from '@/app/lib/access/admin-console'
 import type { Layer, ImageLayer, PhotoSlotLayer, TextLayer, SpeakerAreaLayer, SpeakerGridLayer, Variant, CreativeTemplateConfig, TextLayerDiagnostics, PlaceholderProfile, GlobalPlaceholderDefault } from '@/app/lib/announcements/composite'
 import { withTextLayerDefaults } from '@/app/lib/announcements/text-layer-defaults'
 import { CLEANING_CYCLE_CANVAS_SIZE } from '@/app/lib/media/cleaning-cycle-constants'
@@ -116,6 +118,15 @@ function newLayer(type: Layer['type'], activeType: StakeholderKind, canvasWidth:
 
 // The "New Variant" picker: seven kinds grouped into three short lists (a long single column no longer fitted on screen).
 type PickerItem = readonly [string, string, string]
+/* Thumbnail templates live in their own console tab; the older hand-built title-card / lower-third variants are superseded
+   by the Title Cards and Lower Thirds tabs, so neither shows in the general Variants list. */
+const THUMB_CATEGORIES = new Set(['thumbnail_card', 'thumbnail_layout'])
+const SUPERSEDED_CATEGORIES = new Set(['title_card_layout', 'title_card_card', 'lower_third'])
+const variantInTab = (category: string | undefined, tab: ConsoleTab) =>
+  tab === 'thumbnails' ? THUMB_CATEGORIES.has(category ?? '') : !THUMB_CATEGORIES.has(category ?? '') && !SUPERSEDED_CATEGORIES.has(category ?? '')
+const pickerKeyInTab = (key: string, tab: ConsoleTab) =>
+  tab === 'thumbnails' ? key.startsWith('thumbnail_') : !key.startsWith('thumbnail_') && !SUPERSEDED_CATEGORIES.has(key)
+
 const variantPickerGroups = (activeType: StakeholderKind): { title: string; items: PickerItem[] }[] => [
   { title: 'Social creatives', items: [
     ['promo', 'Promo', 'Org’s own channel-publish flow'],
@@ -242,7 +253,7 @@ function normalizeVariantTextLayers(variant: Variant): Variant {
 
 export default function CreativeTemplatesAdminPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = use(params)
-  const [consoleTab, setConsoleTab] = useState<ConsoleTab>(() => (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tab') === 'stage' ? 'stage' : 'variants'))
+  const [consoleTab, setConsoleTab] = useState<ConsoleTab>(() => { const t = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null; return t && t in CONSOLE_TAB_KEY ? (t as ConsoleTab) : 'variants' })
 
   // Which areas of the console this person may use (Variants / Stage Speaker Pic / Access Control) — see app/lib/access/admin-console.ts.
   const [allowedTabs, setAllowedTabs] = useState<ConsoleTab[] | null>(null)
@@ -324,7 +335,16 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
 
   const variants = activeType === 'speaker' ? speakerVariants : partnerVariants
   const setVariants = activeType === 'speaker' ? setSpeakerVariants : setPartnerVariants
-  const activeVariant = variants.find(v => v.id === activeVariantId) ?? null
+  const editorTab = activeTab === 'thumbnails' ? 'thumbnails' : 'variants'
+  const shownVariants = variants.filter(v => variantInTab(v.category, editorTab))
+  const activeVariant = shownVariants.find(v => v.id === activeVariantId) ?? null
+  // Switching between Variants and Thumbnails: select the first variant that belongs to the tab; thumbnails are speaker-only.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- keep the selection inside the visible list
+    if (editorTab === 'thumbnails' && activeType !== 'speaker') { setActiveType('speaker'); return }
+    if (activeVariantId && shownVariants.some(v => v.id === activeVariantId)) return
+    setActiveVariantId(shownVariants[0]?.id ?? null)
+  }, [editorTab, activeType, activeVariantId, shownVariants])
   const thumbKind = activeVariant?.category === 'thumbnail_layout' ? (activeVariant.thumbnail_layout_kind ?? 'panel') : null
   const thumbVariantId = activeVariant?.category === 'thumbnail_layout' ? activeVariant.id : null
   useEffect(() => {
@@ -907,7 +927,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
         description="Branding-team console — build and edit creative variants (layer stacks), and manage who has access to this tool."
         actions={allowedTabs ? (
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            {activeTab === 'variants' && (
+            {(activeTab === 'variants' || activeTab === 'thumbnails') && (
               <>
                 <Button variant="ghost" onClick={undo} disabled={undoCount === 0} title="Undo (Cmd/Ctrl+Z)">↶ Undo</Button>
                 <Button variant="ghost" onClick={redo} disabled={redoCount === 0} title="Redo (Cmd/Ctrl+Shift+Z)">↷ Redo</Button>
@@ -936,7 +956,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
 
         {/* Placeholder panel — rendered here (below the tab bar) when on Stage / Title Cards / Access tabs.
             The Variants tab has its own inline placement in the preview column with variant-specific usedFields. */}
-        {showPlaceholderPanel && allowedTabs && activeTab !== 'variants' && (
+        {showPlaceholderPanel && allowedTabs && activeTab !== 'variants' && activeTab !== 'thumbnails' && (
           <div style={{ marginBottom: '20px', padding: '16px 20px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', display: 'grid', gap: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ fontSize: '13.5px', fontWeight: 800, color: 'var(--ink)' }}>Placeholder Speaker</span>
@@ -960,11 +980,15 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
           <StageSpeakerPicSettings eventId={eventId} />
         ) : activeTab === 'title_cards' ? (
           <TitleCardSettings eventId={eventId} />
+        ) : activeTab === 'lower_thirds' ? (
+          <LowerThirdSettings eventId={eventId} canEdit />
         ) : (
           <>
             <Toast message={msg} type={msgType} onClose={() => setMsg(null)} />
 
-            <div style={{ display: 'flex', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden', width: 'fit-content', marginBottom: '20px' }}>
+            {activeTab === 'thumbnails' && <div style={{ marginBottom: '20px' }}><ThumbnailTemplateSettings eventId={eventId} refreshKey={shownVariants.map(v => `${v.id}:${v.name}`).join('|')} /></div>}
+
+            <div style={{ display: activeTab === 'thumbnails' ? 'none' : 'flex', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden', width: 'fit-content', marginBottom: '20px' }}>
               {(['speaker', 'partner'] as const).map(t => (
                 <button key={t} onClick={() => setActiveType(t)}
                   style={{
@@ -983,7 +1007,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
               <div style={{ display: 'grid', gridTemplateColumns: '180px minmax(0, 400px) 1fr', gap: '24px', alignItems: 'flex-start' }}>
                 {/* Variant list */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  {variants.map(v => (
+                  {shownVariants.map(v => (
                     // A <div role="button">, not a real <button> (was one
                     // until the per-variant "Copy this" icon below needed its
                     // own separately-clickable <button> — two nested <button>
@@ -1434,7 +1458,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                 <Button variant="ghost" onClick={() => setNewVariantPickerOpen(false)}>Cancel</Button>
               </div>
               <div style={{ overflowY: 'auto', padding: '16px 22px 22px', display: 'grid', gap: '18px' }}>
-                {variantPickerGroups(activeType).map(g => (
+                {variantPickerGroups(activeType).map(g => ({ ...g, items: g.items.filter(it => pickerKeyInTab(it[0], editorTab)) })).filter(g => g.items.length > 0).map(g => (
                   <div key={g.title}>
                     <div style={{ fontSize: '11.5px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>{g.title}</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px' }}>

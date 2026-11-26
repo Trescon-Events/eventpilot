@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { canOpenConsole, canUseConsoleTab, consoleTabsFor } from './admin-console'
 
 test('the old whole-console key and wildcards open every area', () => {
-  for (const held of [['sae.admin.access'], ['sae.admin.*'], ['sae.*'], ['*']]) assert.deepEqual(consoleTabsFor(held), ['variants', 'stage', 'access'], held.join())
+  for (const held of [['sae.admin.access'], ['sae.admin.*'], ['sae.*'], ['*']]) assert.deepEqual(consoleTabsFor(held), ['variants', 'stage', 'title_cards', 'thumbnails', 'lower_thirds', 'access'], held.join())
 })
 
 test('a marketing role with only the Stage Speaker Pic key sees only that area', () => {
