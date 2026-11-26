@@ -11,6 +11,7 @@ import { sessionSpeakers } from './speakers'
 import { abortMultipart, completeMultipart, deleteObject, keysFor, listParts, presignGet, presignPart, startMultipart, UPLOAD_PART_SIZE, videoStorageConfigured } from './storage'
 import { loadCues } from './cues'
 import { getKit } from './kit'
+import { randomBytes } from 'node:crypto'
 
 /* Session videos — access and every action. Nothing here publishes or sends anything. The original is only ever read (removing a video deletes OUR uploaded copy and its derived files). */
 
@@ -250,6 +251,8 @@ export async function requestRenderPreview(eventId: string, id: string, _by: str
   if (!cues.length) throw new VideoError('Generate cues first.', 409)
   const kit = await getKit(eventId)
   if (!kit.intro_path) throw new VideoError('Upload the intro/outro clip in the Video kit first.', 409)
+  const { data: th } = await supabaseAdmin.from('session_thumbnails').select('status').eq('agenda_session_id', v.agenda_session_id ?? '').maybeSingle()
+  if (th?.status !== 'approved') throw new VideoError('Approve the video kit (Step 1) first.', 409)
   await supabaseAdmin.from('session_videos').update({ render_status: 'preview_rendering', render_error: null, updated_at: new Date().toISOString() }).eq('id', id)
   await enqueueJob(id, 'render_preview')
 }
@@ -275,6 +278,51 @@ export async function retryVideo(eventId: string, id: string) {
   await enqueueJob(id, kind)
 }
 
+// ── shareable preview link ───────────────────────────────────────────────────
+// A private link to the preview for a team member without an EventPilot login. The random token in the URL is the key;
+// it lasts SHARE_DAYS, always shows the LATEST preview (regenerating keeps the same link), and "Stop sharing" clears it.
+
+export const SHARE_DAYS = 14
+
+export function previewFileName(title: string | null | undefined, kind: 'preview' | 'final' = 'preview') {
+  const base = (title ?? 'session').replace(/[^\w\s-]+/g, '').trim().replace(/\s+/g, '-').slice(0, 80) || 'session'
+  return `${base}-${kind}.mp4`
+}
+
+export async function sharePreview(eventId: string, id: string) {
+  const v = await videoOf(id, eventId)
+  if (!v.preview_path) throw new VideoError('Generate the preview first.', 409)
+  const live = v.preview_share_token && v.preview_share_expires_at && Date.parse(v.preview_share_expires_at as string) > Date.now()
+  const token = live ? v.preview_share_token as string : randomBytes(18).toString('base64url')
+  const expires = new Date(Date.now() + SHARE_DAYS * 86400_000).toISOString()   // (re)sharing extends the link
+  await supabaseAdmin.from('session_videos').update({ preview_share_token: token, preview_share_expires_at: expires, updated_at: new Date().toISOString() }).eq('id', id)
+  return { token, expires_at: expires }
+}
+
+export async function unsharePreview(eventId: string, id: string) {
+  await videoOf(id, eventId)
+  await supabaseAdmin.from('session_videos').update({ preview_share_token: null, preview_share_expires_at: null, updated_at: new Date().toISOString() }).eq('id', id)
+}
+
+/** What the public share page shows. Null when the link is unknown, stopped or expired. */
+export async function sharedPreview(token: string) {
+  if (!/^[\w-]{16,64}$/.test(token)) return null
+  const { data: v } = await supabaseAdmin.from('session_videos').select('id, event_id, agenda_session_id, preview_path, preview_share_expires_at, updated_at').eq('preview_share_token', token).maybeSingle()
+  if (!v?.preview_path || !v.preview_share_expires_at || Date.parse(v.preview_share_expires_at as string) < Date.now()) return null
+  const [{ data: ses }, { data: ev }, { data: job }] = await Promise.all([
+    v.agenda_session_id ? supabaseAdmin.from('event_agenda_sessions').select('title').eq('id', v.agenda_session_id).maybeSingle() : Promise.resolve({ data: null }),
+    supabaseAdmin.from('events').select('name, public_name').eq('id', v.event_id).maybeSingle(),
+    supabaseAdmin.from('video_jobs').select('finished_at').eq('session_video_id', v.id).eq('kind', 'render_preview').eq('status', 'done').order('finished_at', { ascending: false }).limit(1).maybeSingle(),
+  ])
+  const title = (ses?.title as string | undefined) ?? 'Session video'
+  return {
+    title, event_name: ((ev?.public_name as string | null) || (ev?.name as string | null)) ?? null,
+    generated_at: (job?.finished_at as string | undefined) ?? null, expires_at: v.preview_share_expires_at as string,
+    play_url: await presignGet(v.preview_path as string, 6 * 3600),
+    download_url: await presignGet(v.preview_path as string, 6 * 3600, previewFileName(title)),
+  }
+}
+
 // ── reading ──────────────────────────────────────────────────────────────────
 
 export async function listVideos(eventId: string) {
@@ -285,7 +333,7 @@ export async function listVideos(eventId: string) {
 export async function videoDetail(eventId: string, id: string) {
   const v = await videoOf(id, eventId)
   const [{ data: jobs }, { data: tr }, { data: text }, speakers, ses, thumb] = await Promise.all([
-    supabaseAdmin.from('video_jobs').select('id, kind, status, attempts, error, started_at, finished_at, log').eq('session_video_id', id).order('created_at', { ascending: false }).limit(8),
+    supabaseAdmin.from('video_jobs').select('id, kind, status, attempts, error, started_at, finished_at, created_at, log').eq('session_video_id', id).order('created_at', { ascending: false }).limit(8),
     supabaseAdmin.from('session_video_transcripts').select('segments, voices, voices_named_at, model, voice_clips, voice_suggestions').eq('session_video_id', id).maybeSingle(),
     supabaseAdmin.from('session_video_text').select('*').eq('session_video_id', id).maybeSingle(),
     v.agenda_session_id ? sessionSpeakers(eventId, v.agenda_session_id) : Promise.resolve([]),
@@ -305,6 +353,9 @@ export async function videoDetail(eventId: string, id: string) {
     video: { ...v, upload_id: undefined }, jobs: jobs ?? [], session: ses, speakers,
     proxy_url: v.proxy_path ? await presignGet(v.proxy_path as string, 3600).catch(() => null) : null,
     preview_url: v.preview_path ? await presignGet(v.preview_path as string, 3600).catch(() => null) : null,
+    preview_download_url: v.preview_path ? await presignGet(v.preview_path as string, 3600, previewFileName(ses?.title as string | undefined)).catch(() => null) : null,
+    preview_share: v.preview_share_token && v.preview_share_expires_at && Date.parse(v.preview_share_expires_at as string) > Date.now()
+      ? { token: v.preview_share_token as string, expires_at: v.preview_share_expires_at as string } : null,
     transcript: tr ? {
       voices: tr.voices as VoiceRow[], summaries: voiceSummaries(segments), named_at: tr.voices_named_at, segments, model: tr.model,
       voice_clip_urls: voiceClipUrls,

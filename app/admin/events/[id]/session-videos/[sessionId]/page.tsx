@@ -12,14 +12,15 @@ type VoiceRow = { voice_id: string; speaker_id: string | null; rejected: boolean
 type Suggestion = { voice_id: string; suggested_speaker_id: string | null; confidence: string }
 type VoiceSummary = { voice_id: string; seconds: number; segments: number; quotes: Array<{ start: number; text: string }> }
 type Speaker = { id: string; name: string; public_name: string | null }
-type Job = { id: string; kind: string; status: string; error: string | null; log: string | null }
+type Job = { id: string; kind: string; status: string; error: string | null; log: Array<{ at: string; line: string }> | null; created_at?: string | null; started_at?: string | null; finished_at?: string | null }
 type TextRec = { titles: string[]; selected_title: string | null; description_working: string; tags: string[]; findings: Record<string, unknown>; approved_at: string | null }
 type VideoRec = { id: string; status: string; source_ref: string | null; size_bytes: number | null; bytes_transferred: number | null; drive_file_id: string | null; agenda_session_id: string | null; duration_s: number | null; error: string | null; render_status: string | null; render_error: string | null; preview_path: string | null; render_path: string | null; cues_fingerprint: string | null }
 type Cue = { id: string; session_video_id: string; speaker_id: string; start_s: number }
 type Detail = {
   video: VideoRec; jobs: Job[]
   session: { title: string; content_type: string | null } | null
-  speakers: Speaker[]; proxy_url: string | null; preview_url: string | null
+  speakers: Speaker[]; proxy_url: string | null; preview_url: string | null; preview_download_url: string | null
+  preview_share: { token: string; expires_at: string } | null
   transcript: { voices: VoiceRow[]; summaries: VoiceSummary[]; named_at: string | null; voice_clip_urls: Record<string, string>; voice_suggestions: Suggestion[] } | null
   text: TextRec | null
   thumbnail: { png_url: string | null; jpg_url: string | null; approved: boolean } | null
@@ -36,7 +37,7 @@ const STATUS_LABEL: Record<string, string> = {
   ready: 'Review text', approved: 'Approved', failed: 'Failed',
 }
 const THUMB_LABEL: Record<string, string> = { new: 'Not generated', ready: 'Ready', changed: 'Out of date', needs_attention: 'Needs attention', approved: 'Approved' }
-const THUMB_COLOR: Record<string, string> = { new: 'var(--ink3)', ready: 'var(--teal-mid)', changed: 'var(--red)', needs_attention: 'var(--amber)', approved: 'var(--green)' }
+const THUMB_COLOR: Record<string, string> = { new: 'var(--ink3)', ready: 'var(--teal-mid)', changed: 'var(--red)', needs_attention: 'var(--amber)', approved: 'var(--success)' }
 
 function fmt(s: number) { const m = Math.floor(s / 60); return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}` }
 function spkName(sp: Speaker) { return sp.public_name || sp.name }
@@ -79,6 +80,8 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
   const [renderBusy, setRenderBusy] = useState(false)
   const [renderMsg, setRenderMsg] = useState<string | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [shareBusy, setShareBusy] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   // ── API helpers ─────────────────────────────────────────────────────────────
 
@@ -177,23 +180,37 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
     return () => clearInterval(t)
   }, [list, sessionId, reload])
 
+  // Poll while a preview / final render is running, so the progress bar moves and the video appears when it is done
+  // (no reload needed). Status lives in the database, so leaving and coming back picks the progress up again.
+  const renderBusyNow = ['preview_rendering', 'rendering'].includes((detail?.video as VideoRec | null)?.render_status ?? '')
+  const detailVideoId = detail?.video.id ?? null
+  useEffect(() => {
+    if (!renderBusyNow || !detailVideoId) return
+    const t = setInterval(() => { void loadDetail(detailVideoId) }, 5000)
+    return () => clearInterval(t)
+  }, [renderBusyNow, detailVideoId, loadDetail])
+
   // ── Computed ──────────────────────────────────────────────────────────────────
 
   const video = list?.videos?.find(v => v.agenda_session_id === sessionId) ?? null
   const sess = list?.sessions?.find(s => s.id === sessionId) ?? null
 
-  function calcActive(): number {
-    if (!video) return 2
-    if (video.status === 'uploading') return 2
-    if (video.status === 'failed') return 3
-    if (BUSY.has(video.status)) return 3
-    if (video.status === 'transcribed') return 4
-    if (video.status === 'ready') return 5
-    if (video.status === 'approved') return cueSummary.confirmed ? 8 : 7
-    return 3
+  // Steps run strictly in order: a step opens only when every step before it is done (see stepDone below).
+  const processed = !!video && ['transcribed', 'text_pending', 'ready', 'approved'].includes(video.status)
+  const renderSt = (detail?.video as VideoRec | null)?.render_status ?? null
+  const stepDone: Record<number, boolean> = {
+    1: thumb?.state === 'approved',
+    2: processed,
+    3: !!detail?.transcript?.named_at,
+    4: video?.status === 'approved',
+    5: cueSummary.confirmed,
+    6: renderSt === 'done',
   }
+  const firstOpen = [1, 2, 3, 4, 5, 6].find(n => !stepDone[n]) ?? 6
+  const lockedBy = (n: number) => [1, 2, 3, 4, 5].find(k => k < n && !stepDone[k]) ?? null
+  const toggle = (n: number) => { if (lockedBy(n) === null) setOpenStep(p => p === n ? null : n) }
 
-  const active = openStep ?? calcActive()
+  const active = openStep !== null && lockedBy(openStep) === null ? openStep : firstOpen
   const tr = detail?.transcript ?? null
   const spNames = new Map((detail?.speakers ?? []).map(s => [s.id, spkName(s)]))
   const voicesComplete = (voices ?? []).every(v => v.rejected || v.speaker_id !== null) && (voices?.length ?? 0) > 0
@@ -271,9 +288,20 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
 
   async function doApprove() {
     if (!video) return
-    setActionErr(null)
-    try { await vpost({ action: 'approve', id: video.id }); await reload() }
-    catch (e) { setActionErr(e instanceof Error ? e.message : 'Failed.') }
+    setActionErr(null); setTextMsg(null); setTextSaving(true)
+    try {
+      if (textEdited) { await vpost({ action: 'save_text', id: video.id, titles, selected_title: selTitle, description_working: desc }); setTextEdited(false) }
+      await vpost({ action: 'approve', id: video.id }); setOpenStep(null); await reload()
+    } catch (e) { setActionErr(e instanceof Error ? e.message : 'Failed.') }
+    finally { setTextSaving(false) }
+  }
+
+  async function doShare(on: boolean) {
+    if (!video) return
+    setShareBusy(true); setRenderMsg(null)
+    try { await vpost({ action: on ? 'share_preview' : 'unshare_preview', id: video.id }); await loadDetail(video.id) }
+    catch (e) { setRenderMsg(e instanceof Error ? e.message : 'Failed.') }
+    finally { setShareBusy(false) }
   }
 
   async function doRetry() {
@@ -361,9 +389,9 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
       <div style={{ display: 'grid', gap: 8, padding: '8px 0' }}>
 
         {/* ── Step 1: Thumbnail ─────────────────────────────────────── */}
-        <StepCard n={1} active={active === 1} done={thumb?.state === 'approved'}
+        <StepCard n={1} active={active === 1} done={stepDone[1]} lockedBy={null}
           title="Video kit" summary={thumb ? `${THUMB_LABEL[thumb.state]} — thumbnail, title card, lower thirds` : 'Not generated'}
-          onToggle={() => setOpenStep(p => p === 1 ? null : 1)}>
+          onToggle={() => toggle(1)}>
           <div style={{ display: 'grid', gap: 10 }}>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
               {([['Thumbnail', thumb?.jpg_url ?? null], ['Title card', titleCard?.png_url ?? null]] as const).map(([label, url]) => (
@@ -399,9 +427,9 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
         </StepCard>
 
         {/* ── Step 2: Upload ────────────────────────────────────────── */}
-        <StepCard n={2} active={active === 2} done={!!(video && video.status !== 'uploading')}
-          title="Upload video" summary={video ? (video.source_ref ?? 'Video uploaded') : 'No video yet'}
-          onToggle={() => setOpenStep(p => p === 2 ? null : 2)}>
+        <StepCard n={2} active={active === 2} done={stepDone[2]} lockedBy={lockedBy(2)}
+          title="Upload video" summary={!video ? 'No video yet' : video.status === 'uploading' ? 'Uploading…' : video.status === 'failed' ? 'Processing failed — retry' : BUSY.has(video.status) ? `${video.source_ref ?? 'Video'} — ${STATUS_LABEL[video.status] ?? 'processing'}…` : (video.source_ref ?? 'Video uploaded')}
+          onToggle={() => toggle(2)}>
           <div style={{ display: 'grid', gap: 14 }}>
             {/* Existing video */}
             {video && video.status !== 'uploading' && (
@@ -416,6 +444,25 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
                     </div>}
               </div>
             )}
+
+            {/* Processing (automatic — no action needed unless it fails) */}
+            {video?.status === 'failed' && (
+              <div style={{ display: 'grid', gap: 8 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--red)' }}>Processing failed</div>
+                {video.error && <div style={{ fontSize: 12.5, color: 'var(--ink2)', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>{video.error}</div>}
+                <div><Button variant="teal" onClick={() => void doRetry()}>Retry</Button></div>
+              </div>
+            )}
+            {video && BUSY.has(video.status) && (
+              <div style={{ display: 'grid', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--amber)', display: 'inline-block' }} />
+                  <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--amber)' }}>{STATUS_LABEL[video.status] ?? video.status}…</span>
+                </div>
+                <div style={{ fontSize: 12.5, color: 'var(--ink3)' }}>Preparing the video and transcribing the audio. This runs by itself — you can leave the page; Name voices opens when it&apos;s done.</div>
+              </div>
+            )}
+            {processed && <div style={{ fontSize: 12.5, color: 'var(--success)', fontWeight: 700 }}>✓ Processed and transcribed</div>}
 
             {/* Drive import progress */}
             {video?.status === 'uploading' && !uploading && (
@@ -473,45 +520,10 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
           </div>
         </StepCard>
 
-        {/* ── Step 3: Processing ────────────────────────────────────── */}
-        <StepCard n={3} active={active === 3} done={!!(video && ['transcribed', 'text_pending', 'ready', 'approved'].includes(video.status))}
-          title="Processing" summary={video ? (STATUS_LABEL[video.status] ?? video.status) : '—'}
-          onToggle={() => setOpenStep(p => p === 3 ? null : 3)}>
-          {!video ? (
-            <div style={{ fontSize: 13, color: 'var(--ink3)' }}>Waiting for video upload.</div>
-          ) : video.status === 'failed' ? (
-            <div style={{ display: 'grid', gap: 8 }}>
-              <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--red)' }}>Processing failed</div>
-              {video.error && <div style={{ fontSize: 12.5, color: 'var(--ink2)', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>{video.error}</div>}
-              <div><Button variant="teal" onClick={() => void doRetry()}>Retry</Button></div>
-            </div>
-          ) : BUSY.has(video.status) ? (
-            <div style={{ display: 'grid', gap: 8 }}>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--amber)', display: 'inline-block' }} />
-                <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--amber)' }}>{STATUS_LABEL[video.status] ?? video.status}</span>
-              </div>
-              {detail?.jobs?.slice(0, 4).map(j => (
-                <div key={j.id} style={{ fontSize: 11.5, color: 'var(--ink3)', fontFamily: 'monospace' }}>
-                  {j.kind}: {j.status}{j.error ? ` — ${j.error.slice(0, 100)}` : ''}{j.log ? ` · ${j.log.slice(-120)}` : ''}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gap: 4 }}>
-              {detail?.jobs?.slice(0, 4).map(j => (
-                <div key={j.id} style={{ fontSize: 11.5, color: 'var(--ink3)', fontFamily: 'monospace' }}>
-                  ✓ {j.kind}: {j.status}
-                </div>
-              ))}
-            </div>
-          )}
-        </StepCard>
-
-        {/* ── Step 4: Name voices ───────────────────────────────────── */}
-        <StepCard n={4} active={active === 4} done={!!(tr?.named_at)}
-          title="Name voices" summary={tr?.named_at ? 'Named' : (video?.status === 'transcribed' ? 'Ready' : 'Waiting for transcript')}
-          onToggle={() => setOpenStep(p => p === 4 ? null : 4)}>
+        {/* ── Step 3: Name voices ───────────────────────────────────── */}
+        <StepCard n={3} active={active === 3} done={stepDone[3]} lockedBy={lockedBy(3)}
+          title="Name voices" summary={tr?.named_at ? 'Named' : (video?.status === 'transcribed' ? 'Ready to name' : 'Waiting for transcript')}
+          onToggle={() => toggle(3)}>
           {!tr ? (
             <div style={{ fontSize: 13, color: 'var(--ink3)' }}>Waiting for transcript…</div>
           ) : (
@@ -580,10 +592,10 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
           )}
         </StepCard>
 
-        {/* ── Step 5: Titles & description ──────────────────────────── */}
-        <StepCard n={5} active={active === 5} done={!!(detail?.text && isApproved)}
-          title="Titles & description" summary={detail?.text ? (selTitle ?? titles[0] ?? 'No title selected') : (video?.status === 'text_pending' ? 'Generating…' : 'Waiting for text generation')}
-          onToggle={() => setOpenStep(p => p === 5 ? null : 5)}>
+        {/* ── Step 4: Title & description (edit + approve) ─────────── */}
+        <StepCard n={4} active={active === 4} done={stepDone[4]} lockedBy={lockedBy(4)}
+          title="Title & description" summary={detail?.text ? `${isApproved ? 'Approved — ' : 'To approve — '}${selTitle ?? titles[0] ?? 'no title selected'}` : (video?.status === 'text_pending' ? 'Generating…' : 'Waiting for text generation')}
+          onToggle={() => toggle(4)}>
           {!detail?.text ? (
             <div style={{ fontSize: 13, color: 'var(--ink3)' }}>
               {video?.status === 'text_pending' ? 'Generating text — this takes about a minute…' : 'Complete the Name voices step first.'}
@@ -637,58 +649,35 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
                 ) : null
               })()}
 
-              {textMsg && <div style={{ fontSize: 13, color: textMsg === 'Saved.' ? 'var(--green)' : 'var(--red)' }}>{textMsg}</div>}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <Button variant="teal" disabled={textSaving} onClick={() => void doSaveText()}>{textSaving ? 'Saving…' : 'Save changes'}</Button>
-                <Button variant="ghost" onClick={() => setOpenStep(6)}>Review & approve →</Button>
-              </div>
-            </div>
-          )}
-        </StepCard>
-
-        {/* ── Step 6: Approve ───────────────────────────────────────── */}
-        <StepCard n={6} active={active === 6} done={isApproved}
-          title="Approve" summary={isApproved ? 'Approved' : (detail?.text ? 'Ready to review' : 'Waiting for text')}
-          onToggle={() => setOpenStep(p => p === 6 ? null : 6)}>
-          {!detail?.text ? (
-            <div style={{ fontSize: 13, color: 'var(--ink3)' }}>Complete the Titles &amp; description step first.</div>
-          ) : (
-            <div style={{ display: 'grid', gap: 12 }}>
-              <div style={{ background: 'var(--surface)', border: '1px solid var(--border-light)', borderRadius: 8, padding: 14, display: 'grid', gap: 8 }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Selected title</div>
-                <div style={{ fontSize: 16, fontWeight: 700 }}>{selTitle ?? detail.text.selected_title ?? '— no title selected —'}</div>
-                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 4 }}>Description</div>
-                <div style={{ fontSize: 13.5, lineHeight: 1.65, whiteSpace: 'pre-wrap', maxHeight: 180, overflow: 'auto', color: 'var(--ink1)' }}>
-                  {desc || detail.text.description_working}
-                </div>
-              </div>
-
               {!detail.footer_approved && (
                 <div style={{ fontSize: 12.5, color: 'var(--amber)' }}>Note: the YouTube footer in the description may need a final review.</div>
               )}
-
+              {textMsg && <div style={{ fontSize: 13, color: textMsg === 'Saved.' ? 'var(--success)' : 'var(--red)' }}>{textMsg}</div>}
               {actionErr && <div style={{ fontSize: 13, color: 'var(--red)' }}>{actionErr}</div>}
-
-              {isApproved ? (
-                <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--green)' }}>
-                  ✓ Approved{detail.text.approved_at ? ` on ${new Date(detail.text.approved_at).toLocaleDateString()}` : ''}
+              {isApproved && !textEdited ? (
+                <div style={{ display: 'grid', gap: 4 }}>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--success)' }}>✓ Approved{detail.text.approved_at ? ` on ${new Date(detail.text.approved_at).toLocaleDateString()}` : ''}</div>
+                  <div style={{ fontSize: 12, color: 'var(--ink3)' }}>Editing the title or description removes the approval until you approve again.</div>
                 </div>
               ) : (
                 <div style={{ display: 'grid', gap: 6 }}>
-                  <div><Button variant="lime" onClick={() => void doApprove()}>Approve for publishing →</Button></div>
-                  <div style={{ fontSize: 12, color: 'var(--ink3)' }}>Once approved, this video's title, description and thumbnail are ready for YouTube upload.</div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <Button variant="lime" disabled={textSaving || !selTitle} onClick={() => void doApprove()}>{textSaving ? 'Saving…' : textEdited ? 'Save & approve →' : 'Approve →'}</Button>
+                    {textEdited && <Button variant="ghost" disabled={textSaving} onClick={() => void doSaveText()}>Save without approving</Button>}
+                  </div>
+                  {!selTitle && <div style={{ fontSize: 12, color: 'var(--ink3)' }}>Select a title first.</div>}
                 </div>
               )}
             </div>
           )}
         </StepCard>
 
-        {/* ── Step 7: Lower-third cues ──────────────────────────── */}
-        <StepCard n={7} active={active === 7} done={cuesConfirmed}
-          title="Lower-third check" summary={cuesConfirmed ? `${cueSummary.count} confirmed` : hasCues ? `${cueSummary.count} to check` : (isApproved ? 'Ready to find cues' : 'Approve text first')}
-          onToggle={() => setOpenStep(p => p === 7 ? null : 7)}>
+        {/* ── Step 5: Lower-third cues ──────────────────────────── */}
+        <StepCard n={5} active={active === 5} done={stepDone[5]} lockedBy={lockedBy(5)}
+          title="Lower-third check" summary={cuesConfirmed ? `${cueSummary.count} confirmed` : hasCues ? `${cueSummary.count} to check` : 'Ready to find moments'}
+          onToggle={() => toggle(5)}>
           {!isApproved || !video ? (
-            <div style={{ fontSize: 13, color: 'var(--ink3)' }}>Approve the text first (Step 6).</div>
+            <div style={{ fontSize: 13, color: 'var(--ink3)' }}>Approve the title &amp; description first (Step 4).</div>
           ) : (
             <CueReview eventId={eventId} videoId={video.id} proxyUrl={detail?.proxy_url ?? null}
               durationS={(detail?.video as VideoRec | null)?.duration_s ?? null}
@@ -696,34 +685,51 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
           )}
         </StepCard>
 
-        {/* ── Step 8: Render & preview ──────────────────────────── */}
-        <StepCard n={8} active={active === 8} done={renderDone}
+        {/* ── Step 6: Render & preview ──────────────────────────── */}
+        <StepCard n={6} active={active === 6} done={stepDone[6]} lockedBy={lockedBy(6)}
           title="Render & preview" summary={
             renderDone ? 'Final render done' :
-            renderStatus === 'rendering' ? 'Rendering final…' :
+            renderStatus === 'rendering' ? `Rendering final… ${renderPct(detail, 'render')}` :
             previewDone ? 'Preview ready — approve to render final' :
-            renderStatus === 'preview_rendering' ? 'Generating preview…' :
-            (isApproved && cuesConfirmed) ? 'Ready to generate preview' : 'Confirm the lower thirds (Step 7) first'
+            renderStatus === 'preview_rendering' ? `Generating preview… ${renderPct(detail, 'render_preview')}` :
+            'Ready to generate preview'
           }
-          onToggle={() => setOpenStep(p => p === 8 ? null : 8)}>
+          onToggle={() => toggle(6)}>
           <div style={{ display: 'grid', gap: 12 }}>
             {!(isApproved && cuesConfirmed) ? (
-              <div style={{ fontSize: 13, color: 'var(--ink3)' }}>Approve the text (Step 6) and confirm the lower thirds (Step 7) first.</div>
+              <div style={{ fontSize: 13, color: 'var(--ink3)' }}>Approve the title &amp; description (Step 4) and confirm the lower thirds (Step 5) first.</div>
             ) : (
               <>
                 {renderMsg && <div style={{ fontSize: 12.5, color: 'var(--red)' }}>{renderMsg}</div>}
                 {(detail?.video as VideoRec | null)?.render_error && <div style={{ fontSize: 12, color: 'var(--red)', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>{(detail!.video as VideoRec).render_error}</div>}
 
-                {!previewDone && (
-                  <Button variant="teal" disabled={renderBusy || renderStatus === 'preview_rendering'} onClick={() => void doRequestPreview()}>
-                    {renderStatus === 'preview_rendering' ? 'Generating preview…' : 'Generate preview'}
-                  </Button>
+                {renderStatus === 'preview_rendering' && <RenderProgress detail={detail} kind="render_preview" />}
+                {!previewDone && renderStatus !== 'preview_rendering' && (
+                  <Button variant="teal" disabled={renderBusy} onClick={() => void doRequestPreview()}>Generate preview</Button>
                 )}
 
                 {previewDone && previewUrl && (
                   <div>
                     <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>Preview</div>
                     <video controls src={previewUrl} style={{ width: '100%', maxHeight: 320, borderRadius: 8, background: '#000', display: 'block' }} />
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 10 }}>
+                      {detail?.preview_download_url && <Button variant="ghost" href={detail.preview_download_url}>Download MP4</Button>}
+                      {!detail?.preview_share && <Button variant="ghost" disabled={shareBusy} onClick={() => void doShare(true)}>{shareBusy ? 'Creating link…' : 'Share preview link'}</Button>}
+                    </div>
+                    {detail?.preview_share && (() => {
+                      const link = `${typeof window !== 'undefined' ? window.location.origin : ''}/public/video-preview/${detail.preview_share.token}`
+                      return (
+                        <div style={{ marginTop: 10, border: '1px solid var(--border-light)', borderRadius: 10, padding: '10px 12px', display: 'grid', gap: 8 }}>
+                          <div style={{ fontSize: 12.5, fontWeight: 700 }}>Share link — anyone with this link can watch and download the preview (no login)</div>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                            <div style={{ flex: '1 1 280px', minWidth: 0 }}><Input readOnly value={link} onFocus={e => e.currentTarget.select()} /></div>
+                            <Button variant="teal" onClick={() => { void navigator.clipboard?.writeText(link).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) }) }}>{copied ? 'Copied ✓' : 'Copy link'}</Button>
+                            <Button variant="ghost" disabled={shareBusy} onClick={() => void doShare(false)}>Stop sharing</Button>
+                          </div>
+                          <div style={{ fontSize: 12, color: 'var(--ink3)' }}>Works until {new Date(detail.preview_share.expires_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}. It always shows the latest preview, so the same link still works after you regenerate.</div>
+                        </div>
+                      )
+                    })()}
                   </div>
                 )}
                 {previewDone && !previewUrl && renderStatus === 'preview_done' && (
@@ -736,8 +742,8 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
                     <Button variant="ghost" disabled={renderBusy} onClick={() => void doRequestPreview()}>Generate preview again</Button>
                   </div>
                 )}
-                {renderStatus === 'rendering' && <div style={{ fontSize: 13, color: 'var(--amber)' }}>Rendering final video…</div>}
-                {renderDone && <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--green)' }}>✓ Final render complete</div>}
+                {renderStatus === 'rendering' && <RenderProgress detail={detail} kind="render" />}
+                {renderDone && <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--success)' }}>✓ Final render complete</div>}
               </>
             )}
           </div>
@@ -748,25 +754,93 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
   )
 }
 
-function StepCard({ n, title, active, done, summary, onToggle, children }: {
-  n: number; title: string; active: boolean; done: boolean; summary: string
+/* ── Render progress ─────────────────────────────────────────────────────────────
+   An estimate, not a measurement: ffmpeg doesn't report progress back to us, so the bar combines
+   (a) the steps the worker has logged so far — each one is a floor the bar can't drop below — and
+   (b) elapsed time against an expected duration: the last finished run of the same kind for this video if there
+       is one, otherwise a rough rate per minute of session footage. */
+
+const RENDER_STAGES: Array<[RegExp, number, string]> = [
+  [/^Downloading/, 3, 'Downloading the session and video kit'],
+  [/^(Preview|Final render) at/, 6, 'Resizing the session video'],
+  [/lower third\(s\) placed/, 30, 'Adding the lower thirds'],
+  [/^Normalising/, 45, 'Evening out the sound'],
+  [/(Background music added|No background music)/, 55, 'Adding background music'],
+  [/^Joining/, 58, 'Joining intro, title card, session and outro'],
+  [/encoded, uploading/, 96, 'Uploading'],
+]
+
+function renderEstimate(detail: Detail | null, kind: 'render_preview' | 'render') {
+  const jobs = detail?.jobs ?? []
+  const job = jobs.find(j => j.kind === kind) ?? null
+  if (!job || job.status === 'done' || job.status === 'failed') return null
+  const past = jobs.find(j => j.kind === kind && j.status === 'done' && j.started_at && j.finished_at && j !== job)
+  const minutes = Math.max(1, (detail?.video.duration_s ?? 1200) / 60)
+  const expected = past ? (Date.parse(past.finished_at!) - Date.parse(past.started_at!)) / 1000
+    : kind === 'render_preview' ? 40 + minutes * 9 : 120 + minutes * 90
+  const log = job.log ?? []
+  let floor = 0, label = 'Starting'
+  for (const l of log) for (const [re, pct, text] of RENDER_STAGES) if (re.test(l.line)) { floor = Math.max(floor, pct); label = text }
+  if (!job.started_at || job.status === 'pending' || job.status === 'queued') return { queued: true, pct: 0, label: 'Waiting for the video worker to start', remaining: expected, over: false }
+  const elapsed = (Date.now() - Date.parse(job.started_at)) / 1000
+  const pct = Math.min(98, Math.max(floor, (elapsed / expected) * 100))
+  return { queued: false, pct, label, remaining: Math.max(0, expected - elapsed), over: elapsed > expected * 1.15 }
+}
+
+function renderPct(detail: Detail | null, kind: 'render_preview' | 'render') {
+  const e = renderEstimate(detail, kind)
+  return e && !e.queued ? `${Math.round(e.pct)}%` : ''
+}
+
+function fmtLeft(s: number) {
+  if (s < 60) return 'less than a minute left'
+  const m = Math.round(s / 60)
+  return `about ${m} minute${m === 1 ? '' : 's'} left`
+}
+
+function RenderProgress({ detail, kind }: { detail: Detail | null; kind: 'render_preview' | 'render' }) {
+  const [, tick] = useState(0)
+  useEffect(() => { const t = setInterval(() => tick(n => n + 1), 1000); return () => clearInterval(t) }, [])
+  const e = renderEstimate(detail, kind)
+  const what = kind === 'render_preview' ? 'Generating preview' : 'Rendering the final video'
+  return (
+    <div style={{ border: '1px solid var(--border-light)', borderRadius: 10, padding: '12px 14px', display: 'grid', gap: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', fontSize: 13 }}>
+        <span style={{ fontWeight: 700 }}>{what}{e && !e.queued ? ` — ${Math.round(e.pct)}%` : ''}</span>
+        <span style={{ color: 'var(--ink3)' }}>
+          {!e ? 'Starting…' : e.queued ? 'Queued' : e.over ? 'Taking a little longer than usual…' : fmtLeft(e.remaining)}
+        </span>
+      </div>
+      <div style={{ height: 8, borderRadius: 999, background: 'var(--border-light)', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${e?.pct ?? 0}%`, background: 'var(--teal-mid)', borderRadius: 999, transition: 'width 1s linear' }} />
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--ink3)' }}>
+        {e?.label ?? 'Starting'}… You can leave this page — it keeps going, and the {kind === 'render_preview' ? 'preview' : 'video'} shows here when it&apos;s done.
+      </div>
+    </div>
+  )
+}
+
+function StepCard({ n, title, active, done, lockedBy, summary, onToggle, children }: {
+  n: number; title: string; active: boolean; done: boolean; lockedBy: number | null; summary: string
   onToggle: () => void; children: React.ReactNode
 }) {
+  // Done = green tick. Not done = red (still to do). Locked = red but dimmed, and it won't open until the step before it is done.
+  const locked = !done && lockedBy !== null
+  const tone = done ? 'var(--success)' : 'var(--red)'
   return (
-    <div style={{ border: `1.5px solid ${active ? 'var(--teal-mid)' : done ? 'var(--green)' : 'var(--border-light)'}`, borderRadius: 12, overflow: 'hidden' }}>
-      <button type="button" onClick={onToggle}
-        style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '11px 14px', width: '100%', background: 'var(--card)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+    <div style={{ border: `1.5px solid ${active && !locked ? 'var(--teal-mid)' : 'var(--border-light)'}`, borderRadius: 12, overflow: 'hidden', opacity: locked ? 0.6 : 1 }}>
+      <button type="button" onClick={onToggle} disabled={locked} title={locked ? `Finish step ${lockedBy} first` : undefined}
+        style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '11px 14px', width: '100%', background: 'var(--card)', border: 'none', cursor: locked ? 'not-allowed' : 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
         <div style={{ width: 26, height: 26, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800,
-          border: `2px solid ${done ? 'var(--green)' : active ? 'var(--teal-mid)' : 'var(--border-light)'}`,
-          background: done ? 'var(--green)' : active ? 'var(--teal-mid)' : 'transparent',
-          color: done || active ? 'white' : 'var(--ink3)' }}>
+          border: `2px solid ${tone}`, background: done ? 'var(--success)' : 'transparent', color: done ? 'white' : tone }}>
           {done ? '✓' : n}
         </div>
-        <span style={{ fontSize: 14, fontWeight: 800, color: active ? 'var(--teal-mid)' : 'var(--ink1)' }}>{title}</span>
-        <span style={{ fontSize: 12, color: 'var(--ink3)', marginLeft: 4 }}>{summary}</span>
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--ink3)' }}>▼</span>
+        <span style={{ fontSize: 14, fontWeight: 800, color: active && !locked ? 'var(--teal-mid)' : 'var(--ink1)' }}>{title}</span>
+        <span style={{ fontSize: 12, color: tone, marginLeft: 4, fontWeight: 600 }}>{locked ? `🔒 Finish step ${lockedBy} first` : summary}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--ink3)' }}>{locked ? '' : '▼'}</span>
       </button>
-      {active && (
+      {active && !locked && (
         <div style={{ padding: '0 14px 14px' }}>
           <div style={{ height: 1, background: 'var(--border-light)', margin: '0 0 14px' }} />
           {children}

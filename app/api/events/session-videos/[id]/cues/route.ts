@@ -92,6 +92,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const spId = typeof b.speaker_id === 'string' && UUID.test(b.speaker_id) ? b.speaker_id : ''
         const startS = typeof b.start_s === 'number' && isFinite(b.start_s) ? b.start_s : -1
         if (!spId || startS < 0) throw new VideoError('speaker_id and start_s required.')
+        // Re-selecting the moment that is already chosen changes nothing — don't throw away the preview for it.
+        const mine = (await loadCues(id)).filter(c => c.speaker_id === spId)
+        if (mine.length === 1 && Math.abs(mine[0].start_s - startS) < 0.05) return NextResponse.json(await reviewState(eventId, id))
         for (const c of await loadCues(id)) if (c.speaker_id === spId) await deleteCue(id, c.id)
         await addCue(id, spId, startS, by)
         await setSkipped(id, spId, false)

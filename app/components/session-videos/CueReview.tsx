@@ -18,7 +18,7 @@ type Cand = { speaker_id: string; start_s: number; run_s: number; seen?: 'yes' |
 type Review = { cues: Cue[]; confirmed: boolean; lowerThirds: Lt[]; setupMissing: string[]; sessionId: string | null; scanStatus: string | null; scanError: string | null; candidates: Cand[]; skipped: string[]; speakers: Array<{ id: string; name: string; moderator: boolean }> }
 
 const SEEN: Record<NonNullable<Cand['seen']>, { label: string; color: string }> = {
-  yes: { label: 'Close-up', color: 'var(--green)' }, wide: { label: 'Wide shot', color: 'var(--amber)' },
+  yes: { label: 'Close-up', color: 'var(--success)' }, wide: { label: 'Wide shot', color: 'var(--amber)' },
   other: { label: 'Someone else on screen', color: 'var(--red)' }, unknown: { label: 'Not checked', color: 'var(--ink3)' },
 }
 type Speaker = { id: string; name: string; public_name: string | null }
@@ -158,7 +158,7 @@ export default function CueReview({ eventId, videoId, proxyUrl, durationS, speak
         const chosenInView = !!chosen && opts.some(o => Math.abs(o.start_s - chosen.start_s) < 1)
         const lt = ltOf(sp.id)
         const card = (t: number, seen: Cand['seen'] | undefined, run_s: number | null, isChosen: boolean) => (
-          <div key={t} style={{ border: `2px solid ${isChosen ? 'var(--green)' : 'var(--border-light)'}`, borderRadius: 10, padding: 8, display: 'grid', gap: 6, background: 'var(--surface)' }}>
+          <div key={t} style={{ border: `2px solid ${isChosen ? 'var(--success)' : 'var(--border-light)'}`, borderRadius: 10, padding: 8, display: 'grid', gap: 6, background: 'var(--surface)' }}>
             {proxyUrl ? <Frame src={proxyUrl} at={t} duration={durationS} still={lt?.still_url ?? null} name={sp.name} /> : <div style={{ aspectRatio: '16 / 9', background: 'var(--card)', borderRadius: 8 }} />}
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
               <span style={{ fontSize: 12.5, color: 'var(--ink3)' }}><b style={{ fontFamily: 'monospace', color: 'var(--ink)' }}>{fmt(t)}</b>{durationS ? ` of ${fmt(durationS)}` : ''}{run_s ? ` · speaks ${Math.round(run_s)}s` : ''}</span>
@@ -166,7 +166,7 @@ export default function CueReview({ eventId, videoId, proxyUrl, durationS, speak
             </div>
             {clashes(sp.id, t) && <div style={{ fontSize: 11.5, color: 'var(--amber)' }}>Too close to another speaker&apos;s lower third.</div>}
             {isChosen
-              ? <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--green)' }}>✓ Selected{!lt?.ready && !data.setupMissing.length ? ' · preparing the lower third…' : ''}</div>
+              ? <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--success)' }}>✓ Selected{!lt?.ready && !data.setupMissing.length ? ' · preparing the lower third…' : ''}</div>
               : <div><Button variant="ghost" disabled={busy} onClick={() => void run('select', { speaker_id: sp.id, start_s: t })}>Select</Button></div>}
           </div>
         )
@@ -175,7 +175,7 @@ export default function CueReview({ eventId, videoId, proxyUrl, durationS, speak
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--ink)' }}>{sp.name}</span>
               {sp.moderator && <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--teal-mid)' }}>MODERATOR</span>}
-              <span style={{ fontSize: 12.5, fontWeight: 700, color: chosen ? 'var(--green)' : skipped ? 'var(--ink3)' : 'var(--amber)' }}>{chosen ? `✓ Shows at ${fmt(chosen.start_s)}` : skipped ? 'No lower third' : 'Choose one'}</span>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: chosen ? 'var(--success)' : skipped ? 'var(--ink3)' : 'var(--amber)' }}>{chosen ? `✓ Shows at ${fmt(chosen.start_s)}` : skipped ? 'No lower third' : 'Choose one'}</span>
               <span style={{ flex: 1 }} />
               {all.length > PAGE && !exhausted && <button type="button" style={ghost} disabled={busy} onClick={() => setPage(x => ({ ...x, [sp.id]: p + 1 }))}>Find other moments</button>}
               {p > 0 && <button type="button" style={ghost} onClick={() => setPage(x => ({ ...x, [sp.id]: 0 }))}>Back to best</button>}
@@ -199,7 +199,7 @@ export default function CueReview({ eventId, videoId, proxyUrl, durationS, speak
       {scanned && !scanning && rows.length > 0 && (
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', paddingTop: 4 }}>
           {data.confirmed && allDecided ? (
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--green)' }}>✓ Lower thirds confirmed. Continue to Step 8.</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--success)' }}>✓ Lower thirds confirmed. Continue to Step 8.</div>
           ) : (
             <>
               <Button variant="teal" disabled={busy || !allDecided || !allReady || !chosenSpeakers.length || data.setupMissing.length > 0} onClick={() => void run('confirm')}>Confirm lower thirds</Button>

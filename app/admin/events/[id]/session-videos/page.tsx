@@ -17,7 +17,7 @@ const VIDEO_STATUS: Record<string, { label: string; color: string }> = {
   ingesting: { label: 'Preparing', color: 'var(--amber)' }, ingested: { label: 'Processing', color: 'var(--amber)' },
   transcribing: { label: 'Transcribing', color: 'var(--amber)' }, transcribed: { label: 'Name voices', color: 'var(--teal-mid)' },
   text_pending: { label: 'Writing text', color: 'var(--amber)' }, ready: { label: 'Review text', color: 'var(--teal-mid)' },
-  approved: { label: 'Approved', color: 'var(--green)' }, failed: { label: 'Failed', color: 'var(--red)' },
+  approved: { label: 'Approved', color: 'var(--success)' }, failed: { label: 'Failed', color: 'var(--red)' },
 }
 const BUSY = new Set(['uploaded', 'ingesting', 'ingested', 'transcribing', 'text_pending'])
 

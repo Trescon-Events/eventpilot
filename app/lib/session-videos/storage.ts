@@ -83,10 +83,12 @@ export async function abortMultipart(key: string, uploadId: string): Promise<voi
 
 // ── read / write (worker and playback) ───────────────────────────────────────
 
-export async function presignGet(key: string, ttlSeconds = 3600): Promise<string> {
+/** A time-limited GET link. With `downloadAs`, the browser saves the file under that name instead of playing it. */
+export async function presignGet(key: string, ttlSeconds = 3600, downloadAs?: string): Promise<string> {
   if (localDir()) return `file://${join(localDir()!, key)}`
   const { aws, endpoint } = r2()
   const url = new URL(objectUrl(endpoint, key)); url.searchParams.set('X-Amz-Expires', String(ttlSeconds))
+  if (downloadAs) url.searchParams.set('response-content-disposition', `attachment; filename="${downloadAs.replace(/[^\w .()-]+/g, '').slice(0, 120) || 'video.mp4'}"`)
   return (await aws.sign(url.toString(), { method: 'GET', aws: { signQuery: true } })).url
 }
 export async function objectSize(key: string): Promise<number | null> {

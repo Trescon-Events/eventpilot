@@ -39,7 +39,7 @@ type Kit = { intro_path: string | null; outro_path: string | null; music_path: s
 // Overall state of one session's kit, from its thumbnail and title card.
 type KitState = 'to_generate' | 'out_of_date' | 'attention' | 'to_review' | 'approved'
 const KIT_LABEL: Record<KitState, string> = { to_generate: 'To generate', out_of_date: 'Out of date', attention: 'Needs attention', to_review: 'Ready to approve', approved: 'Approved' }
-const KIT_COLOR: Record<KitState, string> = { to_generate: 'var(--ink3)', out_of_date: 'var(--red)', attention: 'var(--amber)', to_review: 'var(--teal-mid)', approved: 'var(--green)' }
+const KIT_COLOR: Record<KitState, string> = { to_generate: 'var(--ink3)', out_of_date: 'var(--red)', attention: 'var(--amber)', to_review: 'var(--teal-mid)', approved: 'var(--success)' }
 
 type ViewItem = { kind: 'thumb' | 'title' | 'lt'; sessionId: string; speakerId?: string; label: string; src: string | null }
 
@@ -221,7 +221,7 @@ export default function VideoKitTab({ eventId }: { eventId: string }) {
               const thumbItem = viewItems.find(v => v.sessionId === s.id && v.kind === 'thumb')
               const thumbIsFinal = !!s.jpg_url && (s.state === 'ready' || s.state === 'approved')
               return (
-                <div key={s.id} style={{ background: 'var(--card)', border: `1.5px solid ${ks === 'out_of_date' ? 'var(--red)' : ks === 'approved' ? 'var(--green)' : 'var(--border-light)'}`, borderRadius: 12, padding: 14, display: 'grid', gap: 12 }}>
+                <div key={s.id} style={{ background: 'var(--card)', border: `1.5px solid ${ks === 'out_of_date' ? 'var(--red)' : ks === 'approved' ? 'var(--success)' : 'var(--border-light)'}`, borderRadius: 12, padding: 14, display: 'grid', gap: 12 }}>
                   {/* Header */}
                   <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
                     <div style={{ flex: 1, minWidth: 220 }}>
@@ -312,7 +312,7 @@ function Step({ n, title, done, children }: { n: number; title: string; done: bo
   return (
     <div style={{ display: 'grid', gap: 8, alignContent: 'start' }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <span style={{ width: 24, height: 24, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, background: done ? 'var(--green)' : 'var(--teal-mid)', color: 'white' }}>{done ? '✓' : n}</span>
+        <span style={{ width: 24, height: 24, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, background: done ? 'var(--success)' : 'var(--teal-mid)', color: 'white' }}>{done ? '✓' : n}</span>
         <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--ink)' }}>{title}</span>
       </div>
       {children}
@@ -433,7 +433,7 @@ function EventAssets({ eventId }: { eventId: string }) {
       <input ref={ref} type="file" accept={accept} style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) void upload(field, f); e.target.value = '' }} />
       <span style={{ fontSize: 13, fontWeight: 700, minWidth: 140 }}>{label}</span>
       {has
-        ? <><span style={{ fontSize: 12.5, color: 'var(--green)' }}>✓ Uploaded</span><Button variant="ghost" disabled={!!uploading} onClick={() => void remove(field)}>Remove</Button></>
+        ? <><span style={{ fontSize: 12.5, color: 'var(--success)' }}>✓ Uploaded</span><Button variant="ghost" disabled={!!uploading} onClick={() => void remove(field)}>Remove</Button></>
         : <Button variant={field === 'intro' ? 'teal' : 'ghost'} disabled={!!uploading} onClick={() => ref.current?.click()}>{uploading === field ? 'Uploading…' : field === 'intro' ? 'Upload MP4/MOV' : 'Upload MP3/WAV/M4A'}</Button>}
       <span style={{ fontSize: 11.5, color: 'var(--ink3)' }}>{hint}</span>
     </div>
@@ -445,9 +445,9 @@ function EventAssets({ eventId }: { eventId: string }) {
           <div style={{ fontSize: 15, fontWeight: 800 }}>Event assets</div>
           <div style={{ fontSize: 12.5, color: 'var(--ink3)' }}>Used in every session video of this event.</div>
         </div>
-        <span style={{ fontSize: 12.5, fontWeight: 800, color: !kit ? 'var(--ink3)' : kit.intro_path ? 'var(--green)' : 'var(--red)' }}>{!kit ? 'Loading…' : !kit.intro_path ? '● Intro/outro missing — videos cannot be rendered' : kit.music_path ? '✓ Ready' : '✓ Ready (no music)'}</span>
+        <span style={{ fontSize: 12.5, fontWeight: 800, color: !kit ? 'var(--ink3)' : kit.intro_path ? 'var(--success)' : 'var(--red)' }}>{!kit ? 'Loading…' : !kit.intro_path ? '● Intro/outro missing — videos cannot be rendered' : kit.music_path ? '✓ Ready' : '✓ Ready (no music)'}</span>
       </div>
-      {msg && <div style={{ fontSize: 12.5, color: /fail/i.test(msg) ? 'var(--red)' : 'var(--green)', marginBottom: 8 }}>{msg}</div>}
+      {msg && <div style={{ fontSize: 12.5, color: /fail/i.test(msg) ? 'var(--red)' : 'var(--success)', marginBottom: 8 }}>{msg}</div>}
       <div style={{ display: 'grid', gap: 10 }}>
         {row('Intro / outro', 'intro', !!kit?.intro_path, 'Required — plays before and after the session', 'video/mp4,video/quicktime,.mp4,.mov', introRef)}
         {row('Background music', 'music', !!kit?.music_path, 'Optional — under the intro and outro', 'audio/mpeg,audio/wav,audio/aac,audio/m4a,.mp3,.wav,.aac,.m4a', musicRef)}
