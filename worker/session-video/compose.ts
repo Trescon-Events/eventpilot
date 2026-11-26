@@ -7,17 +7,19 @@ import { downloadToFile } from '@/app/lib/session-videos/storage'
 import { loadCues } from '@/app/lib/session-videos/cues'
 import { getKit } from '@/app/lib/session-videos/kit'
 import { logJob, type Job } from '@/app/lib/session-videos/jobs'
-import { run, probe, pngToVideo, conformClip, loudnorm, prepareMusicTrack } from './ffmpeg-utils'
+import { run, probe, pngToVideo, conformClip, loudnorm } from './ffmpeg-utils'
 
 /* The session video, assembled the same way for the preview (540p, quick) and the final render (1080p, loudness-normalised):
 
      intro ─fade─▶ title card ─fade─▶ session (with lower thirds) ─fade─▶ outro
 
-   Every join fades through black (out, then in). Background music plays under the intro + title card, fades out before the
-   session starts, and comes back under the outro. Lower thirds are the transparent (ProRes 4444) clips, laid over the session
+   Every join is a crossfade (the two pictures dissolve into each other; the sound crossfades too). Background music is one
+   continuous track shaped by a volume curve: it fades in under the intro, stays under the title card, crossfades with the
+   speakers' sound as the session starts (lingering ~2 s, fading), is silent during the session, crossfades back in as the
+   session hands over to the outro, and fades out at the very end. Lower thirds are the transparent (ProRes 4444) clips, laid over the session
    at the times confirmed in Step 7. The title card is required — the render stops with a clear message if it is missing. */
 
-export const FADE = 1.0          // seconds for each fade-through-black join
+export const FADE = 1.0          // seconds for each crossfade join
 export const TITLE_SECONDS = 6   // how long the title card stays up
 
 type Quality = { W: number; H: number; preset: string; crf: string; normalise: boolean }
@@ -108,21 +110,27 @@ export async function composeSessionVideo(job: Job, v: Record<string, unknown>, 
   const o1 = introD - FADE, o2 = o1 + titleD - FADE, o3 = o2 + sessionD - FADE
   const total = o3 + outroD
 
-  // Music: under intro + title card (fading out as the session begins), silent during the session, back under the outro.
-  let music: string | null = null
+  // Music: one looped track with a volume curve (see the note at the top). Times are on the final timeline.
+  let music: string | null = null, musicCurve = ''
   if (kit.music_path) {
-    const musicSrc = join(dir, 'music_src')
-    await downloadToFile(kit.music_path, musicSrc)
-    music = await prepareMusicTrack({ introTitleDuration: o2 + FADE, sessionDuration: Math.max(1, o3 - (o2 + FADE)), outroDuration: outroD, musicPath: musicSrc, dir })
-    await logJob(job.id, 'Background music added under the intro, title card and outro')
+    music = join(dir, 'music_src')
+    await downloadToFile(kit.music_path, music)
+    const f = (x: number) => Math.max(0, x).toFixed(3)
+    const inEnd = 1.5                                   // fade in at the very start
+    const a0 = Math.max(inEnd, o2 - 0.5), a1 = o2 + FADE + 1.5        // out: crossfading with the session's opening
+    const b0 = Math.max(a1, o3 - 1.5), b1 = o3 + FADE                  // back in: crossfading with the session's close
+    const e0 = Math.max(b1, total - 2)                                 // fade out at the end
+    const expr = `if(lt(t,${f(inEnd)}),t/${f(inEnd)},if(lt(t,${f(a0)}),1,if(lt(t,${f(a1)}),(${f(a1)}-t)/${f(a1 - a0)},if(lt(t,${f(b0)}),0,if(lt(t,${f(b1)}),(t-${f(b0)})/${f(b1 - b0)},if(lt(t,${f(e0)}),1,max(0,(${f(total)}-t)/${f(Math.max(0.1, total - e0))})))))))`
+    musicCurve = `[4:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:${f(total)},asetpts=PTS-STARTPTS,volume='${expr}':eval=frame,volume=0.8[am];`
+    await logJob(job.id, 'Background music crossfaded with the intro, title card, session and outro')
   } else await logJob(job.id, 'No background music in the Video Kit — continuing without it')
 
   const out = join(dir, quality === 'final' ? 'render.mp4' : 'preview.mp4')
-  const video = `[0:v][1:v]xfade=transition=fadeblack:duration=${FADE}:offset=${o1}[v01];[v01][2:v]xfade=transition=fadeblack:duration=${FADE}:offset=${o2}[v012];[v012][3:v]xfade=transition=fadeblack:duration=${FADE}:offset=${o3}[vf];`
+  const video = `[0:v][1:v]xfade=transition=fade:duration=${FADE}:offset=${o1}[v01];[v01][2:v]xfade=transition=fade:duration=${FADE}:offset=${o2}[v012];[v012][3:v]xfade=transition=fade:duration=${FADE}:offset=${o3}[vf];`
   const audio = `[0:a][1:a]acrossfade=d=${FADE}[a01];[a01][2:a]acrossfade=d=${FADE}[a012];[a012][3:a]acrossfade=d=${FADE}[abase];`
-  const mix = music ? `[4:a]atrim=0:${total},asetpts=PTS-STARTPTS,volume=0.8[am];[abase][am]amix=inputs=2:duration=first:normalize=0[af]` : '[abase]anull[af]'
+  const mix = music ? `${musicCurve}[abase][am]amix=inputs=2:duration=first:normalize=0[af]` : '[abase]anull[af]'
   await logJob(job.id, 'Joining intro, title card, session and outro')
-  await run('ffmpeg', ['-y', '-v', 'error', '-i', introAv, '-i', titleAv, '-i', sessionAv, '-i', outroAv, ...(music ? ['-i', music] : []),
+  await run('ffmpeg', ['-y', '-v', 'error', '-i', introAv, '-i', titleAv, '-i', sessionAv, '-i', outroAv, ...(music ? ['-stream_loop', '-1', '-i', music] : []),
     '-filter_complex', video + audio + mix, '-map', '[vf]', '-map', '[af]',
     '-c:v', 'libx264', '-preset', q.preset, '-crf', q.crf, ...(quality === 'final' ? ['-profile:v', 'high'] : []), '-pix_fmt', 'yuv420p',
     '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-movflags', '+faststart', out])
