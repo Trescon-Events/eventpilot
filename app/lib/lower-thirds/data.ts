@@ -108,7 +108,7 @@ export async function loadLowerThirdSessions(eventId: string, opts: LoadLowerThi
   const { data: links } = await supabaseAdmin.from('event_agenda_session_speakers').select('session_id, speaker_id, role_tag_id, order_index').in('session_id', ids).order('order_index')
   const speakerIds = [...new Set((links ?? []).map(l => l.speaker_id as string))]
   const { data: people } = speakerIds.length
-    ? await supabaseAdmin.from('event_speakers').select('id, name, public_name, job_title, company, photo_processed_url, photo_head_box').eq('event_id', eventId).eq('active', true).in('id', speakerIds)
+    ? await supabaseAdmin.from('event_speakers').select('id, name, public_name, role, company, photo_processed_url, photo_head_box').eq('event_id', eventId).eq('active', true).in('id', speakerIds)
     : { data: [] as Record<string, unknown>[] }
   const person = new Map((people ?? []).map(p => [p.id as string, p]))
   const roleLabel = new Map(roles.map(r => [r.tag_id, r.label]))
@@ -134,7 +134,7 @@ export async function loadLowerThirdSessions(eventId: string, opts: LoadLowerThi
       .map(l => {
         const p = person.get(l.speaker_id as string)!
         const name = clean(p.public_name) || clean(p.name)
-        const title = clean(p.job_title)
+        const title = clean(p.role)
         const company = clean(p.company)
         const fp = lowerThirdFingerprint({ name, title, company, photo: p.photo_processed_url, variant: setup.variantId })
         const sv = saveMap.get(s.id as string)?.get(l.speaker_id as string)

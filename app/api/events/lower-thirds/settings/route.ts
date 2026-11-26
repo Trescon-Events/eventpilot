@@ -14,12 +14,12 @@ export async function GET(req: NextRequest) {
   const [{ data: s }, { data: fonts }, { data: people }] = await Promise.all([
     supabaseAdmin.from('event_thumbnail_settings').select('lower_third_config').eq('event_id', eventId).maybeSingle(),
     supabaseAdmin.from('brand_fonts').select('id, family_name').order('family_name'),
-    supabaseAdmin.from('event_speakers').select('id, name, public_name, job_title, company').eq('event_id', eventId).eq('active', true),
+    supabaseAdmin.from('event_speakers').select('id, name, public_name, role, company').eq('event_id', eventId).eq('active', true),
   ])
   const speakers = (people ?? []).map(p => ({
     id: p.id as string,
     name: ((p.public_name as string | null)?.trim() || (p.name as string | null)?.trim() || 'Unnamed') as string,
-    title: ((p.job_title as string | null) ?? '').trim(), company: ((p.company as string | null) ?? '').trim(),
+    title: ((p.role as string | null) ?? '').trim(), company: ((p.company as string | null) ?? '').trim(),
   })).sort((x, y) => x.name.localeCompare(y.name))
   return NextResponse.json({ config: mergeLowerThirdConfig((s as Record<string, unknown> | null)?.lower_third_config), fonts: fonts ?? [], speakers })
 }

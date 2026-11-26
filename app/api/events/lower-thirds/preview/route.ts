@@ -19,10 +19,10 @@ export async function POST(req: NextRequest) {
 
   let name = 'Jane Doe', title = 'Chief Executive Officer', company = 'Acme Corporation'
   if (typeof b.speaker_id === 'string' && UUID_RE.test(b.speaker_id)) {
-    const { data: p } = await supabaseAdmin.from('event_speakers').select('name, public_name, job_title, company').eq('id', b.speaker_id).eq('event_id', eventId).maybeSingle()
+    const { data: p } = await supabaseAdmin.from('event_speakers').select('name, public_name, role, company').eq('id', b.speaker_id).eq('event_id', eventId).maybeSingle()
     if (p) {
       name = ((p.public_name as string | null)?.trim() || (p.name as string | null)?.trim() || name)
-      title = ((p.job_title as string | null) ?? '').trim(); company = ((p.company as string | null) ?? '').trim()
+      title = ((p.role as string | null) ?? '').trim(); company = ((p.company as string | null) ?? '').trim()
     }
   }
   const fonts = await loadLtFonts(lowerThirdFontIds(config))

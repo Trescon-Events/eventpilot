@@ -12,10 +12,10 @@ export async function generateLowerThirdStill(eventId: string, sessionId: string
   if (missing.length) throw new Error(`Set up the lower-third template first: ${missing.join('; ')}`)
   if (!variant) throw new Error('No lower-third template configured.')
   // Load speaker data
-  const { data: p } = await supabaseAdmin.from('event_speakers').select('name, public_name, job_title, company, photo_processed_url, photo_head_box').eq('id', speakerId).eq('event_id', eventId).single()
+  const { data: p } = await supabaseAdmin.from('event_speakers').select('name, public_name, role, company, photo_processed_url, photo_head_box').eq('id', speakerId).eq('event_id', eventId).single()
   if (!p) throw new Error('Speaker not found.')
   const name = (typeof p.public_name === 'string' && p.public_name.trim()) || (typeof p.name === 'string' && p.name.trim()) || ''
-  const title = typeof p.job_title === 'string' ? p.job_title.trim() : ''
+  const title = typeof p.role === 'string' ? p.role.trim() : ''
   const company = typeof p.company === 'string' ? p.company.trim() : ''
   const photoUrl = (p.photo_processed_url as string | null) ?? null
   const headBox = (p.photo_head_box as unknown) ?? null
