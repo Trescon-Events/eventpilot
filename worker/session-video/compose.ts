@@ -88,7 +88,8 @@ export async function composeSessionVideo(job: Job, v: Record<string, unknown>, 
       graph += `${prev}[lt${k + 1}]overlay=eof_action=pass:format=auto${next};`
       prev = next
     })
-    await run('ffmpeg', ['-y', '-v', 'error', '-i', sessionV, ...overlays.flatMap(o => ['-i', o.file]), '-filter_complex', graph, '-map', '[vout]', '-c:v', 'libx264', '-preset', q.preset, '-crf', q.crf, '-pix_fmt', 'yuv420p', '-an', sessionLT])
+    graph = graph.replace(/;$/, '')   // a trailing ';' is an empty filter to older ffmpeg (the worker's) — "No such filter: ''"
+    await run('ffmpeg', ['-y', '-v', 'error', '-i', sessionV, ...overlays.flatMap(o => ['-i', o.file]), '-filter_complex', graph,'-map', '[vout]', '-c:v', 'libx264', '-preset', q.preset, '-crf', q.crf, '-pix_fmt', 'yuv420p', '-an', sessionLT])
   } else await run('ffmpeg', ['-y', '-v', 'error', '-i', sessionV, '-c', 'copy', sessionLT])
 
   // Session sound (loudness-normalised for the final render).
