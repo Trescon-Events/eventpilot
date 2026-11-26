@@ -36,12 +36,26 @@ function Sec({ n, title, hint, children }: { n: number; title: string; hint?: st
   )
 }
 
+/** Number box that lets you type freely; the value is checked against min/max only when you leave the box or press Enter.
+ *  (Clamping on every keystroke turned "24" into "84": the first "2" was raised to the minimum 8.) */
 function Num({ label, value, min, max, step = 1, onChange, disabled }: { label: string; value: number; min: number; max: number; step?: number; onChange: (v: number) => void; disabled?: boolean }) {
+  const [text, setText] = useState(String(value))
+  const [editing, setEditing] = useState(false)
+  const commit = () => {
+    setEditing(false)
+    const v = Number(text)
+    if (text.trim() === '' || !Number.isFinite(v)) { setText(String(value)); return }
+    const c = Math.min(max, Math.max(min, v))
+    setText(String(c)); if (c !== value) onChange(c)
+  }
   return (
     <label style={{ fontSize: 11, color: 'var(--ink3)', display: 'grid', gap: 3 }}>
       {label}
-      <Input type="number" value={value} min={min} max={max} step={step} disabled={disabled}
-        onChange={e => { const v = Number(e.target.value); if (Number.isFinite(v)) onChange(Math.min(max, Math.max(min, v))) }} />
+      <Input type="number" value={editing ? text : String(value)} min={min} max={max} step={step} disabled={disabled}
+        onFocus={() => { setText(String(value)); setEditing(true) }}
+        onChange={e => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }} />
     </label>
   )
 }
