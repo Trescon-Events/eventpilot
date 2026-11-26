@@ -187,7 +187,7 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
     if (BUSY.has(video.status)) return 3
     if (video.status === 'transcribed') return 4
     if (video.status === 'ready') return 5
-    if (video.status === 'approved') return cuesConfirmed ? 8 : 7
+    if (video.status === 'approved') return cueSummary.confirmed ? 8 : 7
     return 3
   }
 
