@@ -71,6 +71,7 @@ export default function LowerThirdSettings({ eventId, canEdit }: { eventId: stri
   const [previewErr, setPreviewErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
+  const [panelOpen, setPanelOpen] = useState(false)
   const [clip, setClip] = useState<{ status: string; url?: string | null } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const cardRef = useRef<HTMLImageElement>(null)
@@ -205,6 +206,7 @@ export default function LowerThirdSettings({ eventId, canEdit }: { eventId: stri
             {STAGES.map(s => <button key={s.key} type="button" onClick={() => setStage(s.key)} style={{ padding: '5px 10px', fontSize: 12, borderRadius: 6, border: `1px solid ${stage === s.key ? 'var(--teal-mid)' : 'var(--border-light)'}`, background: 'none', color: 'var(--ink2)', cursor: 'pointer', fontFamily: 'inherit' }}>{s.label}</button>)}
           </div>
           <Button variant="ghost" onClick={() => setPlayToken(t => t + 1)} disabled={!previewUrl || !draft.background_url}>↻ Replay</Button>
+          <Button variant={draft.background_url ? 'ghost' : 'teal'} onClick={() => setPanelOpen(o => !o)}>{panelOpen ? 'Close settings' : '⚙ Template settings'}</Button>
         </div>
         <div style={{ position: 'relative', aspectRatio: '16 / 9', width: '100%', maxWidth: 720, borderRadius: 10, overflow: 'hidden', background: stageBg, border: '1px solid var(--border-light)' }}>
           {previewUrl && draft.background_url
@@ -218,6 +220,28 @@ export default function LowerThirdSettings({ eventId, canEdit }: { eventId: stri
       </div>
 
       <div style={{ display: 'grid', gap: 16 }}>
+        <Sec n={4} title="Real clip (optional last check)" hint="the exact file the video will use">
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Button variant="ghost" disabled={busy || !speakerId || !draft.background_url || !canEdit || clip?.status === 'generating'} onClick={() => void renderClip()}>
+              {clip?.status === 'generating' ? 'Making the clip…' : `Make the real clip for ${sp?.name ?? 'this speaker'}`}
+            </Button>
+            <Button variant="ghost" disabled={!speakerId} onClick={() => void pollClip(speakerId)}>Check status</Button>
+            <span style={{ fontSize: 12, color: 'var(--ink3)' }}>Takes a minute or two. Save the template first.</span>
+          </div>
+          {clip?.status === 'generated' && clip.url && <video controls src={clip.url} style={{ width: '100%', maxWidth: 640, borderRadius: 8, background: 'var(--card)' }} />}
+          {clip?.status === 'generated' && clip.url && <div style={{ fontSize: 11.5, color: 'var(--ink4)' }}>This copy is for viewing and shows the card on black; the video itself uses the transparent version.</div>}
+        </Sec>
+      </div>
+      {panelOpen && (
+        <div role="dialog" aria-label="Lower-third template settings" style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(500px, 100vw)', zIndex: 1000, background: 'var(--card)', borderLeft: '1px solid var(--border)', boxShadow: 'var(--shadow-md)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 18px', borderBottom: '1px solid var(--border-light)' }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--ink)', flex: 1 }}>Template settings</div>
+            <Badge color={dirty ? 'amber' : 'teal'}>{dirty ? 'Unsaved' : 'Saved'}</Badge>
+            {canEdit && <Button variant="teal" disabled={busy || !dirty} onClick={() => void save()}>Save</Button>}
+            <Button variant="ghost" onClick={() => setPanelOpen(false)}>Close</Button>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--ink3)', padding: '8px 18px 0' }}>Changes show in the preview on the left as you make them. Save to keep them.</div>
+          <div style={{ overflowY: 'auto', padding: '4px 18px 24px', display: 'grid', gap: 16, alignContent: 'start' }}>
         <Sec n={1} title="Graphic" hint="transparent PNG, 16:9 (e.g. 1920×1080 or 8000×4500)">
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <input ref={fileRef} type="file" accept="image/png" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = '' }} />
@@ -276,19 +300,9 @@ export default function LowerThirdSettings({ eventId, canEdit }: { eventId: stri
             {a.style === 'slide_left' && <Num label="Slide distance (px)" value={a.slide_px} min={0} max={1200} step={20} disabled={!canEdit} onChange={v => set({ animation: { ...a, slide_px: v } })} />}
           </div>
         </Sec>
-
-        <Sec n={4} title="Real clip (optional last check)" hint="the exact file the video will use">
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <Button variant="ghost" disabled={busy || !speakerId || !draft.background_url || !canEdit || clip?.status === 'generating'} onClick={() => void renderClip()}>
-              {clip?.status === 'generating' ? 'Making the clip…' : `Make the real clip for ${sp?.name ?? 'this speaker'}`}
-            </Button>
-            <Button variant="ghost" disabled={!speakerId} onClick={() => void pollClip(speakerId)}>Check status</Button>
-            <span style={{ fontSize: 12, color: 'var(--ink3)' }}>Takes a minute or two. Save the template first.</span>
           </div>
-          {clip?.status === 'generated' && clip.url && <video controls src={clip.url} style={{ width: '100%', maxWidth: 640, borderRadius: 8, background: 'var(--card)' }} />}
-          {clip?.status === 'generated' && clip.url && <div style={{ fontSize: 11.5, color: 'var(--ink4)' }}>This copy is for viewing and shows the card on black; the video itself uses the transparent version.</div>}
-        </Sec>
-      </div>
+        </div>
+      )}
       <Toast message={msg?.text ?? null} type={msg?.ok ? 'success' : 'error'} onClose={() => setMsg(null)} />
     </Card>
   )
