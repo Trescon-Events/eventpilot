@@ -3,6 +3,8 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { dispatchTeamsWebhook, generateOverdueDigestCard, isStaffMorningWindow } from '@/app/admin/task-manager/teams-digest'
 import { OverdueTaskDigestItem, StaffWithTimezone, Task, isCoreBrandingOrVendor } from '@/app/admin/task-manager/types'
 import { sendTaskManagerFollowupDigest } from '../../_lib/followup-email'
+import { canAccessTaskManagerAdmin } from '../../_lib/access'
+import { getSession } from '@/app/lib/access/session'
 
 export const runtime = 'nodejs'
 
@@ -25,14 +27,19 @@ export async function POST(req: NextRequest) {
 async function handleSweep(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization')
-    const querySecret = req.nextUrl.searchParams.get('secret')
     const forceAll = req.nextUrl.searchParams.get('force') === 'true'
 
+    // Auth: the scheduled GitHub Actions call sends `Authorization: Bearer CRON_SECRET`.
+    // `force=true` is an option, never authorisation on its own — without a secret it
+    // additionally requires a Task Manager admin session (the Admin Console's
+    // "Run Follow-Up Sweep Now" button). This route is also re-exported at
+    // /api/cron/task-manager-followups, which middleware lets through with no session.
     const expectedSecret = process.env.CRON_SECRET
+    const hasValidSecret = !!expectedSecret && authHeader === `Bearer ${expectedSecret}`
     const isAuthorized =
-      (expectedSecret && (authHeader === `Bearer ${expectedSecret}` || querySecret === expectedSecret)) ||
+      hasValidSecret ||
       process.env.NODE_ENV === 'development' ||
-      forceAll
+      (forceAll && (await canAccessTaskManagerAdmin(getSession(req))))
 
     if (!isAuthorized) {
       return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
