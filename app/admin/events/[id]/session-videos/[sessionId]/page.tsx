@@ -777,7 +777,7 @@ function renderEstimate(detail: Detail | null, kind: 'render_preview' | 'render'
   const past = jobs.find(j => j.kind === kind && j.status === 'done' && j.started_at && j.finished_at && j !== job)
   const minutes = Math.max(1, (detail?.video.duration_s ?? 1200) / 60)
   const expected = past ? (Date.parse(past.finished_at!) - Date.parse(past.started_at!)) / 1000
-    : kind === 'render_preview' ? 40 + minutes * 9 : 120 + minutes * 90
+    : kind === 'render_preview' ? 40 + minutes * 9 : 60 + minutes * 45
   const log = job.log ?? []
   let floor = 0, label = 'Starting'
   for (const l of log) for (const [re, pct, text] of RENDER_STAGES) if (re.test(l.line)) { floor = Math.max(floor, pct); label = text }

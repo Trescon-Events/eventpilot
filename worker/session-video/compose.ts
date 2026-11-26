@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process'
 import { createWriteStream } from 'node:fs'
 import { join } from 'node:path'
 import { pipeline } from 'node:stream/promises'
@@ -33,6 +34,23 @@ async function fetchTo(pathOrUrl: string, local: string) {
   } else await downloadToFile(pathOrUrl, local)
 }
 
+/** Shortest stream duration across the given files (video and audio streams), falling back to the container's duration. */
+async function streamsDuration(files: string[]): Promise<number> {
+  let best = Infinity
+  for (const f of files) {
+    const out = await new Promise<string>((resolve, reject) => {
+      const p = spawn('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type,duration:format=duration', '-of', 'json', f])
+      let o = ''; p.stdout.on('data', d => { o += d }); p.on('error', reject); p.on('close', () => resolve(o))
+    })
+    const j = JSON.parse(out || '{}') as { streams?: Array<{ codec_type?: string; duration?: string }>; format?: { duration?: string } }
+    const ds = (j.streams ?? []).filter(x => x.codec_type === 'video' || x.codec_type === 'audio').map(x => Number(x.duration)).filter(x => isFinite(x) && x > 0)
+    const d = ds.length ? Math.min(...ds) : Number(j.format?.duration ?? 0)
+    if (d > 0) best = Math.min(best, d)
+  }
+  if (!isFinite(best)) throw new Error('Could not read the session length.')
+  return best
+}
+
 export async function composeSessionVideo(job: Job, v: Record<string, unknown>, dir: string, quality: 'preview' | 'final'): Promise<string> {
   const videoId = v.id as string, eventId = v.event_id as string, sessionId = v.agenda_session_id as string
   const [cues, kit] = await Promise.all([loadCues(videoId), getKit(eventId)])
@@ -40,33 +58,39 @@ export async function composeSessionVideo(job: Job, v: Record<string, unknown>, 
   const { data: tc } = await supabaseAdmin.from('session_thumbnails').select('title_card_png_path').eq('agenda_session_id', sessionId).maybeSingle()
   if (!tc?.title_card_png_path) throw new Error('This session has no title card yet — generate it in the Video Kit, then render again.')
 
-  const proxy = join(dir, 'proxy.mp4'), introSrc = join(dir, 'intro_src.mp4'), outroSrc = join(dir, 'outro_src.mp4'), tcPng = join(dir, 'titlecard.png')
-  await logJob(job.id, 'Downloading the session, intro/outro and title card')
+  // The preview works from the small 720p copy (quick); the final render works from the ORIGINAL upload (full quality).
+  const useOriginal = quality === 'final' && !!v.original_path
+  const source = join(dir, useOriginal ? 'original' : 'proxy.mp4'), introSrc = join(dir, 'intro_src.mp4'), outroSrc = join(dir, 'outro_src.mp4'), tcPng = join(dir, 'titlecard.png')
+  await logJob(job.id, `Downloading the session (${useOriginal ? 'original upload' : 'preview copy'}), intro/outro and title card`)
   await Promise.all([
-    downloadToFile(v.proxy_path as string, proxy),
+    downloadToFile((useOriginal ? v.original_path : v.proxy_path) as string, source),
     downloadToFile(kit.intro_path, introSrc),
     downloadToFile(kit.outro_path ?? kit.intro_path, outroSrc),
     fetchTo(tc.title_card_png_path as string, tcPng),
   ])
+  if (quality === 'final' && !useOriginal) await logJob(job.id, 'The original upload is missing — using the preview copy')
 
-  const src = await probe(proxy)
+  const src = await probe(source)
   const fps = src.fps
+  // Final: 'veryfast' at CRF 20. The uploads are ~5 Mbps, and this still comes out above that (~6.5 Mbps at 1080p), so nothing
+  // visible is lost — measured ~3x faster than 'medium' CRF 18, which only made a bigger file than the source (2026-11-26 bench).
   const q: Quality = quality === 'final'
-    ? { W: 1920, H: 1080, preset: 'slow', crf: '18', normalise: true }
+    ? { W: 1920, H: 1080, preset: 'veryfast', crf: '20', normalise: true }
     : { W: Math.round(src.width * 540 / src.height / 2) * 2, H: 540, preset: 'veryfast', crf: '23', normalise: false }
   await logJob(job.id, `${quality === 'final' ? 'Final render' : 'Preview'} at ${q.W}x${q.H} @ ${fps}fps`)
 
+  // The short pieces are made separately (seconds); the long session is only encoded ONCE, in the final join below.
   const intro = join(dir, 'intro.mp4'), outro = join(dir, 'outro.mp4'), title = join(dir, 'titlecard.mp4')
   await Promise.all([
     conformClip(introSrc, fps, q.W, q.H, intro),
     conformClip(outroSrc, fps, q.W, q.H, outro),
     pngToVideo(tcPng, fps, q.W, q.H, title, TITLE_SECONDS),
   ])
+  const withSilence = async (input: string, out: string) => run('ffmpeg', ['-y', '-v', 'error', '-i', input, '-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000', '-shortest', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '64k', out])
+  const introAv = join(dir, 'intro_av.mp4'), titleAv = join(dir, 'title_av.mp4'), outroAv = join(dir, 'outro_av.mp4')
+  await Promise.all([withSilence(intro, introAv), withSilence(title, titleAv), withSilence(outro, outroAv)])
 
-  // Session picture at the target size, then the lower thirds on top (transparent clips, shifted to their cue times).
-  const sessionV = join(dir, 'session_v.mp4')
-  await run('ffmpeg', ['-y', '-v', 'error', '-i', proxy, '-vf', `scale=${q.W}:${q.H}:force_original_aspect_ratio=decrease,pad=${q.W}:${q.H}:(ow-iw)/2:(oh-ih)/2:color=black,fps=${fps}`, '-c:v', 'libx264', '-preset', q.preset, '-crf', q.crf, '-pix_fmt', 'yuv420p', '-an', sessionV])
-
+  // Lower-third clips (transparent ProRes 4444), laid over the session at their cue times.
   const { data: lts } = cues.length
     ? await supabaseAdmin.from('session_lower_thirds').select('speaker_id, mov_path').eq('agenda_session_id', sessionId).in('speaker_id', [...new Set(cues.map(c => c.speaker_id))])
     : { data: [] as Array<{ speaker_id: string; mov_path: string | null }> }
@@ -81,32 +105,19 @@ export async function composeSessionVideo(job: Job, v: Record<string, unknown>, 
   }
   await logJob(job.id, `${overlays.length} of ${cues.length} lower third(s) placed`)
 
-  const sessionLT = join(dir, 'session_lt.mp4')
-  if (overlays.length) {
-    let graph = '', prev = '[0:v]'
-    overlays.forEach((o, k) => {
-      const next = k === overlays.length - 1 ? '[vout]' : `[v${k + 1}]`
-      graph += `[${k + 1}:v]scale=${q.W}:${q.H},format=yuva420p,setpts=PTS-STARTPTS+${o.start}/TB[lt${k + 1}];`
-      graph += `${prev}[lt${k + 1}]overlay=eof_action=pass:format=auto${next};`
-      prev = next
-    })
-    graph = graph.replace(/;$/, '')   // a trailing ';' is an empty filter to older ffmpeg (the worker's) — "No such filter: ''"
-    await run('ffmpeg', ['-y', '-v', 'error', '-i', sessionV, ...overlays.flatMap(o => ['-i', o.file]), '-filter_complex', graph,'-map', '[vout]', '-c:v', 'libx264', '-preset', q.preset, '-crf', q.crf, '-pix_fmt', 'yuv420p', '-an', sessionLT])
-  } else await run('ffmpeg', ['-y', '-v', 'error', '-i', sessionV, '-c', 'copy', sessionLT])
+  // Session sound: loudness-normalised for the final render (an audio-only pass — quick).
+  let normAudio: string | null = null
+  if (q.normalise) {
+    const rawAudio = join(dir, 'session_audio_raw.m4a')
+    await run('ffmpeg', ['-y', '-v', 'error', '-i', source, '-vn', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-ac', '2', rawAudio])
+    await logJob(job.id, 'Normalising the session sound')
+    normAudio = await loudnorm(rawAudio, dir)
+  }
 
-  // Session sound (loudness-normalised for the final render).
-  const rawAudio = join(dir, 'session_audio_raw.m4a')
-  await run('ffmpeg', ['-y', '-v', 'error', '-i', proxy, '-vn', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-ac', '2', rawAudio])
-  const sessionAudio = q.normalise ? (await logJob(job.id, 'Normalising the session sound'), await loudnorm(rawAudio, dir)) : rawAudio
-
-  // Give the picture-only parts silent sound so every piece has audio for the joins.
-  const withSilence = async (input: string, out: string) => run('ffmpeg', ['-y', '-v', 'error', '-i', input, '-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000', '-shortest', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '64k', out])
-  const introAv = join(dir, 'intro_av.mp4'), titleAv = join(dir, 'title_av.mp4'), outroAv = join(dir, 'outro_av.mp4'), sessionAv = join(dir, 'session_av.mp4')
-  await Promise.all([withSilence(intro, introAv), withSilence(title, titleAv), withSilence(outro, outroAv),
-    run('ffmpeg', ['-y', '-v', 'error', '-i', sessionLT, '-i', sessionAudio, '-map', '0:v', '-map', '1:a', '-shortest', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', sessionAv])])
-
-  const [introD, titleD, sessionD, outroD] = await Promise.all([introAv, titleAv, sessionAv, outroAv].map(f => probe(f).then(p => p.duration)))
-  // Each join overlaps the two pieces by FADE seconds (fade out to black, fade in from black).
+  // Session length = the shorter of its picture and sound, so the joins line up exactly.
+  const sessionD = Math.max(1, (await streamsDuration(normAudio ? [source, normAudio] : [source])) - 0.05)
+  const [introD, titleD, outroD] = await Promise.all([introAv, titleAv, outroAv].map(f => probe(f).then(p => p.duration)))
+  // Each join overlaps the two pieces by FADE seconds (a crossfade).
   const o1 = introD - FADE, o2 = o1 + titleD - FADE, o3 = o2 + sessionD - FADE
   const total = o3 + outroD
 
@@ -125,13 +136,28 @@ export async function composeSessionVideo(job: Job, v: Record<string, unknown>, 
     await logJob(job.id, 'Background music crossfaded with the intro, title card, session and outro')
   } else await logJob(job.id, 'No background music in the Video Kit — continuing without it')
 
+  // ONE encode: session resize + lower thirds + crossfades + music.
+  // Inputs: 0 intro, 1 title card, 2 session, 3 outro, then the lower-third clips, then the music (looped), then the normalised sound.
+  const ltBase = 4, musicIdx = ltBase + overlays.length, audioIdx = musicIdx + (music ? 1 : 0)
+  const norm = (k: number) => `[${k}:v]fps=${fps},settb=AVTB,format=yuv420p,setsar=1[n${k}];[${k}:a]aformat=sample_rates=48000:channel_layouts=stereo[m${k}];`
+  let graph = norm(0) + norm(1) + norm(3)
+  graph += `[2:v]trim=duration=${sessionD.toFixed(3)},setpts=PTS-STARTPTS,fps=${fps},scale=${q.W}:${q.H}:force_original_aspect_ratio=decrease,pad=${q.W}:${q.H}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,format=yuv420p[s0];`
+  overlays.forEach((o, k) => {
+    graph += `[${ltBase + k}:v]scale=${q.W}:${q.H},format=yuva420p,setpts=PTS-STARTPTS+${o.start}/TB[lt${k}];[s${k}][lt${k}]overlay=eof_action=pass:format=auto[s${k + 1}];`
+  })
+  graph += `[s${overlays.length}]format=yuv420p,settb=AVTB[n2];`
+  graph += `[${normAudio ? audioIdx : 2}:a]atrim=duration=${sessionD.toFixed(3)},asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_rates=48000:channel_layouts=stereo[m2];`
+  graph += `[n0][n1]xfade=transition=fade:duration=${FADE}:offset=${o1.toFixed(3)}[v01];[v01][n2]xfade=transition=fade:duration=${FADE}:offset=${o2.toFixed(3)}[v012];[v012][n3]xfade=transition=fade:duration=${FADE}:offset=${o3.toFixed(3)}[vf];`
+  graph += `[m0][m1]acrossfade=d=${FADE}[a01];[a01][m2]acrossfade=d=${FADE}[a012];[a012][m3]acrossfade=d=${FADE}[abase];`
+  graph += music ? `${musicCurve.replace('[4:a]', `[${musicIdx}:a]`)}[abase][am]amix=inputs=2:duration=first:normalize=0[af]` : '[abase]anull[af]'
+
   const out = join(dir, quality === 'final' ? 'render.mp4' : 'preview.mp4')
-  const video = `[0:v][1:v]xfade=transition=fade:duration=${FADE}:offset=${o1}[v01];[v01][2:v]xfade=transition=fade:duration=${FADE}:offset=${o2}[v012];[v012][3:v]xfade=transition=fade:duration=${FADE}:offset=${o3}[vf];`
-  const audio = `[0:a][1:a]acrossfade=d=${FADE}[a01];[a01][2:a]acrossfade=d=${FADE}[a012];[a012][3:a]acrossfade=d=${FADE}[abase];`
-  const mix = music ? `${musicCurve}[abase][am]amix=inputs=2:duration=first:normalize=0[af]` : '[abase]anull[af]'
   await logJob(job.id, 'Joining intro, title card, session and outro')
-  await run('ffmpeg', ['-y', '-v', 'error', '-i', introAv, '-i', titleAv, '-i', sessionAv, '-i', outroAv, ...(music ? ['-stream_loop', '-1', '-i', music] : []),
-    '-filter_complex', video + audio + mix, '-map', '[vf]', '-map', '[af]',
+  await run('ffmpeg', ['-y', '-v', 'error', '-i', introAv, '-i', titleAv, '-i', source, '-i', outroAv,
+    ...overlays.flatMap(o => ['-i', o.file]),
+    ...(music ? ['-stream_loop', '-1', '-i', music] : []),
+    ...(normAudio ? ['-i', normAudio] : []),
+    '-filter_complex', graph, '-map', '[vf]', '-map', '[af]',
     '-c:v', 'libx264', '-preset', q.preset, '-crf', q.crf, ...(quality === 'final' ? ['-profile:v', 'high'] : []), '-pix_fmt', 'yuv420p',
     '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-movflags', '+faststart', out])
   return out
