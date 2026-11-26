@@ -6,7 +6,7 @@ machine. This is scoped to this module only; the platform-wide `HANDOFF.md`
 covers EventPilot in general and is not duplicated here.
 
 **Project Name:** `eventpilot-task-manager`  
-**Last updated:** 2026-11-18, by Khalifa (with Antigravity)
+**Last updated:** 2026-11-26, by Madhu (with Claude)
 
 ---
 
@@ -186,6 +186,24 @@ protocol replaces:**
   in production for a while. Out of scope for task-manager, left as-is,
   flagged for whoever owns that feature.
 
+- **Run `npm run build` before every "Go live".** Typecheck + lint + `check:keys`
+  passing is not enough: PR #23 (2026-11-25) failed CI only at the build step,
+  because Next.js rejects a route that *re-exports* `runtime` (or any other
+  route segment config) from another file. Declare it literally in each
+  `route.ts`.
+- **Anything called by a scheduler must live under `/api/cron/*`.** `middleware.ts`
+  redirects every other `/api/*` request without a session to `/login` (307).
+  The follow-up sweep is at `/api/cron/task-manager-followups` (a re-export of
+  `app/api/task-manager/cron/overdue/route.ts`) for that reason. Anything under
+  `/api/cron/*` is reachable by anyone on the internet, so the route itself
+  must enforce auth.
+- **Follow-up sweep auth (since 2026-11-26):** a valid `Authorization: Bearer
+  CRON_SECRET`, OR `?force=true` *together with* a Task Manager admin session
+  (`canAccessTaskManagerAdmin` — the Admin Console's "Run Follow-Up Sweep Now"
+  button). `force=true` on its own used to count as authorisation; behind
+  `/api/cron/*` that would have let anyone trigger email + Teams digests to
+  all staff. The `?secret=` query-param fallback was removed. Don't loosen this.
+
 ## What's deliberately NOT built
 
 - Bulk task reassign — per-row actions only (bulk delete built 2026-11-18)
@@ -225,10 +243,37 @@ historical record.)_
   `/admin/task-manager/console/vendor-contacts` as real people come on/off
   the account — that's fair game for Khalifa to maintain day-to-day, it's
   inside his territory.
+- **Confirm the follow-up reminders are actually delivering.** Before PR #23,
+  every hourly "Task Manager Follow-Up Reminders" Actions run showed green but
+  was really getting a 307 to `/login`, so no reminders went out. The workflow
+  now fails unless it gets HTTP 200. Check the first runs after 2026-11-26
+  08:00 UTC: green, and the logged JSON shows `emails_sent` /
+  `teams_dispatched` > 0 when someone in their 9–10 / 13–14 / 17–18 local
+  window has overdue tasks.
 - `app/components/RealtimeNotifications.tsx` (see gotcha above) is silently
   broken app-wide (unrelated to task-manager) — someone should either fix
   the RLS or decide it's not worth it. Not blocking anything, just sitting
   there doing nothing.
+
+### 2026-11-26 session summary (Madhu, with Claude)
+
+Purpose: review and unblock Khalifa's PR #23 (Concept B split-panel Team
+Capacity + follow-up cron redirect fix), which was failing CI.
+
+- PR #23 as Khalifa wrote it: `SummaryBar.tsx` split-panel redesign; new
+  `app/api/cron/task-manager-followups/route.ts` alias so the cron gets past
+  middleware; workflow now fails on non-200; `FOLLOWUP_LOCAL_HOURS` widened
+  to `[9, 10, 13, 14, 17, 18]` (the per-task 3h cooldown on
+  `last_overdue_notified_at` still caps each task at 3 reminders a day).
+- Madhu's fix commit on top (`b305ab5`):
+  - `app/api/cron/task-manager-followups/route.ts` — declares
+    `runtime = 'nodejs'` literally instead of re-exporting it (the CI failure).
+  - `app/api/task-manager/cron/overdue/route.ts` — `force=true` now requires a
+    Task Manager admin session if no Bearer secret; dropped `?secret=`.
+- Verified: typecheck, lint, `check:nav`, `check:keys`, full `npm run build`;
+  local + production probes of the cron URL without auth return 401. Merged
+  2026-11-26 07:55 UTC (`71ec730`), CI on main green, live on Railway.
+- Not yet verified: a real scheduled run delivering reminders (see Open items).
 
 ### 2026-11-19 session summary (Khalifa, with Antigravity)
 
