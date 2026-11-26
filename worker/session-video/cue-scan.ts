@@ -9,16 +9,15 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { downloadToFile } from '@/app/lib/session-videos/storage'
 import { logJob, type Job } from '@/app/lib/session-videos/jobs'
 import { sessionSpeakers } from '@/app/lib/session-videos/speakers'
-import { candidateCues, pickCues, saveCues, loadCues, cuesFingerprint, type CueCandidate } from '@/app/lib/session-videos/cues'
+import { candidateCues, saveCues, type CueCandidate } from '@/app/lib/session-videos/cues'
 import type { Segment, VoiceRow } from '@/app/lib/session-videos/logic'
 
 /* Cue scan: finds where each speaker's lower third should appear, using the PICTURE as well as the audio.
    1. Candidates = every turn of 8 s+ by a named speaker (from the transcript).
    2. For each candidate, one frame is taken 1.5 s in and Gemini is asked who the camera is on (compared with the speakers' photos):
       this speaker / a wide shot / someone else.
-   3. Cues are picked only from moments where the speaker is the main person on screen (same spacing rules as before).
-   All candidates and their verdicts are saved, so the page can offer "other moments" for a speaker. If Gemini is unavailable the
-   cues fall back to audio only. Nothing is published. */
+   3. All candidates and their verdicts are saved. The page offers each speaker 3 options at a time (close-ups first, then wide
+      shots) and the producer selects ONE per speaker. If Gemini is unavailable the options are ranked by audio only. Nothing is published. */
 
 const PER_SPEAKER = 14      // candidates checked per speaker (longest turns first)
 const BATCH = 6             // frames per Gemini call
@@ -42,8 +41,6 @@ export async function runCueScan(job: Job): Promise<void> {
     if (!v?.proxy_path || !v.agenda_session_id) throw new Error('The video has no preview copy or no agenda session yet.')
     const { data: tr } = await supabaseAdmin.from('session_video_transcripts').select('segments, voices').eq('session_video_id', id).maybeSingle()
     if (!tr) throw new Error('No transcript yet.')
-    const { data: ses } = await supabaseAdmin.from('event_agenda_sessions').select('content_type').eq('id', v.agenda_session_id).maybeSingle()
-    const contentType = (ses?.content_type as string | null) ?? null
 
     const all = candidateCues(tr.segments as Segment[], tr.voices as VoiceRow[])
     // Check the longest turns of each speaker (a long answer is the best place for a name), capped per speaker.
@@ -101,13 +98,11 @@ export async function runCueScan(job: Job): Promise<void> {
       } finally { rmSync(dir, { recursive: true, force: true }) }
     } else if (!key) await logJob(job.id, 'GEMINI_API_KEY not set — using audio only')
 
-    const scannedOk = cands.some(c => c.seen === 'yes')
-    // If nothing could be confirmed on screen (no photos / Gemini down), fall back to audio-only picks rather than no cues at all.
-    const picks = scannedOk ? pickCues(cands, contentType) : pickCues(cands.map(c => ({ ...c, seen: undefined })), contentType)
-    await saveCues(id, picks, null)
-    const fp = cuesFingerprint(await loadCues(id))
-    await supabaseAdmin.from('session_videos').update({ cue_candidates: cands, cues_fingerprint: fp, cue_scan_status: 'done', cue_scan_error: scannedOk ? null : 'Could not confirm who is on screen — these cues are from the audio only.', updated_at: new Date().toISOString() }).eq('id', id)
-    await logJob(job.id, `Cue scan done: ${cands.filter(c => c.seen === 'yes').length} of ${cands.length} moments show the speaker; ${picks.length} cue(s) picked`)
+    // One lower third per speaker, chosen by the producer from the ranked options on the page — so no cues are pre-picked here.
+    const scannedOk = cands.some(c => c.seen === 'yes' || c.seen === 'wide')
+    await saveCues(id, [], null)
+    await supabaseAdmin.from('session_videos').update({ cue_candidates: cands, cue_skipped: [], cues_fingerprint: null, cue_scan_status: 'done', cue_scan_error: scannedOk ? null : 'Could not check who is on screen — the options are from the audio only.', updated_at: new Date().toISOString() }).eq('id', id)
+    await logJob(job.id, `Cue scan done: ${cands.filter(c => c.seen === 'yes').length} close-ups, ${cands.filter(c => c.seen === 'wide').length} wide shots of ${cands.length} moments`)
   } catch (e) {
     await setStatus('failed', e instanceof Error ? e.message : String(e))
     throw e

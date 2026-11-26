@@ -5,6 +5,7 @@ import { loadCues, moveCue, deleteCue, addCue, cuesFingerprint } from '@/app/lib
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { presignGet } from '@/app/lib/session-videos/storage'
 import { loadLowerThirdSessions } from '@/app/lib/lower-thirds/data'
+import { sessionSpeakers } from '@/app/lib/session-videos/speakers'
 import { generateLowerThirdStill, enqueueLowerThirdJob } from '@/app/lib/lower-thirds/service'
 
 /** Cues + lower-third readiness + whether the producer's confirmation still applies. */
@@ -25,7 +26,9 @@ async function reviewState(eventId: string, id: string) {
     })))
   }
   const candidates = (Array.isArray(v.cue_candidates) ? v.cue_candidates : []) as Array<{ speaker_id: string; start_s: number; run_s: number; seen?: string }>
-  return { cues, confirmed, lowerThirds, setupMissing, sessionId: v.agenda_session_id, scanStatus: (v.cue_scan_status as string | null) ?? null, scanError: (v.cue_scan_error as string | null) ?? null, candidates }
+  const skipped = (Array.isArray(v.cue_skipped) ? v.cue_skipped : []) as string[]
+  const speakers = v.agenda_session_id ? (await sessionSpeakers(eventId, v.agenda_session_id)).map(s => ({ id: s.id, name: s.name, moderator: s.moderator })) : []
+  return { cues, confirmed, lowerThirds, setupMissing, sessionId: v.agenda_session_id, scanStatus: (v.cue_scan_status as string | null) ?? null, scanError: (v.cue_scan_error as string | null) ?? null, candidates, skipped, speakers }
 }
 
 /* Cue CRUD for one session video.
@@ -84,6 +87,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         await addCue(id, spId, startS, by)
         return NextResponse.json({ cues: await loadCues(id) })
       }
+      case 'select': {
+        // One lower third per speaker: selecting a moment replaces that speaker's previous one (and un-skips them).
+        const spId = typeof b.speaker_id === 'string' && UUID.test(b.speaker_id) ? b.speaker_id : ''
+        const startS = typeof b.start_s === 'number' && isFinite(b.start_s) ? b.start_s : -1
+        if (!spId || startS < 0) throw new VideoError('speaker_id and start_s required.')
+        for (const c of await loadCues(id)) if (c.speaker_id === spId) await deleteCue(id, c.id)
+        await addCue(id, spId, startS, by)
+        await setSkipped(id, spId, false)
+        return NextResponse.json(await reviewState(eventId, id))
+      }
+      case 'skip': {
+        const spId = typeof b.speaker_id === 'string' && UUID.test(b.speaker_id) ? b.speaker_id : ''
+        if (!spId) throw new VideoError('speaker_id required.')
+        for (const c of await loadCues(id)) if (c.speaker_id === spId) await deleteCue(id, c.id)
+        await setSkipped(id, spId, true)
+        return NextResponse.json(await reviewState(eventId, id))
+      }
       case 'prepare': {
         // Make sure every cued speaker has a lower-third still + animated clip (the render silently skips speakers without one).
         const st = await reviewState(eventId, id)
@@ -108,7 +128,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           for (const c of await loadCues(id)) if (!keep.has(c.id)) await deleteCue(id, c.id)
         }
         const st = await reviewState(eventId, id)
-        if (!st.cues.length) throw new VideoError('There are no cues to confirm.')
+        const undecided = st.speakers.filter(sp => !st.cues.some(c => c.speaker_id === sp.id) && !st.skipped.includes(sp.id))
+        if (undecided.length) throw new VideoError(`Select a moment (or "no lower third") for: ${undecided.map(s => s.name).join(', ')}.`)
+        if (!st.cues.length) throw new VideoError('Select at least one lower third.')
         const byId = new Map(st.lowerThirds.map(l => [l.speaker_id, l]))
         if (st.cues.some(c => !byId.get(c.speaker_id)?.ready)) throw new VideoError('Some lower thirds are still being prepared — try again in a moment.', 409)
         await supabaseAdmin.from('session_videos').update({ cues_confirmed_fingerprint: cuesFingerprint(st.cues), updated_at: new Date().toISOString() }).eq('id', id)
@@ -120,4 +142,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (e instanceof VideoError) return NextResponse.json({ error: e.message }, { status: e.status })
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Failed.' }, { status: 500 })
   }
+}
+
+async function setSkipped(videoId: string, speakerId: string, on: boolean) {
+  const { data } = await supabaseAdmin.from('session_videos').select('cue_skipped').eq('id', videoId).single()
+  const cur = new Set((Array.isArray(data?.cue_skipped) ? data!.cue_skipped : []) as string[])
+  if (on) cur.add(speakerId); else cur.delete(speakerId)
+  await supabaseAdmin.from('session_videos').update({ cue_skipped: [...cur], updated_at: new Date().toISOString() }).eq('id', videoId)
 }

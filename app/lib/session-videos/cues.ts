@@ -65,6 +65,14 @@ export function pickCues(cands: CueCandidate[], contentType: string | null): Arr
   return accepted
 }
 
+/** The options offered for one speaker, best first: close-ups of them while they talk, then wide shots while they talk,
+ *  then moments that could not be checked. Moments where someone else is on screen are never offered. Longer turns first within each group. */
+export function rankOptions(cands: CueCandidate[], speakerId: string): CueCandidate[] {
+  const order: Record<string, number> = { yes: 0, wide: 1, unknown: 2 }
+  return cands.filter(c => c.speaker_id === speakerId && c.seen !== 'other')
+    .sort((a, b) => (order[a.seen ?? 'unknown'] ?? 2) - (order[b.seen ?? 'unknown'] ?? 2) || b.run_s - a.run_s)
+}
+
 /** Audio-only cues (no scan): every qualifying turn is a candidate. */
 export function generateCues(segments: Segment[], voices: VoiceRow[], contentType: string | null): Array<{ speaker_id: string; start_s: number }> {
   return pickCues(candidateCues(segments, voices), contentType)
