@@ -48,6 +48,7 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
   const [detail, setDetail] = useState<Detail | null>(null)
   const [thumb, setThumb] = useState<ThumbSess | null>(null)
   const [thumbMissing, setThumbMissing] = useState<string[]>([])
+  const [titleCard, setTitleCard] = useState<{ state: string; png_url: string | null } | null>(null)
   const [thumbCanEdit, setThumbCanEdit] = useState(false)
 
   const [voices, setVoices] = useState<VoiceRow[] | null>(null)
@@ -119,9 +120,10 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
 
   const loadThumb = useCallback(async () => {
     const r = await fetch(`/api/events/thumbnails?event_id=${eventId}`, { cache: 'no-store' })
-    const j = await r.json().catch(() => null) as { sessions: ThumbSess[]; missing?: string[]; can_edit?: boolean } | null
+    const j = await r.json().catch(() => null) as { sessions: ThumbSess[]; missing?: string[]; can_edit?: boolean; title_cards?: { sessions: Array<{ id: string; state: string; png_url: string | null }> } } | null
     if (r.ok && j) {
       setThumb((j.sessions ?? []).find(s => s.id === sessionId) ?? null)
+      setTitleCard(j.title_cards?.sessions.find(s => s.id === sessionId) ?? null)
       setThumbMissing(j.missing ?? [])
       setThumbCanEdit(!!j.can_edit)
     }
@@ -310,7 +312,7 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
 
   async function thumbApproveAct(action: 'approve' | 'unapprove') {
     setThumbBusy(true); setThumbMsg(null)
-    try { await tpost({ action, session_id: sessionId }); await loadThumb() }
+    try { await tpost({ action: action === 'approve' ? 'approve_all' : 'unapprove_all', session_id: sessionId }); await loadThumb() }
     catch (e) { setThumbMsg(e instanceof Error ? e.message : 'Failed.') }
     finally { setThumbBusy(false) }
   }
@@ -360,20 +362,25 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
 
         {/* ── Step 1: Thumbnail ─────────────────────────────────────── */}
         <StepCard n={1} active={active === 1} done={thumb?.state === 'approved'}
-          title="Thumbnail" summary={thumb ? THUMB_LABEL[thumb.state] : 'Not generated'}
+          title="Video kit" summary={thumb ? `${THUMB_LABEL[thumb.state]} — thumbnail, title card, lower thirds` : 'Not generated'}
           onToggle={() => setOpenStep(p => p === 1 ? null : 1)}>
           <div style={{ display: 'grid', gap: 10 }}>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-              <div style={{ width: 140, aspectRatio: '16/9', background: '#111', border: '1px solid var(--border-light)', borderRadius: 6, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                {thumb?.jpg_url
-                  ? <img src={thumb.jpg_url} alt="" style={{ width: '100%', display: 'block' }} />
-                  : <span style={{ color: 'var(--ink3)', fontSize: 11 }}>No thumbnail</span>}
-              </div>
+              {([['Thumbnail', thumb?.jpg_url ?? null], ['Title card', titleCard?.png_url ?? null]] as const).map(([label, url]) => (
+                <div key={label} style={{ display: 'grid', gap: 4 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--ink3)' }}>{label}</span>
+                  <a href={url ?? undefined} target="_blank" rel="noreferrer" style={{ width: 240, aspectRatio: '16/9', background: 'var(--surface)', border: '1px solid var(--border-light)', borderRadius: 6, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {url ? <img src={url} alt="" style={{ width: '100%', display: 'block' }} /> : <span style={{ color: 'var(--ink3)', fontSize: 11 }}>Not generated</span>}
+                  </a>
+                </div>
+              ))}
               <div style={{ display: 'grid', gap: 6 }}>
                 {thumb && <div style={{ fontSize: 13, fontWeight: 800, color: THUMB_COLOR[thumb.state] }}>● {THUMB_LABEL[thumb.state]}</div>}
                 {thumb?.issues.map((i, k) => <div key={k} style={{ fontSize: 12.5, color: i.level === 'attention' ? 'var(--red)' : i.level === 'warning' ? 'var(--amber)' : 'var(--ink3)' }}>{i.text}</div>)}
                 {thumbMsg && <div style={{ fontSize: 12.5, color: 'var(--red)' }}>{thumbMsg}</div>}
-                {thumbMissing.length > 0 && <div style={{ fontSize: 12.5, color: 'var(--amber)' }}>Templates not configured — set them in the Thumbnails tab.</div>}
+                {thumbMissing.length > 0 && <div style={{ fontSize: 12.5, color: 'var(--amber)' }}>Templates not configured — set them in Admin Console → Thumbnails.</div>}
+                {(!titleCard || titleCard.state === 'new' || titleCard.state === 'changed') && <div style={{ fontSize: 12.5, color: 'var(--amber)' }}>{!titleCard || titleCard.state === 'new' ? 'The title card is not generated yet' : 'The title card is out of date'} — generate it in the Video Kit.</div>}
+                <div style={{ fontSize: 12, color: 'var(--ink3)' }}>One approval covers the thumbnail, title card and lower thirds. <a href={`/admin/events/${eventId}/session-videos?tab=kit`} style={{ color: 'var(--teal)', fontWeight: 700 }}>Open the Video Kit</a> to review the lower thirds or regenerate the title card.</div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {thumbCanEdit && (
                     <Button variant={thumb?.state === 'new' || thumb?.state === 'changed' ? 'teal' : 'ghost'}
@@ -382,7 +389,7 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
                       {thumbBusy ? 'Generating…' : thumb?.png_url ? 'Regenerate' : 'Generate'}
                     </Button>
                   )}
-                  {thumbCanEdit && thumb?.state === 'ready' && <Button variant="lime" disabled={thumbBusy} onClick={() => void thumbApproveAct('approve')}>Approve</Button>}
+                  {thumbCanEdit && thumb?.state === 'ready' && <Button variant="lime" disabled={thumbBusy || !titleCard || titleCard.state === 'new' || titleCard.state === 'changed'} onClick={() => void thumbApproveAct('approve')}>Approve video kit</Button>}
                   {thumbCanEdit && thumb?.state === 'approved' && <Button variant="ghost" disabled={thumbBusy} onClick={() => void thumbApproveAct('unapprove')}>Remove approval</Button>}
                   {thumb?.jpg_url && <Button variant="ghost" href={`/api/events/thumbnails/download?event_id=${eventId}&session_id=${sessionId}&format=jpg`}>Download JPG</Button>}
                 </div>
@@ -724,9 +731,10 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
                 )}
 
                 {previewDone && renderStatus === 'preview_done' && (
-                  <Button variant="lime" disabled={renderBusy} onClick={() => void doRequestRender()}>
-                    Approve & render final →
-                  </Button>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <Button variant="lime" disabled={renderBusy} onClick={() => void doRequestRender()}>Approve & render final →</Button>
+                    <Button variant="ghost" disabled={renderBusy} onClick={() => void doRequestPreview()}>Generate preview again</Button>
+                  </div>
                 )}
                 {renderStatus === 'rendering' && <div style={{ fontSize: 13, color: 'var(--amber)' }}>Rendering final video…</div>}
                 {renderDone && <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--green)' }}>✓ Final render complete</div>}

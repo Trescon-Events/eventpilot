@@ -135,12 +135,12 @@ export async function prepareMusicTrack(spec: MusicSpec): Promise<string> {
   return output
 }
 
-/** Make a 5-second video from a PNG at the given frame rate and resolution. */
-export async function pngToVideo(pngPath: string, fps: number, width: number, height: number, outPath: string): Promise<void> {
+/** Make a video of `seconds` (default 5) from a PNG at the given frame rate and resolution. */
+export async function pngToVideo(pngPath: string, fps: number, width: number, height: number, outPath: string, seconds = 5): Promise<void> {
   await run('ffmpeg', [
     '-y', '-v', 'error',
     '-loop', '1', '-framerate', String(fps), '-i', pngPath,
-    '-t', '5',
+    '-t', String(seconds),
     '-vf', `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black`,
     '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
     '-pix_fmt', 'yuv420p',

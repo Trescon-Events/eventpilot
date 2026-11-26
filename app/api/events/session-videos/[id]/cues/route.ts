@@ -95,6 +95,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         for (const c of await loadCues(id)) if (c.speaker_id === spId) await deleteCue(id, c.id)
         await addCue(id, spId, startS, by)
         await setSkipped(id, spId, false)
+        await markRenderStale(id)
         return NextResponse.json(await reviewState(eventId, id))
       }
       case 'skip': {
@@ -102,6 +103,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         if (!spId) throw new VideoError('speaker_id required.')
         for (const c of await loadCues(id)) if (c.speaker_id === spId) await deleteCue(id, c.id)
         await setSkipped(id, spId, true)
+        await markRenderStale(id)
         return NextResponse.json(await reviewState(eventId, id))
       }
       case 'prepare': {
@@ -149,4 +151,9 @@ async function setSkipped(videoId: string, speakerId: string, on: boolean) {
   const cur = new Set((Array.isArray(data?.cue_skipped) ? data!.cue_skipped : []) as string[])
   if (on) cur.add(speakerId); else cur.delete(speakerId)
   await supabaseAdmin.from('session_videos').update({ cue_skipped: [...cur], updated_at: new Date().toISOString() }).eq('id', videoId)
+}
+
+/** The lower thirds changed, so an existing preview / final render no longer matches: send the producer back to "Generate preview". */
+async function markRenderStale(videoId: string) {
+  await supabaseAdmin.from('session_videos').update({ render_status: 'pending', updated_at: new Date().toISOString() }).eq('id', videoId).in('render_status', ['preview_done', 'done', 'failed'])
 }
