@@ -116,7 +116,7 @@ export default function CueReview({ eventId, videoId, proxyUrl, durationS, speak
       {data.setupMissing.length > 0 && (
         <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--amber-light)', border: '1px solid var(--amber-border)', color: 'var(--amber)', fontSize: 13, lineHeight: 1.6 }}>
           The lower-third design isn&apos;t set up yet: {data.setupMissing.join('; ')}.{' '}
-          Build it in <Link href={`/admin/events/${eventId}/creative-templates/admin`} style={{ color: 'var(--teal)', fontWeight: 700 }}>Creative Templates → Admin Console</Link> (add a “Lower Third”), then choose it in the Thumbnails settings on <Link href={`/admin/events/${eventId}/session-videos`} style={{ color: 'var(--teal)', fontWeight: 700 }}>Session Videos</Link>.
+          Set it up in <Link href={`/admin/events/${eventId}/creative-templates/admin?tab=lower_thirds`} style={{ color: 'var(--teal)', fontWeight: 700 }}>Admin Console → Lower Thirds</Link> (upload the graphic and save).
         </div>
       )}
 
