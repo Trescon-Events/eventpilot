@@ -364,7 +364,7 @@ function Viewer({ items, index, onIndex, onClose, anim, session, state, canEdit,
   return (
     // eslint-disable-next-line no-restricted-syntax -- modal scrim
     <div role="dialog" aria-modal="true" onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: 'min(1200px, 100%)', maxHeight: '96vh', overflow: 'auto', background: 'var(--card)', border: '1px solid var(--border-light)', borderRadius: 14, padding: 16, display: 'grid', gap: 12 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: 'min(880px, 100%)', maxHeight: '92vh', overflow: 'auto', background: 'var(--card)', border: '1px solid var(--border-light)', borderRadius: 14, padding: 16, display: 'grid', gap: 12 }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 200 }}>
             <div style={{ fontSize: 11.5, color: 'var(--ink3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{it.label} · {index + 1} of {items.length}</div>
@@ -377,7 +377,7 @@ function Viewer({ items, index, onIndex, onClose, anim, session, state, canEdit,
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           {arrow(-1)}
-          <div style={{ flex: 1, position: 'relative', aspectRatio: '16 / 9', background: 'var(--surface)', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border-light)' }}>
+          <div style={{ flex: 1, position: 'relative', aspectRatio: '16 / 9', maxWidth: 'calc(62vh * 16 / 9)', margin: '0 auto', background: 'var(--surface)', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border-light)' }}>
             {it.src
               ? <img key={it.src} ref={it.kind === 'lt' ? cardRef : undefined} src={it.src} alt={it.label} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }} />
               : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink3)', fontSize: 13 }}>Not generated yet</div>}
