@@ -192,7 +192,7 @@ export default function LowerThirdSettings({ eventId, canEdit }: { eventId: stri
           </div>
           <Button variant="ghost" onClick={() => setPlayToken(t => t + 1)} disabled={!previewUrl || !draft.background_url}>↻ Replay</Button>
         </div>
-        <div style={{ position: 'relative', aspectRatio: '16 / 9', borderRadius: 10, overflow: 'hidden', background: stageBg, border: '1px solid var(--border-light)' }}>
+        <div style={{ position: 'relative', aspectRatio: '16 / 9', width: '100%', maxWidth: 720, borderRadius: 10, overflow: 'hidden', background: stageBg, border: '1px solid var(--border-light)' }}>
           {previewUrl && draft.background_url
             ? <img ref={cardRef} src={previewUrl} alt="Lower third preview" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, willChange: 'transform, opacity' }} />
             : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink3)', fontSize: 13, padding: 20, textAlign: 'center' }}>{previewErr ?? (draft.background_url ? 'Drawing preview…' : 'Upload the lower-third graphic in Step 1 to see the preview.')}</div>}
