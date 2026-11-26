@@ -3,7 +3,7 @@ import { compositeAnnouncement, layersForRole } from '@/app/lib/announcements/co
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 import { DESIGN_H, DESIGN_W, cardPositions, cardSize, scaleCardVariant, speakerAreaOf } from './geometry'
 import { nameSizeFor } from './assess'
-import type { Variant } from '@/app/lib/announcements/composite'
+import type { TextLayer, Variant } from '@/app/lib/announcements/composite'
 import type { ThumbSession, ThumbSetup } from './data'
 
 /* Session thumbnails — draws one thumbnail: the layout (background, tag pill, title) with the speaker cards placed on top in one row.
@@ -20,12 +20,40 @@ export async function drawThumbnail(layout: Variant, card: Variant, text: { tag?
   if (!area) throw new Error('The layout has no speaker area.')
   if (layout.canvas_width !== DESIGN_W || layout.canvas_height !== DESIGN_H) throw new Error(`The layout must be ${DESIGN_W}x${DESIGN_H}.`)
   const base = await compositeAnnouncement(layout, {}, { session_type: text.tag, session_title: text.title }, { showReferenceLayers: false })
-  const size = cardSize(people.length, area, card.canvas_height / card.canvas_width)
-  const spots = cardPositions(people.length, size, area)
+  const aspect = card.canvas_height / card.canvas_width
+  // Moderator label ("MODERATOR" above the moderator's card): when a session has a moderator, the top of the speaker area is
+  // kept for the label and the cards sit just below it, so the label never runs into the title.
+  const hasMod = people.some(p => p.moderator)
+  const first = cardSize(people.length, area, aspect)
+  const labelSize = hasMod ? Math.max(16, Math.min(30, Math.round(first.width * 0.09))) : 0
+  const labelH = hasMod ? Math.round(labelSize * 1.6) : 0
+  const cardArea = hasMod ? { ...area, y: area.y + labelH, height: Math.max(40, area.height - labelH) } : area
+  const size = hasMod ? cardSize(people.length, cardArea, aspect) : first
+  const spots = cardPositions(people.length, size, cardArea)
   const nameSize = await nameSizeFor(card, size.width, people)   // one size for every name: what the longest needs
   const scaled = scaleCardVariant(card, size.width, nameSize ?? undefined)
   const pieces = await Promise.all(people.map(c => compositeAnnouncement(layersForRole(scaled, c.moderator), { speaker_photo: { buffer: c.buffer, url: c.url, head_box: c.headBox } }, { name: c.name, company: c.company }, { showReferenceLayers: false })))
-  return sharp(base).composite(pieces.map((input, k) => ({ input, left: spots[k].x, top: spots[k].y }))).png().toBuffer()
+  const overlays = pieces.map((input, k) => ({ input, left: spots[k].x, top: spots[k].y }))
+  if (hasMod) {
+    const labels: TextLayer[] = people.map((p, k) => p.moderator ? {
+      type: 'text', id: `mod${k}`, field: 'custom', value: 'MODERATOR', x: spots[k].x, y: spots[k].y - labelH + Math.round((labelH - labelSize * 1.2) / 2), width: size.width, height: Math.ceil(labelSize * 1.3),
+      font_size: labelSize, font_weight: 700, font_color: moderatorColour(layout), uppercase: true, max_lines: 1, align: 'left', allow_shrink: true, font_family: nameFont(card),
+    } as TextLayer : null).filter((l): l is TextLayer => !!l)
+    const labelPng = await compositeAnnouncement({ ...layout, id: 'mod-labels', layers: labels }, {}, {}, { showReferenceLayers: false })
+    overlays.push({ input: labelPng, left: 0, top: 0 })
+  }
+  return sharp(base).composite(overlays).png().toBuffer()
+}
+
+/** The label colour follows the layout's tag pill (the event's accent), else its tag text colour, else teal. */
+function moderatorColour(layout: Variant): string {
+  const tag = layout.layers.find((l): l is TextLayer => l.type === 'text' && l.field === 'session_type')
+  // eslint-disable-next-line no-restricted-syntax -- a colour drawn into the image, not a UI colour
+  return tag?.pill?.fill ?? tag?.font_color ?? '#00B4D8'
+}
+/** Same font as the card's name. */
+function nameFont(card: Variant): TextLayer['font_family'] {
+  return card.layers.find((l): l is TextLayer => l.type === 'text' && l.field === 'name')?.font_family
 }
 
 export async function renderThumbnail(s: ThumbSession, setup: ThumbSetup): Promise<{ png: Buffer; jpg: Buffer; width: number; height: number }> {

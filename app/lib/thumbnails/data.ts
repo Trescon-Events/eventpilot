@@ -147,6 +147,7 @@ export async function loadThumbnailSessions(eventId: string, opts: LoadOpts = {}
     const live = fingerprint({
       title, tag: tag.text, layout, mode, cards: cards.map(c => ({ id: c.speakerId, mod: c.moderator, name: c.name, company: c.company, photo: c.photoUrl, head: c.headBox })),
       card: setup.card && { ...setup.card, last_preview_url: undefined }, layoutV: layoutV && { ...layoutV, last_preview_url: undefined },
+      ...(cards.some(c => c.moderator) ? { modLabel: 1 } : {}),   // sessions with a moderator now carry a MODERATOR label (added 2026-11-26)
     })
     const attention = issues.some(i => i.level === 'attention')
     out.push({
