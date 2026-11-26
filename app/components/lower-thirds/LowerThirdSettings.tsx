@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Card, Button, Badge, Input, Select, Toast } from '@/app/components/ui'
-import { DEFAULT_LT_CONFIG, LT_W, ltTotal, ltTransform, type LowerThirdConfig, type LtTextEl } from '@/app/lib/lower-thirds/config'
+import { DEFAULT_LT_CONFIG, LT_W, LT_H, boxFromGraphicBounds, ltTotal, ltTransform, type LowerThirdConfig, type LtTextEl } from '@/app/lib/lower-thirds/config'
 
 /* Session Videos → Lower Thirds tab.
    1) Template — upload the transparent graphic, pick fonts, style name / job title / company, set the slide + hold timing.
@@ -128,9 +128,9 @@ export default function LowerThirdSettings({ eventId, canEdit }: { eventId: stri
     try {
       const fd = new FormData(); fd.append('event_id', eventId); fd.append('file', f)
       const r = await fetch('/api/events/lower-thirds/background', { method: 'POST', body: fd })
-      const j = await r.json().catch(() => ({})) as { url?: string; error?: string; width?: number; height?: number }
+      const j = await r.json().catch(() => ({})) as { url?: string; error?: string; width?: number; height?: number; bounds?: { x0: number; y0: number; x1: number; y1: number } | null }
       if (!r.ok || !j.url) throw new Error(j.error ?? 'Upload failed.')
-      set({ background_url: j.url }); setMsg({ text: `Graphic uploaded (${j.width}×${j.height}, shrunk to 1920×1080). Press Save to keep it.`, ok: true })
+      set({ background_url: j.url, ...(j.bounds ? { box: boxFromGraphicBounds(j.bounds) } : {}) }); setMsg({ text: `Graphic uploaded (${j.width}×${j.height}, shrunk to 1920×1080)${j.bounds ? '; text box fitted to the bar' : ''}. Press Save to keep it.`, ok: true })
     } catch (e) { setMsg({ text: e instanceof Error ? e.message : 'Upload failed.', ok: false }) } finally { setBusy(false) }
   }
 
@@ -212,6 +212,7 @@ export default function LowerThirdSettings({ eventId, canEdit }: { eventId: stri
           {previewUrl && draft.background_url
             ? <img ref={cardRef} src={previewUrl} alt="Lower third preview" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, willChange: 'transform, opacity' }} />
             : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink3)', fontSize: 13, padding: 20, textAlign: 'center' }}>{previewErr ?? (draft.background_url ? 'Drawing preview…' : 'Upload the lower-third graphic in Step 1 to see the preview.')}</div>}
+            {panelOpen && draft.background_url && <div aria-hidden style={{ position: 'absolute', left: `${draft.box.x / LT_W * 100}%`, top: `${draft.box.y / LT_H * 100}%`, width: `${draft.box.width / LT_W * 100}%`, height: `${draft.box.height / LT_H * 100}%`, border: '1px dashed var(--teal-mid)', pointerEvents: 'none' }} />}
         </div>
         <div style={{ fontSize: 11.5, color: 'var(--ink4)' }}>
           {sp ? <>Showing <b>{sp.name}</b>{sp.title ? ` · ${sp.title}` : ''}{sp.company ? ` · ${sp.company}` : ''}. </> : null}
@@ -250,7 +251,18 @@ export default function LowerThirdSettings({ eventId, canEdit }: { eventId: stri
           </div>
         </Sec>
 
-        <Sec n={2} title="Text" hint="positions are pixels on the 1920×1080 frame (top-left of each line)">
+        <Sec n={2} title="Text" hint="the three lines stack inside the text box, centred top-to-bottom">
+          <div style={{ border: '1px dashed var(--teal-mid)', borderRadius: 10, padding: 12, display: 'grid', gap: 8 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--ink)' }}>Text box <span style={{ fontWeight: 400, color: 'var(--ink3)' }}>— the dashed area in the preview; set automatically from the graphic when you upload it</span></div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: 8, alignItems: 'end' }}>
+              <Num label="Across (x)" value={draft.box.x} min={0} max={1880} disabled={!canEdit} onChange={v => set({ box: { ...draft.box, x: v } })} />
+              <Num label="Down (y)" value={draft.box.y} min={0} max={1060} disabled={!canEdit} onChange={v => set({ box: { ...draft.box, y: v } })} />
+              <Num label="Width" value={draft.box.width} min={40} max={1920} disabled={!canEdit} onChange={v => set({ box: { ...draft.box, width: v } })} />
+              <Num label="Height" value={draft.box.height} min={20} max={1080} disabled={!canEdit} onChange={v => set({ box: { ...draft.box, height: v } })} />
+              <Num label="Line gap" value={draft.gap} min={0} max={80} disabled={!canEdit} onChange={v => set({ gap: v })} />
+            </div>
+            <div style={{ fontSize: 11.5, color: 'var(--ink4)', lineHeight: 1.5 }}>Sizes below are the largest each line will be. Short text stays at that size; long text wraps onto its max lines, and if the box still overflows, job title and company shrink first (to 60%), then the name.</div>
+          </div>
           <label style={{ fontSize: 11, color: 'var(--ink3)', display: 'grid', gap: 3, maxWidth: 320 }}>
             Font (all three lines)
             <Select value={draft.font_id ?? ''} disabled={!canEdit} onChange={e => set({ font_id: e.target.value || null })}>
@@ -264,10 +276,7 @@ export default function LowerThirdSettings({ eventId, canEdit }: { eventId: stri
               <div key={k} style={{ border: '1px solid var(--border-light)', borderRadius: 10, padding: 12, display: 'grid', gap: 8 }}>
                 <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--ink)' }}>{EL_LABEL[k]}</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(104px, 1fr))', gap: 8, alignItems: 'end' }}>
-                  <Num label="Size (px)" value={e.size} min={8} max={200} disabled={!canEdit} onChange={v => setEl(k, { size: v })} />
-                  <Num label="Across (x)" value={e.x} min={0} max={1920} disabled={!canEdit} onChange={v => setEl(k, { x: v })} />
-                  <Num label="Down (y)" value={e.y} min={0} max={1080} disabled={!canEdit} onChange={v => setEl(k, { y: v })} />
-                  <Num label="Width" value={e.width} min={40} max={1920} disabled={!canEdit} onChange={v => setEl(k, { width: v })} />
+                  <Num label="Size (px, max)" value={e.size} min={8} max={200} disabled={!canEdit} onChange={v => setEl(k, { size: v })} />
                   <Num label="Max lines" value={e.max_lines} min={1} max={4} disabled={!canEdit} onChange={v => setEl(k, { max_lines: Math.round(v) })} />
                   <label style={{ fontSize: 11, color: 'var(--ink3)', display: 'grid', gap: 3 }}>Weight
                     <Select value={e.weight} disabled={!canEdit} onChange={ev => setEl(k, { weight: Number(ev.target.value) })}>

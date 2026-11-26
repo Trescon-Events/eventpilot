@@ -4,7 +4,7 @@ import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { requireLowerThirdAccess, UUID_RE } from '@/app/lib/lower-thirds/access'
 import { LT_W, LT_H } from '@/app/lib/lower-thirds/config'
 
-/* POST multipart {event_id, file} → { url, width, height }
+/* POST multipart {event_id, file} → { url, width, height, bounds }
    The lower-third graphic: a transparent PNG on a 16:9 canvas (any size — e.g. 8000×4500). It is shrunk to exactly
    1920×1080 once here so every preview and render is fast and positions match the design. Kept as an unsaved draft until Save. */
 
@@ -23,6 +23,13 @@ export async function POST(req: NextRequest) {
   if (!meta.hasAlpha) return NextResponse.json({ error: 'This PNG has no transparency — it would cover the whole video. Export it with a transparent background.' }, { status: 400 })
 
   const png = await sharp(input, { limitInputPixels: 200_000_000 }).resize(LT_W, LT_H, { fit: 'fill' }).png({ compressionLevel: 9 }).toBuffer()
+  // Where the graphic is drawn (non-transparent pixels) — the page uses it to place the text box inside the bar.
+  const { data: px, info } = await sharp(png).raw().ensureAlpha().toBuffer({ resolveWithObject: true })
+  let x0 = info.width, y0 = info.height, x1 = -1, y1 = -1
+  for (let yy = 0; yy < info.height; yy++) for (let xx = 0; xx < info.width; xx++) {
+    if (px[(yy * info.width + xx) * 4 + 3] > 16) { if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (yy < y0) y0 = yy; if (yy > y1) y1 = yy }
+  }
+  const bounds = x1 >= 0 ? { x0, y0, x1: x1 + 1, y1: y1 + 1 } : null
   const url = await uploadPublicAsset(`events/${eventId}/lower-thirds/bg-${Date.now()}.png`, png, 'image/png')
-  return NextResponse.json({ url, width: meta.width, height: meta.height })
+  return NextResponse.json({ url, width: meta.width, height: meta.height, bounds })
 }

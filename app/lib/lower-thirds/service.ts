@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
-import { loadLowerThirdSetup, lowerThirdFingerprint } from './data'
+import { loadLowerThirdSetup, lowerThirdFingerprint, lowerThirdVariantFor } from './data'
 import { drawLowerThirdStill } from './render'
 
 /* Lower-thirds service: generate the still PNG (web app) and enqueue the MOV job (worker). */
@@ -8,7 +8,8 @@ import { drawLowerThirdStill } from './render'
 const actor = (by: string | null) => (by && /^[0-9a-f-]{36}$/i.test(by) ? by : null)
 
 export async function generateLowerThirdStill(eventId: string, sessionId: string, speakerId: string, by: string | null): Promise<{ stillUrl: string }> {
-  const { variant, missing, cardAnim } = await loadLowerThirdSetup(eventId)
+  const setup = await loadLowerThirdSetup(eventId)
+  const { variant, missing, cardAnim } = setup
   if (missing.length) throw new Error(`Set up the lower-third template first: ${missing.join('; ')}`)
   if (!variant) throw new Error('No lower-third template configured.')
   // Load speaker data
@@ -20,7 +21,8 @@ export async function generateLowerThirdStill(eventId: string, sessionId: string
   const photoUrl = (p.photo_processed_url as string | null) ?? null
   const headBox = (p.photo_head_box as unknown) ?? null
   const fp = lowerThirdFingerprint({ name, title, company, photo: photoUrl, variant, anim: cardAnim })
-  const still = await drawLowerThirdStill(variant, { speakerId, name, title, company, photoUrl, headBox: headBox as never, stillUrl: null, movUrl: null, previewUrl: null, status: 'draft', fingerprint: null })
+  const drawVariant = (await lowerThirdVariantFor(setup, { name, title, company })) ?? variant
+  const still = await drawLowerThirdStill(drawVariant, { speakerId, name, title, company, photoUrl, headBox: headBox as never, stillUrl: null, movUrl: null, previewUrl: null, status: 'draft', fingerprint: null })
   const stillUrl = await uploadPublicAsset(`events/${eventId}/lower-thirds/${sessionId}/${speakerId}/still.png`, still, 'image/png')
   await supabaseAdmin.from('session_lower_thirds').upsert({
     event_id: eventId, agenda_session_id: sessionId, speaker_id: speakerId,

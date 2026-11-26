@@ -7,7 +7,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadFile, presignGet } from '@/app/lib/session-videos/storage'
 import { LT_DURATION, compositeAnimatedFrame, cardFrame, drawLowerThirdStill } from '@/app/lib/lower-thirds/render'
 import { LT_FPS, ltTotal } from '@/app/lib/lower-thirds/config'
-import { lowerThirdFingerprint, loadLowerThirdSetup } from '@/app/lib/lower-thirds/data'
+import { lowerThirdFingerprint, loadLowerThirdSetup, lowerThirdVariantFor } from '@/app/lib/lower-thirds/data'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 
 /* Lower-third worker: renders 180 frames → ProRes 4444 alpha MOV + H.264 preview MP4. */
@@ -55,7 +55,7 @@ export async function runLowerThirdJob(job: CreativeJob): Promise<void> {
     const speaker = { speakerId, name, title, company, photoUrl, headBox: headBox as never, stillUrl: null, movUrl: null, previewUrl: null, status: 'generating' as const, fingerprint: null }
 
     // Config templates: draw the card once, then slide/fade that single image per frame (fast). Older variants animate per layer.
-    const card = cardAnim ? await drawLowerThirdStill(variant, speaker) : null
+    const card = cardAnim ? await drawLowerThirdStill((await lowerThirdVariantFor(setup, { name, title, company })) ?? variant, speaker) : null
     for (let i = 0; i < totalFrames; i++) {
       const t = i / LT_FPS
       const frame = card && cardAnim ? await cardFrame(card, cardAnim, t) : await compositeAnimatedFrame(variant, speaker, t)

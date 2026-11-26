@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { getEventRoles, resolvePrimaryRole } from '@/app/lib/konfhub/roles'
 import { isModeratorRole } from '@/app/lib/screens/geometry'
 import type { TextLayer, TextLayerFont, Variant } from '@/app/lib/announcements/composite'
+import { planTextLayer } from '@/app/lib/announcements/composite'
 import { mergeLowerThirdConfig, LT_W, LT_H, type LowerThirdConfig, type LtAnim, type LtTextEl } from './config'
 import type { HeadBox } from '@/app/lib/media/face-alignment'
 
@@ -25,6 +26,7 @@ export type LowerThirdSetup = {
   /** Set when the template comes from the Lower Thirds tab (whole card slides as one unit); null for an older hand-built variant. */
   cardAnim: LtAnim | null
   config: LowerThirdConfig | null
+  fonts?: Map<string, TextLayerFont>
 }
 
 const clean = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
@@ -47,20 +49,82 @@ export function lowerThirdFontIds(c: LowerThirdConfig): string[] {
   return [c.font_id, c.name.font_id, c.title.font_id, c.company.font_id].filter((x): x is string => !!x)
 }
 
-/** The 1920×1080 card (background graphic + name/title/company text) built from the saved template config. */
-export function buildLowerThirdVariant(c: LowerThirdConfig, fonts: Map<string, TextLayerFont>): Variant {
+type LineKey = 'name' | 'title' | 'company'
+type LineLayout = { size: number; lines: number; lineHeight: number }
+
+/** The 1920×1080 card: background graphic + the three text lines stacked inside the text box.
+ *  Without a measured layout (no speaker yet) each line just uses its configured size on one line. */
+export function buildLowerThirdVariant(c: LowerThirdConfig, fonts: Map<string, TextLayerFont>, layout?: Partial<Record<LineKey, LineLayout>>): Variant {
   const layers: Variant['layers'] = []
   if (c.background_url) layers.push({ type: 'image', id: 'bg', asset_url: c.background_url, x: 0, y: 0, width: LT_W, height: LT_H } as Variant['layers'][number])
-  const text = (id: 'name' | 'title' | 'company', e: LtTextEl): TextLayer => {
+  const keys: LineKey[] = ['name', 'title', 'company']
+  const lay = (k: LineKey): LineLayout => layout?.[k] ?? { size: c[k].size, lines: 1, lineHeight: c[k].size * 1.2 }
+  const present = keys.filter(k => lay(k).lines > 0)
+  const blockH = present.reduce((h, k, i) => h + lay(k).lines * lay(k).lineHeight + (i ? c.gap : 0), 0)
+  let y = c.box.y + Math.max(0, (c.box.height - blockH) / 2)   // centre the block vertically in the box
+  for (const k of keys) {
+    const e: LtTextEl = c[k], l = lay(k)
+    if (l.lines === 0) continue
     const fid = e.font_id ?? c.font_id
-    return {
-      type: 'text', id, field: id, x: e.x, y: e.y, width: e.width, height: Math.ceil(e.size * 1.25 * e.max_lines),
-      font_size: e.size, font_weight: e.weight as TextLayer['font_weight'], font_color: e.color, uppercase: e.upper,
-      max_lines: e.max_lines, align: 'left', allow_shrink: true, font_family: fid && fonts.has(fid) ? fonts.get(fid) : undefined,
-    } as TextLayer
+    const h = Math.ceil(l.lines * l.lineHeight) + 2
+    layers.push({
+      type: 'text', id: k, field: k, x: c.box.x, y: Math.round(y), width: c.box.width, height: h,
+      font_size: l.size, font_weight: e.weight as TextLayer['font_weight'], font_color: e.color, uppercase: e.upper,
+      max_lines: Math.max(1, l.lines), align: 'left', allow_shrink: true, font_family: fid && fonts.has(fid) ? fonts.get(fid) : undefined,
+    } as TextLayer)
+    y += l.lines * l.lineHeight + c.gap
   }
-  layers.push(text('name', c.name), text('title', c.title), text('company', c.company))
   return { id: '__lower_third_config__', name: 'Lower third', category: 'lower_third', canvas_width: LT_W, canvas_height: LT_H, layers } as Variant
+}
+
+/** Sizes the three lines for one speaker so everything fits the text box.
+ *  Short text keeps its configured size (never grows). Long text first wraps onto its allowed lines; if the whole block is
+ *  still too tall, job title and company shrink together (down to 60%), then the name (down to 75%), then all of them as a
+ *  last resort. Uses the compositor's real font measurement, so what fits here fits in the render. */
+export async function fitLowerThirdVariant(c: LowerThirdConfig, fonts: Map<string, TextLayerFont>, texts: { name: string; title: string; company: string }): Promise<Variant> {
+  const keys: LineKey[] = ['name', 'title', 'company']
+  const fontOf = (k: LineKey) => { const fid = c[k].font_id ?? c.font_id; return fid && fonts.has(fid) ? fonts.get(fid) : undefined }
+  const measure = async (k: LineKey, size: number): Promise<LineLayout> => {
+    const raw = texts[k]?.trim() ?? ''
+    if (!raw) return { size, lines: 0, lineHeight: 0 }
+    const plan = await planTextLayer({
+      type: 'text', id: 'm', field: 'custom', value: raw, x: 0, y: 0, width: c.box.width, height: 100000,
+      font_size: size, font_weight: c[k].weight as TextLayer['font_weight'], font_color: 'white', max_lines: 50, align: 'left',
+      allow_shrink: false, font_family: fontOf(k),
+    } as TextLayer, c[k].upper ? raw.toUpperCase() : raw)
+    return { size, lines: plan.lines.length, lineHeight: plan.lineHeight }
+  }
+  const HARD_MIN = 12
+  const lay = {} as Record<LineKey, LineLayout>
+  // 1. Each line within its own max lines (only shrinks if a line can't fit its allowed lines at all).
+  for (const k of keys) {
+    let l = await measure(k, c[k].size)
+    while (l.lines > c[k].max_lines && l.size > HARD_MIN) l = await measure(k, l.size - 1)
+    lay[k] = l
+  }
+  const blockH = () => keys.filter(k => lay[k].lines > 0).reduce((h, k, i) => h + lay[k].lines * lay[k].lineHeight + (i ? c.gap : 0), 0)
+  const floor = { name: Math.max(HARD_MIN, Math.round(c.name.size * 0.75)), title: Math.max(HARD_MIN, Math.round(c.title.size * 0.6)), company: Math.max(HARD_MIN, Math.round(c.company.size * 0.6)) }
+  const step = async (k: LineKey) => { lay[k] = await measure(k, lay[k].size - 1) }
+  // 2. Whole block taller than the box: shrink title + company together (keeping their proportion), then name, then all.
+  for (let guard = 0; guard < 200 && blockH() > c.box.height; guard++) {
+    const t = lay.title.lines ? lay.title.size / c.title.size : 0, co = lay.company.lines ? lay.company.size / c.company.size : 0
+    if ((lay.title.lines && lay.title.size > floor.title) || (lay.company.lines && lay.company.size > floor.company)) {
+      if (lay.title.lines && lay.title.size > floor.title && (t >= co || lay.company.size <= floor.company)) await step('title')
+      else await step('company')
+    } else if (lay.name.lines && lay.name.size > floor.name) await step('name')
+    else {
+      const k = keys.filter(x => lay[x].lines && lay[x].size > HARD_MIN).sort((a, b) => lay[b].size - lay[a].size)[0]
+      if (!k) break
+      await step(k)
+    }
+  }
+  return buildLowerThirdVariant(c, fonts, lay)
+}
+
+/** The variant to draw for one speaker: fitted to their text for a Lower Thirds tab template, else the older hand-built variant. */
+export async function lowerThirdVariantFor(setup: LowerThirdSetup, texts: { name: string; title: string; company: string }): Promise<Variant | null> {
+  if (setup.config) return fitLowerThirdVariant(setup.config, setup.fonts ?? new Map(), texts)
+  return setup.variant
 }
 
 export async function loadLowerThirdSetup(eventId: string): Promise<LowerThirdSetup> {
@@ -74,7 +138,7 @@ export async function loadLowerThirdSetup(eventId: string): Promise<LowerThirdSe
     const config = mergeLowerThirdConfig(cfgRaw)
     if (config.background_url) {
       const fonts = await loadLtFonts(lowerThirdFontIds(config))
-      return { variantId: '__lower_third_config__', variant: buildLowerThirdVariant(config, fonts), missing: [], cardAnim: config.animation, config }
+      return { variantId: '__lower_third_config__', variant: buildLowerThirdVariant(config, fonts), missing: [], cardAnim: config.animation, config, fonts }
     }
   }
   const all = ((ev?.creative_template_config as { speaker?: { variants?: Variant[] } } | null)?.speaker?.variants ?? []) as Variant[]

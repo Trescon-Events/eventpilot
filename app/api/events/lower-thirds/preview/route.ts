@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { mergeLowerThirdConfig } from '@/app/lib/lower-thirds/config'
-import { buildLowerThirdVariant, loadLtFonts, lowerThirdFontIds } from '@/app/lib/lower-thirds/data'
+import { fitLowerThirdVariant, loadLtFonts, lowerThirdFontIds } from '@/app/lib/lower-thirds/data'
 import { drawLowerThirdStill } from '@/app/lib/lower-thirds/render'
 import { requireLowerThirdAccess, UUID_RE } from '@/app/lib/lower-thirds/access'
 
@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
     }
   }
   const fonts = await loadLtFonts(lowerThirdFontIds(config))
-  const png = await drawLowerThirdStill(buildLowerThirdVariant(config, fonts), { speakerId: 'preview', name, title, company, photoUrl: null, headBox: null, stillUrl: null, movUrl: null, previewUrl: null, status: 'draft', fingerprint: null })
+  const variant = await fitLowerThirdVariant(config, fonts, { name, title, company })
+  const png = await drawLowerThirdStill(variant, { speakerId: 'preview', name, title, company, photoUrl: null, headBox: null, stillUrl: null, movUrl: null, previewUrl: null, status: 'draft', fingerprint: null })
   return new NextResponse(new Uint8Array(png), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' } })
 }

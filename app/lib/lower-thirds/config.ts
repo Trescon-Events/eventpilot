@@ -6,14 +6,20 @@
    The whole card (background graphic + name + job title + company) moves as ONE unit: it slides in from the left with a
    fade, holds, then slides back out. The hold is counted from when the card has finished arriving. */
 
+/** One text line style. Positions are not per line any more: the three lines stack inside the shared text box. */
 export type LtTextEl = {
-  x: number; y: number; width: number; size: number; weight: number
+  size: number; weight: number
   color: string; upper: boolean; max_lines: number; font_id?: string | null
 }
+/** The area inside the graphic where the text goes (1920×1080 px). The text block is centred vertically in it. */
+export type LtBox = { x: number; y: number; width: number; height: number }
 export type LtAnim = { style: 'slide_left' | 'fade'; in_dur: number; hold: number; out_dur: number; slide_px: number }
 export type LowerThirdConfig = {
   background_url: string | null
   font_id: string | null
+  box: LtBox
+  /** Space between the lines, px. */
+  gap: number
   name: LtTextEl; title: LtTextEl; company: LtTextEl
   animation: LtAnim
 }
@@ -27,13 +33,15 @@ export const LT_OUT_DEFAULT = 0.8
 /** Default total on-screen time — used to space cues so two lower thirds never overlap. */
 export const LT_TOTAL_DEFAULT = LT_IN_DEFAULT + LT_HOLD_DEFAULT + LT_OUT_DEFAULT
 
-// Defaults sit inside the DFS bar (x 147–947, y 806–976 on the 1920×1080 canvas; cyan tab ≈ 21px wide).
+// Default text box sits inside the DFS bar (x 147–947, y 806–976 on the 1920×1080 canvas; cyan tab ≈ 21px wide).
 export const DEFAULT_LT_CONFIG: LowerThirdConfig = {
   background_url: null,
   font_id: null,
-  name:    { x: 192, y: 818, width: 735, size: 44, weight: 700, color: '#FFFFFF', upper: true,  max_lines: 1 },
-  title:   { x: 192, y: 876, width: 735, size: 28, weight: 400, color: '#FFFFFF', upper: false, max_lines: 1 },
-  company: { x: 192, y: 918, width: 735, size: 24, weight: 400, color: '#CCCCCC', upper: false, max_lines: 1 },
+  box: { x: 192, y: 818, width: 730, height: 146 },
+  gap: 6,
+  name:    { size: 44, weight: 700, color: '#FFFFFF', upper: true,  max_lines: 1 },
+  title:   { size: 30, weight: 400, color: '#FFFFFF', upper: false, max_lines: 2 },
+  company: { size: 26, weight: 400, color: '#CCCCCC', upper: false, max_lines: 2 },
   animation: { style: 'slide_left', in_dur: LT_IN_DEFAULT, hold: LT_HOLD_DEFAULT, out_dur: LT_OUT_DEFAULT, slide_px: 220 },
 }
 
@@ -43,12 +51,31 @@ const str = (v: unknown, fb: string) => (typeof v === 'string' && v ? v : fb)
 function mergeEl(raw: unknown, fb: LtTextEl): LtTextEl {
   const e = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   return {
-    x: num(e.x, fb.x, 0, LT_W), y: num(e.y, fb.y, 0, LT_H), width: num(e.width, fb.width, 40, LT_W),
     size: num(e.size, fb.size, 8, 200), weight: e.weight === 700 || e.weight === 400 || e.weight === 500 || e.weight === 600 ? (e.weight as number) : fb.weight,
     color: str(e.color, fb.color), upper: typeof e.upper === 'boolean' ? e.upper : fb.upper,
     max_lines: Math.round(num(e.max_lines, fb.max_lines, 1, 4)),
     font_id: typeof e.font_id === 'string' && e.font_id ? e.font_id : null,
   }
+}
+
+function mergeBox(raw: unknown, legacyName: unknown): LtBox {
+  const d = DEFAULT_LT_CONFIG.box
+  const b = (raw && typeof raw === 'object' ? raw : null) as Record<string, unknown> | null
+  // Older saves had per-line x/y/width — start the box where the name line was.
+  const n = (!b && legacyName && typeof legacyName === 'object' ? legacyName : {}) as Record<string, unknown>
+  const src = b ?? n
+  return {
+    x: num(src.x, d.x, 0, LT_W - 40), y: num(src.y, d.y, 0, LT_H - 20),
+    width: num(src.width, d.width, 40, LT_W), height: num(b?.height, d.height, 20, LT_H),
+  }
+}
+
+/** Text box for a freshly uploaded graphic: the bar's opaque area (from the PNG) with room left for an accent tab. */
+export function boxFromGraphicBounds(bb: { x0: number; y0: number; x1: number; y1: number }): LtBox {
+  const w = bb.x1 - bb.x0, h = bb.y1 - bb.y0
+  const padL = Math.round(Math.min(60, Math.max(24, w * 0.055))), padR = Math.round(Math.min(40, Math.max(16, w * 0.03)))
+  const padY = Math.round(Math.min(24, Math.max(8, h * 0.08)))
+  return { x: bb.x0 + padL, y: bb.y0 + padY, width: Math.max(40, w - padL - padR), height: Math.max(20, h - 2 * padY) }
 }
 
 export function mergeLowerThirdConfig(raw: unknown): LowerThirdConfig {
@@ -58,6 +85,8 @@ export function mergeLowerThirdConfig(raw: unknown): LowerThirdConfig {
   return {
     background_url: typeof c.background_url === 'string' && c.background_url ? c.background_url : null,
     font_id: typeof c.font_id === 'string' && c.font_id ? c.font_id : null,
+    box: mergeBox(c.box, c.name),
+    gap: num(c.gap, d.gap, 0, 80),
     name: mergeEl(c.name, d.name), title: mergeEl(c.title, d.title), company: mergeEl(c.company, d.company),
     animation: {
       style: a.style === 'fade' ? 'fade' : 'slide_left',
