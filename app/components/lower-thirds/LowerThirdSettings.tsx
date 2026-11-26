@@ -2,14 +2,13 @@
 
 /* eslint-disable @next/next/no-img-element -- the preview is a blob PNG laid over a sample frame */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Card, Button, Badge, Input, Select, Toast } from '@/app/components/ui'
 import { DEFAULT_LT_CONFIG, LT_W, LT_H, boxFromGraphicBounds, ltTotal, ltTransform, type LowerThirdConfig, type LtTextEl } from '@/app/lib/lower-thirds/config'
 
 /* Session Videos → Lower Thirds tab.
    1) Template — upload the transparent graphic, pick fonts, style name / job title / company, set the slide + hold timing.
    2) Preview — pick any speaker from the event and see THEIR lower third animate over a sample frame (instant, nothing stored).
-   3) Real clip — optional last check: the video worker makes the exact final clip for that speaker.
    The whole card (graphic + text) slides in from the left with a fade, holds, then slides back out. */
 
 type Speaker = { id: string; name: string; title: string; company: string }
@@ -72,7 +71,6 @@ export default function LowerThirdSettings({ eventId, canEdit }: { eventId: stri
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [panelOpen, setPanelOpen] = useState(false)
-  const [clip, setClip] = useState<{ status: string; url?: string | null } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const cardRef = useRef<HTMLImageElement>(null)
   const animRef = useRef(draft.animation)
@@ -143,34 +141,6 @@ export default function LowerThirdSettings({ eventId, canEdit }: { eventId: stri
     } catch (e) { setMsg({ text: e instanceof Error ? e.message : 'Could not save.', ok: false }) } finally { setBusy(false) }
   }
 
-  const pollClip = useCallback(async (sid: string) => {
-    const r = await fetch(`/api/events/lower-thirds/clip?event_id=${eventId}&speaker_id=${sid}`)
-    const j = await r.json().catch(() => null) as { status: string; url?: string | null } | null
-    if (j) setClip(j)
-    return j?.status
-  }, [eventId])
-
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- forget the previous speaker's clip when the speaker changes
-  useEffect(() => { setClip(null) }, [speakerId])
-  useEffect(() => {
-    if (clip?.status !== 'generating' || !speakerId) return
-     
-    const t = setInterval(() => { void pollClip(speakerId) }, 4000)
-    return () => clearInterval(t)
-  }, [clip?.status, speakerId, pollClip])
-
-  async function renderClip() {
-    if (!speakerId) return
-    if (dirty) { setMsg({ text: 'Save your changes first — the clip uses the saved template.', ok: false }); return }
-    setBusy(true); setMsg(null)
-    try {
-      const r = await fetch('/api/events/lower-thirds/clip', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, speaker_id: speakerId }) })
-      const j = await r.json().catch(() => ({})) as { error?: string }
-      if (!r.ok) throw new Error(j.error ?? 'Could not queue the clip.')
-      setClip({ status: 'generating' })
-    } catch (e) { setMsg({ text: e instanceof Error ? e.message : 'Could not queue the clip.', ok: false }) } finally { setBusy(false) }
-  }
-
   if (!data) return <div style={{ fontSize: 13, color: 'var(--ink3)' }}>{msg?.text ?? 'Loading…'}</div>
 
   const sp = data.speakers.find(s => s.id === speakerId)
@@ -216,22 +186,11 @@ export default function LowerThirdSettings({ eventId, canEdit }: { eventId: stri
         </div>
         <div style={{ fontSize: 11.5, color: 'var(--ink4)' }}>
           {sp ? <>Showing <b>{sp.name}</b>{sp.title ? ` · ${sp.title}` : ''}{sp.company ? ` · ${sp.company}` : ''}. </> : null}
-          Total on screen {ltTotal(a).toFixed(1)}s: slide in {a.in_dur}s · hold {a.hold}s · slide out {a.out_dur}s. The preview plays in your browser; the real clip comes from the video worker.
+          Total on screen {ltTotal(a).toFixed(1)}s: slide in {a.in_dur}s · hold {a.hold}s · slide out {a.out_dur}s. The card is drawn by the same code that makes the video, so this is what will appear.
         </div>
       </div>
 
       <div style={{ display: 'grid', gap: 16 }}>
-        <Sec n={4} title="Real clip (optional last check)" hint="the exact file the video will use">
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <Button variant="ghost" disabled={busy || !speakerId || !draft.background_url || !canEdit || clip?.status === 'generating'} onClick={() => void renderClip()}>
-              {clip?.status === 'generating' ? 'Making the clip…' : `Make the real clip for ${sp?.name ?? 'this speaker'}`}
-            </Button>
-            <Button variant="ghost" disabled={!speakerId} onClick={() => void pollClip(speakerId)}>Check status</Button>
-            <span style={{ fontSize: 12, color: 'var(--ink3)' }}>Takes a minute or two. Save the template first.</span>
-          </div>
-          {clip?.status === 'generated' && clip.url && <video controls src={clip.url} style={{ width: '100%', maxWidth: 640, borderRadius: 8, background: 'var(--card)' }} />}
-          {clip?.status === 'generated' && clip.url && <div style={{ fontSize: 11.5, color: 'var(--ink4)' }}>This copy is for viewing and shows the card on black; the video itself uses the transparent version.</div>}
-        </Sec>
       </div>
       {panelOpen && (
         <div role="dialog" aria-label="Lower-third template settings" style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(500px, 100vw)', zIndex: 1000, background: 'var(--card)', borderLeft: '1px solid var(--border)', boxShadow: 'var(--shadow-md)', display: 'flex', flexDirection: 'column' }}>
