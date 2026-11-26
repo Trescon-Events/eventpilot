@@ -9,7 +9,7 @@ import { enqueueJob } from './jobs'
 import { checkChapters, cleanTags, eventFigureHits, titleProblems, unresolvedPlaceholders, voiceSummaries, suggestSessions, type Chapter, type Segment, type VoiceRow } from './logic'
 import { sessionSpeakers } from './speakers'
 import { abortMultipart, completeMultipart, deleteObject, keysFor, listParts, presignGet, presignPart, startMultipart, UPLOAD_PART_SIZE, videoStorageConfigured } from './storage'
-import { generateCues, saveCues, loadCues, cuesFingerprint } from './cues'
+import { loadCues } from './cues'
 import { getKit } from './kit'
 
 /* Session videos — access and every action. Nothing here publishes or sends anything. The original is only ever read (removing a video deletes OUR uploaded copy and its derived files). */
@@ -235,13 +235,10 @@ export async function generateCuesForVideo(eventId: string, id: string, by: stri
   if (!v.agenda_session_id) throw new VideoError('Pick the agenda session first.')
   const { data: tr } = await supabaseAdmin.from('session_video_transcripts').select('segments, voices').eq('session_video_id', id).maybeSingle()
   if (!tr) throw new VideoError('No transcript yet.', 409)
-  const { data: ses } = await supabaseAdmin.from('event_agenda_sessions').select('content_type').eq('id', v.agenda_session_id).maybeSingle()
-  const contentType = (ses?.content_type as string | null) ?? null
-  const cues = generateCues(tr.segments as Segment[], tr.voices as VoiceRow[], contentType)
-  await saveCues(id, cues, by)
-  const saved = await loadCues(id)
-  const fp = cuesFingerprint(saved)
-  await supabaseAdmin.from('session_videos').update({ cues_fingerprint: fp, updated_at: new Date().toISOString() }).eq('id', id)
+  // The worker looks at the picture for each candidate moment (who is on screen) and then picks the cues — see worker/session-video/cue-scan.ts.
+  void by
+  await supabaseAdmin.from('session_videos').update({ cue_scan_status: 'scanning', cue_scan_error: null, updated_at: new Date().toISOString() }).eq('id', id)
+  await enqueueJob(id, 'cue_scan')
 }
 
 export async function requestRenderPreview(eventId: string, id: string, _by: string | null): Promise<void> {

@@ -8,6 +8,7 @@ import { runTextPack } from './text-pack'
 import { runLowerThirdJob } from './lower-third-render'
 import { runRenderPreview } from './render-preview'
 import { runRender } from './render'
+import { runCueScan } from './cue-scan'
 
 /* The session video worker (a second Railway service from this repo, see worker/session-video/Dockerfile): polls video_jobs and creative_render_jobs, runs one job at a time, never publishes or sends anything. */
 
@@ -36,6 +37,7 @@ async function main() {
           else if (job.kind === 'text_pack') await runTextPack(job)
           else if (job.kind === 'render_preview') await runRenderPreview(job)
           else if (job.kind === 'render') await runRender(job)
+          else if (job.kind === 'cue_scan') await runCueScan(job)
           else throw new Error(`Unknown job kind ${job.kind}`)
           await finishJob(job.id); console.log(`[video-worker] ${job.kind} done`)
         } catch (e) {

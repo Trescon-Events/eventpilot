@@ -14,7 +14,13 @@ import { LT_TOTAL_DEFAULT } from '@/app/lib/lower-thirds/config'
 
 type Cue = { id: string; speaker_id: string; start_s: number }
 type Lt = { speaker_id: string; status: string; still_url: string | null; ready: boolean }
-type Review = { cues: Cue[]; confirmed: boolean; lowerThirds: Lt[]; setupMissing: string[]; sessionId: string | null }
+type Cand = { speaker_id: string; start_s: number; run_s: number; seen?: 'yes' | 'wide' | 'other' | 'unknown' }
+type Review = { cues: Cue[]; confirmed: boolean; lowerThirds: Lt[]; setupMissing: string[]; sessionId: string | null; scanStatus: string | null; scanError: string | null; candidates: Cand[] }
+
+const SEEN: Record<NonNullable<Cand['seen']>, { label: string; color: string }> = {
+  yes: { label: '✓ Speaker on screen', color: 'var(--green)' }, wide: { label: 'Wide shot', color: 'var(--amber)' },
+  other: { label: 'Someone else on screen', color: 'var(--red)' }, unknown: { label: 'Not checked', color: 'var(--ink3)' },
+}
 type Speaker = { id: string; name: string; public_name: string | null }
 
 export type CueReviewSummary = { count: number; confirmed: boolean }
@@ -55,6 +61,8 @@ export default function CueReview({ eventId, videoId, proxyUrl, durationS, speak
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [addFor, setAddFor] = useState<Record<string, string>>({})
+  const [picked, setPicked] = useState<Set<string>>(new Set())     // cue ids ticked "Use this"
+  const [altFor, setAltFor] = useState<string | null>(null)          // speaker whose other moments are open
   const preparedFor = useRef<string>('')
   const nameOf = (id: string) => { const s = speakers.find(x => x.id === id); return s ? (s.public_name || s.name) : 'Unknown speaker' }
 
@@ -67,50 +75,67 @@ export default function CueReview({ eventId, videoId, proxyUrl, durationS, speak
     return j
   }, [eventId, videoId])
 
-  // Cue actions return only the cues; always refresh the whole review state afterwards.
-  const run = useCallback(async (action: string, body: Record<string, unknown> = {}) => {
+  // Cue actions return only the cues; always refresh the whole review state afterwards. Returns the new state.
+  const run = useCallback(async (action: string, body: Record<string, unknown> = {}): Promise<Review | null> => {
     setBusy(true); setMsg(null)
-    try { await api(action, body); setData(await api(null)) }
-    catch (e) { setMsg(e instanceof Error ? e.message : 'Something went wrong.') }
+    try { await api(action, body); const next = await api(null); setData(next); return next }
+    catch (e) { setMsg(e instanceof Error ? e.message : 'Something went wrong.'); return null }
     finally { setBusy(false) }
   }, [api])
 
   useEffect(() => { api(null).then(setData).catch(e => setMsg(e instanceof Error ? e.message : 'Could not load the cues.')) }, [api])
-
   useEffect(() => { if (data) onSummary({ count: data.cues.length, confirmed: data.confirmed }) }, [data, onSummary])
-
-  // Make sure every cued speaker has a lower-third clip (the render silently skips those that don't) — automatically, once per cue set.
+  // Keep ticks in step with the cue list: a confirmed set is shown fully ticked; ticks of removed cues are dropped.
   useEffect(() => {
-    if (!data || !data.cues.length || data.setupMissing.length) return
+    if (!data) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- derived selection follows the server's cue list
+    setPicked(prev => data.confirmed ? new Set(data.cues.map(c => c.id)) : new Set([...prev].filter(id => data.cues.some(c => c.id === id))))
+  }, [data])
+
+  const scanning = data?.scanStatus === 'scanning'
+  // While the worker scans the video, or lower-third clips are being made, check back every few seconds.
+  const preparing = !!data && data.cues.some(c => picked.has(c.id) && !data.lowerThirds.find(l => l.speaker_id === c.speaker_id)?.ready)
+  useEffect(() => {
+    if (!data || (!scanning && (!preparing || data.setupMissing.length))) return
+    const t = setInterval(() => { api(null).then(setData).catch(() => undefined) }, 4000)
+    return () => clearInterval(t)
+  }, [scanning, preparing, data, api])
+
+  // Make sure every ticked speaker has a lower-third clip (the render skips those that don't) — automatically, once per set.
+  useEffect(() => {
+    if (!data || !picked.size || data.setupMissing.length || scanning) return
     const byId = new Map(data.lowerThirds.map(l => [l.speaker_id, l]))
-    const need = [...new Set(data.cues.map(c => c.speaker_id))].filter(id => { const l = byId.get(id); return !l?.ready && l?.status !== 'generating' })
+    const need = [...new Set(data.cues.filter(c => picked.has(c.id)).map(c => c.speaker_id))].filter(id => { const l = byId.get(id); return !l?.ready && l?.status !== 'generating' })
     const key = need.sort().join(',')
     if (!need.length || preparedFor.current === key) return
     preparedFor.current = key
     void run('prepare')
-  }, [data, run])
-
-  // While lower-third clips are being made, check back every few seconds.
-  const preparing = !!data && data.cues.some(c => !data.lowerThirds.find(l => l.speaker_id === c.speaker_id)?.ready)
-  useEffect(() => {
-    if (!preparing || !data || data.setupMissing.length) return
-    const t = setInterval(() => { api(null).then(setData).catch(() => undefined) }, 4000)
-    return () => clearInterval(t)
-  }, [preparing, data, api])
+  }, [data, picked, run, scanning])
 
   if (!data) return <div style={{ fontSize: 13, color: 'var(--ink3)' }}>{msg ?? 'Loading…'}</div>
 
   const ltOf = (id: string) => data.lowerThirds.find(l => l.speaker_id === id)
+  const seenAt = (speakerId: string, t: number) => data.candidates.find(c => c.speaker_id === speakerId && Math.abs(c.start_s - t) < 0.6)?.seen
+  const pickedCues = data.cues.filter(c => picked.has(c.id))
+  const pickedSpeakers = new Set(pickedCues.map(c => c.speaker_id))
+  const readyCount = [...pickedSpeakers].filter(id => ltOf(id)?.ready).length
+  const allReady = pickedSpeakers.size > 0 && readyCount === pickedSpeakers.size
   const cuedIds = new Set(data.cues.map(c => c.speaker_id))
   const uncued = speakers.filter(s => !cuedIds.has(s.id))
-  const readyCount = [...cuedIds].filter(id => ltOf(id)?.ready).length
-  const allReady = cuedIds.size > 0 && readyCount === cuedIds.size
+  const toggle = (id: string) => setPicked(p => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
   const ghost = { padding: '3px 8px', fontSize: 11, border: '1px solid var(--border-light)', borderRadius: 5, background: 'none', cursor: 'pointer', fontFamily: 'inherit', color: 'var(--ink2)' } as const
+
+  async function addMoment(speakerId: string, t: number) {
+    const before = new Set(data!.cues.map(c => c.id))
+    const next = await run('add', { speaker_id: speakerId, start_s: t })
+    const added = next?.cues.find(c => !before.has(c.id))
+    if (added) setPicked(p => new Set([...p, added.id]))
+  }
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
       <div style={{ fontSize: 13, color: 'var(--ink3)', lineHeight: 1.6 }}>
-        Each box shows the video at the moment a speaker&apos;s name appears, with their lower third on top. Check the right person is on screen, move the time if not, then confirm. Nothing is rendered until you confirm.
+        Each box shows the video at the moment a speaker&apos;s name would appear, with their lower third on top. Tick <b>Use this</b> on the ones that are right, move or remove the rest, and use <b>Other moments</b> if a speaker has no good one. Only ticked lower thirds go into the video.
       </div>
 
       {data.setupMissing.length > 0 && (
@@ -121,23 +146,28 @@ export default function CueReview({ eventId, videoId, proxyUrl, durationS, speak
       )}
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <Button variant={data.cues.length ? 'ghost' : 'teal'} disabled={busy || !canGenerate} onClick={() => { preparedFor.current = ''; void run('generate') }}>
-          {busy ? 'Working…' : data.cues.length ? 'Regenerate cues from transcript' : 'Find where to show lower thirds'}
+        <Button variant={data.cues.length ? 'ghost' : 'teal'} disabled={busy || !canGenerate || scanning} onClick={() => { preparedFor.current = ''; setPicked(new Set()); void run('generate') }}>
+          {scanning ? 'Looking through the video…' : busy ? 'Working…' : data.cues.length ? 'Find moments again' : 'Find where to show lower thirds'}
         </Button>
         {!canGenerate && <span style={{ fontSize: 12, color: 'var(--ink3)' }}>Name the voices first (Step 4).</span>}
-        {data.cues.length > 0 && <span style={{ fontSize: 12.5, color: 'var(--ink3)' }}>{data.cues.length} lower third{data.cues.length === 1 ? '' : 's'} · {cuedIds.size} speaker{cuedIds.size === 1 ? '' : 's'}</span>}
+        {data.cues.length > 0 && !scanning && <span style={{ fontSize: 12.5, color: 'var(--ink3)' }}>{data.cues.length} suggested · {picked.size} ticked</span>}
       </div>
+      {scanning && <div style={{ fontSize: 12.5, color: 'var(--amber)' }}>Checking who is on screen at each possible moment — about a minute. This page updates by itself.</div>}
+      {data.scanStatus === 'failed' && data.scanError && <div style={{ fontSize: 12.5, color: 'var(--red)' }}>The video check failed: {data.scanError}</div>}
+      {data.scanStatus === 'done' && data.scanError && <div style={{ fontSize: 12.5, color: 'var(--amber)' }}>{data.scanError}</div>}
       {msg && <div style={{ fontSize: 12.5, color: 'var(--red)' }}>{msg}</div>}
 
-      {data.cues.length > 0 && !data.setupMissing.length && preparing && (
-        <div style={{ fontSize: 12.5, color: 'var(--amber)' }}>Preparing the animated lower thirds ({readyCount} of {cuedIds.size} ready) — this takes a minute or two. You can already check the frames below.</div>
+      {picked.size > 0 && !data.setupMissing.length && preparing && (
+        <div style={{ fontSize: 12.5, color: 'var(--amber)' }}>Preparing the animated lower thirds ({readyCount} of {pickedSpeakers.size} ready) — a minute or two.</div>
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
         {data.cues.map((cue, i) => {
           const lt = ltOf(cue.speaker_id)
+          const seen = seenAt(cue.speaker_id, cue.start_s)
+          const on = picked.has(cue.id)
           return (
-            <div key={cue.id} style={{ border: '1px solid var(--border-light)', borderRadius: 10, padding: 10, display: 'grid', gap: 8, background: 'var(--surface)' }}>
+            <div key={cue.id} style={{ border: `1.5px solid ${on ? 'var(--green)' : 'var(--border-light)'}`, borderRadius: 10, padding: 10, display: 'grid', gap: 8, background: 'var(--surface)' }}>
               {proxyUrl
                 ? <Frame src={proxyUrl} at={cue.start_s} duration={durationS} still={lt?.still_url ?? null} name={nameOf(cue.speaker_id)} />
                 : <div style={{ aspectRatio: '16 / 9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink4)', fontSize: 12, background: 'var(--card)', borderRadius: 8 }}>Video not ready</div>}
@@ -147,40 +177,81 @@ export default function CueReview({ eventId, videoId, proxyUrl, durationS, speak
                   shows at <b style={{ fontFamily: 'monospace' }}>{fmt(cue.start_s)}</b>{durationS ? ` of ${fmt(durationS)}` : ''} · {LT_SECONDS.toFixed(1)}s
                 </div>
               </div>
+              {seen && <div style={{ fontSize: 11.5, fontWeight: 700, color: SEEN[seen].color }}>{SEEN[seen].label}</div>}
               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12.5, fontWeight: 700, color: on ? 'var(--green)' : 'var(--ink2)', marginRight: 6, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={on} disabled={busy} onChange={() => toggle(cue.id)} /> Use this
+                </label>
                 {([-5, -1, 1, 5] as const).map(d => <button key={d} type="button" disabled={busy} onClick={() => void run('move', { cue_id: cue.id, delta_s: d })} style={ghost}>{d > 0 ? '+' : '−'}{Math.abs(d)}s</button>)}
                 <button type="button" disabled={busy} onClick={() => void run('delete', { cue_id: cue.id })} style={{ ...ghost, border: '1px solid var(--red)', color: 'var(--red)', marginLeft: 'auto' }}>Remove</button>
               </div>
-              {!lt?.ready && !data.setupMissing.length && <div style={{ fontSize: 11.5, color: 'var(--amber)' }}>{lt?.status === 'generating' ? 'Animated lower third is being made…' : 'Lower third not made yet — starting…'}</div>}
+              {on && !lt?.ready && !data.setupMissing.length && <div style={{ fontSize: 11.5, color: 'var(--amber)' }}>{lt?.status === 'generating' ? 'Animated lower third is being made…' : 'Lower third not made yet — starting…'}</div>}
             </div>
           )
         })}
       </div>
 
-      {data.cues.length > 0 && uncued.length > 0 && (
+      {/* Other moments per speaker — the candidates the scan checked, best first */}
+      {data.candidates.length > 0 && !scanning && (
+        <div style={{ display: 'grid', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink2)' }}>Other moments:</span>
+            {speakers.map(sp => {
+              const n = data.candidates.filter(c => c.speaker_id === sp.id && c.seen === 'yes').length
+              return <button key={sp.id} type="button" onClick={() => setAltFor(a => a === sp.id ? null : sp.id)} style={{ ...ghost, fontSize: 12, padding: '5px 10px', borderColor: altFor === sp.id ? 'var(--teal-mid)' : 'var(--border-light)' }}>{sp.public_name || sp.name} ({n} on screen)</button>
+            })}
+          </div>
+          {altFor && (() => {
+            const taken = data.cues.filter(c => c.speaker_id === altFor)
+            const list = data.candidates.filter(c => c.speaker_id === altFor && !taken.some(t => Math.abs(t.start_s - c.start_s) < 1))
+              .sort((a, b) => (a.seen === 'yes' ? 0 : 1) - (b.seen === 'yes' ? 0 : 1) || b.run_s - a.run_s).slice(0, 8)
+            if (!list.length) return <div style={{ fontSize: 12.5, color: 'var(--ink3)' }}>No other moments found for {nameOf(altFor)}. Type a time under “no lower third yet” below if you know one.</div>
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
+                {list.map(c => {
+                  const clash = data.cues.some(x => Math.abs(x.start_s - c.start_s) < LT_SECONDS + 2)
+                  return (
+                    <div key={c.start_s} style={{ border: '1px solid var(--border-light)', borderRadius: 10, padding: 8, display: 'grid', gap: 6, background: 'var(--surface)' }}>
+                      {proxyUrl && <Frame src={proxyUrl} at={c.start_s} duration={durationS} still={ltOf(altFor)?.still_url ?? null} name={nameOf(altFor)} />}
+                      <div style={{ fontSize: 12, color: 'var(--ink3)' }}><b style={{ fontFamily: 'monospace', color: 'var(--ink)' }}>{fmt(c.start_s)}</b> · speaks {Math.round(c.run_s)}s</div>
+                      {c.seen && <div style={{ fontSize: 11.5, fontWeight: 700, color: SEEN[c.seen].color }}>{SEEN[c.seen].label}</div>}
+                      {clash && <div style={{ fontSize: 11.5, color: 'var(--amber)' }}>Overlaps another lower third — remove that one if you use this.</div>}
+                      <div><Button variant="ghost" disabled={busy} onClick={() => void addMoment(altFor, c.start_s)}>Use this moment</Button></div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
+        </div>
+      )}
+
+      {data.cues.length > 0 && uncued.length > 0 && !scanning && (
         <div style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid var(--amber-border)', background: 'var(--amber-light)', display: 'grid', gap: 8 }}>
           <div style={{ fontSize: 13, color: 'var(--amber)', fontWeight: 700 }}>These speakers have no lower third yet:</div>
           {uncued.map(s => (
             <div key={s.id} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 13, color: 'var(--ink2)' }}>
               <span style={{ minWidth: 140 }}>{s.public_name || s.name}</span>
               <input value={addFor[s.id] ?? ''} onChange={e => setAddFor(p => ({ ...p, [s.id]: e.target.value }))} placeholder="m:ss" style={{ width: 70, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink)', fontSize: 12.5 }} />
-              <button type="button" disabled={busy || parseTime(addFor[s.id] ?? '') === null} onClick={() => { const t = parseTime(addFor[s.id] ?? ''); if (t !== null) { preparedFor.current = ''; void run('add', { speaker_id: s.id, start_s: t }) } }} style={ghost}>Add at this time</button>
+              <button type="button" disabled={busy || parseTime(addFor[s.id] ?? '') === null} onClick={() => { const t = parseTime(addFor[s.id] ?? ''); if (t !== null) void addMoment(s.id, t) }} style={ghost}>Add at this time</button>
             </div>
           ))}
-          <div style={{ fontSize: 11.5, color: 'var(--ink3)' }}>Optional — add one if you want them introduced on screen. Type where they first speak, e.g. 1:30.</div>
+          <div style={{ fontSize: 11.5, color: 'var(--ink3)' }}>Optional — use “Other moments” above, or type where they are on screen, e.g. 0:28.</div>
         </div>
       )}
 
-      {data.cues.length > 0 && (
+      {data.cues.length > 0 && !scanning && (
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', paddingTop: 4 }}>
           {data.confirmed ? (
             <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--green)' }}>✓ Confirmed — {data.cues.length} lower third{data.cues.length === 1 ? '' : 's'} will appear exactly as shown. Continue to Step 8.</div>
           ) : (
             <>
-              <Button variant="teal" disabled={busy || !allReady || data.setupMissing.length > 0} onClick={() => void run('confirm')}>
-                These look right — confirm {data.cues.length} lower third{data.cues.length === 1 ? '' : 's'}
+              <Button variant="teal" disabled={busy || !picked.size || !allReady || data.setupMissing.length > 0} onClick={() => void run('confirm', { keep_ids: [...picked] })}>
+                Confirm {picked.size} ticked lower third{picked.size === 1 ? '' : 's'}
               </Button>
-              {!allReady && !data.setupMissing.length && <span style={{ fontSize: 12, color: 'var(--ink3)' }}>Available once the animated lower thirds are ready.</span>}
+              <span style={{ fontSize: 12, color: 'var(--ink3)' }}>
+                {!picked.size ? 'Tick “Use this” on the ones you want.' : !allReady && !data.setupMissing.length ? 'Available once the animated lower thirds are ready.' : `${data.cues.length - picked.size} unticked will be removed.`}
+              </span>
             </>
           )}
         </div>

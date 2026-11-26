@@ -24,7 +24,8 @@ async function reviewState(eventId: string, id: string) {
       ready: s.status === 'generated' && !!(s.movUrl || s.previewUrl),
     })))
   }
-  return { cues, confirmed, lowerThirds, setupMissing, sessionId: v.agenda_session_id }
+  const candidates = (Array.isArray(v.cue_candidates) ? v.cue_candidates : []) as Array<{ speaker_id: string; start_s: number; run_s: number; seen?: string }>
+  return { cues, confirmed, lowerThirds, setupMissing, sessionId: v.agenda_session_id, scanStatus: (v.cue_scan_status as string | null) ?? null, scanError: (v.cue_scan_error as string | null) ?? null, candidates }
 }
 
 /* Cue CRUD for one session video.
@@ -100,6 +101,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         return NextResponse.json({ started, ...(await reviewState(eventId, id)) })
       }
       case 'confirm': {
+        // Only the cues the producer ticked are kept; the rest are removed, then the remaining set is confirmed.
+        if (Array.isArray(b.keep_ids)) {
+          const keep = new Set((b.keep_ids as unknown[]).filter((x): x is string => typeof x === 'string'))
+          if (!keep.size) throw new VideoError('Tick at least one lower third to keep.')
+          for (const c of await loadCues(id)) if (!keep.has(c.id)) await deleteCue(id, c.id)
+        }
         const st = await reviewState(eventId, id)
         if (!st.cues.length) throw new VideoError('There are no cues to confirm.')
         const byId = new Map(st.lowerThirds.map(l => [l.speaker_id, l]))
