@@ -22,10 +22,12 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 **Pushed 27 Nov (second batch):** stabiliser `interpol=bilinear` (≈2.5× faster, PSNR 51.8 dB vs bicubic); publish re-reads privacy before deciding it stayed private; new `enhance_prep` job right after ingest (exposure + shake scan + sound clean-up/loudness, saved to R2 + `session_videos.enhance_prep`; the final reuses it, else does it inline in parallel); `session_offset_s` written by the final and YouTube chapters shifted by it with a "0:00 Intro" line (`shiftChapters` in youtube.ts); worker runs 2 jobs at once (`VIDEO_WORKER_CONCURRENCY`, default 2) and logs "YouTube credentials readable" at startup; a finished final is sent to YouTube (unlisted) automatically. Migration `supabase/session_video_enhance_prep_migration.sql` (20261127000004) APPLIED.
 
+**Pushed 27 Nov (third batch):** picture correction v2 = adaptive tone curve (`pictureCurve` in enhance.ts), strength "B - softest" chosen by Madhu (the first stronger curve was too bright/contrasty; the original v1 barely brightened); enhance_prep v2 also writes the stabilised + corrected session (`prep_session.mp4`, CRF 14, ≈2–3 GB, +≈$0.10–0.15 egress/video) so the final only joins and encodes (`preparedSession` in enhance-prep.ts).
+
 **Google Cloud (checked 27 Nov):** app is "In production" (logins don't expire weekly). Quotas: 10,000 units/day + a separate 100 video uploads/day — no quota request needed (the old "~6 uploads/day" estimate was wrong).
 
 **PENDING:**
-1. Measure a full final on the worker with the prep in place, and fix the published test video's chapters (youtu.be/bz20-xWCSBM, still has unshifted chapters).
+1. DONE 27 Nov: measured on the worker — enhance_prep 15:38 (runs alongside transcript/producer steps), preview 2:08, final 22:35 (was 43:35; encode ≈21 min is now the bottleneck — next lever: lighter denoise or dropping hqdn3d, test with the editor first). Test video's chapters shifted on YouTube (offset 9.03 s).
 2. Proposed, NOT approved: captions from our transcript (needs the same `session_offset_s` shift), auto-trim start/end, short clips, channel thumbnail on the Global Integrations card.
 3. Optional: Google app verification (removes the "unverified app" warning when connecting a channel; 100-login cap without it) — multi-week review, needs privacy policy + demo video; storage clean-up after publish (delete original + working copy); Gemini token logging for exact cost; remove whichever YouTube copy loses the comparison.
 

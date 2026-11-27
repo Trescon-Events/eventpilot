@@ -3,8 +3,8 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 /* Automatic clean-up of the session footage (2026-11-27), applied by compose.ts to the FINAL render only (the preview stays basic and fast):
-   1. Picture: one correction per video (no flicker) from frames sampled across it — black point, white point, mid-tones (faces), a touch of
-      saturation, light sharpening and light denoise. Skipped when the footage is already well exposed.
+   1. Picture: one tone curve per video (no flicker) from frames sampled across it — black point, faces/mid-tones lifted, backdrop kept dark,
+      whites protected (pictureCurve), light denoise + sharpening. Only light clean-up when the footage is already well exposed.
    2. Stabiliser: two-pass vidstab (detect camera motion, then smooth it), only when real shake is measured. Camera cuts are cleared from the
       motion data so the smoothing never "slides" across a switch between cameras. Needs an ffmpeg with libvidstab (the worker's Debian build has it).
    3. Sound: rumble cut, background-noise reduction, voice clarity EQ, gentle de-essing, and levelling so quiet and loud speakers end up even.
@@ -54,20 +54,35 @@ export async function analysePicture(source: string, durationS: number): Promise
   if (lows.length < 6) return { filter: null, note: 'Picture: could not measure — left as is' }
   const med = (a: number[]) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)]
   const low = med(lows), high = med(highs), avg = med(avgs)
-  // Black point: pull a lifted (grey) black down towards 16; white point: open up a dull top end towards 235. Conservative margins.
-  const lo = low > 24 ? Math.min(low - 10, 50) : 16   // gentle: dark suits / dresses keep their detail
-  // Stage shots are mostly dark backdrop, so the 90th-percentile reads low even when whites (chairs, shirts, paper) are bright: never pull the
-  // white point far, or those whites blow out.
-  const hi = high < 200 ? 220 : 235
-  // Mid-tones: aim the average (after levels) at ~44 % — a correctly exposed stage shot with dark backdrops.
-  const a = Math.min(0.95, Math.max(0.05, (avg - lo) / (hi - lo)))
-  const gamma = Math.min(1.3, Math.max(1, Math.log(a) / Math.log(0.44)))
-  const needs = lo > 16 || hi < 235 || gamma > 1.03
   const note = `Picture: blacks ${low.toFixed(0)}, highlights ${high.toFixed(0)}, average ${avg.toFixed(0)}`
-  if (!needs) return { filter: 'hqdn3d=1.2:1.2:4:4,unsharp=5:5:0.35', note: `${note} — exposure fine, light clean-up only` }
-  const v = (x: number) => (x / 255).toFixed(4)
-  const levels = `colorlevels=rimin=${v(lo)}:gimin=${v(lo)}:bimin=${v(lo)}:rimax=${v(hi)}:gimax=${v(hi)}:bimax=${v(hi)}`
-  return { filter: `${levels},eq=gamma=${gamma.toFixed(3)}:saturation=1.04,hqdn3d=1.2:1.2:4:4,unsharp=5:5:0.4`, note: `${note} — corrected (gamma ${gamma.toFixed(2)})` }
+  const filter = pictureCurve(low, high, avg)
+  return filter
+    ? { filter: `${filter},${CLEANUP}`, note: `${note} — brightened (faces lifted, backdrop kept dark, whites protected)` }
+    : { filter: CLEANUP, note: `${note} — exposure fine, light clean-up only` }
+}
+
+const CLEANUP = 'hqdn3d=1.2:1.2:4:4,unsharp=5:5:0.4'
+
+/** One tone curve for the whole video (v2, 2026-11-27 — the first version capped the lift so hard that dark stage footage barely changed).
+    Inputs are median 8-bit video levels (black 16, white 235). Shape, tuned on DFS 2026 stage footage with Madhu:
+    – the measured black point comes down about halfway (less grey haze, without hard contrast);
+    – the average level (mostly the dark backdrop) stays about where it is, so backdrops don't turn bright, noisy and over-blue;
+    – the 90th-percentile level (faces, shirts) is lifted strongly; above it the curve rolls off so whites (chairs, shirts, floor) keep detail.
+    Strength = option "B - softest" Madhu picked on 27 Nov (the first, stronger curve looked too bright / contrasty).
+    The lift scales with how dark the footage is: none when the 90th percentile is already ~45 % or brighter. Returns null when nothing is needed. */
+export function pictureCurve(low: number, high: number, avg: number): string | null {
+  const x = (y: number) => Math.min(1, Math.max(0, (y - 16) / 219))
+  const L = x(low), A = x(avg), H = x(high)
+  const lift = Math.min(1, Math.max(0, (0.45 - H) / 0.18))
+  if (lift < 0.05 && L < 0.03) return null
+  const pts: Array<[number, number]> = [[0, 0]]
+  if (L >= 0.03) pts.push([L, L * 0.55])
+  if (A > L + 0.02 && A < H - 0.04) pts.push([A, A * (1 - 0.11 * lift)])
+  pts.push([H, H + 0.077 * lift])
+  if (H < 0.42) pts.push([0.5, 0.5 + 0.10 * lift])
+  if (H < 0.72) pts.push([0.8, 0.8 + 0.05 * lift])
+  pts.push([1, 1])
+  return `curves=master='${pts.map(([a, b]) => `${a.toFixed(3)}/${Math.min(1, b).toFixed(3)}`).join(' ')}'`
 }
 
 // ── 2. stabiliser ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

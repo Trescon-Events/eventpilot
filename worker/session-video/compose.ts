@@ -10,7 +10,7 @@ import { getKit } from '@/app/lib/session-videos/kit'
 import { logJob, type Job } from '@/app/lib/session-videos/jobs'
 import { run, probe, pngToVideo, conformClip, loudnorm } from './ffmpeg-utils'
 import { analysePicture, enhanceAudio, stabiliseFilter, stabiliseTransforms } from './enhance'
-import { loadEnhancePrep, sessionPrefix } from './enhance-prep'
+import { loadEnhancePrep, preparedSession, sessionPrefix } from './enhance-prep'
 
 /* The session video, assembled the same way for the preview (540p, quick, no clean-up) and the final render (1080p at 12 Mbps, with the
    picture/stabiliser/sound clean-up from enhance.ts and loudness normalisation):
@@ -63,10 +63,12 @@ export async function composeSessionVideo(job: Job, v: Record<string, unknown>, 
 
   // The preview works from the small 720p copy (quick); the final render works from the ORIGINAL upload (full quality).
   const useOriginal = quality === 'final' && !!v.original_path
+  // Usually the session was already stabilised + corrected right after upload (enhance_prep v2): use that and skip the slow filters here.
+  const cleaned = useOriginal ? preparedSession(v, v.original_path as string) : null
   const source = join(dir, useOriginal ? 'original' : 'proxy.mp4'), introSrc = join(dir, 'intro_src.mp4'), outroSrc = join(dir, 'outro_src.mp4'), tcPng = join(dir, 'titlecard.png')
-  await logJob(job.id, `Downloading the session (${useOriginal ? 'original upload' : 'preview copy'}), intro/outro and title card`)
+  await logJob(job.id, `Downloading the session (${cleaned ? 'cleaned-up copy prepared after upload' : useOriginal ? 'original upload' : 'preview copy'}), intro/outro and title card`)
   await Promise.all([
-    downloadToFile((useOriginal ? v.original_path : v.proxy_path) as string, source),
+    downloadToFile(cleaned ?? (useOriginal ? v.original_path : v.proxy_path) as string, source),
     downloadToFile(kit.intro_path, introSrc),
     downloadToFile(kit.outro_path ?? kit.intro_path, outroSrc),
     fetchTo(tc.title_card_png_path as string, tcPng),
@@ -114,11 +116,13 @@ export async function composeSessionVideo(job: Job, v: Record<string, unknown>, 
   let pic: { filter: string | null } = { filter: null }
   let stab: { trf: string | null } = { trf: null }
   if (q.enhance) {
-    const ready = await loadEnhancePrep(v, (useOriginal ? v.original_path : v.proxy_path) as string, fps, dir).catch(() => null)
+    const ready = await loadEnhancePrep(v, (useOriginal ? v.original_path : v.proxy_path) as string, fps, dir, !!cleaned).catch(() => null)
+    if (cleaned && !ready) throw new Error('The prepared clean-up could not be loaded — run the render again.')
     if (ready) {
-      await logJob(job.id, 'Using the clean-up prepared after upload (sound, exposure, stabiliser)')
+      await logJob(job.id, cleaned ? 'Using the session cleaned up after upload (sound, picture and stabiliser already applied)' : 'Using the clean-up prepared after upload (sound, exposure, stabiliser)')
       await logJob(job.id, ready.prep.picture_note); await logJob(job.id, ready.prep.stab_note)
-      normAudio = ready.audio; pic = { filter: ready.prep.picture_filter }; stab = { trf: ready.trf }
+      normAudio = ready.audio
+      if (!cleaned) { pic = { filter: ready.prep.picture_filter }; stab = { trf: ready.trf } }
     } else {
       await logJob(job.id, 'Cleaning up the sound, checking exposure and scanning for camera shake (in parallel)')
       const [a, p, st] = await Promise.all([

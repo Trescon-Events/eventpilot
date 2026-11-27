@@ -5,8 +5,8 @@ import { createGzip, createGunzip } from 'node:zlib'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { downloadToFile, uploadFile } from '@/app/lib/session-videos/storage'
 import { logJob, type Job } from '@/app/lib/session-videos/jobs'
-import { makeScratch, probe, loudnorm } from './ffmpeg-utils'
-import { analysePicture, enhanceAudio, stabiliseTransforms } from './enhance'
+import { makeScratch, probe, loudnorm, run } from './ffmpeg-utils'
+import { analysePicture, enhanceAudio, stabiliseFilter, stabiliseTransforms } from './enhance'
 
 /* enhance_prep job (2026-11-27): the slow analysis behind the final's clean-up, done ONCE right after ingest (in parallel with the transcript), so
    the final render only has to encode. Stores session_videos.enhance_prep = { source_path, fps, W, H, picture_filter, picture_note, trf_path,
@@ -18,6 +18,8 @@ export type EnhancePrep = {
   picture_filter: string | null; picture_note: string
   trf_path: string | null; stab_note: string
   audio_path: string; at: string
+  /** v2: the session already stabilised + picture-corrected at 1920×1080 (high quality, no sound) — the final only joins and encodes. */
+  session_path?: string | null
 }
 
 /** The frames the final's session chain sees before stabilising (minus its end trim, which never changes frame numbering). Kept identical to compose.ts. */
@@ -56,23 +58,38 @@ export async function runEnhancePrep(job: Job): Promise<void> {
       trfKey = `${base}/prep_motion.trf.gz`
       await uploadFile(trfKey, gz, 'application/gzip')
     }
+    // The slow part of the final (stabiliser + picture filters run on one core) happens here, off the critical path. CRF 14: visually lossless
+    // master for the final's single encode.
+    await logJob(job.id, 'Applying the stabiliser and picture clean-up to the session (so the final only has to join and encode)')
+    const clean = join(dir, 'clean_session.mp4')
+    await run('ffmpeg', ['-y', '-v', 'error', '-i', source, '-an', '-vf',
+      `${sessionPrefix(src.fps)(FINAL_W, FINAL_H)}${stab.trf ? `,${stabiliseFilter(stab.trf)}` : ''}${pic.filter ? `,${pic.filter}` : ''},format=yuv420p`,
+      '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '14', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', clean])
+    const sessionKey = `${base}/prep_session.mp4`
+    await uploadFile(sessionKey, clean, 'video/mp4')
     const prep: EnhancePrep = {
       source_path: sourcePath, fps: src.fps, W: FINAL_W, H: FINAL_H, picture_filter: pic.filter, picture_note: pic.note,
-      trf_path: trfKey, stab_note: stab.note, audio_path: audioKey, at: new Date().toISOString(),
+      trf_path: trfKey, stab_note: stab.note, audio_path: audioKey, at: new Date().toISOString(), session_path: sessionKey,
     }
     await supabaseAdmin.from('session_videos').update({ enhance_prep: prep }).eq('id', v.id)
     await logJob(job.id, 'Clean-up prepared — the final render will reuse it')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 }
 
-/** Fetch the prepared clean-up into `dir` when it matches what the final renders from; null means "do it inline". */
-export async function loadEnhancePrep(v: Record<string, unknown>, sourcePath: string, fps: number, dir: string): Promise<{ prep: EnhancePrep; audio: string; trf: string | null } | null> {
+/** The prepared, already-cleaned session (v2 prep) when it was made from the upload the final renders from — download that instead of the original. */
+export function preparedSession(v: Record<string, unknown>, sourcePath: string): string | null {
+  const prep = v.enhance_prep as EnhancePrep | null
+  return prep?.session_path && prep.source_path === sourcePath && prep.W === FINAL_W && prep.H === FINAL_H ? prep.session_path : null
+}
+
+/** Fetch the prepared clean-up into `dir` when it matches what the final renders from; null means "do it inline". `skipTrf` when the cleaned session is used. */
+export async function loadEnhancePrep(v: Record<string, unknown>, sourcePath: string, fps: number, dir: string, skipTrf = false): Promise<{ prep: EnhancePrep; audio: string; trf: string | null } | null> {
   const prep = v.enhance_prep as EnhancePrep | null
   if (!prep || prep.source_path !== sourcePath || Math.abs(prep.fps - fps) > 0.01 || prep.W !== FINAL_W || prep.H !== FINAL_H) return null
   const audio = join(dir, 'prep_audio.m4a')
   await downloadToFile(prep.audio_path, audio)
   let trf: string | null = null
-  if (prep.trf_path) {
+  if (prep.trf_path && !skipTrf) {
     const gz = join(dir, 'prep_motion.trf.gz'); trf = join(dir, 'prep_motion.trf')
     await downloadToFile(prep.trf_path, gz)
     await pipeline(createReadStream(gz), createGunzip(), createWriteStream(trf))
