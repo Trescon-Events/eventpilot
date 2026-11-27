@@ -120,8 +120,10 @@ export async function stabiliseTransforms(source: string, dir: string, prefix: (
   return { trf, note: `Stabiliser: on (jitter ${jitter.toFixed(2)} px, ${cuts.size} camera cut${cuts.size === 1 ? '' : 's'} kept sharp)` }
 }
 
-/** The transform step for the filter graph (after scaling to the output size). 4 % zoom hides the moving edges; "keep" fills any gap with the previous frame. */
-export const stabiliseFilter = (trf: string) => `vidstabtransform=input=${trf}:smoothing=12:zoom=4:optzoom=0:crop=keep:maxshift=60:interpol=bicubic`
+/** The transform step for the filter graph (after scaling to the output size). 4 % zoom hides the moving edges; "keep" fills any gap with the previous frame.
+    Pinned to yuv420p: the picture fix after it (colorlevels) is RGB-only, and without the pin ffmpeg hands vidstab packed RGB, which the worker's
+    libvidstab 1.1.0 rejects (assertion in vsFrameAllocate). */
+export const stabiliseFilter = (trf: string) => `format=yuv420p,vidstabtransform=input=${trf}:smoothing=12:zoom=4:optzoom=0:crop=keep:maxshift=60:interpol=bicubic`
 
 // ── 3. sound ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
