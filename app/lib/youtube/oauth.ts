@@ -12,6 +12,7 @@ import { getGlobalSecret, GLOBAL_SECRET_IDS } from '@/app/lib/integrations/globa
 export const YOUTUBE_SCOPES = [
   'https://www.googleapis.com/auth/youtube.upload',
   'https://www.googleapis.com/auth/youtube.readonly',
+  'https://www.googleapis.com/auth/youtube.force-ssl',   // playlists + changing a video's privacy (unlisted -> public) after approval
   'https://www.googleapis.com/auth/userinfo.email',
 ].join(' ')
 

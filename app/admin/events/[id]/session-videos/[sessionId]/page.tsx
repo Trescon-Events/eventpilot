@@ -7,6 +7,7 @@ import CueReview, { type CueReviewSummary } from '@/app/components/session-video
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Input } from '@/app/components/ui'
 import DrivePickerButton, { type DriveFile } from '@/app/components/session-videos/DrivePickerButton'
+import { ApprovalStep, PublishStep, approvalSummary, usePublishState } from '@/app/components/session-videos/PublishSteps'
 
 type VoiceRow = { voice_id: string; speaker_id: string | null; rejected: boolean }
 type Suggestion = { voice_id: string; suggested_speaker_id: string | null; confidence: string }
@@ -19,7 +20,7 @@ type Cue = { id: string; session_video_id: string; speaker_id: string; start_s: 
 type Detail = {
   video: VideoRec; jobs: Job[]
   session: { title: string; content_type: string | null } | null
-  speakers: Speaker[]; proxy_url: string | null; preview_url: string | null; preview_download_url: string | null
+  speakers: Speaker[]; proxy_url: string | null; preview_url: string | null; preview_download_url: string | null; render_url: string | null; render_download_url: string | null
   preview_share: { token: string; expires_at: string } | null
   transcript: { voices: VoiceRow[]; summaries: VoiceSummary[]; named_at: string | null; voice_clip_urls: Record<string, string>; voice_suggestions: Suggestion[] } | null
   text: TextRec | null
@@ -45,7 +46,7 @@ function spkName(sp: Speaker) { return sp.public_name || sp.name }
 export default function SessionFlowPage({ params }: { params: Promise<{ id: string; sessionId: string }> }) {
   const { id: eventId, sessionId } = use(params)
 
-  const [list, setList] = useState<{ storage_ready: boolean; videos: ListVideo[]; sessions: SessItem[] } | null>(null)
+  const [list, setList] = useState<{ storage_ready: boolean; videos: ListVideo[]; sessions: SessItem[]; on_youtube?: Record<string, { videoId: string; title: string; privacy: string | null; url: string }> } | null>(null)
   const [detail, setDetail] = useState<Detail | null>(null)
   const [thumb, setThumb] = useState<ThumbSess | null>(null)
   const [thumbMissing, setThumbMissing] = useState<string[]>([])
@@ -109,7 +110,7 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
 
   const loadList = useCallback(async () => {
     const r = await fetch(`/api/events/session-videos?event_id=${eventId}`, { cache: 'no-store' })
-    const j = await r.json().catch(() => null) as { storage_ready: boolean; videos: ListVideo[]; sessions: SessItem[] } | null
+    const j = await r.json().catch(() => null) as { storage_ready: boolean; videos: ListVideo[]; sessions: SessItem[]; on_youtube?: Record<string, { videoId: string; title: string; privacy: string | null; url: string }> } | null
     if (r.ok && j) { setLoadErr(null); setList(j) } else setLoadErr((j as { error?: string } | null)?.error ?? 'Could not load.')
     return j
   }, [eventId])
@@ -198,6 +199,7 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
   // Steps run strictly in order: a step opens only when every step before it is done (see stepDone below).
   const processed = !!video && ['transcribed', 'text_pending', 'ready', 'approved'].includes(video.status)
   const renderSt = (detail?.video as VideoRec | null)?.render_status ?? null
+  const pub = usePublishState(eventId, video?.id ?? null, renderSt === 'done')
   const stepDone: Record<number, boolean> = {
     1: thumb?.state === 'approved',
     2: processed,
@@ -205,9 +207,11 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
     4: video?.status === 'approved',
     5: cueSummary.confirmed,
     6: renderSt === 'done',
+    7: !!pub.st && pub.st.youtube.upToDate && pub.st.internal.satisfied && pub.st.client.satisfied,
+    8: !!pub.st && (pub.st.published || pub.st.scheduled),
   }
-  const firstOpen = [1, 2, 3, 4, 5, 6].find(n => !stepDone[n]) ?? 6
-  const lockedBy = (n: number) => [1, 2, 3, 4, 5].find(k => k < n && !stepDone[k]) ?? null
+  const firstOpen = [1, 2, 3, 4, 5, 6, 7, 8].find(n => !stepDone[n]) ?? 8
+  const lockedBy = (n: number) => [1, 2, 3, 4, 5, 6, 7].find(k => k < n && !stepDone[k]) ?? null
   const toggle = (n: number) => { if (lockedBy(n) === null) setOpenStep(p => p === n ? null : n) }
 
   const active = openStep !== null && lockedBy(openStep) === null ? openStep : firstOpen
@@ -345,10 +349,23 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
     finally { setThumbBusy(false) }
   }
 
-  // Sync preview URL from detail when it changes
+  // Take a new playback link only when there is a NEW preview. Every poll returns a freshly signed link for the same file;
+  // swapping it into the player each time reloaded the video every 5 s (the flicker during a render).
+  const previewKey = detail?.jobs?.find(j => j.kind === 'render_preview' && j.status === 'done')?.id ?? (detail?.video as VideoRec | undefined)?.preview_path ?? null
+  const [finalUrl, setFinalUrl] = useState<string | null>(null)
+  const finalKey = detail?.jobs?.find(j => j.kind === 'render' && j.status === 'done')?.id ?? null
+  const shownFinalKey = useRef<string | null>(null)
   useEffect(() => {
-    if (detail?.preview_url) setPreviewUrl(detail.preview_url)
-  }, [detail?.preview_url])
+    if (!detail?.render_url || shownFinalKey.current === finalKey) return
+    shownFinalKey.current = finalKey
+    setFinalUrl(detail.render_url)
+  }, [finalKey, detail?.render_url])
+  const shownPreviewKey = useRef<string | null>(null)
+  useEffect(() => {
+    if (!detail?.preview_url || shownPreviewKey.current === previewKey) return
+    shownPreviewKey.current = previewKey
+    setPreviewUrl(detail.preview_url)
+  }, [previewKey, detail?.preview_url])
 
   // ── Loading / not found states ────────────────────────────────────────────────
 
@@ -384,6 +401,14 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
         backLabel="All sessions"
       />
 
+      {list.on_youtube?.[sessionId] && (
+        <div style={{ fontSize: 13, padding: '10px 14px', background: 'var(--card)', border: '1.5px solid var(--success)', borderRadius: 10, margin: '0 0 12px', lineHeight: 1.55 }}>
+          <strong style={{ color: 'var(--success)' }}>Already on YouTube — uploaded by the team.</strong>{' '}
+          <a href={list.on_youtube[sessionId].url} target="_blank" rel="noreferrer" style={{ color: 'var(--teal)', fontWeight: 700 }}>{list.on_youtube[sessionId].title || 'Watch'}</a>
+          {list.on_youtube[sessionId].privacy && list.on_youtube[sessionId].privacy !== 'public' ? ` (${list.on_youtube[sessionId].privacy})` : ''}.
+          {' '}There&apos;s no need to process it here. Wrong match? Fix it in <a href={`/admin/events/${eventId}/session-videos?tab=youtube`} style={{ color: 'var(--teal)', fontWeight: 700 }}>Session Videos → YouTube</a>.
+        </div>
+      )}
       {actionErr && <div style={{ fontSize: 13, color: 'var(--red)', padding: '8px 14px', background: 'var(--card)', border: '1px solid var(--border-light)', borderRadius: 8, margin: '0 0 12px' }}>{actionErr}</div>}
 
       <div style={{ display: 'grid', gap: 8, padding: '8px 0' }}>
@@ -743,10 +768,34 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
                   </div>
                 )}
                 {renderStatus === 'rendering' && <RenderProgress detail={detail} kind="render" />}
-                {renderDone && <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--success)' }}>✓ Final render complete</div>}
+                {renderDone && (
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--success)' }}>✓ Final video ready — 1080p</div>
+                    {finalUrl
+                      ? <video controls preload="metadata" src={finalUrl} style={{ width: '100%', maxHeight: 360, borderRadius: 8, background: 'black', display: 'block' }} />
+                      : <div style={{ fontSize: 12.5, color: 'var(--ink3)' }}>Loading the final video…</div>}
+                    {detail?.render_download_url && <div><Button variant="teal" href={detail.render_download_url}>Download final MP4</Button></div>}
+                  </div>
+                )}
               </>
             )}
           </div>
+        </StepCard>
+
+        {/* ── Step 7: YouTube + approval ──────────────────────────── */}
+        <StepCard n={7} active={active === 7} done={stepDone[7]} lockedBy={lockedBy(7)}
+          title="YouTube & approval" summary={approvalSummary(pub.st)}
+          onToggle={() => toggle(7)}>
+          {pub.err ? <div style={{ fontSize: 13, color: 'var(--red)' }}>{pub.err}</div>
+            : !pub.st ? <div style={{ fontSize: 13, color: 'var(--ink3)' }}>Loading…</div>
+            : <ApprovalStep eventId={eventId} st={pub.st} act={pub.act} />}
+        </StepCard>
+
+        {/* ── Step 8: Publish ───────────────────────────────────── */}
+        <StepCard n={8} active={active === 8} done={stepDone[8]} lockedBy={lockedBy(8)}
+          title="Publish" summary={pub.st?.published ? 'Public on YouTube' : pub.st?.scheduled ? `Scheduled for ${pub.st.youtube.publishAt ? new Date(pub.st.youtube.publishAt).toLocaleString() : ''}` : 'Make it public on YouTube'}
+          onToggle={() => toggle(8)}>
+          {pub.st ? <PublishStep st={pub.st} act={pub.act} /> : <div style={{ fontSize: 13, color: 'var(--ink3)' }}>Loading…</div>}
         </StepCard>
 
       </div>
@@ -761,12 +810,13 @@ export default function SessionFlowPage({ params }: { params: Promise<{ id: stri
        is one, otherwise a rough rate per minute of session footage. */
 
 const RENDER_STAGES: Array<[RegExp, number, string]> = [
-  [/^Downloading/, 3, 'Downloading the session and video kit'],
-  [/^(Preview|Final render) at/, 6, 'Resizing the session video'],
-  [/lower third\(s\) placed/, 30, 'Adding the lower thirds'],
-  [/^Normalising/, 45, 'Evening out the sound'],
-  [/(Background music added|No background music)/, 55, 'Adding background music'],
-  [/^Joining/, 58, 'Joining intro, title card, session and outro'],
+  // Since the single-pass render (2026-11-26) almost all the time is the final 'Joining' pass, so the early steps are small.
+  [/^Downloading/, 1, 'Downloading the session and video kit'],
+  [/^(Preview|Final render) at/, 3, 'Preparing the intro, title card and outro'],
+  [/lower third\(s\) placed/, 4, 'Preparing the lower thirds'],
+  [/^Normalising/, 5, 'Evening out the sound'],
+  [/Background music|No background music/, 8, 'Adding background music'],
+  [/^Joining/, 9, 'Building the video (resize, lower thirds, crossfades, music)'],
   [/encoded, uploading/, 96, 'Uploading'],
 ]
 
@@ -779,12 +829,15 @@ function renderEstimate(detail: Detail | null, kind: 'render_preview' | 'render'
   const expected = past ? (Date.parse(past.finished_at!) - Date.parse(past.started_at!)) / 1000
     : kind === 'render_preview' ? 40 + minutes * 9 : 60 + minutes * 45
   const log = job.log ?? []
-  let floor = 0, label = 'Starting'
-  for (const l of log) for (const [re, pct, text] of RENDER_STAGES) if (re.test(l.line)) { floor = Math.max(floor, pct); label = text }
+  let label = 'Starting'
+  for (const l of log) for (const [re, , text] of RENDER_STAGES) if (re.test(l.line)) label = text
   if (!job.started_at || job.status === 'pending' || job.status === 'queued') return { queued: true, pct: 0, label: 'Waiting for the video worker to start', remaining: expected, over: false }
-  const elapsed = (Date.now() - Date.parse(job.started_at)) / 1000
-  const pct = Math.min(98, Math.max(floor, (elapsed / expected) * 100))
-  return { queued: false, pct, label, remaining: Math.max(0, expected - elapsed), over: elapsed > expected * 1.15 }
+  const elapsed = Math.max(0, (Date.now() - Date.parse(job.started_at)) / 1000)
+  // Time only, so the bar moves steadily: straight line to 90% at the expected time, then it keeps easing towards 99%
+  // (never stalls, never goes backwards, never shows 100% before the video is actually done). The logged steps only set the label.
+  const x = elapsed / expected
+  const pct = x < 0.9 ? x * 100 : 90 + 9 * (1 - Math.exp(-(x - 0.9) / 0.35))
+  return { queued: false, pct, label, remaining: Math.max(0, expected - elapsed), over: x >= 0.97 }
 }
 
 function renderPct(detail: Detail | null, kind: 'render_preview' | 'render') {
@@ -808,14 +861,14 @@ function RenderProgress({ detail, kind }: { detail: Detail | null; kind: 'render
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', fontSize: 13 }}>
         <span style={{ fontWeight: 700 }}>{what}{e && !e.queued ? ` — ${Math.round(e.pct)}%` : ''}</span>
         <span style={{ color: 'var(--ink3)' }}>
-          {!e ? 'Starting…' : e.queued ? 'Queued' : e.over ? 'Taking a little longer than usual…' : fmtLeft(e.remaining)}
+          {!e ? 'Starting…' : e.queued ? 'Queued' : e.over ? 'Almost done…' : fmtLeft(e.remaining)}
         </span>
       </div>
       <div style={{ height: 8, borderRadius: 999, background: 'var(--border-light)', overflow: 'hidden' }}>
         <div style={{ height: '100%', width: `${e?.pct ?? 0}%`, background: 'var(--teal-mid)', borderRadius: 999, transition: 'width 1s linear' }} />
       </div>
       <div style={{ fontSize: 12, color: 'var(--ink3)' }}>
-        {e?.label ?? 'Starting'}… You can leave this page — it keeps going, and the {kind === 'render_preview' ? 'preview' : 'video'} shows here when it&apos;s done.
+        {`${e?.label ?? 'Starting'}… You can leave this page — it keeps going, and the ${kind === 'render_preview' ? 'preview' : 'video'} shows here when it's done.`}
       </div>
     </div>
   )

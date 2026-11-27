@@ -5,6 +5,7 @@ import { approveText, completeUpload, createVideo, createVideoFromDrive, createV
 import { abortMultipart } from '@/app/lib/session-videos/storage'
 import { videoOf } from '@/app/lib/session-videos/service'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { existingLinksBySession } from '@/app/lib/session-videos/existing'
 
 /* Session Videos (docs/build_suggestions/session-video-pipeline.md, Phase 1). Permission sae.videos.manage. Nothing here publishes or sends anything.
    GET   ?event_id                  the event's videos, its speaker sessions (for the match dropdown), whether storage is set up
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
   try {
     const id = req.nextUrl.searchParams.get('id')
     if (id) { if (!UUID.test(id)) return NextResponse.json({ error: 'bad id' }, { status: 400 }); return NextResponse.json(await videoDetail(eventId, id)) }
-    return NextResponse.json({ storage_ready: videoStorageConfigured(), videos: await listVideos(eventId), sessions: await matchSessions(eventId) })
+    return NextResponse.json({ storage_ready: videoStorageConfigured(), videos: await listVideos(eventId), sessions: await matchSessions(eventId), on_youtube: await existingLinksBySession(eventId) })
   } catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : 'Failed.' }, { status: e instanceof VideoError ? e.status : 500 }) }
 }
 

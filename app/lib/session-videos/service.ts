@@ -354,6 +354,8 @@ export async function videoDetail(eventId: string, id: string) {
     proxy_url: v.proxy_path ? await presignGet(v.proxy_path as string, 3600).catch(() => null) : null,
     preview_url: v.preview_path ? await presignGet(v.preview_path as string, 3600).catch(() => null) : null,
     preview_download_url: v.preview_path ? await presignGet(v.preview_path as string, 3600, previewFileName(ses?.title as string | undefined)).catch(() => null) : null,
+    render_url: v.render_path && v.render_status === 'done' ? await presignGet(v.render_path as string, 3600).catch(() => null) : null,
+    render_download_url: v.render_path && v.render_status === 'done' ? await presignGet(v.render_path as string, 3600, previewFileName(ses?.title as string | undefined, 'final')).catch(() => null) : null,
     preview_share: v.preview_share_token && v.preview_share_expires_at && Date.parse(v.preview_share_expires_at as string) > Date.now()
       ? { token: v.preview_share_token as string, expires_at: v.preview_share_expires_at as string } : null,
     transcript: tr ? {

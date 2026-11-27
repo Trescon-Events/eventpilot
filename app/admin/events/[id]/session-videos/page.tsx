@@ -4,13 +4,15 @@ import { use, useCallback, useEffect, useMemo, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Card } from '@/app/components/ui'
 import VideoKitTab from '@/app/components/session-videos/VideoKitTab'
+import YouTubeSettingsTab from '@/app/components/session-videos/YouTubeSettingsTab'
 
-/* Session Videos hub: two tabs — Videos (session list → per-session flow) and Video Kit (event assets + each session's
-   thumbnail, title card and lower thirds: generate, review, approve). Templates are set up in the Admin Console. */
+/* Session Videos hub: three tabs — Videos (session list → per-session flow), Video Kit (event assets + each session's
+   thumbnail, title card and lower thirds: generate, review, approve) and YouTube (the channel + which playlist each day/stage goes into).
+   Templates are set up in the Admin Console. */
 
 type Video = { id: string; source_ref: string | null; status: string; agenda_session_id: string | null; size_bytes: number | null; bytes_transferred: number | null; drive_file_id: string | null; duration_s: number | null }
 type Sess = { id: string; title: string; content_type: string | null; starts: string | null; speakers: string[] }
-type Tab = 'videos' | 'kit'
+type Tab = 'videos' | 'kit' | 'youtube'
 
 const VIDEO_STATUS: Record<string, { label: string; color: string }> = {
   uploading: { label: 'Uploading', color: 'var(--amber)' }, uploaded: { label: 'Processing', color: 'var(--amber)' },
@@ -23,9 +25,9 @@ const BUSY = new Set(['uploaded', 'ingesting', 'ingested', 'transcribing', 'text
 
 export default function SessionVideosPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = use(params)
-  const [tab, setTab] = useState<Tab>(() => (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tab') === 'kit' ? 'kit' : 'videos'))
+  const [tab, setTab] = useState<Tab>(() => { const t = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null; return t === 'kit' || t === 'youtube' ? t : 'videos' })
 
-  const [videoData, setVideoData] = useState<{ storage_ready: boolean; videos: Video[]; sessions: Sess[] } | null>(null)
+  const [videoData, setVideoData] = useState<{ storage_ready: boolean; videos: Video[]; sessions: Sess[]; on_youtube?: Record<string, { videoId: string; title: string; privacy: string | null; url: string }> } | null>(null)
   const [videoErr, setVideoErr] = useState<string | null>(null)
   const [vidType, setVidType] = useState('all')
   const [vidStatus, setVidStatus] = useState('all')
@@ -56,7 +58,9 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
     if (vidType !== 'all' && (s.content_type ?? 'None') !== vidType) return false
     if (vidStatus !== 'all') {
       const v = videoBySession.get(s.id)
-      if (vidStatus === 'none' && v) return false
+      const onYt = !!videoData?.on_youtube?.[s.id]
+      if (vidStatus === 'on_youtube') return onYt
+      if (vidStatus === 'none' && (v || onYt)) return false
       if (vidStatus !== 'none' && (!v || (VIDEO_STATUS[v.status]?.label ?? v.status) !== vidStatus)) return false
     }
     return true
@@ -64,7 +68,7 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
 
   function videoCTA(s: Sess): { label: string; variant: 'teal' | 'ghost' } {
     const v = videoBySession.get(s.id)
-    if (!v) return { label: 'Start →', variant: 'teal' }
+    if (!v) return videoData?.on_youtube?.[s.id] ? { label: 'Open →', variant: 'ghost' } : { label: 'Start →', variant: 'teal' }
     if (v.status === 'approved') return { label: 'Open →', variant: 'ghost' }
     return { label: 'Continue →', variant: 'teal' }
   }
@@ -89,6 +93,7 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border-light)', marginBottom: '20px' }}>
         <button type="button" style={tabBtn(tab === 'videos')} onClick={() => setTab('videos')}>Videos</button>
         <button type="button" style={tabBtn(tab === 'kit')} onClick={() => setTab('kit')}>Video Kit</button>
+        <button type="button" style={tabBtn(tab === 'youtube')} onClick={() => setTab('youtube')}>YouTube</button>
       </div>
 
       {/* ── Videos tab ── */}
@@ -109,9 +114,9 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
 
           {/* Status filter chips */}
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-            {(['all', 'none', 'Uploading', 'Transcribing', 'Name voices', 'Review text', 'Approved', 'Failed'] as const).map(s => (
+            {(['all', 'none', 'on_youtube', 'Uploading', 'Transcribing', 'Name voices', 'Review text', 'Approved', 'Failed'] as const).map(s => (
               <button key={s} type="button" style={chip(vidStatus === s)} onClick={() => setVidStatus(s)}>
-                {s === 'all' ? 'All' : s === 'none' ? 'No video yet' : s}
+                {s === 'all' ? 'All' : s === 'none' ? 'No video yet' : s === 'on_youtube' ? `Already on YouTube${videoData?.on_youtube ? ` (${Object.keys(videoData.on_youtube).length})` : ''}` : s}
               </button>
             ))}
           </div>
@@ -144,6 +149,10 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
                       )}
                     </div>
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexShrink: 0 }}>
+                      {videoData?.on_youtube?.[session.id] && (
+                        <a href={videoData.on_youtube[session.id].url} target="_blank" rel="noreferrer" title={`Uploaded by the team: ${videoData.on_youtube[session.id].title}`}
+                          style={{ fontSize: '12px', fontWeight: 800, color: 'var(--success)', textDecoration: 'none' }}>▶ On YouTube{videoData.on_youtube[session.id].privacy && videoData.on_youtube[session.id].privacy !== 'public' ? ` (${videoData.on_youtube[session.id].privacy})` : ''}</a>
+                      )}
                       {video && (
                         <span style={{ fontSize: '12px', fontWeight: 800, color: st?.color ?? 'var(--ink3)' }}>
                           {driveProgress !== null ? `Importing · ${driveProgress}%` : st?.label ?? video.status}
@@ -160,6 +169,7 @@ export default function SessionVideosPage({ params }: { params: Promise<{ id: st
       )}
 
       {tab === 'kit' && <VideoKitTab eventId={eventId} />}
+      {tab === 'youtube' && <YouTubeSettingsTab eventId={eventId} />}
     </div>
   )
 }

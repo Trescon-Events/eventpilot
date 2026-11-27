@@ -1,3 +1,4 @@
+import { runYoutubeUpload } from './youtube-upload'
 import { claimNextJob, failJob, finishJob, logJob, requeueStale } from '@/app/lib/session-videos/jobs'
 import { claimNextCreativeJob, failCreativeJob, finishCreativeJob, requeueStaleCreativeJobs } from '@/app/lib/lower-thirds/jobs'
 import { runDriveImport } from './drive-import'
@@ -38,6 +39,7 @@ async function main() {
           else if (job.kind === 'render_preview') await runRenderPreview(job)
           else if (job.kind === 'render') await runRender(job)
           else if (job.kind === 'cue_scan') await runCueScan(job)
+          else if (job.kind === 'youtube_upload') await runYoutubeUpload(job)
           else throw new Error(`Unknown job kind ${job.kind}`)
           await finishJob(job.id); console.log(`[video-worker] ${job.kind} done`)
         } catch (e) {
