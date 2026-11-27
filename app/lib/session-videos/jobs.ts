@@ -2,7 +2,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 
 /* The worker's queue (video_jobs). The web app only ever ENQUEUES; the worker on Railway claims, runs and finishes. Nothing heavy runs in a request. */
 
-export type JobKind = 'drive_import' | 'ingest' | 'transcribe' | 'identify' | 'text_pack' | 'render_preview' | 'render' | 'cue_scan' | 'youtube_upload'
+export type JobKind = 'drive_import' | 'ingest' | 'transcribe' | 'identify' | 'text_pack' | 'render_preview' | 'render' | 'cue_scan' | 'youtube_upload' | 'enhance_prep'
 export type Job = { id: string; session_video_id: string; kind: JobKind; status: string; attempts: number }
 export const MAX_ATTEMPTS = 2
 export const STALE_RUNNING_MS = 90 * 60 * 1000   // a job "running" for longer than this was lost with its worker: it goes back in the queue
@@ -46,6 +46,7 @@ export async function failJob(job: Job, message: string): Promise<'requeued' | '
   const msg = message.slice(0, 1500)
   if (job.attempts < MAX_ATTEMPTS) { await supabaseAdmin.from('video_jobs').update({ status: 'queued', error: msg }).eq('id', job.id); return 'requeued' }
   await supabaseAdmin.from('video_jobs').update({ status: 'failed', error: msg, finished_at: new Date().toISOString() }).eq('id', job.id)
+  if (job.kind === 'enhance_prep') return 'failed'   // optional speed-up: the final does the work itself, the video is not failed
   await supabaseAdmin.from('session_videos').update({ status: 'failed', error: `${job.kind}: ${msg}`, updated_at: new Date().toISOString() }).eq('id', job.session_video_id)
   return 'failed'
 }

@@ -50,5 +50,7 @@ export async function runIngest(job: Job): Promise<void> {
     await uploadFile(k.audio, audio, 'audio/mp4'); await uploadFile(k.proxy, proxy, 'video/mp4')
     await supabaseAdmin.from('session_videos').update({ proxy_path: k.proxy, audio_path: k.audio, duration_s: Math.round(duration * 10) / 10, status: 'ingested', updated_at: new Date().toISOString() }).eq('id', v.id)
     await enqueueJob(v.id as string, 'transcribe')
+    // Prepare the final's clean-up now (exposure, shake scan, sound) while the transcript and the producer's steps happen — the final then only encodes.
+    await enqueueJob(v.id as string, 'enhance_prep').catch(e => logJob(job.id, `Could not queue the clean-up preparation: ${e instanceof Error ? e.message : String(e)}`))
   } finally { rmSync(dir, { recursive: true, force: true }) }
 }

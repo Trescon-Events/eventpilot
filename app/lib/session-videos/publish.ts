@@ -230,7 +230,9 @@ export async function publishVideo(eventId: string, id: string, opts: { publishA
     const token = await tokenFor((v.youtube_connection_id as string | null) ?? ch.connectionId)
     const ytId = v.youtube_video_id as string
     await setPrivacy(token, ytId, { privacy: 'public', publishAt })
-    const after = await videoStatus(token, ytId)
+    // YouTube can report the old privacy for a few seconds (especially while a fresh upload is still processing): read back a few times.
+    let after = await videoStatus(token, ytId)
+    for (let i = 0; i < 5 && !publishAt && after?.privacy !== 'public'; i++) { await new Promise(r => setTimeout(r, 3000)); after = await videoStatus(token, ytId) }
     if (!publishAt && after?.privacy !== 'public') throw new PublishError('YouTube kept the video private. That happens until Google approves EventPilot’s YouTube app (the API audit) — publish it by hand in YouTube Studio for now.', 409)
     // Only now into its playlist (an unlisted video in a public playlist would be visible before approval). A scheduled video stays private until
     // its time, and private videos in a playlist are hidden from viewers, so adding it now is safe too.

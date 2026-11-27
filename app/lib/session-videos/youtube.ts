@@ -63,9 +63,31 @@ export function youtubeFingerprint(x: { renderJobId: string | null; title: strin
 
 export type VideoMeta = { title: string; description: string; tags: string[]; categoryId: string; thumbnailUrl: string | null; renderJobId: string | null; renderPath: string | null }
 
+const CHAPTER = /^((?:\d{1,2}:)?\d{1,2}:\d{2})(\s+.+)$/
+const toSec = (t: string) => t.split(':').map(Number).reduce((a, n) => a * 60 + n, 0)
+const toStamp = (sec: number) => { const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, s = sec % 60; return h ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}` }
+
+/** The approved description's chapters are timed from the start of the TALK; the finished video opens with the intro and title card. Shift every
+    chapter line by where the talk starts (session_offset_s, written by the final render) and open with "0:00 Intro" — YouTube only shows chapters
+    when the first one is at 0:00. Nothing changes until a final render has recorded the offset. */
+export function shiftChapters(description: string, offsetS: number): string {
+  const off = Math.round(offsetS)
+  if (!(off > 0)) return description
+  const lines = description.split('\n')
+  let first = -1
+  const out = lines.map((l, i) => {
+    const m = l.match(CHAPTER)
+    if (!m) return l
+    if (first < 0) first = i
+    return `${toStamp(toSec(m[1]) + off)}${m[2]}`
+  })
+  if (first >= 0) out.splice(first, 0, '0:00 Intro')
+  return out.join('\n')
+}
+
 /** Everything the YouTube copy is made from, read fresh. Throws if something required is missing. */
 export async function videoMeta(videoId: string, categoryId = '28'): Promise<VideoMeta> {
-  const { data: v } = await supabaseAdmin.from('session_videos').select('id, agenda_session_id, render_path, render_status').eq('id', videoId).single()
+  const { data: v } = await supabaseAdmin.from('session_videos').select('id, agenda_session_id, render_path, render_status, session_offset_s').eq('id', videoId).single()
   const [{ data: t }, { data: th }, { data: rj }] = await Promise.all([
     supabaseAdmin.from('session_video_text').select('selected_title, description_approved, tags').eq('session_video_id', videoId).maybeSingle(),
     v?.agenda_session_id ? supabaseAdmin.from('session_thumbnails').select('image_jpg_path').eq('agenda_session_id', v.agenda_session_id).maybeSingle() : Promise.resolve({ data: null }),
@@ -73,7 +95,7 @@ export async function videoMeta(videoId: string, categoryId = '28'): Promise<Vid
   ])
   if (!t?.selected_title || !t.description_approved) throw new YoutubeError('Approve the title and description (Step 4) first.', 409)
   return {
-    title: ytTitle(t.selected_title as string), description: ytDescription(t.description_approved as string), tags: ytTags((t.tags as string[] | null) ?? []), categoryId,
+    title: ytTitle(t.selected_title as string), description: ytDescription(shiftChapters(t.description_approved as string, Number(v?.session_offset_s ?? 0))), tags: ytTags((t.tags as string[] | null) ?? []), categoryId,
     thumbnailUrl: (th?.image_jpg_path as string | null) ?? null, renderJobId: (rj?.id as string | null) ?? null, renderPath: v?.render_status === 'done' ? (v.render_path as string | null) : null,
   }
 }

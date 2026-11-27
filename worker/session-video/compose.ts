@@ -10,6 +10,7 @@ import { getKit } from '@/app/lib/session-videos/kit'
 import { logJob, type Job } from '@/app/lib/session-videos/jobs'
 import { run, probe, pngToVideo, conformClip, loudnorm } from './ffmpeg-utils'
 import { analysePicture, enhanceAudio, stabiliseFilter, stabiliseTransforms } from './enhance'
+import { loadEnhancePrep, sessionPrefix } from './enhance-prep'
 
 /* The session video, assembled the same way for the preview (540p, quick, no clean-up) and the final render (1080p at 12 Mbps, with the
    picture/stabiliser/sound clean-up from enhance.ts and loudness normalisation):
@@ -108,29 +109,36 @@ export async function composeSessionVideo(job: Job, v: Record<string, unknown>, 
   await logJob(job.id, `${overlays.length} of ${cues.length} lower third(s) placed`)
 
   // All clean-up (enhance.ts) is for the final only — the preview stays basic and fast (it is for checking the cut, titles and music).
-  // Session sound: cleaned (noise, clarity, levelling) and loudness-normalised on the final; the preview uses the sound as recorded.
-  const cleanAudio = q.enhance ? (await logJob(job.id, 'Cleaning up the sound (noise, clarity, levelling)'), await enhanceAudio(source, dir)) : source
-  const normAudio = q.normalise ? (await logJob(job.id, 'Normalising the session sound'), await loudnorm(cleanAudio, dir)) : cleanAudio
-
-  // Session length = the shorter of its picture and sound, so the joins line up exactly.
-  const sessionD = Math.max(1, (await streamsDuration([source, normAudio])) - 0.05)
-
-  // Picture: one exposure correction for the whole video, and the stabiliser where there is real shake.
-  const prefix = (w: number, h: number) => `trim=duration=${sessionD.toFixed(3)},setpts=PTS-STARTPTS,fps=${fps},scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1`
+  // The slow analysis normally ran already, right after ingest (enhance_prep job) — reuse it; otherwise do it here, sound and shake scan in parallel.
+  let normAudio = source
   let pic: { filter: string | null } = { filter: null }
   let stab: { trf: string | null } = { trf: null }
   if (q.enhance) {
-    await logJob(job.id, 'Checking exposure')
-    const p = await analysePicture(source, sessionD)
-    await logJob(job.id, p.note)
-    await logJob(job.id, 'Checking camera shake (this scans the whole video)')
-    const st = await stabiliseTransforms(source, dir, prefix, q.W, q.H).catch(e => ({ trf: null, note: `Stabiliser: failed, skipped (${e instanceof Error ? e.message.slice(0, 160) : String(e)})` }))
-    await logJob(job.id, st.note)
-    pic = p; stab = st
-  }
+    const ready = await loadEnhancePrep(v, (useOriginal ? v.original_path : v.proxy_path) as string, fps, dir).catch(() => null)
+    if (ready) {
+      await logJob(job.id, 'Using the clean-up prepared after upload (sound, exposure, stabiliser)')
+      await logJob(job.id, ready.prep.picture_note); await logJob(job.id, ready.prep.stab_note)
+      normAudio = ready.audio; pic = { filter: ready.prep.picture_filter }; stab = { trf: ready.trf }
+    } else {
+      await logJob(job.id, 'Cleaning up the sound, checking exposure and scanning for camera shake (in parallel)')
+      const [a, p, st] = await Promise.all([
+        enhanceAudio(source, dir).then(clean => loudnorm(clean, dir)),
+        analysePicture(source, (await probe(source)).duration),
+        stabiliseTransforms(source, dir, sessionPrefix(fps), q.W, q.H).catch(e => ({ trf: null, note: `Stabiliser: failed, skipped (${e instanceof Error ? e.message.slice(0, 160) : String(e)})` })),
+      ])
+      await logJob(job.id, p.note); await logJob(job.id, st.note)
+      normAudio = a; pic = p; stab = st
+    }
+  } else if (q.normalise) normAudio = (await logJob(job.id, 'Normalising the session sound'), await loudnorm(source, dir))
+
+  // Session length = the shorter of its picture and sound, so the joins line up exactly.
+  const sessionD = Math.max(1, (await streamsDuration([source, normAudio])) - 0.05)
+  const prefix = sessionPrefix(fps, sessionD)
   const [introD, titleD, outroD] = await Promise.all([introAv, titleAv, outroAv].map(f => probe(f).then(p => p.duration)))
   // Each join overlaps the two pieces by FADE seconds (a crossfade).
   const o1 = introD - FADE, o2 = o1 + titleD - FADE, o3 = o2 + sessionD - FADE
+  // Where the talk starts in the finished video — YouTube chapters (and captions) are shifted by this.
+  if (quality === 'final') await supabaseAdmin.from('session_videos').update({ session_offset_s: Math.round(o2 * 100) / 100 }).eq('id', videoId)
   const total = o3 + outroD
 
   // Music: one looped track with a volume curve (see the note at the top). Times are on the final timeline.
