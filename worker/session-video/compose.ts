@@ -10,7 +10,7 @@ import { getKit } from '@/app/lib/session-videos/kit'
 import { logJob, type Job } from '@/app/lib/session-videos/jobs'
 import { run, probe, pngToVideo, conformClip, loudnorm } from './ffmpeg-utils'
 import { analysePicture, enhanceAudio, stabiliseFilter, stabiliseTransforms } from './enhance'
-import { loadEnhancePrep, preparedSession, sessionPrefix } from './enhance-prep'
+import { loadEnhancePrep, preparedSession, sessionPrefix, waitForPrep } from './enhance-prep'
 
 /* The session video, assembled the same way for the preview (540p, quick, no clean-up) and the final render (1080p at 12 Mbps, with the
    picture/stabiliser/sound clean-up from enhance.ts and loudness normalisation):
@@ -64,6 +64,7 @@ export async function composeSessionVideo(job: Job, v: Record<string, unknown>, 
   // The preview works from the small 720p copy (quick); the final render works from the ORIGINAL upload (full quality).
   const useOriginal = quality === 'final' && !!v.original_path
   // Usually the session was already stabilised + corrected right after upload (enhance_prep v2): use that and skip the slow filters here.
+  if (useOriginal) v = { ...v, enhance_prep: await waitForPrep(videoId, line => logJob(job.id, line)) }
   const cleaned = useOriginal ? preparedSession(v, v.original_path as string) : null
   const source = join(dir, useOriginal ? 'original' : 'proxy.mp4'), introSrc = join(dir, 'intro_src.mp4'), outroSrc = join(dir, 'outro_src.mp4'), tcPng = join(dir, 'titlecard.png')
   await logJob(job.id, `Downloading the session (${cleaned ? 'cleaned-up copy prepared after upload' : useOriginal ? 'original upload' : 'preview copy'}), intro/outro and title card`)

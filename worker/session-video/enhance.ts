@@ -94,22 +94,33 @@ const LM = /\(LM (-?\d+) (-?\d+) (-?\d+) (-?\d+) (\d+) ([-\d.eE+]+) ([-\d.eE+]+)
 export async function stabiliseTransforms(source: string, dir: string, prefix: (w: number, h: number) => string, W: number, H: number): Promise<{ trf: string | null; note: string }> {
   if (!(await hasVidstab())) return { trf: null, note: 'Stabiliser: not available in this ffmpeg build — skipped' }
   const half = join(dir, 'motion_half.trf')
-  await ff(['-hide_banner', '-i', source, '-vf', `${prefix(W / 2, H / 2)},vidstabdetect=shakiness=5:accuracy=9:stepsize=6:mincontrast=0.25${await asciiOpt()}:result=${half}`, '-f', 'null', '-'])
-  const lines = (await readFile(half, 'utf8')).split('\n')
+  await ff(['-hide_banner', '-i', source, '-vf', `${prefix(W / 2, H / 2)},${await detectFilter(half)}`, '-f', 'null', '-'])
+  const m = motionFromHalf((await readFile(half, 'utf8')).split('\n'))
+  if (!m.out) return { trf: null, note: m.note }
+  const trf = join(dir, 'motion.trf')
+  await writeFile(trf, m.out.join('\n'))
+  return { trf, note: m.note }
+}
 
+/** The detection filter (half-size frames in, motion file out). */
+export const detectFilter = async (result: string) => `vidstabdetect=shakiness=5:accuracy=9:stepsize=6:mincontrast=0.25${await asciiOpt()}:result=${result}`
+
+/** From a half-size motion file: decide whether there is real shake and, if so, build the full-size motion file (every vector ×2, camera cuts
+    emptied so the smoothing never slides across a switch). Also returns the frame numbers of the camera cuts (used to split work at cuts). */
+export function motionFromHalf(lines: string[]): { out: string[] | null; note: string; cutFrames: number[] } {
   // Per-frame camera motion = median of the local motion vectors.
-  const frames: Array<{ line: number; dx: number; dy: number; lms: number[][] } | null> = lines.map((l, i) => {
+  const frames: Array<{ line: number; num: number; dx: number; dy: number } | null> = lines.map((l, i) => {
     if (!l.startsWith('Frame ')) return null
     const lms = [...l.matchAll(LM)].map(m => m.slice(1).map(Number))
     const med = (k: number) => { const a = lms.map(x => x[k]).sort((p, q) => p - q); return a.length ? a[Math.floor(a.length / 2)] : 0 }
-    return { line: i, dx: med(0), dy: med(1), lms }
+    return { line: i, num: Number(l.match(/^Frame (\d+)/)?.[1] ?? 0), dx: med(0), dy: med(1) }
   })
   const f = frames.filter((x): x is NonNullable<typeof x> => !!x)
-  if (f.length < 50) return { trf: null, note: 'Stabiliser: too little motion data — skipped' }
-
-  // A camera cut shows up as one huge jump: clear those frames so the smoothing doesn't drift across the switch.
+  // A camera cut shows up as one huge jump.
   const CUT = 18   // px at half size
-  const cuts = new Set(f.filter(x => Math.hypot(x.dx, x.dy) > CUT).map(x => x.line))
+  const cutF = f.filter(x => Math.hypot(x.dx, x.dy) > CUT)
+  const cuts = new Set(cutF.map(x => x.line)), cutFrames = cutF.map(x => x.num)
+  if (f.length < 50) return { out: null, note: 'Stabiliser: too little motion data — skipped', cutFrames }
   // Shake = frame-to-frame jitter around a smoothed path (ignoring cuts), in full-size pixels.
   const path = f.map(x => (cuts.has(x.line) ? { dx: 0, dy: 0 } : { dx: x.dx, dy: x.dy }))
   const win = 12
@@ -121,18 +132,14 @@ export async function stabiliseTransforms(source: string, dir: string, prefix: (
     sum += Math.hypot(path[i].dx - mx, path[i].dy - my) * 2; cnt++
   }
   const jitter = cnt ? sum / cnt : 0
-  if (jitter < 0.35) return { trf: null, note: `Stabiliser: footage is steady (jitter ${jitter.toFixed(2)} px) — skipped` }
-
-  // Write the full-size motion file: every vector ×2; cut frames emptied.
+  if (jitter < 0.35) return { out: null, note: `Stabiliser: footage is steady (jitter ${jitter.toFixed(2)} px) — skipped`, cutFrames }
   const out = lines.map((l, i) => {
     if (!l.startsWith('Frame ')) return l
     const num = l.match(/^Frame (\d+)/)?.[1] ?? '0'
     if (cuts.has(i)) return `Frame ${num} (List 0 [])`
     return l.replace(LM, (_m, vx, vy, fx, fy, fs, c, mt) => `(LM ${Number(vx) * 2} ${Number(vy) * 2} ${Number(fx) * 2} ${Number(fy) * 2} ${Number(fs) * 2} ${c} ${mt})`)
   })
-  const trf = join(dir, 'motion.trf')
-  await writeFile(trf, out.join('\n'))
-  return { trf, note: `Stabiliser: on (jitter ${jitter.toFixed(2)} px, ${cuts.size} camera cut${cuts.size === 1 ? '' : 's'} kept sharp)` }
+  return { out, note: `Stabiliser: on (jitter ${jitter.toFixed(2)} px, ${cuts.size} camera cut${cuts.size === 1 ? '' : 's'} kept sharp)`, cutFrames }
 }
 
 /** The transform step for the filter graph (after scaling to the output size). 4 % zoom hides the moving edges; "keep" fills any gap with the previous frame.

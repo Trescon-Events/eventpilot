@@ -24,6 +24,8 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 **Pushed 27 Nov (third batch):** picture correction v2 = adaptive tone curve (`pictureCurve` in enhance.ts), strength "B - softest" chosen by Madhu (the first stronger curve was too bright/contrasty; the original v1 barely brightened); enhance_prep v2 also writes the stabilised + corrected session (`prep_session.mp4`, CRF 14, ≈2–3 GB, +≈$0.10–0.15 egress/video) so the final only joins and encodes (`preparedSession` in enhance-prep.ts).
 
+**Pushed 28 Nov (fourth batch):** prep processes the session in pieces side by side (`prepareCleanup` in enhance-prep.ts; pieces = cores−1, max 6, override `VIDEO_PREP_PIECES`), joins at camera cuts (frame-exact, verified), intermediate copy CRF 18 (≈1.4 GB/20 min); the final WAITS for a running prep instead of redoing it (`waitForPrep`). Measured before this batch on the worker: prep 22:24, preview 1:28, final 5:30.
+
 **Google Cloud (checked 27 Nov):** app is "In production" (logins don't expire weekly). Quotas: 10,000 units/day + a separate 100 video uploads/day — no quota request needed (the old "~6 uploads/day" estimate was wrong).
 
 **PENDING:**
