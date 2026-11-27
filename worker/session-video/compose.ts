@@ -9,8 +9,10 @@ import { loadCues } from '@/app/lib/session-videos/cues'
 import { getKit } from '@/app/lib/session-videos/kit'
 import { logJob, type Job } from '@/app/lib/session-videos/jobs'
 import { run, probe, pngToVideo, conformClip, loudnorm } from './ffmpeg-utils'
+import { analysePicture, enhanceAudio, stabiliseFilter, stabiliseTransforms } from './enhance'
 
-/* The session video, assembled the same way for the preview (540p, quick) and the final render (1080p, loudness-normalised):
+/* The session video, assembled the same way for the preview (540p, quick, no clean-up) and the final render (1080p at 12 Mbps, with the
+   picture/stabiliser/sound clean-up from enhance.ts and loudness normalisation):
 
      intro ─fade─▶ title card ─fade─▶ session (with lower thirds) ─fade─▶ outro
 
@@ -23,7 +25,7 @@ import { run, probe, pngToVideo, conformClip, loudnorm } from './ffmpeg-utils'
 export const FADE = 1.0          // seconds for each crossfade join
 export const TITLE_SECONDS = 6   // how long the title card stays up
 
-type Quality = { W: number; H: number; preset: string; crf: string; normalise: boolean }
+type Quality = { W: number; H: number; preset: string; crf: string; normalise: boolean; enhance: boolean; bitrate?: string }
 
 /** Local copy of a stored file: our own storage key, or a public URL (title cards live in public storage). */
 async function fetchTo(pathOrUrl: string, local: string) {
@@ -72,11 +74,11 @@ export async function composeSessionVideo(job: Job, v: Record<string, unknown>, 
 
   const src = await probe(source)
   const fps = src.fps
-  // Final: 'veryfast' at CRF 20. The uploads are ~5 Mbps, and this still comes out above that (~6.5 Mbps at 1080p), so nothing
-  // visible is lost — measured ~3x faster than 'medium' CRF 18, which only made a bigger file than the source (2026-11-26 bench).
+  // Final: 'veryfast' (≈3x faster than 'medium', 2026-11-26 bench) at ~12 Mbps (max 15): a richer master for YouTube to re-encode from, so its
+  // own encode loses less (YouTube recommends 8 Mbps+ for 1080p uploads; the editor asked for ~15). Costs file size / upload time, not render time.
   const q: Quality = quality === 'final'
-    ? { W: 1920, H: 1080, preset: 'veryfast', crf: '20', normalise: true }
-    : { W: Math.round(src.width * 540 / src.height / 2) * 2, H: 540, preset: 'veryfast', crf: '23', normalise: false }
+    ? { W: 1920, H: 1080, preset: 'veryfast', crf: '20', normalise: true, enhance: true, bitrate: '12M' }
+    : { W: Math.round(src.width * 540 / src.height / 2) * 2, H: 540, preset: 'veryfast', crf: '23', normalise: false, enhance: false }
   await logJob(job.id, `${quality === 'final' ? 'Final render' : 'Preview'} at ${q.W}x${q.H} @ ${fps}fps`)
 
   // The short pieces are made separately (seconds); the long session is only encoded ONCE, in the final join below.
@@ -105,17 +107,27 @@ export async function composeSessionVideo(job: Job, v: Record<string, unknown>, 
   }
   await logJob(job.id, `${overlays.length} of ${cues.length} lower third(s) placed`)
 
-  // Session sound: loudness-normalised for the final render (an audio-only pass — quick).
-  let normAudio: string | null = null
-  if (q.normalise) {
-    const rawAudio = join(dir, 'session_audio_raw.m4a')
-    await run('ffmpeg', ['-y', '-v', 'error', '-i', source, '-vn', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-ac', '2', rawAudio])
-    await logJob(job.id, 'Normalising the session sound')
-    normAudio = await loudnorm(rawAudio, dir)
-  }
+  // All clean-up (enhance.ts) is for the final only — the preview stays basic and fast (it is for checking the cut, titles and music).
+  // Session sound: cleaned (noise, clarity, levelling) and loudness-normalised on the final; the preview uses the sound as recorded.
+  const cleanAudio = q.enhance ? (await logJob(job.id, 'Cleaning up the sound (noise, clarity, levelling)'), await enhanceAudio(source, dir)) : source
+  const normAudio = q.normalise ? (await logJob(job.id, 'Normalising the session sound'), await loudnorm(cleanAudio, dir)) : cleanAudio
 
   // Session length = the shorter of its picture and sound, so the joins line up exactly.
-  const sessionD = Math.max(1, (await streamsDuration(normAudio ? [source, normAudio] : [source])) - 0.05)
+  const sessionD = Math.max(1, (await streamsDuration([source, normAudio])) - 0.05)
+
+  // Picture: one exposure correction for the whole video, and the stabiliser where there is real shake.
+  const prefix = (w: number, h: number) => `trim=duration=${sessionD.toFixed(3)},setpts=PTS-STARTPTS,fps=${fps},scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1`
+  let pic: { filter: string | null } = { filter: null }
+  let stab: { trf: string | null } = { trf: null }
+  if (q.enhance) {
+    await logJob(job.id, 'Checking exposure')
+    const p = await analysePicture(source, sessionD)
+    await logJob(job.id, p.note)
+    await logJob(job.id, 'Checking camera shake (this scans the whole video)')
+    const st = await stabiliseTransforms(source, dir, prefix, q.W, q.H).catch(e => ({ trf: null, note: `Stabiliser: failed, skipped (${e instanceof Error ? e.message.slice(0, 160) : String(e)})` }))
+    await logJob(job.id, st.note)
+    pic = p; stab = st
+  }
   const [introD, titleD, outroD] = await Promise.all([introAv, titleAv, outroAv].map(f => probe(f).then(p => p.duration)))
   // Each join overlaps the two pieces by FADE seconds (a crossfade).
   const o1 = introD - FADE, o2 = o1 + titleD - FADE, o3 = o2 + sessionD - FADE
@@ -141,12 +153,12 @@ export async function composeSessionVideo(job: Job, v: Record<string, unknown>, 
   const ltBase = 4, musicIdx = ltBase + overlays.length, audioIdx = musicIdx + (music ? 1 : 0)
   const norm = (k: number) => `[${k}:v]fps=${fps},settb=AVTB,format=yuv420p,setsar=1[n${k}];[${k}:a]aformat=sample_rates=48000:channel_layouts=stereo[m${k}];`
   let graph = norm(0) + norm(1) + norm(3)
-  graph += `[2:v]trim=duration=${sessionD.toFixed(3)},setpts=PTS-STARTPTS,fps=${fps},scale=${q.W}:${q.H}:force_original_aspect_ratio=decrease,pad=${q.W}:${q.H}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,format=yuv420p[s0];`
+  graph += `[2:v]${prefix(q.W, q.H)}${stab.trf ? `,${stabiliseFilter(stab.trf)}` : ''}${pic.filter ? `,${pic.filter}` : ''},format=yuv420p[s0];`
   overlays.forEach((o, k) => {
     graph += `[${ltBase + k}:v]scale=${q.W}:${q.H},format=yuva420p,setpts=PTS-STARTPTS+${o.start}/TB[lt${k}];[s${k}][lt${k}]overlay=eof_action=pass:format=auto[s${k + 1}];`
   })
   graph += `[s${overlays.length}]format=yuv420p,settb=AVTB[n2];`
-  graph += `[${normAudio ? audioIdx : 2}:a]atrim=duration=${sessionD.toFixed(3)},asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_rates=48000:channel_layouts=stereo[m2];`
+  graph += `[${audioIdx}:a]atrim=duration=${sessionD.toFixed(3)},asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_rates=48000:channel_layouts=stereo[m2];`
   graph += `[n0][n1]xfade=transition=fade:duration=${FADE}:offset=${o1.toFixed(3)}[v01];[v01][n2]xfade=transition=fade:duration=${FADE}:offset=${o2.toFixed(3)}[v012];[v012][n3]xfade=transition=fade:duration=${FADE}:offset=${o3.toFixed(3)}[vf];`
   graph += `[m0][m1]acrossfade=d=${FADE}[a01];[a01][m2]acrossfade=d=${FADE}[a012];[a012][m3]acrossfade=d=${FADE}[abase];`
   graph += music ? `${musicCurve.replace('[4:a]', `[${musicIdx}:a]`)}[abase][am]amix=inputs=2:duration=first:normalize=0[af]` : '[abase]anull[af]'
@@ -156,9 +168,9 @@ export async function composeSessionVideo(job: Job, v: Record<string, unknown>, 
   await run('ffmpeg', ['-y', '-v', 'error', '-i', introAv, '-i', titleAv, '-i', source, '-i', outroAv,
     ...overlays.flatMap(o => ['-i', o.file]),
     ...(music ? ['-stream_loop', '-1', '-i', music] : []),
-    ...(normAudio ? ['-i', normAudio] : []),
+    '-i', normAudio,
     '-filter_complex', graph, '-map', '[vf]', '-map', '[af]',
-    '-c:v', 'libx264', '-preset', q.preset, '-crf', q.crf, ...(quality === 'final' ? ['-profile:v', 'high'] : []), '-pix_fmt', 'yuv420p',
+    '-c:v', 'libx264', '-preset', q.preset, ...(q.bitrate ? ['-b:v', q.bitrate, '-maxrate', '15M', '-bufsize', '24M'] : ['-crf', q.crf]), ...(quality === 'final' ? ['-profile:v', 'high'] : []), '-pix_fmt', 'yuv420p',
     '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-movflags', '+faststart', out])
   return out
 }
