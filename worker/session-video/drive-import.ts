@@ -17,7 +17,9 @@ export async function runDriveImport(job: Job): Promise<void> {
 
   const fileId = v.drive_file_id as string | null
   const token = v.drive_access_token as string | null
-  if (!fileId || !token) throw new Error('drive_file_id or drive_access_token missing from the video record.')
+  // A pasted share link (createVideoFromDriveLink) has no sign-in token: the file is shared "Anyone with the link", so the Drive API key reads it.
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_DRIVE_API_KEY
+  if (!fileId || (!token && !apiKey)) throw new Error('drive_file_id or drive_access_token missing from the video record.')
 
   const sizeBytes = v.size_bytes as number
   const contentType = (v.content_type as string | null) ?? 'video/mp4'
@@ -44,13 +46,13 @@ export async function runDriveImport(job: Job): Promise<void> {
   let qi = 0
   let transferred = done.size * CHUNK
 
-  const driveUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`
+  const driveUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media${token ? '' : `&key=${apiKey}`}`
 
   async function fetchAndUpload(n: number): Promise<void> {
     const start = (n - 1) * CHUNK
     const end = Math.min(sizeBytes - 1, n * CHUNK - 1)
 
-    const driveRes = await fetch(driveUrl, { headers: { Authorization: `Bearer ${token}`, Range: `bytes=${start}-${end}` } })
+    const driveRes = await fetch(driveUrl, { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), Range: `bytes=${start}-${end}` } })
     if (!driveRes.ok) {
       const body = await driveRes.text().catch(() => '')
       throw new Error(`Drive API returned ${driveRes.status} for bytes ${start}-${end}: ${body.slice(0, 200)}`)
