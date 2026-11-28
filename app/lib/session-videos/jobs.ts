@@ -15,9 +15,11 @@ export async function enqueueJob(videoId: string, kind: JobKind): Promise<string
   return data.id as string
 }
 
-/** Oldest queued job, claimed atomically (only the worker whose update still sees it queued gets it). */
+/** Oldest queued job, claimed atomically (only the worker whose update still sees it queued gets it). Previews go first: someone at a stage
+    is waiting to review one, while the other jobs run in the background (28 Nov 2026, several stages processing at once). */
 export async function claimNextJob(): Promise<Job | null> {
-  const { data: next } = await supabaseAdmin.from('video_jobs').select('id').eq('status', 'queued').order('created_at').limit(1).maybeSingle()
+  const { data: preview } = await supabaseAdmin.from('video_jobs').select('id').eq('status', 'queued').eq('kind', 'render_preview').order('created_at').limit(1).maybeSingle()
+  const { data: next } = preview ? { data: preview } : await supabaseAdmin.from('video_jobs').select('id').eq('status', 'queued').order('created_at').limit(1).maybeSingle()
   if (!next) return null
   const { data: got } = await supabaseAdmin.from('video_jobs').update({ status: 'running', started_at: new Date().toISOString() }).eq('id', next.id).eq('status', 'queued').select('id, session_video_id, kind, status, attempts').maybeSingle()
   if (!got) return null

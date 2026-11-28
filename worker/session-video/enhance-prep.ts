@@ -6,7 +6,7 @@ import { createGzip, createGunzip } from 'node:zlib'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { downloadToFile, uploadFile } from '@/app/lib/session-videos/storage'
 import { logJob, type Job } from '@/app/lib/session-videos/jobs'
-import { lowPriority, threadUsage, makeScratch, probe, loudnorm, run, workerCores } from './ffmpeg-utils'
+import { ffmpegThreads, lowPriority, threadUsage, makeScratch, probe, loudnorm, run, workerCores } from './ffmpeg-utils'
 import { analysePicture, detectFilter, enhanceAudio, hasVidstab, motionFromHalf, stabiliseFilter } from './enhance'
 
 /* enhance_prep job (2026-11-27): the slow analysis behind the final's clean-up, done ONCE right after ingest (in parallel with the transcript), so
@@ -47,7 +47,7 @@ export async function prepareCleanup(source: string, dir: string, log: (line: st
   const total = Math.max(1, Math.round(src.duration * fps))   // frames (the last piece always runs to the real end)
   const n = Math.max(1, Math.min(prepPieces(), Math.floor(total / (fps * 60))))   // pieces of at least a minute
   const at = (frame: number) => (frame / fps).toFixed(6)
-  const pieceThreads = Math.max(2, Math.floor((workerCores() - 1) / n))   // n ffmpeg side by side; one core left for the sound clean-up
+  const pieceThreads = Math.max(3, Math.floor((ffmpegThreads() - 1) / n))   // this job's share of the cores across n pieces; one core for the sound
   await log(`Measuring exposure, scanning for camera shake (${n} piece${n === 1 ? '' : 's'} side by side) and cleaning up the sound`)
 
   // Sound runs alongside everything else (one core).

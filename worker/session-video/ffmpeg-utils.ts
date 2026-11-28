@@ -28,7 +28,15 @@ export function workerCores(): number {
 /** Every ffmpeg gets an explicit thread budget (decoders, filters, encoder) instead of "auto" = host cores. Default: all the worker's cores —
     half was 3.5x slower for a lone final (28 Nov 2026), and two ffmpeg at 24 threads stay far below the thread limit that 6 x auto(48) hit.
     Callers running several ffmpeg side by side pass a smaller budget. */
-export function ffmpegThreads(): number { return Math.max(2, workerCores()) }
+export function ffmpegThreads(): number { return Math.max(2, Math.floor(workerCores() / Math.max(1, activeJobs))) }
+
+/** Jobs running in this worker right now (main.ts counts them). Each job's ffmpeg gets an equal share of the cores, so two jobs side by side
+    (e.g. two stages' finals approved together) never reach the thread limit, and a job running alone keeps the full speed. */
+let activeJobs = 0
+export async function asJob<T>(fn: () => Promise<T>): Promise<T> {
+  activeJobs++
+  try { return await fn() } finally { activeJobs-- }
+}
 
 /** Background work (the clean-up prep) runs its ffmpeg at lower CPU priority, so a preview or final requested meanwhile isn't starved by it.
     Scoped per job with AsyncLocalStorage — two jobs run in the same process. */
@@ -74,7 +82,18 @@ export async function ffmpegProcess(args: string[], opts: { threads?: number; ke
   }
 }
 
-function ffmpegOnce(args: string[], opts: { threads?: number; keepStderr?: 'tail' | 'all' }): Promise<{ out: string; err: string }> {
+/** Last line of defence: wait (up to 5 min) while the container is close to its thread limit, instead of failing mid-start. */
+async function waitForThreadRoom(): Promise<void> {
+  for (let i = 0; i < 60; i++) {
+    let cur = 0, max = 0
+    try { cur = Number(readFileSync('/sys/fs/cgroup/pids.current', 'utf8')); max = Number(readFileSync('/sys/fs/cgroup/pids.max', 'utf8')) } catch { return }
+    if (!max || cur < max * 0.75) return
+    await new Promise(r => setTimeout(r, 5000))
+  }
+}
+
+async function ffmpegOnce(args: string[], opts: { threads?: number; keepStderr?: 'tail' | 'all' }): Promise<{ out: string; err: string }> {
+  await waitForThreadRoom()
   const plain = args.includes('-filters') || args.includes('-version')
   const threads = Math.max(1, Math.round(opts.threads ?? ffmpegThreads()))
   const full = plain ? args : ['-progress', 'pipe:3', '-nostats', ...withThreads(args, threads)]

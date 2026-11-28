@@ -1,6 +1,7 @@
 import { runYoutubeUpload } from './youtube-upload'
 import { claimNextJob, failJob, finishJob, logJob, requeueStale } from '@/app/lib/session-videos/jobs'
 import { claimNextCreativeJob, failCreativeJob, finishCreativeJob, requeueStaleCreativeJobs } from '@/app/lib/lower-thirds/jobs'
+import { asJob } from './ffmpeg-utils'
 import { runDriveImport } from './drive-import'
 import { runIngest } from './ingest'
 import { runTranscribe } from './transcribe'
@@ -47,6 +48,7 @@ async function loop(slot: number) {
       if (job) {
         console.log(`[video-worker] #${slot} ${job.kind} ${job.session_video_id} (attempt ${job.attempts})`)
         try {
+          await asJob(async () => {
           if (job.kind === 'drive_import') await runDriveImport(job)
           else if (job.kind === 'ingest') await runIngest(job)
           else if (job.kind === 'transcribe') await runTranscribe(job)
@@ -58,6 +60,7 @@ async function loop(slot: number) {
           else if (job.kind === 'youtube_upload') await runYoutubeUpload(job)
           else if (job.kind === 'enhance_prep') await runEnhancePrep(job)
           else throw new Error(`Unknown job kind ${job.kind}`)
+          })
           await finishJob(job.id); console.log(`[video-worker] ${job.kind} done`)
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e)
@@ -71,8 +74,10 @@ async function loop(slot: number) {
       if (creative) {
         console.log(`[video-worker] creative/${creative.kind} session=${creative.agenda_session_id} speaker=${creative.speaker_id} (attempt ${creative.attempts})`)
         try {
+          await asJob(async () => {
           if (creative.kind === 'lower_third') await runLowerThirdJob({ ...creative, params: creative.params as { variant_id: string } })
           else throw new Error(`Unknown creative job kind ${creative.kind}`)
+          })
           await finishCreativeJob(creative.id); console.log(`[video-worker] creative/${creative.kind} done`)
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e)
