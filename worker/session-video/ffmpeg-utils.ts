@@ -33,13 +33,22 @@ export function ffmpegThreads(): number { return Math.max(2, workerCores()) }
 /** Background work (the clean-up prep) runs its ffmpeg at lower CPU priority, so a preview or final requested meanwhile isn't starved by it.
     Scoped per job with AsyncLocalStorage — two jobs run in the same process. */
 export const lowPriority = new AsyncLocalStorage<boolean>()
+/** The container may run at most 1000 threads in total (cgroup pids.max, read on the worker 28 Nov 2026); a lone inline final was using ~730
+    of them, because every input decoder took the full budget and vid.stab's OpenMP pool sized itself to the host's 48 cores. Shown in logs. */
+export function threadUsage(): string {
+  try {
+    const max = readFileSync('/sys/fs/cgroup/pids.max', 'utf8').trim(), cur = readFileSync('/sys/fs/cgroup/pids.current', 'utf8').trim()
+    return `${cur} of ${max} threads in use`
+  } catch { return 'thread use unknown' }
+}
+
 export function withThreads(args: string[], threads: number): string[] {
   if (args.includes('-threads')) return args
   const t = String(Math.max(1, Math.round(threads)))
   const out: string[] = ['-filter_threads', t]
   args.forEach((a, i) => {
     if (i === args.length - 1) out.push('-threads', t)   // output (encoder) threads, right before the output name
-    if (a === '-i') out.push('-threads', t)               // input (decoder) threads
+    if (a === '-i') out.push('-threads', String(Math.min(6, Number(t))))   // input (decoder) threads — a final has many inputs
     out.push(a)
   })
   return out
@@ -50,13 +59,30 @@ export function withThreads(args: string[], threads: number): string[] {
     killed and the job fails with a clear message. Long encodes keep reporting progress, so they are never cut off. */
 const STALL_MS = Math.max(0.05, Number(process.env.VIDEO_FFMPEG_STALL_MIN) || 10) * 60_000
 
-export function ffmpegProcess(args: string[], opts: { threads?: number; keepStderr?: 'tail' | 'all' } = {}): Promise<{ out: string; err: string }> {
+export async function ffmpegProcess(args: string[], opts: { threads?: number; keepStderr?: 'tail' | 'all' } = {}): Promise<{ out: string; err: string }> {
+  // Thread creation can still fail briefly when another job is starting up; such failures happen within seconds, so retrying is cheap.
+  for (let attempt = 1; ; attempt++) {
+    const started = Date.now()
+    try {
+      return await ffmpegOnce(args, opts)
+    } catch (e) {
+      const msg = (e as Error).message
+      const transient = /EAGAIN|Resource temporarily unavailable|Thread creation failed/.test(msg) && Date.now() - started < 60_000
+      if (!transient || attempt >= 5) throw e
+      await new Promise(r => setTimeout(r, 15_000 * attempt))
+    }
+  }
+}
+
+function ffmpegOnce(args: string[], opts: { threads?: number; keepStderr?: 'tail' | 'all' }): Promise<{ out: string; err: string }> {
   const plain = args.includes('-filters') || args.includes('-version')
-  const full = plain ? args : ['-progress', 'pipe:3', '-nostats', ...withThreads(args, opts.threads ?? ffmpegThreads())]
+  const threads = Math.max(1, Math.round(opts.threads ?? ffmpegThreads()))
+  const full = plain ? args : ['-progress', 'pipe:3', '-nostats', ...withThreads(args, threads)]
+  const env = { ...process.env, OMP_NUM_THREADS: String(threads) }   // vid.stab's OpenMP pool, otherwise one thread per host core
   return new Promise((resolve, reject) => {
     const p = lowPriority.getStore()
-      ? spawn('nice', ['-n', '10', 'ffmpeg', ...full], { stdio: ['ignore', 'pipe', 'pipe', 'pipe'] })
-      : spawn('ffmpeg', full, { stdio: ['ignore', 'pipe', 'pipe', 'pipe'] })
+      ? spawn('nice', ['-n', '10', 'ffmpeg', ...full], { stdio: ['ignore', 'pipe', 'pipe', 'pipe'], env })
+      : spawn('ffmpeg', full, { stdio: ['ignore', 'pipe', 'pipe', 'pipe'], env })
     let out = '', err = '', stalled = false
     let timer: NodeJS.Timeout | undefined
     const arm = () => {

@@ -6,7 +6,7 @@ import { createGzip, createGunzip } from 'node:zlib'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { downloadToFile, uploadFile } from '@/app/lib/session-videos/storage'
 import { logJob, type Job } from '@/app/lib/session-videos/jobs'
-import { lowPriority, makeScratch, probe, loudnorm, run, workerCores } from './ffmpeg-utils'
+import { lowPriority, threadUsage, makeScratch, probe, loudnorm, run, workerCores } from './ffmpeg-utils'
 import { analysePicture, detectFilter, enhanceAudio, hasVidstab, motionFromHalf, stabiliseFilter } from './enhance'
 
 /* enhance_prep job (2026-11-27): the slow analysis behind the final's clean-up, done ONCE right after ingest (in parallel with the transcript), so
@@ -127,7 +127,7 @@ export async function runEnhancePrep(job: Job): Promise<void> {
   if (!v || !sourcePath) throw new Error('No upload to prepare from yet.')
   const dir = makeScratch()
   try {
-    await logJob(job.id, `Downloading the original upload (this worker can use ${workerCores()} cores)`)
+    await logJob(job.id, `Downloading the original upload (this worker can use ${workerCores()} cores; ${threadUsage()})`)
     const source = join(dir, 'source')
     await downloadToFile(sourcePath, source)
     const src = await probe(source)
