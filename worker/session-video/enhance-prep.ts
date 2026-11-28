@@ -1,13 +1,12 @@
 import { createReadStream, createWriteStream, rmSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
-import { cpus } from 'node:os'
 import { join } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { createGzip, createGunzip } from 'node:zlib'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { downloadToFile, uploadFile } from '@/app/lib/session-videos/storage'
 import { logJob, type Job } from '@/app/lib/session-videos/jobs'
-import { makeScratch, probe, loudnorm, run } from './ffmpeg-utils'
+import { makeScratch, probe, loudnorm, run, workerCores } from './ffmpeg-utils'
 import { analysePicture, detectFilter, enhanceAudio, hasVidstab, motionFromHalf, stabiliseFilter } from './enhance'
 
 /* enhance_prep job (2026-11-27): the slow analysis behind the final's clean-up, done ONCE right after ingest (in parallel with the transcript), so
@@ -34,7 +33,7 @@ export const FINAL_W = 1920, FINAL_H = 1080
     pieces use the worker's other cores (2.5x faster with 4 pieces on an 8-core test machine). Override with VIDEO_PREP_PIECES. */
 export function prepPieces(): number {
   const env = Number(process.env.VIDEO_PREP_PIECES)
-  return Math.max(1, Math.min(6, Number.isFinite(env) && env > 0 ? Math.round(env) : cpus().length - 1))
+  return Math.max(1, Math.min(6, Number.isFinite(env) && env > 0 ? Math.round(env) : workerCores() - 1))
 }
 
 type Prepared = { pic: { filter: string | null; note: string }; stabNote: string; trf: string | null; audio: string; session: string; pieces: number; frames: number }
@@ -47,6 +46,7 @@ export async function prepareCleanup(source: string, dir: string, log: (line: st
   const total = Math.max(1, Math.round(src.duration * fps))   // frames (the last piece always runs to the real end)
   const n = Math.max(1, Math.min(prepPieces(), Math.floor(total / (fps * 60))))   // pieces of at least a minute
   const at = (frame: number) => (frame / fps).toFixed(6)
+  const pieceThreads = Math.max(1, Math.floor(workerCores() / (n + 1)))   // n ffmpeg side by side, plus the sound clean-up
   await log(`Measuring exposure, scanning for camera shake (${n} piece${n === 1 ? '' : 's'} side by side) and cleaning up the sound`)
 
   // Sound runs alongside everything else (one core).
@@ -62,7 +62,7 @@ export async function prepareCleanup(source: string, dir: string, log: (line: st
       const bounds = Array.from({ length: n + 1 }, (_, k) => Math.round(total * k / n))
       await Promise.all(bounds.slice(0, -1).map(async (a, k) => run('ffmpeg', ['-y', '-v', 'error', '-ss', at(a), '-i', source,
         ...(k < n - 1 ? ['-frames:v', String(bounds[k + 1] - a)] : []),
-        '-vf', `${sessionPrefix(fps)(FINAL_W / 2, FINAL_H / 2)},${await detectFilter(join(dir, `half_${k}.trf`))}`, '-f', 'null', '-'])))
+        '-vf', `${sessionPrefix(fps)(FINAL_W / 2, FINAL_H / 2)},${await detectFilter(join(dir, `half_${k}.trf`))}`, '-f', 'null', '-'], pieceThreads)))
       const merged: string[] = []
       for (let k = 0; k < n; k++) {
         for (const l of (await readFile(join(dir, `half_${k}.trf`), 'utf8')).split('\n')) {
@@ -108,7 +108,7 @@ export async function prepareCleanup(source: string, dir: string, log: (line: st
     const file = join(dir, `clean_${k}.mp4`)
     await run('ffmpeg', ['-y', '-v', 'error', '-ss', at(a), '-i', source, ...(last ? [] : ['-frames:v', String(b[k + 1] - a)]), '-an', '-vf',
       `${sessionPrefix(fps)(FINAL_W, FINAL_H)}${pieceTrf ? `,${stabiliseFilter(pieceTrf)}` : ''}${pic.filter ? `,${pic.filter}` : ''},format=yuv420p`,
-      '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p', '-r', String(fps), file])
+      '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p', '-r', String(fps), file], pieceThreads)
     return file
   }))
   const list = join(dir, 'pieces.txt')
@@ -126,7 +126,7 @@ export async function runEnhancePrep(job: Job): Promise<void> {
   if (!v || !sourcePath) throw new Error('No upload to prepare from yet.')
   const dir = makeScratch()
   try {
-    await logJob(job.id, `Downloading the original upload (this worker has ${cpus().length} cores)`)
+    await logJob(job.id, `Downloading the original upload (this worker can use ${workerCores()} cores)`)
     const source = join(dir, 'source')
     await downloadToFile(sourcePath, source)
     const src = await probe(source)

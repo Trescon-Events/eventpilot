@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { ffmpegProcess } from './ffmpeg-utils'
 
 /* Automatic clean-up of the session footage (2026-11-27), applied by compose.ts to the FINAL render only (the preview stays basic and fast):
    1. Picture: one tone curve per video (no flicker) from frames sampled across it — black point, faces/mid-tones lifted, backdrop kept dark,
@@ -11,13 +12,7 @@ import { join } from 'node:path'
       (Overall loudness is set afterwards by loudnorm on the final.) */
 
 function ff(args: string[]): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const p = spawn('ffmpeg', args, { stdio: ['ignore', 'ignore', 'pipe'] })
-    let err = ''
-    p.stderr.on('data', d => { err += d; if (err.length > 4_000_000) err = err.slice(-2_000_000) })
-    p.on('error', e => reject(new Error(`ffmpeg could not start: ${e.message}`)))
-    p.on('close', code => (code === 0 ? resolve(err) : reject(new Error(`ffmpeg exited ${code}: ${err.slice(-400)}`))))
-  })
+  return ffmpegProcess(args, { keepStderr: 'all' }).then(r => r.err)
 }
 
 let vidstabCache: boolean | null = null

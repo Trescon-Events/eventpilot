@@ -1,9 +1,80 @@
 import { spawn } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { availableParallelism, tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-export function run(cmd: string, args: string[]): Promise<string> {
+/** CPUs this container may actually use. os.cpus() reports the whole host (48 on Railway) while the container gets a cgroup quota; ffmpeg's
+    "auto" threads follow the host count, so a few ffmpeg side by side tried to start hundreds of threads and hit the container's limit
+    ("Resource temporarily unavailable" / spawn EAGAIN, 28 Nov 2026). Reads the cgroup v2 / v1 quota; with no quota, at most 8. */
+let coresCache: number | null = null
+export function workerCores(): number {
+  if (coresCache) return coresCache
+  let quota: number | null = null
+  try {
+    const [q, period] = readFileSync('/sys/fs/cgroup/cpu.max', 'utf8').trim().split(/\s+/)
+    if (q !== 'max') quota = Number(q) / Number(period)
+  } catch {
+    try {
+      const q = Number(readFileSync('/sys/fs/cgroup/cpu/cpu.cfs_quota_us', 'utf8')), period = Number(readFileSync('/sys/fs/cgroup/cpu/cpu.cfs_period_us', 'utf8'))
+      if (q > 0 && period > 0) quota = q / period
+    } catch { /* not Linux / no cgroup */ }
+  }
+  const host = availableParallelism()
+  coresCache = Math.max(1, Math.min(host, quota && Number.isFinite(quota) ? Math.floor(quota) : 8))
+  return coresCache
+}
+
+/** Every ffmpeg gets an explicit thread budget (decoders, filters, encoder) instead of "auto" = host cores. Default: half the worker's cores,
+    as two jobs can run at once. Callers running several ffmpeg side by side pass a smaller budget. */
+export function ffmpegThreads(): number { return Math.max(2, Math.floor(workerCores() / 2)) }
+export function withThreads(args: string[], threads: number): string[] {
+  if (args.includes('-threads')) return args
+  const t = String(Math.max(1, Math.round(threads)))
+  const out: string[] = ['-filter_threads', t]
+  args.forEach((a, i) => {
+    if (i === args.length - 1) out.push('-threads', t)   // output (encoder) threads, right before the output name
+    if (a === '-i') out.push('-threads', t)               // input (decoder) threads
+    out.push(a)
+  })
+  return out
+}
+
+/** A stuck ffmpeg used to hold a worker slot until the 90-minute stale-job sweep (27 Nov 2026). ffmpeg now reports progress on a side
+    channel (fd 3, so stderr stays clean for callers that parse it); with no progress for VIDEO_FFMPEG_STALL_MIN minutes (default 10) it is
+    killed and the job fails with a clear message. Long encodes keep reporting progress, so they are never cut off. */
+const STALL_MS = Math.max(0.05, Number(process.env.VIDEO_FFMPEG_STALL_MIN) || 10) * 60_000
+
+export function ffmpegProcess(args: string[], opts: { threads?: number; keepStderr?: 'tail' | 'all' } = {}): Promise<{ out: string; err: string }> {
+  const plain = args.includes('-filters') || args.includes('-version')
+  const full = plain ? args : ['-progress', 'pipe:3', '-nostats', ...withThreads(args, opts.threads ?? ffmpegThreads())]
+  return new Promise((resolve, reject) => {
+    const p = spawn('ffmpeg', full, { stdio: ['ignore', 'pipe', 'pipe', 'pipe'] })
+    let out = '', err = '', stalled = false
+    let timer: NodeJS.Timeout | undefined
+    const arm = () => {
+      clearTimeout(timer)
+      timer = setTimeout(() => { stalled = true; p.kill('SIGKILL') }, STALL_MS)
+    }
+    arm()
+    p.stdio[3]?.on('data', arm)
+    p.stdio[3]?.on('error', () => {})
+    p.stdout!.on('data', d => { out += d })
+    p.stderr!.on('data', d => {
+      err += d
+      if (opts.keepStderr === 'all') { if (err.length > 4_000_000) err = err.slice(-2_000_000) } else err = err.slice(-6000)
+    })
+    p.on('error', e => { clearTimeout(timer); reject(new Error(`ffmpeg could not start: ${e.message}`)) })
+    p.on('close', code => {
+      clearTimeout(timer)
+      if (stalled) reject(new Error(`ffmpeg made no progress for ${STALL_MS / 60_000} minutes and was stopped: ${err.slice(-400)}`))
+      else if (code === 0) resolve({ out, err })
+      else reject(new Error(`ffmpeg exited ${code}: ${err.slice(-800)}`))
+    })
+  })
+}
+
+export function run(cmd: string, args: string[], threads?: number): Promise<string> {
+  if (cmd === 'ffmpeg') return ffmpegProcess(args, { threads }).then(r => r.out)
   return new Promise((resolve, reject) => {
     const p = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
     let out = '', err = ''
