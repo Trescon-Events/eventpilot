@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { availableParallelism, tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { AsyncLocalStorage } from 'node:async_hooks'
 
 /** CPUs this container may actually use. os.cpus() reports the whole host (48 on Railway) while the container gets a cgroup quota; ffmpeg's
     "auto" threads follow the host count, so a few ffmpeg side by side tried to start hundreds of threads and hit the container's limit
@@ -24,9 +25,14 @@ export function workerCores(): number {
   return coresCache
 }
 
-/** Every ffmpeg gets an explicit thread budget (decoders, filters, encoder) instead of "auto" = host cores. Default: half the worker's cores,
-    as two jobs can run at once. Callers running several ffmpeg side by side pass a smaller budget. */
-export function ffmpegThreads(): number { return Math.max(2, Math.floor(workerCores() / 2)) }
+/** Every ffmpeg gets an explicit thread budget (decoders, filters, encoder) instead of "auto" = host cores. Default: all the worker's cores —
+    half was 3.5x slower for a lone final (28 Nov 2026), and two ffmpeg at 24 threads stay far below the thread limit that 6 x auto(48) hit.
+    Callers running several ffmpeg side by side pass a smaller budget. */
+export function ffmpegThreads(): number { return Math.max(2, workerCores()) }
+
+/** Background work (the clean-up prep) runs its ffmpeg at lower CPU priority, so a preview or final requested meanwhile isn't starved by it.
+    Scoped per job with AsyncLocalStorage — two jobs run in the same process. */
+export const lowPriority = new AsyncLocalStorage<boolean>()
 export function withThreads(args: string[], threads: number): string[] {
   if (args.includes('-threads')) return args
   const t = String(Math.max(1, Math.round(threads)))
@@ -48,7 +54,9 @@ export function ffmpegProcess(args: string[], opts: { threads?: number; keepStde
   const plain = args.includes('-filters') || args.includes('-version')
   const full = plain ? args : ['-progress', 'pipe:3', '-nostats', ...withThreads(args, opts.threads ?? ffmpegThreads())]
   return new Promise((resolve, reject) => {
-    const p = spawn('ffmpeg', full, { stdio: ['ignore', 'pipe', 'pipe', 'pipe'] })
+    const p = lowPriority.getStore()
+      ? spawn('nice', ['-n', '10', 'ffmpeg', ...full], { stdio: ['ignore', 'pipe', 'pipe', 'pipe'] })
+      : spawn('ffmpeg', full, { stdio: ['ignore', 'pipe', 'pipe', 'pipe'] })
     let out = '', err = '', stalled = false
     let timer: NodeJS.Timeout | undefined
     const arm = () => {

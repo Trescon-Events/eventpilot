@@ -6,7 +6,7 @@ import { createGzip, createGunzip } from 'node:zlib'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { downloadToFile, uploadFile } from '@/app/lib/session-videos/storage'
 import { logJob, type Job } from '@/app/lib/session-videos/jobs'
-import { makeScratch, probe, loudnorm, run, workerCores } from './ffmpeg-utils'
+import { lowPriority, makeScratch, probe, loudnorm, run, workerCores } from './ffmpeg-utils'
 import { analysePicture, detectFilter, enhanceAudio, hasVidstab, motionFromHalf, stabiliseFilter } from './enhance'
 
 /* enhance_prep job (2026-11-27): the slow analysis behind the final's clean-up, done ONCE right after ingest (in parallel with the transcript), so
@@ -29,11 +29,12 @@ export const sessionPrefix = (fps: number, trimS?: number) => (w: number, h: num
 
 export const FINAL_W = 1920, FINAL_H = 1080
 
-/** How many pieces the session is split into and processed side by side. The stabiliser and picture filters each use about one core, so
-    pieces use the worker's other cores (2.5x faster with 4 pieces on an 8-core test machine). Override with VIDEO_PREP_PIECES. */
+/** How many pieces the session is split into and processed side by side (2.5x faster with 4 pieces on an 8-core test machine). At most 3:
+    6 pieces of 3 threads each on the 24-core worker were slower than one process (decoding the full-size upload needs threads; 28 Nov 2026).
+    Override with VIDEO_PREP_PIECES. */
 export function prepPieces(): number {
   const env = Number(process.env.VIDEO_PREP_PIECES)
-  return Math.max(1, Math.min(6, Number.isFinite(env) && env > 0 ? Math.round(env) : workerCores() - 1))
+  return Math.max(1, Math.min(3, Number.isFinite(env) && env > 0 ? Math.round(env) : workerCores() - 1))
 }
 
 type Prepared = { pic: { filter: string | null; note: string }; stabNote: string; trf: string | null; audio: string; session: string; pieces: number; frames: number }
@@ -46,7 +47,7 @@ export async function prepareCleanup(source: string, dir: string, log: (line: st
   const total = Math.max(1, Math.round(src.duration * fps))   // frames (the last piece always runs to the real end)
   const n = Math.max(1, Math.min(prepPieces(), Math.floor(total / (fps * 60))))   // pieces of at least a minute
   const at = (frame: number) => (frame / fps).toFixed(6)
-  const pieceThreads = Math.max(1, Math.floor(workerCores() / (n + 1)))   // n ffmpeg side by side, plus the sound clean-up
+  const pieceThreads = Math.max(2, Math.floor((workerCores() - 1) / n))   // n ffmpeg side by side; one core left for the sound clean-up
   await log(`Measuring exposure, scanning for camera shake (${n} piece${n === 1 ? '' : 's'} side by side) and cleaning up the sound`)
 
   // Sound runs alongside everything else (one core).
@@ -131,7 +132,7 @@ export async function runEnhancePrep(job: Job): Promise<void> {
     await downloadToFile(sourcePath, source)
     const src = await probe(source)
     const base = `session-videos/${v.event_id}/${v.id}`
-    const r = await prepareCleanup(source, dir, line => logJob(job.id, line))
+    const r = await lowPriority.run(true, () => prepareCleanup(source, dir, line => logJob(job.id, line)))
 
     await logJob(job.id, 'Saving the results for the final render')
     const audioKey = `${base}/prep_audio.m4a`, sessionKey = `${base}/prep_session.mp4`
