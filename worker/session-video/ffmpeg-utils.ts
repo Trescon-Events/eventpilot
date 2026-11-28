@@ -53,7 +53,9 @@ export function threadUsage(): string {
 export function withThreads(args: string[], threads: number): string[] {
   if (args.includes('-threads')) return args
   const t = String(Math.max(1, Math.round(threads)))
-  const out: string[] = ['-filter_threads', t]
+  // Filters: at most 4. In ffmpeg 5.1 every scale filter keeps its own pool of this size, and a final has ~26 of them (plus they are re-created
+  // when a new input starts mid-render) — at 12 that alone was ~300 threads and broke a preview in the 4-stage load test (28 Nov 2026).
+  const out: string[] = ['-filter_threads', String(Math.min(4, Number(t)))]
   args.forEach((a, i) => {
     if (i === args.length - 1) out.push('-threads', t)   // output (encoder) threads, right before the output name
     if (a === '-i') out.push('-threads', String(Math.min(6, Number(t))))   // input (decoder) threads — a final has many inputs
@@ -75,19 +77,20 @@ export async function ffmpegProcess(args: string[], opts: { threads?: number; ke
       return await ffmpegOnce(args, opts)
     } catch (e) {
       const msg = (e as Error).message
-      const transient = /EAGAIN|Resource temporarily unavailable|Thread creation failed/.test(msg) && Date.now() - started < 60_000
-      if (!transient || attempt >= 5) throw e
+      // Also mid-run: filters are rebuilt (and threads created) when a new input starts, so a thread shortage can hit minutes in.
+      const transient = /EAGAIN|Resource temporarily unavailable|Thread creation failed/.test(msg)
+      if (!transient || attempt >= (Date.now() - started < 60_000 ? 5 : 3)) throw e
       await new Promise(r => setTimeout(r, 15_000 * attempt))
     }
   }
 }
 
-/** Last line of defence: wait (up to 5 min) while the container is close to its thread limit, instead of failing mid-start. */
+/** Last line of defence: wait (up to 5 min) while the container is above 65% of its thread limit, instead of failing mid-start. */
 async function waitForThreadRoom(): Promise<void> {
   for (let i = 0; i < 60; i++) {
     let cur = 0, max = 0
     try { cur = Number(readFileSync('/sys/fs/cgroup/pids.current', 'utf8')); max = Number(readFileSync('/sys/fs/cgroup/pids.max', 'utf8')) } catch { return }
-    if (!max || cur < max * 0.75) return
+    if (!max || cur < max * 0.65) return
     await new Promise(r => setTimeout(r, 5000))
   }
 }
